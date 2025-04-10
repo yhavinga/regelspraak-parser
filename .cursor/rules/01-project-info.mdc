@@ -1,0 +1,29 @@
+---
+description: Project information and conventions for the RegelSpraak v2.1.0 ANTLR grammar implementation
+globs: ["*.g4"]
+alwaysApply: false
+---
+
+# RegelSpraak v2.1.0 ANTLR Grammar - Project Information
+
+**Purpose:**
+This context provides information for generating an ANTLR v4 grammar (`.g4` file) capable of parsing the RegelSpraak language, version 2.1.0, as defined in the "RegelSpraak-specificatie v2.1.0.md" document. The grammar should cover both GegevensSpraak definitions (Objecttypes, Parameters, etc.) and RegelSpraak rules (Regels, Beslistabellen fragments).
+
+**Source Specification:**
+"RegelSpraak-specificatie v2.1.0.md"
+
+**Target:**
+ANTLR v4 (specify target language like Java, Python, etc., when generating the parser code from the `.g4` file).
+
+**ANTLR Conventions Used:**
+*   Parser rule names start with a lowercase letter (e.g., `regel`).
+*   Lexer rule names start with an uppercase letter (e.g., `REGEL`, `IDENTIFIER`).
+*   Keywords and fixed operators/punctuation are represented as literals in single quotes (e.g., `'Regel'`, `'plus'`).
+*   Whitespace (`WS` lexer rule) should generally be skipped (`-> skip`).
+*   Comments (if defined, e.g., `LINE_COMMENT`) should also be skipped.
+
+**Goal:**
+Define a `RegelSpraak.g4` file containing both lexer and parser rules based on the provided context files (`02-lexer-rules.mdc`, `03-parser-rules.mdc`, `04-specific-constructs.mdc`). Use the examples (`05-examples.mdc`) to verify the grammar logic.
+
+**File Pattern:**
+pattern: *.g4

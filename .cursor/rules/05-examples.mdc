@@ -1,0 +1,20 @@
+---
+description: Example RegelSpraak v2.1.0 code snippets for testing and verifying the ANTLR grammar implementation
+globs: ["*.g4"]
+alwaysApply: false
+---
+# RegelSpraak v2.1.0 ANTLR Grammar - Parsing Examples
+
+**Purpose:**
+Provide concrete examples of RegelSpraak code and illustrate how the defined ANTLR lexer and parser rules should match them. Use these to test and verify the grammar (`.g4` file).
+
+**File Pattern:**
+pattern: *.g4
+
+**Example 1: Object Type Definition (Ref: §3.9)**
+
+*RegelSpraak Snippet:*
+```regelspraak
+Objecttype de Natuurlijk persoon (mv: Natuurlijke personen) (bezield)
+    is minderjarig kenmerk (bijvoeglijk);
+    de leeftijd Numeriek (niet-negatief geheel getal) met eenheid jr;
