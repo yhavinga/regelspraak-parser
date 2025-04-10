@@ -1,6 +1,11 @@
-from .test_base import RegelSpraakTestCase
+from tests.test_base import RegelSpraakTestCase
 
 class ObjectTypeTests(RegelSpraakTestCase):
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls.parser_rule = 'objectTypeDefinition'
+
     def test_objecttype_file(self):
         """Test parsing a complete file with object type definitions."""
         tree = self.parse_file('objecttype.txt')

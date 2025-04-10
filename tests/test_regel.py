@@ -1,6 +1,11 @@
-from .test_base import RegelSpraakTestCase
+from tests.test_base import RegelSpraakTestCase
 
 class RegelTests(RegelSpraakTestCase):
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls.parser_rule = 'regel'
+
     def test_regel_file(self):
         """Test parsing a complete file with rule definitions."""
         tree = self.parse_file('regel.txt')
@@ -52,8 +57,8 @@ class RegelTests(RegelSpraakTestCase):
             geldig altijd
                 Het netto bedrag moet berekend worden als het bruto bedrag min de korting.
                 Daarbij geldt:
-                de korting is 10 procent van het bruto bedrag.
-        """
+                de korting is 10 procent van het bruto bedrag;
+        ."""
         tree = self.parse_text(input_text)
         self.assertNoParseErrors()
 

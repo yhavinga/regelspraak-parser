@@ -1,14 +1,15 @@
 import os
 import unittest
 from antlr4 import FileStream, CommonTokenStream, InputStream
-from src.main.antlr4.RegelSpraakLexer import RegelSpraakLexer
-from src.main.antlr4.RegelSpraakParser import RegelSpraakParser
+from regelspraak.generated.RegelSpraakLexer import RegelSpraakLexer
+from regelspraak.generated.RegelSpraakParser import RegelSpraakParser
 
 class RegelSpraakTestCase(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         """Set up test class by defining paths."""
         cls.test_resources = os.path.join(os.path.dirname(__file__), 'resources')
+        cls.parser_rule = 'regelSpraakDocument'  # Default rule
 
     def parse_file(self, filename):
         """Parse a file and return the parse tree."""
@@ -29,7 +30,10 @@ class RegelSpraakTestCase(unittest.TestCase):
         parser.removeErrorListeners()  # Remove default error listener
         self.error_listener = TestErrorListener()
         parser.addErrorListener(self.error_listener)
-        return parser.regelSpraakDocument()
+        
+        # Get the parser rule method by name
+        rule_method = getattr(parser, self.parser_rule)
+        return rule_method()
 
     def assertNoParseErrors(self):
         """Assert that no parse errors occurred."""

@@ -1,6 +1,11 @@
-from .test_base import RegelSpraakTestCase
+from tests.test_base import RegelSpraakTestCase
 
 class DomeinTests(RegelSpraakTestCase):
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls.parser_rule = 'domeinDefinition'
+
     def test_domein_file(self):
         """Test parsing a complete file with domain definitions."""
         tree = self.parse_file('domein.txt')
@@ -18,7 +23,7 @@ class DomeinTests(RegelSpraakTestCase):
 
     def test_numeriek_domein(self):
         """Test parsing a numeric domain."""
-        input_text = """Domein Percentage is van het type Numeriek (niet-negatief getal met 2 decimalen) met eenheid %"""
+        input_text = """Domein MijnPercentage is van het type Numeriek (niet-negatief getal met 2 decimalen) met eenheid %"""
         tree = self.parse_text(input_text)
         self.assertNoParseErrors()
 
