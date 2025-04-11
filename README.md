@@ -95,17 +95,24 @@ Refer to the official ANTLR documentation for Windows installation or alternativ
 
 If you modify the `.g4` grammar files, you **must** regenerate the Python parser code. **Ensure the output directory `src/regelspraak/generated/` exists before running.**
 
+The recommended command generates the Lexer, Parser, Visitor, and Listener files together in the correct package structure:
+
 ```bash
 # Make sure you are in the project root directory
 # Ensure the output directory exists: mkdir -p src/regelspraak/generated
 
-# Generate Lexer first (creates .tokens file needed by parser)
-antlr4 -Dlanguage=Python3 src/main/antlr4/RegelSpraakLexer.g4 -o src/regelspraak/generated
-
-# Generate Parser (with visitor pattern support)
-antlr4 -Dlanguage=Python3 -visitor src/main/antlr4/RegelSpraak.g4 -o src/regelspraak/generated -lib src/regelspraak/generated
+cd src/main/antlr4 ; \
+antlr4 -Dlanguage=Python3 RegelSpraakLexer.g4 -o ../../../src/regelspraak/generated ; \
+antlr4 -Dlanguage=Python3 -visitor -listener RegelSpraak.g4 -o ../../../src/regelspraak/generated -package regelspraak.generated ; \
+cd ../../..
 ```
-*Note:* The `-lib` option tells the parser generator where to find the `.tokens` file created by the lexer generator.
+
+*   `-Dlanguage=Python3`: Specifies the target language.
+*   `RegelSpraak.g4 RegelSpraakLexer.g4`: Specifies the grammar files to process.
+*   `-o src/regelspraak/generated`: Defines the output directory for generated files.
+*   `-visitor`: Generates the base Visitor class (used by `src/regelspraak/visitor.py`).
+*   `-listener`: Generates the base Listener class (provides an alternative processing pattern).
+*   `-package regelspraak.generated`: Ensures the generated Python files are part of the `regelspraak.generated` package, crucial for correct imports within the project.
 
 ## Usage
 
