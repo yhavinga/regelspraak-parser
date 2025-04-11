@@ -223,8 +223,24 @@ python -m unittest discover -s tests -p 'test_*.py'
 
 ## License
 
-[License information to be added]
+This project is licensed under the Apache License 2.0 - see the [LICENSE](LICENSE) file for details.
 
 ## Contributing
 
-[Contribution guidelines to be added] 
+Contributions are welcome! Here's how you can help:
+
+1. Fork the repository
+2. Create a feature branch (`git checkout -b feature/amazing-feature`)
+3. Commit your changes (`git commit -m 'Add amazing feature'`)
+4. Push to the branch (`git push origin feature/amazing-feature`)
+5. Open a Pull Request
+
+Please ensure your code follows the existing style and includes appropriate tests.
+
+### Development Setup
+
+1. Follow the installation instructions above
+2. Install development dependencies: `pip install -r requirements-dev.txt` (if exists)
+3. Run tests before submitting: `python -m unittest discover -s tests -p 'test_*.py'`
+4. Ensure your code passes all existing tests
+5. Add new tests for new functionality 
