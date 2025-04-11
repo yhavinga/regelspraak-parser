@@ -8,7 +8,8 @@ class RegelTests(RegelSpraakTestCase):
 
     def test_regel_file(self):
         """Test parsing a complete file with rule definitions."""
-        tree = self.parse_file('regel.txt')
+        tree = self.parse_file('regel.rs')
+        self.assertIsNotNone(tree)
         self.assertNoParseErrors()
 
     def test_simple_regel(self):

@@ -71,6 +71,7 @@ GETAL: 'getal';
 NEGATIEF: 'negatief';
 NIET_NEGATIEF: 'niet-negatief';
 POSITIEF: 'positief';
+VOOR: 'voor';
 VOOR_ELKE_DAG: 'voor elke dag';
 VOOR_ELKE_MAAND: 'voor elke maand';
 VOOR_ELK_JAAR: 'voor elk jaar';
@@ -79,7 +80,6 @@ NA_HET_ATTRIBUUT_MET_VOORZETSEL: '(na het attribuut met voorzetsel';
 VOOR_HET_ATTRIBUUT_ZONDER_VOORZETSEL: '(voor het attribuut zonder voorzetsel):';
 VAN: 'van';
 IN: 'in';
-VOOR: 'voor';
 OVER: 'over';
 OP: 'op';
 BIJ: 'bij';
@@ -112,7 +112,6 @@ GEDURENDE_DE_GEHELE: 'gedurende de gehele';
 PERIODE: 'periode';
 
 // --- Aggregation ---
-AANTAL: 'het aantal';
 SOM_VAN: 'de som van'; // Keep original definition here
 MAXIMALE_WAARDE_VAN: 'de maximale waarde van';
 MINIMALE_WAARDE_VAN: 'de minimale waarde van';
@@ -241,3 +240,7 @@ fragment DIGIT : [0-9] ;
 
 // Removed conflicting MV token
 // MV : '(mv:' ; // Match the starting parenthesis 
+
+KLEINER_IS_DAN: 'kleiner is dan'; 
+IS_GROTER_OF_GELIJK_AAN: 'is groter of gelijk aan'; 
+IS_GROTER_DAN: 'is groter dan'; 

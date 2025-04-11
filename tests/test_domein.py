@@ -8,7 +8,8 @@ class DomeinTests(RegelSpraakTestCase):
 
     def test_domein_file(self):
         """Test parsing a complete file with domain definitions."""
-        tree = self.parse_file('domein.txt')
+        tree = self.parse_file('domein.rs')
+        self.assertIsNotNone(tree)
         self.assertNoParseErrors()
 
     def test_enumeratie_domein(self):

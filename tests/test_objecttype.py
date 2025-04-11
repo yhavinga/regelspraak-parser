@@ -8,7 +8,8 @@ class ObjectTypeTests(RegelSpraakTestCase):
 
     def test_objecttype_file(self):
         """Test parsing a complete file with object type definitions."""
-        tree = self.parse_file('objecttype.txt')
+        tree = self.parse_file('objecttype.rs')
+        self.assertIsNotNone(tree)
         self.assertNoParseErrors()
 
     def test_simple_objecttype(self):

@@ -10,6 +10,7 @@ regelSpraakDocument
 definitie
     : objectTypeDefinition
     | domeinDefinition
+    | parameterDefinition
     ;
 
 // --- Object Type Definition (Based on objecttype.txt) ---
@@ -18,8 +19,13 @@ objectTypeDefinition
       ( objectTypeMember )*
     ;
 
-naamwoord // Allow sequence of IDENTIFIERs and prepositions
-    : (DE | HET | ZIJN)? name+=IDENTIFIER+ ( voorzetsel more_name+=IDENTIFIER+ )*
+// New simple phrase rule
+naamPhrase
+    : (DE | HET | ZIJN)? IDENTIFIER+
+    ;
+
+naamwoord // Modified to handle structure like 'phrase (preposition phrase)*'
+    : naamPhrase ( voorzetsel naamPhrase )*
     ;
 
 objectTypeMember
@@ -52,7 +58,7 @@ datatype
 
 // --- Domain Definition (Based on domein.txt) ---
 domeinDefinition
-    : DOMEIN name+=IDENTIFIER+ IS_VAN_HET_TYPE domeinType (MET_EENHEID (unitName=IDENTIFIER | PERCENT_SIGN))? SEMICOLON?
+    : DOMEIN name+=IDENTIFIER+ IS_VAN_HET_TYPE domeinType (MET_EENHEID eenheidExpressie )? SEMICOLON?
     ;
 
 domeinType
@@ -111,8 +117,46 @@ resultaatDeel // Use single tokens
     | onderwerpReferentie (IS | HEEFT) kenmerkNaam DOT?
     ;
 
-voorwaardeDeel
-    : INDIEN expressie
+voorwaardeDeel // Modified to handle simple and complex conditions
+    : INDIEN ( expressie | toplevelSamengesteldeVoorwaarde ) // Added alternative
+    ;
+
+// EBNF §13.4.13 Samengestelde voorwaarde (Simplified structure)
+toplevelSamengesteldeVoorwaarde
+    : (HIJ | onderwerpReferentie) AAN voorwaardeKwantificatie VOLGENDE_VOORWAARDEN VOLDOET COLON
+      samengesteldeVoorwaardeOnderdeel
+    ;
+
+voorwaardeKwantificatie // EBNF 13.4.13.4 (Simplified)
+    : ALLE // Only handle ALLE for now
+    ;
+
+samengesteldeVoorwaardeOnderdeel // EBNF 13.4.13.6 (Simplified)
+    : BULLET genesteVoorwaarde ( BULLET genesteVoorwaarde )*
+    ;
+
+genesteVoorwaarde // EBNF 13.4.13.7 (Simplified)
+    : elementaireVoorwaarde // Only handling elementaire for now
+    ;
+
+// EBNF §13.4.14 Elementaire voorwaarde (Simplified)
+elementaireVoorwaarde
+    : voorwaardeVergelijking
+    ;
+
+// EBNF §13.4.14.50 VoorwaardeVergelijking (Simplified)
+voorwaardeVergelijking
+    : objectVergelijking
+    | getalVergelijking
+    ;
+
+// Specific comparison types for the test case (Simplified)
+objectVergelijking
+    : onderwerpReferentie IS identifier // E.g., zijn reis is duurzaam
+    ;
+
+getalVergelijking // Refined further for test cases
+    : (naamwoord | attribuutReferentie | bezieldeReferentie) (IS_GROTER_OF_GELIJK_AAN | GROTER_DAN | IS_GROTER_DAN) NUMBER // Added naamwoord
     ;
 
 variabeleDeel // Use single token
@@ -122,7 +166,7 @@ variabeleDeel // Use single token
     ;
 
 variabeleToekenning
-    : naamwoord IS expressie SEMICOLON // Mandatory semicolon
+    : naamwoord IS expressie SEMICOLON?
     ;
 
 // --- Expressions (Refactored to remove left recursion) ---
@@ -138,7 +182,11 @@ comparisonOperator
     : GELIJK_AAN | ONGELIJK_AAN
     | GROTER_DAN | GROTER_OF_GELIJK_AAN
     | KLEINER_DAN | KLEINER_OF_GELIJK_AAN
+    | KLEINER_IS_DAN
     | IS
+    | LATER_DAN | LATER_OF_GELIJK_AAN
+    | EERDER_DAN | EERDER_OF_GELIJK_AAN
+    | NIET
     ;
 
 additiveExpression
@@ -161,6 +209,12 @@ primaryExpression // Use single tokens
     | WAAR | ONWAAR
     | HIJ
     | LPAREN expressie RPAREN
+    | bezieldeReferentie
+    ;
+
+// Rule for bezieldeReferentie (Simplified from spec 13.4.16.37 for ZIJN case)
+bezieldeReferentie
+    : ZIJN identifier
     ;
 
 // --- References ---
@@ -190,5 +244,34 @@ unit
 datumLiteral : DATE_TIME_LITERAL ;
 
 voorzetsel // Define preposition rule needed by naamwoord
-    : VAN | IN | VOOR | OVER | OP | BIJ | UIT
+    : VAN | IN | VOOR | OVER | OP | BIJ | UIT | TOT
+    ;
+
+parameterNamePhrase // Dedicated rule for parameter names
+    : (DE | HET)? IDENTIFIER+ // Reverted to include optional article
+    ;
+
+// EBNF §13.3.8 Parameter Definition
+parameterDefinition
+    : PARAMETER parameterNamePhrase COLON ( datatype | domeinRef )
+      ( MET_EENHEID eenheidExpressie )?
+      tijdlijn? SEMICOLON
+    ;
+
+parameterMetLidwoord
+    : naamwoord
+    ;
+
+eenheidExpressie // Corresponds to unit structure in §13.3.3.2/3. Simplified placeholder based on spec.
+    : eenheidMacht ( SLASH eenheidMacht )?
+    | NUMBER
+    | PERCENT_SIGN // Added % as a unit alternative
+    ;
+
+eenheidMacht // EBNF 13.3.5.5. Simplified placeholder.
+    : identifier ( CARET NUMBER )? // E.g., m^2
+    ;
+
+tijdlijn // EBNF §13.3.6. Modified to accept specific tokens directly.
+    : VOOR_ELKE_DAG | VOOR_ELKE_MAAND | VOOR_ELK_JAAR
     ;

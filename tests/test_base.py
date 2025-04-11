@@ -54,4 +54,31 @@ class TestErrorListener:
         pass  # Ignore full context attempts
 
     def reportContextSensitivity(self, recognizer, dfa, startIndex, stopIndex, prediction, configs):
-        pass  # Ignore context sensitivity reports 
+        pass  # Ignore context sensitivity reports
+
+class RegelSpraakParserTests(RegelSpraakTestCase):
+    # Basic syntax tests for individual files
+    def test_parse_objecttype(self):
+        tree = self.parse_file('objecttype.rs')
+        self.assertIsNotNone(tree)
+        self.assertNoParseErrors()
+
+    def test_parse_domein(self):
+        tree = self.parse_file('domein.rs')
+        self.assertIsNotNone(tree)
+        self.assertNoParseErrors()
+
+    def test_parse_parameter(self):
+        tree = self.parse_file('parameter.rs')
+        self.assertIsNotNone(tree)
+        self.assertNoParseErrors()
+
+    def test_parse_regel(self):
+        tree = self.parse_file('regel.rs')
+        self.assertIsNotNone(tree)
+        self.assertNoParseErrors()
+
+# Add more specific test classes if needed
+
+if __name__ == '__main__':
+    unittest.main() 
