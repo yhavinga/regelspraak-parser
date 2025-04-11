@@ -95,5 +95,17 @@ class RegelTests(RegelSpraakTestCase):
         tree = self.parse_text(input_text)
         self.assertNoParseErrors()
 
+    def test_regel_verminderd_met(self):
+        """Test parsing a rule using the 'verminderd met' operator."""
+        tree = self.parse_file('regel_verminderd_met.rs')
+        self.assertIsNotNone(tree)
+        self.assertNoParseErrors()
+
+    def test_regel_mult_div(self):
+        """Test parsing rules with multiplication and division operators."""
+        tree = self.parse_file('regel_mult_div.rs')
+        self.assertIsNotNone(tree)
+        self.assertNoParseErrors()
+
 if __name__ == '__main__':
     unittest.main() 

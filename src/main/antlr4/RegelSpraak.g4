@@ -185,7 +185,7 @@ rolSpecificatie
 regel
     : REGEL name+=IDENTIFIER+
       regelVersie
-      resultaatDeel ( DOT? | ( voorwaardeDeel DOT? ) ) // Optional condition
+      resultaatDeel ( voorwaardeDeel DOT? | DOT )? // Adjusted termination logic
       ( variabeleDeel )? // Optional variable block
     ;
 
@@ -200,8 +200,8 @@ versieGeldigheid
 
 // §13.4.3 Resultaat Deel (Simplified in original G4)
 resultaatDeel
-    : (attribuutReferentie | onderwerpReferentie) ( WORDT_BEREKEND_ALS expressie | WORDT_GESTELD_OP expressie ) DOT?
-    | onderwerpReferentie (IS | HEEFT) kenmerkNaam DOT?
+    : (attribuutReferentie | onderwerpReferentie) ( WORDT_BEREKEND_ALS expressie | WORDT_GESTELD_OP expressie ) // Removed DOT?
+    | onderwerpReferentie (IS | HEEFT) kenmerkNaam // Removed DOT?
     // Specific result types like gelijkstelling, kenmerkToekenning, etc. are merged here in the simplified G4
     ;
 
@@ -306,10 +306,16 @@ comparisonOperator // Limited set from original G4
     ;
 
 additiveExpression
-    : left=primaryExpression ( additiveOperator right=primaryExpression )*
+    : left=multiplicativeExpression ( additiveOperator right=multiplicativeExpression )*
     ;
 
 additiveOperator : PLUS | MIN | VERMINDERD_MET ; // Limited set
+
+multiplicativeExpression // New rule for higher precedence
+    : left=primaryExpression ( multiplicativeOperator right=primaryExpression )*
+    ;
+
+multiplicativeOperator : MAAL | GEDEELD_DOOR | GEDEELD_DOOR_ABS ; // New rule for operators
 
 primaryExpression // Corresponds roughly to terminals/functions/references in §13.4.16
     // Functions (Simplified subset)
