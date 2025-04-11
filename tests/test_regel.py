@@ -40,6 +40,15 @@ class RegelTests(RegelSpraakTestCase):
         tree = self.parse_text(input_text)
         self.assertNoParseErrors()
 
+    def test_regel_with_open_validity(self):
+        """Test parsing a rule with an open-ended validity period (vanaf)."""
+        input_text = """Regel nieuwe regeling start
+            geldig vanaf 15-07-2023
+                Het starttarief moet gesteld worden op 10.
+        """
+        tree = self.parse_text(input_text)
+        self.assertNoParseErrors()
+
     def test_regel_with_complex_conditions(self):
         """Test parsing a rule with complex conditions."""
         input_text = """Regel bepaal korting
@@ -59,6 +68,29 @@ class RegelTests(RegelSpraakTestCase):
                 Het netto bedrag moet berekend worden als het bruto bedrag min de korting.
                 Daarbij geldt:
                 de korting is 10 procent van het bruto bedrag;
+        ."""
+        tree = self.parse_text(input_text)
+        self.assertNoParseErrors()
+
+    def test_regel_met_stelling(self):
+        """Test parsing a rule using 'wordt gesteld op' for direct assignment."""
+        input_text = """Regel stel standaard waarde
+            geldig altijd
+                Het standaard tarief moet gesteld worden op 25.
+        """
+        tree = self.parse_text(input_text)
+        self.assertNoParseErrors()
+
+    def test_regel_with_multiple_variables(self):
+        """Test parsing a rule with multiple variable definitions."""
+        input_text = """Regel bereken complex netto
+            geldig altijd
+                Het complex netto bedrag moet berekend worden als het bruto bedrag verminderd met de totale aftrek.
+                Daarbij geldt:
+                de basis korting is 10 procent van het bruto bedrag;
+                de extra aftrek is 5;
+                de bonus is 2;
+                de totale aftrek is de basis korting plus de extra aftrek min de bonus;
         ."""
         tree = self.parse_text(input_text)
         self.assertNoParseErrors()

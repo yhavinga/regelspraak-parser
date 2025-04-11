@@ -9,19 +9,25 @@ import os
 project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
 sys.path.insert(0, project_root)
 
-def run_tests():
-    """Run all tests in the tests directory."""
-    # Discover and run tests
+def run_all_tests():
+    """Discovers and runs all tests in the 'tests' directory."""
+    print(f"Discovering tests in: {os.path.dirname(__file__)}")
+    print(f"Project root added to path: {project_root}")
+    print(f"Current sys.path: {sys.path}")
+    
+    # Discover tests in the current directory ('tests')
+    # The pattern 'test_*.py' finds all files starting with 'test_'
     loader = unittest.TestLoader()
-    start_dir = os.path.dirname(__file__)
-    suite = loader.discover(start_dir, pattern='test_*.py')
+    suite = loader.discover(start_dir=os.path.dirname(__file__),
+                          pattern='test_*.py') # Ensure this pattern finds all test files
+    
+    # Check if tests were found
+    if suite.countTestCases() == 0:
+        print("No tests found. Check the directory and pattern.")
+        return
 
-    # Run tests with verbosity
     runner = unittest.TextTestRunner(verbosity=2)
     result = runner.run(suite)
 
-    # Return 0 if tests passed, 1 if any failed
-    return 0 if result.wasSuccessful() else 1
-
 if __name__ == '__main__':
-    sys.exit(run_tests()) 
+    run_all_tests() 

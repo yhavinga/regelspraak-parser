@@ -48,9 +48,18 @@ class ObjectTypeTests(RegelSpraakTestCase):
 
     def test_objecttype_with_dimensions(self):
         """Test parsing an object type with dimensioned attributes."""
-        input_text = """Objecttype de Transactie
-            het bedrag Numeriek (niet-negatief getal met 2 decimalen) met eenheid euro;
-            de datum Datum in dagen;
+        # Assumes a Dimensie named TijdDimensie exists for parsing success
+        input_text = """Objecttype de Meting
+            het meetwaarde Numeriek (getal) gedimensioneerd met TijdDimensie;
+            de status Tekst;
+        """
+        tree = self.parse_text(input_text)
+        self.assertNoParseErrors()
+
+    def test_objecttype_with_tijdlijn(self):
+        """Test parsing an object type attribute with a tijdlijn."""
+        input_text = """Objecttype de Werknemer
+            het salaris Numeriek (getal) met eenheid euro voor elke maand;
         """
         tree = self.parse_text(input_text)
         self.assertNoParseErrors()

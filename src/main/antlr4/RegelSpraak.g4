@@ -12,9 +12,9 @@ definitie
     : objectTypeDefinition
     | domeinDefinition
     | parameterDefinition
-    // | dimensieDefinition       // Placeholder from Spec - Not in original G4
+    | dimensieDefinition
+    | feitTypeDefinition       // Added FeitType definition
     // | eenheidsysteemDefinition // Placeholder from Spec - Not in original G4
-    // | feitTypeDefinition       // Placeholder from Spec - Not in original G4
     // | dagsoortDefinition       // Placeholder from Spec - Not in original G4
     ;
 
@@ -63,7 +63,7 @@ attribuutSpecificatie
     : naamwoord ( datatype | domeinRef )
       (MET_EENHEID (unitName=IDENTIFIER | PERCENT_SIGN))? // Simplified unit from original G4
       (GEDIMENSIONEERD_MET dimensieRef (EN dimensieRef)*)?
-      // tijdlijn? // Placeholder from Spec - Not in original G4
+      tijdlijn? // Uncommented based on Spec
     ;
 
 // §13.3.3 Datatypes
@@ -129,6 +129,21 @@ eenheidMacht // EBNF 13.3.5.5. Simplified based on original G4 & spec.
     : identifier ( CARET NUMBER )? // E.g., m^2
     ;
 
+// §13.3.7 Dimensie Definition (Added based on Spec)
+dimensieDefinition
+    : DIMENSIE naamwoord (COMMA)? BESTAANDE_UIT dimensieNaamMeervoud=naamwoord voorzetselSpecificatie // Assuming meervoud is also a naamwoord
+      ( labelWaardeSpecificatie )+
+    ;
+
+voorzetselSpecificatie // EBNF 13.3.7.2
+    : ( NA_HET_ATTRIBUUT_MET_VOORZETSEL vz=voorzetsel RPAREN COLON? )
+    | VOOR_HET_ATTRIBUUT_ZONDER_VOORZETSEL
+    ;
+
+labelWaardeSpecificatie // EBNF 13.3.7.5
+    : NUMBER DOT dimWaarde=identifier // Using NUMBER for the digit(s), identifier for the value
+    ;
+
 // §13.3.6 Tijdlijn (Simplified in original G4)
 tijdlijn
     : VOOR_ELKE_DAG | VOOR_ELKE_MAAND | VOOR_ELK_JAAR
@@ -154,9 +169,17 @@ parameterMetLidwoord // Used within expression, but defined with parameter def
     : naamwoord
     ;
 
-// §13.3.9 FeitType Definition (Not in original G4)
-// §13.3.10 Dagsoort Definition (Not in original G4)
+// §13.3.9 FeitType Definition (Added based on Spec - simplified)
+feitTypeDefinition
+    : (WEDERKERIG_FEITTYPE | FEITTYPE)
+      subject=naamwoord
+      ( HEEFT object=naamwoord | IS description=naamwoord ) // Explicitly handle predicate part of the name
+      rolSpecificatie rolSpecificatie+ // Requires at least two roles
+    ;
 
+rolSpecificatie
+    : voorzetselSpecificatie identifier
+    ;
 
 // --- RegelSpraak Rule Structure (§13.4.2) ---
 regel

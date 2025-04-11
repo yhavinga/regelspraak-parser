@@ -3,6 +3,7 @@ lexer grammar RegelSpraakLexer;
 // --- Keywords (Order matters: Longest matches first, then categories, then IDENTIFIER) ---
 
 // --- Longest Multi-Word Keywords First ---
+VOOR_HET_ATTRIBUUT_ZONDER_VOORZETSEL: '(voor het attribuut zonder voorzetsel):';
 NA_HET_ATTRIBUUT_MET_VOORZETSEL: '(na het attribuut met voorzetsel';
 DATUM_TIJD_MILLIS: 'Datum en tijd in millisecondes';
 GEDURENDE_DE_TIJD_DAT: 'gedurende de tijd dat';
@@ -48,7 +49,7 @@ DOMEIN: 'Domein';
 DIMENSIE: 'Dimensie';
 EENHEIDSYSTEEM: 'Eenheidsysteem';
 PARAMETER: 'Parameter';
-FEITTYPE: 'Feittype';
+FEITTYPE: 'FeitType';
 DAGSOORT: 'Dagsoort';
 
 // Rule Structure & Result Keywords
