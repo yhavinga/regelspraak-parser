@@ -107,5 +107,17 @@ class RegelTests(RegelSpraakTestCase):
         self.assertIsNotNone(tree)
         self.assertNoParseErrors()
 
+    def test_regel_pow(self):
+        """Test parsing rules with the exponentiation operator ('tot de macht')."""
+        tree = self.parse_file('regel_pow.rs')
+        self.assertIsNotNone(tree)
+        self.assertNoParseErrors()
+
+    def test_regel_datetime_formats(self):
+        """Test parsing rules with different date and date/time literal formats."""
+        tree = self.parse_file('regel_datetime.rs')
+        self.assertIsNotNone(tree)
+        self.assertNoParseErrors()
+
 if __name__ == '__main__':
     unittest.main() 

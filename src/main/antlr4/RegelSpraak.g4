@@ -312,10 +312,16 @@ additiveExpression
 additiveOperator : PLUS | MIN | VERMINDERD_MET ; // Limited set
 
 multiplicativeExpression // New rule for higher precedence
-    : left=primaryExpression ( multiplicativeOperator right=primaryExpression )*
+    : left=powerExpression ( multiplicativeOperator right=powerExpression )*
     ;
 
 multiplicativeOperator : MAAL | GEDEELD_DOOR | GEDEELD_DOOR_ABS ; // New rule for operators
+
+powerExpression // New rule for exponentiation
+    : left=primaryExpression ( powerOperator right=primaryExpression )*
+    ;
+
+powerOperator : TOT_DE_MACHT ; // New rule for operator
 
 primaryExpression // Corresponds roughly to terminals/functions/references in §13.4.16
     // Functions (Simplified subset)
@@ -335,6 +341,7 @@ primaryExpression // Corresponds roughly to terminals/functions/references in §
     | identifier // Bare identifier as expression?
     | NUMBER
     | STRING_LITERAL
+    | datumLiteral // Added DATE_TIME_LITERAL via datumLiteral rule
     | WAAR | ONWAAR
     | HIJ // Pronoun reference
 

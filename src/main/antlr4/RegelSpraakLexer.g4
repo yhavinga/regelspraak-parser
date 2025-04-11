@@ -190,10 +190,16 @@ WEEK: 'week';
 IDENTIFIER : LETTER (LETTER | DIGIT | '_' | '\'')* ;
 
 // --- Literals ---
-fragment DAY : DIGIT DIGIT? ;
-fragment MONTH : DIGIT DIGIT? ;
-fragment YEAR : DIGIT DIGIT DIGIT DIGIT ;
-DATE_TIME_LITERAL: (DD_PUNT)? DAY '-' MONTH '-' YEAR;
+fragment DAY_PART  : ('0'?[1-9] | [12] DIGIT | '3'[01]) ; // Replaced \d with DIGIT
+fragment MONTH_PART: ('0'?[1-9] | '1'[0-2]) ;        // Approximation from Spec
+fragment YEAR_PART : DIGIT DIGIT DIGIT DIGIT ;
+fragment HOUR_PART   : ('0'|'1') DIGIT | '2' [0-3]; // 00-23 (Corrected range)
+fragment MINUTE_PART : [0-5] DIGIT ; // 00-59 (Corrected range)
+fragment SECOND_PART : [0-5] DIGIT ; // 00-59 (Corrected range)
+fragment MILLI_PART  : DIGIT DIGIT DIGIT ; // 000-999
+fragment TIME_PART : HOUR_PART ':' MINUTE_PART ':' SECOND_PART '.' MILLI_PART ;
+
+DATE_TIME_LITERAL: (DD_PUNT WS)? DAY_PART '-' MONTH_PART '-' YEAR_PART ( WS TIME_PART )? ; // Updated rule
 
 NUMBER: MINUS? DIGIT+ (',' DIGIT+)?
        | MINUS? DIGIT+ '_' DIGIT+ '/' DIGIT+
