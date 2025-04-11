@@ -1,6 +1,6 @@
 # RegelSpraak Parser
 
-An ANTLR4-based parser for the RegelSpraak v2.1.0 language, a Dutch domain-specific language for expressing business rules and decisions.
+An ANTLR4-based parser for the RegelSpraak v2.1.0 language, a Dutch domain-specific language for expressing business rules and decisions. This package allows parsing RegelSpraak text and integrating it into other Python applications.
 
 ## Overview
 
@@ -13,92 +13,194 @@ This project implements a parser for RegelSpraak v2.1.0, capable of processing:
 - Rules and decision tables
 - Complex expressions and conditions
 
+The core components are the ANTLR grammar files (`.g4`) and the Python runtime code generated from them.
+
 ## Project Structure
 
 ```
 regelspraak-parser/
-├── specification/           # Language specification documents
-├── src/                    # Source code
+├── .gitignore
+├── README.md
+├── requirements.txt        # Runtime dependencies
+├── setup.py                # Package setup script
+├── specification/          # Language specification documents
+├── src/
+│   └── regelspraak/        # Main Python package
+│       ├── __init__.py
+│       └── generated/      # ANTLR-generated parser files (IMPORTANT: create this dir)
+│           └── ...         # Lexer, Parser, Listener, Visitor Python files
 │   └── main/
-│       └── antlr4/        # ANTLR grammar files
-├── tests/                  # Test files
-└── examples/              # Example RegelSpraak files
+│       └── antlr4/         # Source ANTLR grammar files
+│           ├── RegelSpraakLexer.g4
+│           └── RegelSpraak.g4
+├── tests/                  # Test files using unittest
+│   ├── resources/          # Test RegelSpraak files
+│   └── ...                 # Python test scripts (test_*.py)
+└── examples/               # Example RegelSpraak files (if any)
 ```
 
 ## Requirements
 
 - Python 3.8+
-- ANTLR4 4.13.1+
-- antlr4-python3-runtime
+- ANTLR 4.13.1+ **Tool** (for generating parser code, not required for runtime use)
+- Java Runtime Environment (JRE) (for running the ANTLR tool)
 
 ## Installation
 
-1. Create a virtual environment:
-   ```bash
-   python -m venv venv
-   source venv/bin/activate  # Linux/Mac
-   # or
-   .\venv\Scripts\activate  # Windows
-   ```
+### 1. Setting up the Environment
 
-2. Install dependencies:
-   ```bash
-   pip install antlr4-python3-runtime
-   ```
+It is highly recommended to use a virtual environment.
 
-3. Install ANTLR4:
-   ```bash
-   # Linux/Mac
-   cd /usr/local/lib
-   curl -O https://www.antlr.org/download/antlr-4.13.1-complete.jar
-   
-   # Add to .bashrc or .zshrc:
-   export CLASSPATH=".:/usr/local/lib/antlr-4.13.1-complete.jar:$CLASSPATH"
-   alias antlr4='java -jar /usr/local/lib/antlr-4.13.1-complete.jar'
-   alias grun='java org.antlr.v4.gui.TestRig'
-   ```
+```bash
+python -m venv venv
+source venv/bin/activate  # Linux/Mac
+# or
+# .\venv\Scripts\activate  # Windows
+```
+
+### 2. Installing the Package
+
+To use the parser within this project or install it for use in other projects:
+
+**A) Install Runtime Dependencies:**
+The required Python library (`antlr4-python3-runtime`) is listed in `requirements.txt` and `setup.py`.
+
+```bash
+pip install -r requirements.txt
+# or directly via setup.py (which also installs the runtime dependency)
+pip install .
+# For development (allows editing the source without reinstalling):
+# pip install -e .
+```
+
+**B) Install ANTLR Tool (Development Only):**
+If you need to modify the grammar (`.g4` files) and regenerate the parser code, you need the ANTLR 4 tool.
+
+```bash
+# Example for Linux/Mac:
+cd /usr/local/lib
+curl -O https://www.antlr.org/download/antlr-4.13.1-complete.jar
+
+# Add to your shell profile (.bashrc, .zshrc, etc.):
+export CLASSPATH=".:/usr/local/lib/antlr-4.13.1-complete.jar:$CLASSPATH"
+alias antlr4='java -jar /usr/local/lib/antlr-4.13.1-complete.jar'
+alias grun='java org.antlr.v4.gui.TestRig'
+
+# Verify installation
+antlr4
+```
+Refer to the official ANTLR documentation for Windows installation or alternative methods.
+
+### 3. Generating Parser Files (Development Only)
+
+If you modify the `.g4` grammar files, you **must** regenerate the Python parser code. **Ensure the output directory `src/regelspraak/generated/` exists before running.**
+
+```bash
+# Make sure you are in the project root directory
+# Ensure the output directory exists: mkdir -p src/regelspraak/generated
+
+# Generate Lexer first (creates .tokens file needed by parser)
+antlr4 -Dlanguage=Python3 src/main/antlr4/RegelSpraakLexer.g4 -o src/regelspraak/generated
+
+# Generate Parser (with visitor pattern support)
+antlr4 -Dlanguage=Python3 -visitor src/main/antlr4/RegelSpraak.g4 -o src/regelspraak/generated -lib src/regelspraak/generated
+```
+*Note:* The `-lib` option tells the parser generator where to find the `.tokens` file created by the lexer generator.
 
 ## Usage
 
-1. **Generate Parser Files:**
-    Run the ANTLR generator first for the lexer, then the parser. Ensure you have ANTLR properly installed and configured (see Installation).
-    ```bash
-    # Make sure you are in the project root directory
-    antlr4 -Dlanguage=Python3 src/main/antlr4/RegelSpraakLexer.g4 -o src/regelspraak/generated
-    antlr4 -Dlanguage=Python3 -visitor src/main/antlr4/RegelSpraak.g4 -o src/regelspraak/generated
-    ```
-    *Note:* It's crucial to run the lexer generation first as it creates a `.tokens` file required by the parser grammar when using `tokenVocab`.
+### As a Standalone Tool (Within this Project)
 
-2. **Use in Python:**
-    Import the necessary generated classes and standard ANTLR components.
+After installation (`pip install -e .`) and generating the parser files (if needed), you can run scripts that use the parser.
+
+```python
+# Example: create a script `parse_example.py` in the root directory
+from antlr4 import FileStream, CommonTokenStream, InputStream
+from regelspraak.generated.RegelSpraakLexer import RegelSpraakLexer
+from regelspraak.generated.RegelSpraakParser import RegelSpraakParser
+# Optional: Import your custom Visitor or Listener if you create one
+# from regelspraak.visitor import MyRegelSpraakVisitor
+
+# Example using a file path
+# input_stream = FileStream("path/to/your_regelspraak_file.rs", encoding='utf-8')
+
+# Example using raw text
+input_text = """
+Objecttype de Persoon
+    het naam Tekst;
+    de leeftijd Numeriek (positief geheel getal);
+Einde objecttype.
+"""
+input_stream = InputStream(input_text)
+
+lexer = RegelSpraakLexer(input_stream)
+stream = CommonTokenStream(lexer)
+parser = RegelSpraakParser(stream)
+
+# Parse starting from the 'regelSpraakDocument' rule (adjust if needed)
+tree = parser.regelSpraakDocument()
+
+# Process the Parse Tree (Choose one method):
+# 1. Use ANTLR's built-in tree representation (for debugging):
+print(tree.toStringTree(recog=parser))
+
+# 2. Implement and use a Visitor (Recommended for structured processing):
+# visitor = MyRegelSpraakVisitor()
+# result = visitor.visitRegelSpraakDocument(tree)
+# print(f"Visitor Result: {result}")
+
+# 3. Implement and use a Listener (For event-driven processing):
+# walker = ParseTreeWalker()
+# listener = MyRegelSpraakListener()
+# walker.walk(listener, tree)
+# # Access results gathered by the listener
+```
+
+### As a Library in Another Project
+
+1.  **Install the Package:** Install the `regelspraak-parser` package into your other project's environment. You can install it from:
+    *   A Git repository: `pip install git+https://your-git-repo-url/regelspraak-parser.git`
+    *   A local directory (if checked out): `pip install /path/to/regelspraak-parser`
+    *   A built wheel (`.whl`) file.
+
+2.  **Use in your Python Code:** Import and use the parser components similarly to the standalone example.
+
     ```python
-    from antlr4 import FileStream, CommonTokenStream, InputStream
+    # In your other project's code (e.g., my_app.py)
+    from antlr4 import InputStream, CommonTokenStream
+    # Import directly from the installed package
     from regelspraak.generated.RegelSpraakLexer import RegelSpraakLexer
     from regelspraak.generated.RegelSpraakParser import RegelSpraakParser
+    # Potentially import your custom Visitor/Listener if included in the package
 
-    # Example using a file
-    # input_stream = FileStream("your_regelspraak_file.rs", encoding='utf-8') 
-    # Example using text
-    input_text = """Objecttype de Persoon
-        het naam Tekst;
-        de leeftijd Numeriek (positief geheel getal);
+    def parse_regelspraak_text(text: str):
+        input_stream = InputStream(text)
+        lexer = RegelSpraakLexer(input_stream)
+        stream = CommonTokenStream(lexer)
+        parser = RegelSpraakParser(stream)
+        tree = parser.regelSpraakDocument() # Or appropriate entry rule
+
+        # Process the tree, e.g., using a visitor
+        # visitor = MyRegelSpraakVisitor() # Assuming you packaged a visitor
+        # processed_data = visitor.visit(tree)
+        # return processed_data
+
+        # Or return the raw tree or string representation for now
+        return tree.toStringTree(recog=parser)
+
+    # Example usage
+    regelspraak_code = """
+    Domein Rechtshulp definitie
+        Geldigheid: altijd;
+    Einde domein.
     """
-    input_stream = InputStream(input_text)
-
-    lexer = RegelSpraakLexer(input_stream)
-    stream = CommonTokenStream(lexer)
-    parser = RegelSpraakParser(stream)
-    
-    # Assuming 'regelSpraakDocument' is the main entry rule for a full file
-    tree = parser.regelSpraakDocument()
-    
-    # TODO: Add visitor/listener logic to process the tree
-    # print(tree.toStringTree(recog=parser))
+    parsed_output = parse_regelspraak_text(regelspraak_code)
+    print(parsed_output)
     ```
 
 ## Grammar Implementation Notes
 
-The current ANTLR grammar (`RegelSpraak.g4` and `RegelSpraakLexer.g4`) incorporates specific design choices to handle the nuances of the RegelSpraak language:
+The ANTLR grammar (`RegelSpraak.g4` and `RegelSpraakLexer.g4`) incorporates specific design choices:
 
 *   **Identifier Handling:** The `IDENTIFIER` token rule in the lexer currently *disallows* spaces. This prevents ambiguity where multi-word phrases might be mistakenly tokenized as a single identifier instead of keywords followed by identifiers (e.g., prevents lexing `geldig altijd` as one identifier).
 *   **Multi-word Concepts:** Consequently, multi-word concepts (like `Natuurlijk persoon`, `recht op duurzaamheidskorting`, rule names) are parsed by rules expecting sequences of `IDENTIFIER` tokens (`IDENTIFIER+`). The primary rule for this is `naamwoord`, which is reused by `attribuutSpecificatie` and `variabeleToekenning`. The `onderwerpReferentie` and `kenmerkNaam` rules also handle multi-word constructs.
@@ -110,13 +212,13 @@ The current ANTLR grammar (`RegelSpraak.g4` and `RegelSpraakLexer.g4`) incorpora
 
 ## Testing
 
-The test suite uses Python's `unittest` framework.
+The test suite uses Python's `unittest` framework. Ensure the package is installed in editable mode (`pip install -e .`) and parser files are generated before running tests.
 
 ```bash
-# Run all tests
-./tests/run_tests.py 
-# Or run specific tests
-# python -m unittest tests.test_domein
+# Run all tests from the project root directory
+python -m unittest discover -s tests -p 'test_*.py'
+# Or use the provided script (if it handles discovery)
+# ./tests/run_tests.py
 ```
 
 ## License
