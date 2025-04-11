@@ -2,25 +2,28 @@ grammar RegelSpraak;
 
 options { tokenVocab=RegelSpraakLexer; }
 
-// Start Rule: Can parse a file with multiple definitions/rules
-regelSpraakDocument
+// --- Start Rule ---
+regelSpraakDocument // Top level container
     : ( definitie | regel )* EOF
     ;
 
+// --- Top-Level Definitions ---
 definitie
     : objectTypeDefinition
     | domeinDefinition
     | parameterDefinition
+    // | dimensieDefinition       // Placeholder from Spec - Not in original G4
+    // | eenheidsysteemDefinition // Placeholder from Spec - Not in original G4
+    // | feitTypeDefinition       // Placeholder from Spec - Not in original G4
+    // | dagsoortDefinition       // Placeholder from Spec - Not in original G4
     ;
 
-// --- Object Type Definition (Based on objecttype.txt) ---
-objectTypeDefinition
-    : OBJECTTYPE naamwoord ( MV_START plural+=IDENTIFIER+ RPAREN )? (BEZIELD)?
-      ( objectTypeMember )*
+// --- Basic Building Blocks ---
+identifier
+    : IDENTIFIER
     ;
 
-// New simple phrase rule
-naamPhrase
+naamPhrase // Used within naamwoord
     : (DE | HET | ZIJN)? IDENTIFIER+
     ;
 
@@ -28,50 +31,48 @@ naamwoord // Modified to handle structure like 'phrase (preposition phrase)*'
     : naamPhrase ( voorzetsel naamPhrase )*
     ;
 
+voorzetsel // Used by naamwoord and onderwerpReferentie
+    : VAN | IN | VOOR | OVER | OP | BIJ | UIT | TOT
+    ;
+
+datumLiteral : DATE_TIME_LITERAL ;
+
+unit // Simple unit name
+    : IDENTIFIER
+    ;
+
+// --- GegevensSpraak Definitions (§13.3) ---
+
+// §13.3.1 Object Type Definition
+objectTypeDefinition
+    : OBJECTTYPE naamwoord ( MV_START plural+=IDENTIFIER+ RPAREN )? (BEZIELD)?
+      ( objectTypeMember )*
+    ;
+
 objectTypeMember
     : ( kenmerkSpecificatie | attribuutSpecificatie ) SEMICOLON
     ;
 
-kenmerkSpecificatie // Expect single IDENTIFIERs for name parts
+// §13.3.2 Kenmerk Specificatie
+kenmerkSpecificatie
     : (IS? identifier | naamwoord) KENMERK (BIJVOEGLIJK | BEZITTELIJK)?
     ;
 
-attribuutSpecificatie // Expect single IDENTIFIERs for name parts
-    : naamwoord ( datatype | domeinRef ) (MET_EENHEID (unitName=IDENTIFIER | PERCENT_SIGN))? (GEDIMENSIONEERD_MET dimensieRef (EN dimensieRef)*)?
+// §13.3.2 Attribuut Specificatie
+attribuutSpecificatie
+    : naamwoord ( datatype | domeinRef )
+      (MET_EENHEID (unitName=IDENTIFIER | PERCENT_SIGN))? // Simplified unit from original G4
+      (GEDIMENSIONEERD_MET dimensieRef (EN dimensieRef)*)?
+      // tijdlijn? // Placeholder from Spec - Not in original G4
     ;
 
-domeinRef
-    : DOMEIN name=IDENTIFIER
-    ;
-
-dimensieRef
-    : name=IDENTIFIER
-    ;
-
-// Re-add datatype rule definition
+// §13.3.3 Datatypes
 datatype
     : numeriekDatatype
     | tekstDatatype
     | booleanDatatype
     | datumTijdDatatype
-    ;
-
-// --- Domain Definition (Based on domein.txt) ---
-domeinDefinition
-    : DOMEIN name+=IDENTIFIER+ IS_VAN_HET_TYPE domeinType (MET_EENHEID eenheidExpressie )? SEMICOLON?
-    ;
-
-domeinType
-    : enumeratieSpecificatie
-    | numeriekDatatype
-    | tekstDatatype
-    | booleanDatatype
-    | datumTijdDatatype
-    ;
-
-enumeratieSpecificatie
-    : ENUMERATIE
-      ( ENUM_LITERAL )+
+    // | percentageDatatype // Placeholder from Spec - Not in original G4
     ;
 
 numeriekDatatype
@@ -91,16 +92,78 @@ datumTijdDatatype // Use single tokens
     | DATUM_TIJD_MILLIS
     ;
 
-getalSpecificatie // Use single tokens
+getalSpecificatie // §13.3.3.7 - Use single tokens
     : (NEGATIEF | NIET_NEGATIEF | POSITIEF)? (GEHEEL_GETAL | (GETAL MET NUMBER DECIMALEN) | GETAL)
     ;
 
-// --- Regel Definition (Based on regel.txt) ---
+// §13.3.4 Domein Definition
+domeinDefinition
+    : DOMEIN name+=IDENTIFIER+ IS_VAN_HET_TYPE domeinType (MET_EENHEID eenheidExpressie )? SEMICOLON?
+    ;
+
+domeinType
+    : enumeratieSpecificatie
+    | numeriekDatatype
+    | tekstDatatype
+    | booleanDatatype
+    | datumTijdDatatype
+    ;
+
+enumeratieSpecificatie // §13.3.4.2
+    : ENUMERATIE
+      ( ENUM_LITERAL )+
+    ;
+
+domeinRef // Reference to a domain definition
+    : DOMEIN name=IDENTIFIER
+    ;
+
+// §13.3.5 Eenheden & Eenheidsysteem (Simplified in original G4)
+eenheidExpressie // Corresponds to unit structure in §13.3.3.2/3. Simplified based on original G4 & spec.
+    : eenheidMacht ( SLASH eenheidMacht )?
+    | NUMBER
+    | PERCENT_SIGN // Added % as a unit alternative
+    ;
+
+eenheidMacht // EBNF 13.3.5.5. Simplified based on original G4 & spec.
+    : identifier ( CARET NUMBER )? // E.g., m^2
+    ;
+
+// §13.3.6 Tijdlijn (Simplified in original G4)
+tijdlijn
+    : VOOR_ELKE_DAG | VOOR_ELKE_MAAND | VOOR_ELK_JAAR
+    ;
+
+// §13.3.7 Dimensies (Simplified in original G4)
+dimensieRef // Reference to a dimension definition
+    : name=IDENTIFIER
+    ;
+
+// §13.3.8 Parameter Definition
+parameterDefinition
+    : PARAMETER parameterNamePhrase COLON ( datatype | domeinRef )
+      ( MET_EENHEID eenheidExpressie )?
+      tijdlijn? SEMICOLON
+    ;
+
+parameterNamePhrase // Dedicated rule for parameter names
+    : (DE | HET)? IDENTIFIER+ // Reverted to include optional article
+    ;
+
+parameterMetLidwoord // Used within expression, but defined with parameter def
+    : naamwoord
+    ;
+
+// §13.3.9 FeitType Definition (Not in original G4)
+// §13.3.10 Dagsoort Definition (Not in original G4)
+
+
+// --- RegelSpraak Rule Structure (§13.4.2) ---
 regel
     : REGEL name+=IDENTIFIER+
       regelVersie
-      resultaatDeel ( DOT? | ( voorwaardeDeel DOT? ) )
-      ( variabeleDeel )?
+      resultaatDeel ( DOT? | ( voorwaardeDeel DOT? ) ) // Optional condition
+      ( variabeleDeel )? // Optional variable block
     ;
 
 regelVersie
@@ -112,16 +175,55 @@ versieGeldigheid
     | VANAF datumLiteral ( (TM | TOT_EN_MET) datumLiteral )?
     ;
 
-resultaatDeel // Use single tokens
+// §13.4.3 Resultaat Deel (Simplified in original G4)
+resultaatDeel
     : (attribuutReferentie | onderwerpReferentie) ( WORDT_BEREKEND_ALS expressie | WORDT_GESTELD_OP expressie ) DOT?
     | onderwerpReferentie (IS | HEEFT) kenmerkNaam DOT?
+    // Specific result types like gelijkstelling, kenmerkToekenning, etc. are merged here in the simplified G4
     ;
 
-voorwaardeDeel // Modified to handle simple and complex conditions
-    : INDIEN ( expressie | toplevelSamengesteldeVoorwaarde ) // Added alternative
+// §13.4.12 Voorwaarde Deel (Simplified in original G4)
+voorwaardeDeel
+    : INDIEN ( expressie | toplevelSamengesteldeVoorwaarde ) // Allows simple expression or complex structure
     ;
 
-// EBNF §13.4.13 Samengestelde voorwaarde (Simplified structure)
+// §13.4.2 Variabele Deel
+variabeleDeel // Use single token
+    : DAARBIJ_GELDT
+      variabeleToekenning* // Changed to * to allow zero or more
+      DOT
+    ;
+
+variabeleToekenning
+    : naamwoord IS expressie SEMICOLON?
+    ;
+
+// --- RegelSpraak Onderwerpketen (§13.4.1) & References ---
+
+// §13.4.1 Onderwerpketen (Simplified/Combined References in original G4)
+onderwerpReferentie // Allow sequence + nesting + pronoun
+    : basisOnderwerp ( voorzetsel basisOnderwerp )* // Allow any voorzetsel for nesting
+    ;
+
+basisOnderwerp // Base unit for subject/object reference
+    : (DE | HET | EEN | ZIJN)? IDENTIFIER+ // Added ZIJN
+    | HIJ
+    ;
+
+attribuutReferentie // Combination of spec 13.4.1.9 and reference structure
+    : naamwoord VAN onderwerpReferentie // Relies on onderwerpReferentie for nesting
+    ;
+
+kenmerkNaam : onderwerpReferentie ; // Reuse onderwerpReferentie structure (as per original G4)
+
+// Rule for bezieldeReferentie (Simplified from spec 13.4.16.37 for ZIJN case)
+bezieldeReferentie // Used in primaryExpression
+    : ZIJN identifier
+    ;
+
+// --- RegelSpraak Condition Parts (§13.4.13 - §13.4.14) (Simplified in original G4) ---
+
+// §13.4.13 Samengestelde voorwaarde (Simplified structure)
 toplevelSamengesteldeVoorwaarde
     : (HIJ | onderwerpReferentie) AAN voorwaardeKwantificatie VOLGENDE_VOORWAARDEN VOLDOET COLON
       samengesteldeVoorwaardeOnderdeel
@@ -139,139 +241,79 @@ genesteVoorwaarde // EBNF 13.4.13.7 (Simplified)
     : elementaireVoorwaarde // Only handling elementaire for now
     ;
 
-// EBNF §13.4.14 Elementaire voorwaarde (Simplified)
+// §13.4.14 Elementaire voorwaarde (Simplified)
 elementaireVoorwaarde
     : voorwaardeVergelijking
     ;
 
-// EBNF §13.4.14.50 VoorwaardeVergelijking (Simplified)
+// §13.4.14.50 VoorwaardeVergelijking (Simplified)
 voorwaardeVergelijking
     : objectVergelijking
     | getalVergelijking
     ;
 
 // Specific comparison types for the test case (Simplified)
-objectVergelijking
+objectVergelijking // Corresponds partly to 13.4.14.63/64/96/97
     : onderwerpReferentie IS identifier // E.g., zijn reis is duurzaam
     ;
 
-getalVergelijking // Refined further for test cases
-    : (naamwoord | attribuutReferentie | bezieldeReferentie) (IS_GROTER_OF_GELIJK_AAN | GROTER_DAN | IS_GROTER_DAN) NUMBER // Added naamwoord
+getalVergelijking // Corresponds partly to 13.4.14.51/53/75/76
+    : (naamwoord | attribuutReferentie | bezieldeReferentie) (IS_GROTER_OF_GELIJK_AAN | GROTER_DAN | IS_GROTER_DAN) NUMBER // Added naamwoord, limited operators
     ;
 
-variabeleDeel // Use single token
-    : DAARBIJ_GELDT
-      variabeleToekenning* // Changed to * to allow zero or more after first mandatory one implied by DAARBIJ_GELDT
-      DOT
-    ;
+// --- RegelSpraak Expressions (§13.4.15, §13.4.16) (Simplified / Refactored in original G4) ---
 
-variabeleToekenning
-    : naamwoord IS expressie SEMICOLON?
-    ;
-
-// --- Expressions (Refactored to remove left recursion) ---
 expressie
-    : comparisonExpression
+    : comparisonExpression // Top level of expression starts with comparison (or additive if no comparison)
     ;
 
 comparisonExpression
     : left=additiveExpression ( comparisonOperator right=additiveExpression )?
     ;
 
-comparisonOperator
+comparisonOperator // Limited set from original G4
     : GELIJK_AAN | ONGELIJK_AAN
     | GROTER_DAN | GROTER_OF_GELIJK_AAN
     | KLEINER_DAN | KLEINER_OF_GELIJK_AAN
-    | KLEINER_IS_DAN
-    | IS
-    | LATER_DAN | LATER_OF_GELIJK_AAN
-    | EERDER_DAN | EERDER_OF_GELIJK_AAN
-    | NIET
+    | KLEINER_IS_DAN // Note: Potential overlap/ambiguity with other operators? Check spec/lexer.
+    | IS // Used in boolean contexts?
+    | LATER_DAN | LATER_OF_GELIJK_AAN // Date operators
+    | EERDER_DAN | EERDER_OF_GELIJK_AAN // Date operators
+    | NIET // Unary negation - position might need checking based on full spec
     ;
 
 additiveExpression
     : left=primaryExpression ( additiveOperator right=primaryExpression )*
     ;
 
-additiveOperator : PLUS | MIN | VERMINDERD_MET ;
+additiveOperator : PLUS | MIN | VERMINDERD_MET ; // Limited set
 
-primaryExpression // Use single tokens
+primaryExpression // Corresponds roughly to terminals/functions/references in §13.4.16
+    // Functions (Simplified subset)
     : ABSOLUTE_TIJDSDUUR_VAN primaryExpression TOT primaryExpression (IN_HELE unitName=IDENTIFIER)?
     | TIJDSDUUR_VAN primaryExpression TOT primaryExpression (IN_HELE unitName=IDENTIFIER)?
-    | SOM_VAN (ALLE? onderwerpReferentie)
-    | NUMBER (PERCENT_SIGN | p=IDENTIFIER) VAN primaryExpression
+    | SOM_VAN (ALLE? onderwerpReferentie) // Aggregation
+    | NUMBER (PERCENT_SIGN | p=IDENTIFIER) VAN primaryExpression // Percentage function/unit?
+
+    // References
     | attribuutReferentie
-    | naamwoord
+    | bezieldeReferentie
+    | naamwoord // Simple noun phrase as expression?
+    | parameterMetLidwoord // Added based on spec §13.4.16.1 - check original G4
+
+    // Literals & Keywords
     | REKENDATUM
-    | identifier
+    | identifier // Bare identifier as expression?
     | NUMBER
     | STRING_LITERAL
     | WAAR | ONWAAR
-    | HIJ
+    | HIJ // Pronoun reference
+
+    // Grouping
     | LPAREN expressie RPAREN
-    | bezieldeReferentie
     ;
 
-// Rule for bezieldeReferentie (Simplified from spec 13.4.16.37 for ZIJN case)
-bezieldeReferentie
-    : ZIJN identifier
-    ;
-
-// --- References ---
-attribuutReferentie
-    : naamwoord VAN onderwerpReferentie // Relies on onderwerpReferentie for nesting
-    ;
-
-onderwerpReferentie // Allow sequence + nesting + pronoun
-    : basisOnderwerp ( voorzetsel basisOnderwerp )* // Allow any voorzetsel for nesting
-    ;
-
-basisOnderwerp // Base unit for subject/object reference
-    : (DE | HET | EEN | ZIJN)? IDENTIFIER+ // Added ZIJN
-    | HIJ
-    ;
-
-kenmerkNaam : onderwerpReferentie ; // Reuse onderwerpReferentie structure
-
-identifier
-    : IDENTIFIER
-    ;
-
-unit
-    : IDENTIFIER
-    ;
-
-datumLiteral : DATE_TIME_LITERAL ;
-
-voorzetsel // Define preposition rule needed by naamwoord
-    : VAN | IN | VOOR | OVER | OP | BIJ | UIT | TOT
-    ;
-
-parameterNamePhrase // Dedicated rule for parameter names
-    : (DE | HET)? IDENTIFIER+ // Reverted to include optional article
-    ;
-
-// EBNF §13.3.8 Parameter Definition
-parameterDefinition
-    : PARAMETER parameterNamePhrase COLON ( datatype | domeinRef )
-      ( MET_EENHEID eenheidExpressie )?
-      tijdlijn? SEMICOLON
-    ;
-
-parameterMetLidwoord
-    : naamwoord
-    ;
-
-eenheidExpressie // Corresponds to unit structure in §13.3.3.2/3. Simplified placeholder based on spec.
-    : eenheidMacht ( SLASH eenheidMacht )?
-    | NUMBER
-    | PERCENT_SIGN // Added % as a unit alternative
-    ;
-
-eenheidMacht // EBNF 13.3.5.5. Simplified placeholder.
-    : identifier ( CARET NUMBER )? // E.g., m^2
-    ;
-
-tijdlijn // EBNF §13.3.6. Modified to accept specific tokens directly.
-    : VOOR_ELKE_DAG | VOOR_ELKE_MAAND | VOOR_ELK_JAAR
-    ;
+// Note: Many specific function calls (wortel, macht, etc.) and expression types
+// from §13.4.16 are not present in the simplified original G4 provided.
+// The refactored expression structure (comparison -> additive -> primary)
+// handles basic precedence.
