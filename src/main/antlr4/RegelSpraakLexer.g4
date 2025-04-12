@@ -18,6 +18,8 @@ ABSOLUTE_TIJDSDUUR_VAN: 'de absolute tijdsduur van';
 ABSOLUTE_WAARDE_VAN: 'de absolute waarde van';
 MAXIMALE_WAARDE_VAN: 'de maximale waarde van';
 MINIMALE_WAARDE_VAN: 'de minimale waarde van';
+DE_DATUM_MET: 'de datum met jaar, maand en dag';
+EERSTE_PAASDAG_VAN: 'de eerste paasdag van';
 ALS_ONVERDEELDE_REST_BLIJFT: 'Als onverdeelde rest blijft';
 MET_EEN_MINIMUM_VAN: 'met een minimum van';
 MET_EEN_MAXIMUM_VAN: 'met een maximum van';
