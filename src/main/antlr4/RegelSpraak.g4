@@ -351,6 +351,7 @@ primaryExpression : // Corresponds roughly to terminals/functions/references in 
     | TIJDSDUUR_VAN primaryExpression TOT primaryExpression (IN_HELE unitName=IDENTIFIER)?            # TijdsduurFuncExpr
     | SOM_VAN (ALLE? onderwerpReferentie)                                                             # SomFuncExpr
     | NUMBER (PERCENT_SIGN | p=IDENTIFIER) VAN primaryExpression                                    # PercentageFuncExpr
+    | primaryExpression afronding                                                                   # AfrondingExpr  // EBNF 13.4.16.21
 
     // Added for §13.4.16 functions
     | WORTEL_VAN expressie                                          # WortelFuncExpr // EBNF 13.4.16.13 (Simplified, no rounding yet)
@@ -381,7 +382,10 @@ primaryExpression : // Corresponds roughly to terminals/functions/references in 
     | LPAREN expressie RPAREN                                       # ParenExpr
     ;
 
-
+// EBNF 13.4.16.22 Afronding
+afronding
+    : (NAAR_BENEDEN | NAAR_BOVEN | REKENKUNDIG | RICHTING_NUL | WEG_VAN_NUL) AFGEROND_OP NUMBER DECIMALEN
+    ;
 
 // §13.3.10 Dagsoort Definition (Added based on spec)
 dagsoortDefinition
@@ -392,8 +396,8 @@ dagsoortDefinition
 // from §13.4.16 are not present in the simplified original G4 provided.
 // The refactored expression structure (comparison -> additive -> primary)
 // handles basic precedence.
-// Note: While functions like wortel, abs, date extraction, min/max and sum have been added,
-// many other specific function calls (rounding, date creation, etc.)
+// Note: While functions like wortel, abs, date extraction, min/max, rounding and sum have been added,
+// many other specific function calls (date creation, etc.)
 // and expression types from §13.4.16 are still not explicitly handled.
 // The refactored expression structure (comparison -> additive -> primary)
 // handles basic operator precedence for the implemented operators.
