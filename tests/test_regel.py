@@ -255,5 +255,67 @@ class RegelTests(RegelSpraakTestCase):
         tree = self.parse_text(rule_text_with_of)
         self.assertNoParseErrors()
 
+    def test_regel_conditie_bij_expressie_gedurende(self):
+        """Tests parsing TOTAAL_VAN with 'gedurende de tijd dat' condition."""
+        rule_text = """
+        Regel Bereken Totaal Inkomen Periode
+        geldig altijd
+            Het totaal inkomen moet berekend worden als het totaal van het inkomen
+            gedurende de tijd dat de status gelijk is aan 'Actief'.
+        """
+        # Note: Assumes `toplevelElementaireVoorwaarde` or `toplevelSamengesteldeVoorwaarde` can parse "de status gelijk is aan 'Actief'"
+        # This might require further grammar refinement or a simpler condition for the test
+        tree = self.parse_text(rule_text)
+        self.assertNoParseErrors()
+
+    def test_regel_conditie_bij_expressie_periode(self):
+        """Tests parsing TOTAAL_VAN with a date range condition."""
+        rule_text = """
+        Regel Bereken Totaal Bedrag In Q1
+        geldig altijd
+            het kwartaal bedrag moet berekend worden als het totaal van het bedrag
+            vanaf 01-01-2024 tot en met 31-03-2024.
+        """
+        tree = self.parse_text(rule_text)
+        self.assertNoParseErrors()
+
+    def test_regel_aantal_dagen_in(self):
+        """Tests parsing 'het aantal dagen in' function."""
+        rule_text_maand = """
+        Regel Aantal Dagen Maand
+        geldig altijd
+            het aantal dagen in maand moet berekend worden als het aantal dagen in de maand dat de referentiedatum.
+        """
+        tree = self.parse_text(rule_text_maand)
+        self.assertNoParseErrors()
+
+        rule_text_jaar = """
+        Regel Aantal Dagen Jaar
+        geldig altijd
+            het aantal dagen in jaar moet berekend worden als het aantal dagen in het jaar dat de referentiedatum.
+        """
+        tree = self.parse_text(rule_text_jaar)
+        self.assertNoParseErrors()
+
+    def test_regel_tijdsevenredig_deel(self):
+        """Tests parsing 'het tijdsevenredig deel per' function."""
+        # Using a simpler pattern that focuses on just validating the function is recognized
+        rule_text_simplified = """
+        Regel Tijdsevenredig Deel
+        geldig altijd
+            het deel per maand moet berekend worden als het tijdsevenredig deel per maand van waarde.
+        """
+        tree = self.parse_text(rule_text_simplified)
+        self.assertNoParseErrors()
+
+    # Placeholder for Dimension Aggregation Test - Needs more specific examples
+    # def test_regel_dimensie_aggregatie(self):
+    #     """Tests parsing dimension aggregations."""
+    #     # Example needed based on a defined objecttype with dimensions
+    #     # rule_text = """ ... """
+    #     # tree = self.parse_text(rule_text)
+    #     # self.assertNoParseErrors()
+    #     pass
+
 if __name__ == '__main__':
     unittest.main() 

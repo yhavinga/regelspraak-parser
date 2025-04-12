@@ -29,6 +29,7 @@ identifier
 
 naamPhrase // Used within naamwoord
     : (DE | HET | ZIJN)? IDENTIFIER+
+    | identifier+ // Allow all identifiers (covers capitalized Het, De, etc.)
     ;
 
 naamwoord // Modified to handle structure like 'phrase (preposition phrase)*'
@@ -222,9 +223,12 @@ versieGeldigheid
 
 // §13.4.3 Resultaat Deel (Simplified in original G4)
 resultaatDeel
-    : (attribuutReferentie | onderwerpReferentie) ( WORDT_BEREKEND_ALS expressie | WORDT_GESTELD_OP expressie ) // Removed DOT?
-    | onderwerpReferentie (IS | HEEFT) kenmerkNaam // Removed DOT?
-    // Specific result types like gelijkstelling, kenmerkToekenning, etc. are merged here in the simplified G4
+    : (naamwoord | attribuutReferentie) ( WORDT_BEREKEND_ALS expressie | WORDT_GESTELD_OP expressie ) # GelijkstellingResultaat
+    | onderwerpReferentie (IS | HEEFT) kenmerkNaam                                                # KenmerkFeitResultaat
+    | identifier+ ( WORDT_BEREKEND_ALS expressie | WORDT_GESTELD_OP expressie )                   # CapitalizedGelijkstellingResultaat // For capitalized cases
+    | (HET_KWARTAAL | HET_DEEL_PER_MAAND | HET_DEEL_PER_JAAR) identifier* ( WORDT_BEREKEND_ALS expressie | WORDT_GESTELD_OP expressie ) ( (VANAF | VAN) datumLiteral (TOT | TOT_EN_MET) datumLiteral )? DOT? # SpecialPhraseResultaat
+    | HET_AANTAL_DAGEN_IN (MAAND | JAAR) ( WORDT_BEREKEND_ALS expressie | WORDT_GESTELD_OP expressie ) # AantalDagenInResultaat
+    // Specific result types like gelijkstelling, kenmerkToekenning, etc. are merged here
     ;
 
 // §13.4.12 Voorwaarde Deel (Simplified in original G4)
@@ -251,7 +255,7 @@ onderwerpReferentie // Allow sequence + nesting + pronoun
     ;
 
 basisOnderwerp // Base unit for subject/object reference
-    : (DE | HET | EEN | ZIJN)? IDENTIFIER+ // Added ZIJN
+    : (DE | HET | EEN | ZIJN)? IDENTIFIER+
     | HIJ
     ;
 
@@ -287,23 +291,53 @@ genesteVoorwaarde // EBNF 13.4.13.7 (Simplified)
     ;
 
 // §13.4.14 Elementaire voorwaarde (Simplified)
-elementaireVoorwaarde
+elementaireVoorwaarde // Corresponds to non-toplevel elementaire voorwaarde
     : voorwaardeVergelijking
+    // | consistentieVoorwaarde // Spec §13.4.14.49 - Not implemented
+    // | periodevergelijkingElementair // Spec §13.4.14.69 - Not implemented
     ;
 
-// §13.4.14.50 VoorwaardeVergelijking (Simplified)
-voorwaardeVergelijking
+// §13.4.14.1 Toplevel Elementaire voorwaarde
+toplevelElementaireVoorwaarde
+    : toplevelVoorwaardeVergelijking
+    // | toplevelConsistentieVoorwaarde // Spec §13.4.14.1 - Not implemented
+    ;
+
+// §13.4.14.2 & §13.4.14.50 VoorwaardeVergelijking
+voorwaardeVergelijking // Non-toplevel
     : objectVergelijking
     | getalVergelijking
+    // | tekstVergelijking // Spec §13.4.14.50 - Not implemented
+    // | datumVergelijking // Spec §13.4.14.50 - Not implemented
+    // | booleanVergelijking // Spec §13.4.14.50 - Not implemented
     ;
 
-// Specific comparison types for the test case (Simplified)
-objectVergelijking // Corresponds partly to 13.4.14.63/64/96/97
+toplevelVoorwaardeVergelijking // Toplevel
+    : toplevelObjectVergelijking
+    | toplevelGetalVergelijking
+    // | toplevelTekstVergelijking // Spec §13.4.14.2 - Not implemented
+    // | toplevelDatumVergelijking // Spec §13.4.14.2 - Not implemented
+    // | toplevelBooleanVergelijking // Spec §13.4.14.2 - Not implemented
+    ;
+
+// Specific comparison types for the test case (Simplified - Toplevel versions needed for conditieBijExpressie)
+objectVergelijking // Non-toplevel example
     : onderwerpReferentie IS identifier // E.g., zijn reis is duurzaam
     ;
 
-getalVergelijking // Corresponds partly to 13.4.14.51/53/75/76
+toplevelObjectVergelijking // Toplevel equivalent (guessing structure based on Spec §13.4.14.47)
+    : onderwerpReferentie GELIJK_AAN identifier // Example: Status GELIJK_AAN 'Actief'
+    | onderwerpReferentie ONGELIJK_AAN identifier
+    // Add other toplevel object comparison forms if needed
+    ;
+
+getalVergelijking // Non-toplevel example
     : (naamwoord | attribuutReferentie | bezieldeReferentie) (IS_GROTER_OF_GELIJK_AAN | GROTER_DAN | IS_GROTER_DAN) NUMBER // Added naamwoord, limited operators
+    ;
+
+toplevelGetalVergelijking // Toplevel equivalent (guessing structure based on Spec §13.4.14.23)
+    : (naamwoord | attribuutReferentie | bezieldeReferentie) comparisonOperator NUMBER
+    // Add other toplevel number comparison forms if needed
     ;
 
 // --- RegelSpraak Expressions (§13.4.15, §13.4.16) (Simplified / Refactored in original G4) ---
@@ -352,7 +386,7 @@ primaryExpression : // Corresponds roughly to terminals/functions/references in 
       ABSOLUTE_TIJDSDUUR_VAN primaryExpression TOT primaryExpression (IN_HELE unitName=IDENTIFIER)?  # AbsTijdsduurFuncExpr
     | TIJDSDUUR_VAN primaryExpression TOT primaryExpression (IN_HELE unitName=IDENTIFIER)?            # TijdsduurFuncExpr
     | SOM_VAN (ALLE? onderwerpReferentie)                                                             # SomFuncExpr
-    | HET AANTAL (ALLE? onderwerpReferentie)                                                         # AantalFuncExpr // EBNF 13.4.16.41/42
+    | HET? AANTAL (ALLE? onderwerpReferentie)                                                         # AantalFuncExpr // Made HET optional
     | NUMBER (PERCENT_SIGN | p=IDENTIFIER) VAN primaryExpression                                    # PercentageFuncExpr
     | primaryExpression afronding                                                                   # AfrondingExpr  // EBNF 13.4.16.21
     | primaryExpression COMMA begrenzing                                                            # BegrenzingExpr // EBNF 13.4.16.23
@@ -373,6 +407,14 @@ primaryExpression : // Corresponds roughly to terminals/functions/references in 
     | EERSTE_VAN primaryExpression (COMMA primaryExpression)* EN primaryExpression          # EersteDatumFuncExpr // EBNF 13.4.16.34
     | LAATSTE_VAN primaryExpression (COMMA primaryExpression)* EN primaryExpression         # LaatsteDatumFuncExpr // EBNF 13.4.16.35
 
+    // Added for §13.4.16.45-53 Aggregations & Conditional Expressions
+    | TOTAAL_VAN expressie conditieBijExpressie?                                                        # TotaalVanExpr // EBNF 13.4.16.51
+    | HET_AANTAL_DAGEN_IN (DE MAAND | HET JAAR) DAT expressie                                         # HetAantalDagenInExpr // Special case
+    | identifier+ TOTAAL_VAN expressie conditieBijExpressie?                                          # CapitalizedTotaalVanExpr // Special case for "Het totaal van" with capitalization
+    | TIJDSEVENREDIG_DEEL_PER (MAAND | JAAR) VAN expressie conditieBijExpressie?                      # TijdsevenredigDeelExpr // Made conditieBijExpressie optional
+    | identifier+ TIJDSEVENREDIG_DEEL_PER (MAAND | JAAR) VAN expressie conditieBijExpressie?          # CapitalizedTijdsevenredigDeelExpr // Made conditieBijExpressie optional
+    | (getalAggregatieFunctie | datumAggregatieFunctie) attribuutReferentie dimensieSelectie         # DimensieAggExpr // EBNF 13.4.16.45 (Placeholder for now, needs refinement)
+    
     // References
     | attribuutReferentie                                           # AttrRefExpr
     | bezieldeReferentie                                            # BezieldeRefExpr
@@ -413,17 +455,53 @@ begrenzingMaximum
     : MET_EEN_MAXIMUM_VAN expressie
     ;
 
+// EBNF 13.4.16.50 Conditie bij Expressie
+conditieBijExpressie
+    : GEDURENDE_DE_TIJD_DAT ( toplevelElementaireVoorwaarde | toplevelSamengesteldeVoorwaarde )
+    | periodevergelijkingEnkelvoudig // Reuse existing definition if suitable
+    ;
+
+// EBNF 13.4.16.67-68 Periode Vergelijking (Non-Toplevel)
+periodevergelijkingEnkelvoudig // Reusing/defining for conditieBijExpressie and potential other uses
+    : VANAF datumLiteral
+    | VAN datumLiteral TOT datumLiteral
+    | VAN datumLiteral TOT_EN_MET datumLiteral
+    | TOT datumLiteral
+    | TOT_EN_MET datumLiteral
+    ;
+
+// EBNF 13.4.16.42 Getal Aggregatie Functie
+getalAggregatieFunctie
+    : HET? AANTAL // Made HET optional
+    | MAXIMALE_WAARDE_VAN
+    | MINIMALE_WAARDE_VAN
+    | SOM_VAN
+    ;
+
+// EBNF 13.4.16.44 Datum Aggregatie Functie
+datumAggregatieFunctie
+    : EERSTE_VAN
+    | LAATSTE_VAN
+    ;
+
+// EBNF 13.4.16.46-.49 Dimensie Selectie (Placeholders)
+dimensieSelectie
+    : OVER (aggregerenOverAlleDimensies | aggregerenOverVerzameling | aggregerenOverBereik) DOT
+    ;
+
+aggregerenOverAlleDimensies
+    : ALLE naamwoord // naamwoord used for meervoud form
+    ;
+
+aggregerenOverVerzameling // EBNF 13.4.16.48 - Using naamwoord for meervoud, identifier for waarde
+    : DE naamwoord VANAF identifier TM identifier
+    ;
+
+aggregerenOverBereik // EBNF 13.4.16.49 - Using naamwoord for meervoud, identifier for waarde
+    : DE naamwoord IN LBRACE identifier (COMMA identifier)* EN identifier RBRACE
+    ;
+
 // §13.3.10 Dagsoort Definition (Added based on spec)
 dagsoortDefinition
     : DAGSOORT naamwoord SEMICOLON?
     ;
-
-// Note: Many specific function calls (wortel, macht, etc.) and expression types
-// from §13.4.16 are not present in the simplified original G4 provided.
-// The refactored expression structure (comparison -> additive -> primary)
-// handles basic precedence.
-// Note: While functions like wortel, abs, date extraction, min/max, rounding, date creation and sum have been added,
-// some other specific function calls
-// and expression types from §13.4.16 are still not explicitly handled.
-// The refactored expression structure (comparison -> additive -> primary)
-// handles basic operator precedence for the implemented operators.

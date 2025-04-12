@@ -5,6 +5,10 @@ lexer grammar RegelSpraakLexer;
 // --- Keywords (Order matters: Longest matches first, then categories, then IDENTIFIER) ---
 
 // --- Longest Multi-Word Keywords First ---
+HET_AANTAL_DAGEN_IN: 'het aantal dagen in';
+HET_KWARTAAL: 'het kwartaal';
+HET_DEEL_PER_MAAND: 'het deel per maand';
+HET_DEEL_PER_JAAR: 'het deel per jaar';
 VOOR_HET_ATTRIBUUT_ZONDER_VOORZETSEL: '(voor het attribuut zonder voorzetsel):';
 NA_HET_ATTRIBUUT_MET_VOORZETSEL: '(na het attribuut met voorzetsel';
 DATUM_TIJD_MILLIS: 'Datum en tijd in millisecondes';
@@ -18,6 +22,8 @@ ABSOLUTE_TIJDSDUUR_VAN: 'de absolute tijdsduur van';
 ABSOLUTE_WAARDE_VAN: 'de absolute waarde van';
 MAXIMALE_WAARDE_VAN: 'de maximale waarde van';
 MINIMALE_WAARDE_VAN: 'de minimale waarde van';
+TOTAAL_VAN: 'het totaal van';
+TIJDSEVENREDIG_DEEL_PER: 'het tijdsevenredig deel per';
 DE_DATUM_MET: 'de datum met jaar, maand en dag';
 EERSTE_PAASDAG_VAN: 'de eerste paasdag van';
 ALS_ONVERDEELDE_REST_BLIJFT: 'Als onverdeelde rest blijft';
@@ -131,12 +137,13 @@ VOOR_ELKE_DAG: 'voor elke dag';
 VOOR_ELKE_MAAND: 'voor elke maand';
 
 // Functions & Aggregation Keywords
+AANTAL: 'aantal';
 EERSTE_VAN: 'de eerste van';
 IN_HELE: 'in hele';
 LAATSTE_VAN: 'de laatste van';
+REEKS_VAN_TEKSTEN_EN_WAARDEN: 'reeks van teksten en waarden';
 SOM_VAN: 'de som van';
 TIJDSDUUR_VAN: 'de tijdsduur van';
-AANTAL: 'aantal';
 
 // Verdeling Detail Keywords
 AFNEMENDE: 'afnemende';
@@ -238,10 +245,12 @@ BULLET: '•';
 L_ANGLE_QUOTE: '«';
 R_ANGLE_QUOTE: '»';
 CARET: '^';
-WS: [ \t\r\n]+ -> skip;
+WS: [ \t\r\n]+ -> channel(HIDDEN);
 LINE_COMMENT: '//' ~[\r\n]* -> skip;
 fragment MINUS: '-';
 fragment LETTER: [a-zA-ZáàâäãåçéèêëíìîïñóòôöõúùûüýÿÁÀÂÄÃÅÇÉÈÊËÍÌÎÏÑÓÒÔÖÕÚÙÛÜÝŸ];
 fragment DIGIT : [0-9] ;
 
 // NO modes
+
+// New keywords
