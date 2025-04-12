@@ -355,6 +355,8 @@ primaryExpression : // Corresponds roughly to terminals/functions/references in 
     // Added for §13.4.16 functions
     | WORTEL_VAN expressie                                          # WortelFuncExpr // EBNF 13.4.16.13 (Simplified, no rounding yet)
     | ABSOLUTE_WAARDE_VAN LPAREN expressie RPAREN                   # AbsValFuncExpr // EBNF 13.4.16.17
+    | MINIMALE_WAARDE_VAN expressie (COMMA expressie)* EN expressie # MinValFuncExpr // EBNF 13.4.16.15
+    | MAXIMALE_WAARDE_VAN expressie (COMMA expressie)* EN expressie # MaxValFuncExpr // EBNF 13.4.16.16
     | HET JAAR UIT expressie                                        # JaarUitFuncExpr // EBNF 13.4.16.18
     | DE MAAND UIT expressie                                        # MaandUitFuncExpr // EBNF 13.4.16.19
     | DE DAG UIT expressie                                          # DagUitFuncExpr // EBNF 13.4.16.20
@@ -390,8 +392,8 @@ dagsoortDefinition
 // from §13.4.16 are not present in the simplified original G4 provided.
 // The refactored expression structure (comparison -> additive -> primary)
 // handles basic precedence.
-// Note: While functions like wortel, abs, date extraction, and sum have been added,
-// many other specific function calls (min/max, rounding, date creation, etc.)
+// Note: While functions like wortel, abs, date extraction, min/max and sum have been added,
+// many other specific function calls (rounding, date creation, etc.)
 // and expression types from §13.4.16 are still not explicitly handled.
 // The refactored expression structure (comparison -> additive -> primary)
 // handles basic operator precedence for the implemented operators.

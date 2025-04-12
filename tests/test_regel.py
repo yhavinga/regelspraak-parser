@@ -172,5 +172,41 @@ class RegelTests(RegelSpraakTestCase):
         self.assertNoParseErrors()
         self.assertIsNotNone(tree)
 
+    def test_regel_min_waarde(self):
+        """Tests parsing a rule using 'minimale waarde van'."""
+        rule_text = """
+        Regel Bepaal Minimum
+        geldig altijd
+            Het resultaat moet berekend worden als de minimale waarde van 10, 5, 8 en 12.
+        """
+        tree = self.parse_text(rule_text)
+        self.assertNoParseErrors()
+
+        rule_text_vars = """
+        Regel Bepaal Minimum Met Variabelen
+        geldig altijd
+            Het minimum moet berekend worden als de minimale waarde van PrijsA, Korting en StandaardPrijs.
+        """
+        tree = self.parse_text(rule_text_vars)
+        self.assertNoParseErrors()
+
+    def test_regel_max_waarde(self):
+        """Tests parsing a rule using 'maximale waarde van'."""
+        rule_text = """
+        Regel Bepaal Maximum
+        geldig altijd
+            Het resultaat moet berekend worden als de maximale waarde van 10, 5, 8 en 12.
+        """
+        tree = self.parse_text(rule_text)
+        self.assertNoParseErrors()
+
+        rule_text_vars = """
+        Regel Bepaal Maximum Met Variabelen
+        geldig altijd
+            De hoogste waarde moet berekend worden als de maximale waarde van A, B en C.
+        """
+        tree = self.parse_text(rule_text_vars)
+        self.assertNoParseErrors()
+
 if __name__ == '__main__':
     unittest.main() 
