@@ -352,6 +352,7 @@ primaryExpression : // Corresponds roughly to terminals/functions/references in 
     | SOM_VAN (ALLE? onderwerpReferentie)                                                             # SomFuncExpr
     | NUMBER (PERCENT_SIGN | p=IDENTIFIER) VAN primaryExpression                                    # PercentageFuncExpr
     | primaryExpression afronding                                                                   # AfrondingExpr  // EBNF 13.4.16.21
+    | primaryExpression COMMA begrenzing                                                            # BegrenzingExpr // EBNF 13.4.16.23
 
     // Added for §13.4.16 functions
     | WORTEL_VAN expressie                                          # WortelFuncExpr // EBNF 13.4.16.13 (Simplified, no rounding yet)
@@ -385,6 +386,21 @@ primaryExpression : // Corresponds roughly to terminals/functions/references in 
 // EBNF 13.4.16.22 Afronding
 afronding
     : (NAAR_BENEDEN | NAAR_BOVEN | REKENKUNDIG | RICHTING_NUL | WEG_VAN_NUL) AFGEROND_OP NUMBER DECIMALEN
+    ;
+
+// EBNF 13.4.16.24-.26 Begrenzing
+begrenzing
+    : begrenzingMinimum
+    | begrenzingMaximum
+    | begrenzingMinimum EN begrenzingMaximum
+    ;
+
+begrenzingMinimum
+    : MET_EEN_MINIMUM_VAN expressie
+    ;
+
+begrenzingMaximum
+    : MET_EEN_MAXIMUM_VAN expressie
     ;
 
 // §13.3.10 Dagsoort Definition (Added based on spec)
