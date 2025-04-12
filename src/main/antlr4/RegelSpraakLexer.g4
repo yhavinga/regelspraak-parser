@@ -1,5 +1,7 @@
 lexer grammar RegelSpraakLexer;
 
+// NO @lexer::members
+
 // --- Keywords (Order matters: Longest matches first, then categories, then IDENTIFIER) ---
 
 // --- Longest Multi-Word Keywords First ---
@@ -186,32 +188,39 @@ VOOR: 'voor';
 WAAR: 'waar';
 WEEK: 'week';
 
-// --- Identifiers (Must come AFTER all keywords) ---
+// Units and Common Measurements
+METER: 'meter';
+KILOGRAM: 'kilogram';
+VOET: 'voet';
+POND: 'pond';
+MIJL: 'mijl';
+
+// Add Abbreviations (Place before IDENTIFIER)
+M: 'm';
+KG: 'kg';
+S: 's';
+FT: 'ft';
+LB: 'lb';
+MI: 'mi';
+
+// --- Standard Tokens (No predicates) ---
 IDENTIFIER : LETTER (LETTER | DIGIT | '_' | '\'')* ;
+NUMBER: (MINUS? DIGIT+ (',' DIGIT+)? | MINUS? DIGIT+ '_' DIGIT+ '/' DIGIT+ | MINUS? DIGIT+ '/' DIGIT+);
+EQUALS: '=';
 
-// --- Literals ---
-fragment DAY_PART  : ('0'?[1-9] | [12] DIGIT | '3'[01]) ; // Replaced \d with DIGIT
-fragment MONTH_PART: ('0'?[1-9] | '1'[0-2]) ;        // Approximation from Spec
+// --- Other Literals, Punctuation, WS, Comments, Fragments ---
+fragment DAY_PART  : ('0'?[1-9] | [12] DIGIT | '3'[01]) ;
+fragment MONTH_PART: ('0'?[1-9] | '1'[0-2]) ;
 fragment YEAR_PART : DIGIT DIGIT DIGIT DIGIT ;
-fragment HOUR_PART   : ('0'|'1') DIGIT | '2' [0-3]; // 00-23 (Corrected range)
-fragment MINUTE_PART : [0-5] DIGIT ; // 00-59 (Corrected range)
-fragment SECOND_PART : [0-5] DIGIT ; // 00-59 (Corrected range)
-fragment MILLI_PART  : DIGIT DIGIT DIGIT ; // 000-999
+fragment HOUR_PART   : ('0'|'1') DIGIT | '2' [0-3];
+fragment MINUTE_PART : [0-5] DIGIT ;
+fragment SECOND_PART : [0-5] DIGIT ;
+fragment MILLI_PART  : DIGIT DIGIT DIGIT ;
 fragment TIME_PART : HOUR_PART ':' MINUTE_PART ':' SECOND_PART '.' MILLI_PART ;
-
-DATE_TIME_LITERAL: (DD_PUNT WS)? DAY_PART '-' MONTH_PART '-' YEAR_PART ( WS TIME_PART )? ; // Updated rule
-
-NUMBER: MINUS? DIGIT+ (',' DIGIT+)?
-       | MINUS? DIGIT+ '_' DIGIT+ '/' DIGIT+
-       | MINUS? DIGIT+ '/' DIGIT+;
-
+DATE_TIME_LITERAL: (DD_PUNT WS)? DAY_PART '-' MONTH_PART '-' YEAR_PART ( WS TIME_PART )? ;
 PERCENTAGE_LITERAL: NUMBER PERCENT_SIGN;
-
-STRING_LITERAL: '"' ( '\\' . | ~["\\] )*? '"';
-
-ENUM_LITERAL: '\'' ( '\\' . | ~['\\] )*? '\'';
-
-// --- Punctuation & Operators ---
+STRING_LITERAL: '"' ( '\\' . | ~["\\] )*? '"' ;
+ENUM_LITERAL: '\'' ( '\\' . | ~['\\] )*? '\'' ;
 LPAREN: '(';
 RPAREN: ')';
 LBRACE: '{';
@@ -221,18 +230,15 @@ DOT: '.';
 COLON: ':';
 SEMICOLON: ';';
 SLASH: '/';
-EQUALS: '=';
 PERCENT_SIGN: '%';
 BULLET: '•';
 L_ANGLE_QUOTE: '«';
 R_ANGLE_QUOTE: '»';
 CARET: '^';
-
-// --- Whitespace and Comments ---
 WS: [ \t\r\n]+ -> skip;
 LINE_COMMENT: '//' ~[\r\n]* -> skip;
-
-// --- Fragments ---
 fragment MINUS: '-';
 fragment LETTER: [a-zA-ZáàâäãåçéèêëíìîïñóòôöõúùûüýÿÁÀÂÄÃÅÇÉÈÊËÍÌÎÏÑÓÒÔÖÕÚÙÛÜÝŸ];
 fragment DIGIT : [0-9] ;
+
+// NO modes

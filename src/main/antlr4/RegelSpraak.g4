@@ -4,7 +4,7 @@ options { tokenVocab=RegelSpraakLexer; }
 
 // --- Start Rule ---
 regelSpraakDocument // Top level container
-    : ( definitie | regel )* EOF
+    : ( definitie | regel | beslistabel | eenheidsysteemDefinition )* EOF
     ;
 
 // --- Top-Level Definitions ---
@@ -14,8 +14,12 @@ definitie
     | parameterDefinition
     | dimensieDefinition
     | feitTypeDefinition       // Added FeitType definition
-    // | eenheidsysteemDefinition // Placeholder from Spec - Not in original G4
-    // | dagsoortDefinition       // Placeholder from Spec - Not in original G4
+    | dagsoortDefinition       // Uncommented
+    ;
+
+// --- Beslistabel Rule (Added based on Spec) ---
+beslistabel
+    : BESLISTABEL identifier
     ;
 
 // --- Basic Building Blocks ---
@@ -118,7 +122,25 @@ domeinRef // Reference to a domain definition
     : DOMEIN name=IDENTIFIER
     ;
 
-// §13.3.5 Eenheden & Eenheidsysteem (Simplified in original G4)
+// §13.3.5 Eenheden & Eenheidsysteem (Added based on spec)
+eenheidsysteemDefinition
+    : EENHEIDSYSTEEM name=identifier // Standard identifier for system name
+      eenheidEntry*
+    ;
+
+eenheidEntry
+    : DE unitName=unitIdentifier abbrev=unitIdentifier // Use unitIdentifier rule
+      (EQUALS value=NUMBER targetUnit=unitIdentifier)? // Use standard tokens + unitIdentifier
+    ;
+
+// New rule to allow keywords or identifiers as units
+unitIdentifier
+    : IDENTIFIER
+    | METER | KILOGRAM | SECONDE | MINUUT | UUR | VOET | POND | MIJL // Keywords
+    | M | KG | S | FT | LB | MIN | MI // Abbreviations + Keyword MIN
+    ;
+
+// Eenheid expressions
 eenheidExpressie // Corresponds to unit structure in §13.3.3.2/3. Simplified based on original G4 & spec.
     : eenheidMacht ( SLASH eenheidMacht )?
     | NUMBER
@@ -126,7 +148,7 @@ eenheidExpressie // Corresponds to unit structure in §13.3.3.2/3. Simplified ba
     ;
 
 eenheidMacht // EBNF 13.3.5.5. Simplified based on original G4 & spec.
-    : identifier ( CARET NUMBER )? // E.g., m^2
+    : unitIdentifier ( CARET NUMBER )? // Use unitIdentifier rule here too
     ;
 
 // §13.3.7 Dimensie Definition (Added based on Spec)
@@ -353,3 +375,8 @@ primaryExpression // Corresponds roughly to terminals/functions/references in §
 // from §13.4.16 are not present in the simplified original G4 provided.
 // The refactored expression structure (comparison -> additive -> primary)
 // handles basic precedence.
+
+// §13.3.10 Dagsoort Definition (Added based on spec)
+dagsoortDefinition
+    : DAGSOORT naamwoord SEMICOLON?
+    ;

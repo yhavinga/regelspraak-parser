@@ -1,9 +1,11 @@
 import os
 import unittest
 from antlr4 import FileStream, CommonTokenStream, InputStream
+from antlr4.error.ErrorListener import ErrorListener
 from regelspraak.generated.RegelSpraakLexer import RegelSpraakLexer
 from regelspraak.generated.RegelSpraakParser import RegelSpraakParser
 
+# --- Test Framework Code ---
 class RegelSpraakTestCase(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
@@ -30,31 +32,29 @@ class RegelSpraakTestCase(unittest.TestCase):
         parser.removeErrorListeners()  # Remove default error listener
         self.error_listener = TestErrorListener()
         parser.addErrorListener(self.error_listener)
-        
+
         # Get the parser rule method by name
         rule_method = getattr(parser, self.parser_rule)
-        return rule_method()
+        tree = rule_method() # Execute parsing
+        return tree
 
     def assertNoParseErrors(self):
         """Assert that no parse errors occurred."""
         if self.error_listener.errors:
             raise AssertionError(f"Parse errors occurred: {self.error_listener.errors}")
 
-class TestErrorListener:
+class TestErrorListener(ErrorListener): # Inherit from ErrorListener
     def __init__(self):
         self.errors = []
 
     def syntaxError(self, recognizer, offendingSymbol, line, column, msg, e):
         self.errors.append(f"line {line}:{column} {msg}")
 
-    def reportAmbiguity(self, recognizer, dfa, startIndex, stopIndex, exact, ambigAlts, configs):
-        pass  # Ignore ambiguity reports
+    # Keep stubs for other ErrorListener methods if needed, otherwise inheriting is enough
+    # def reportAmbiguity(...): pass
+    # def reportAttemptingFullContext(...): pass
+    # def reportContextSensitivity(...): pass
 
-    def reportAttemptingFullContext(self, recognizer, dfa, startIndex, stopIndex, conflictingAlts, configs):
-        pass  # Ignore full context attempts
-
-    def reportContextSensitivity(self, recognizer, dfa, startIndex, stopIndex, prediction, configs):
-        pass  # Ignore context sensitivity reports
 
 class RegelSpraakParserTests(RegelSpraakTestCase):
     # Basic syntax tests for individual files
