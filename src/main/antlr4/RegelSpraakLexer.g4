@@ -136,6 +136,7 @@ IN_HELE: 'in hele';
 LAATSTE_VAN: 'de laatste van';
 SOM_VAN: 'de som van';
 TIJDSDUUR_VAN: 'de tijdsduur van';
+AANTAL: 'aantal';
 
 // Verdeling Detail Keywords
 AFNEMENDE: 'afnemende';

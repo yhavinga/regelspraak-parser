@@ -208,5 +208,52 @@ class RegelTests(RegelSpraakTestCase):
         tree = self.parse_text(rule_text_vars)
         self.assertNoParseErrors()
 
+    def test_regel_aantal(self):
+        """Tests parsing a rule using 'het aantal'."""
+        rule_text = """
+        Regel Bepaal Aantal
+        geldig altijd
+            Het resultaat moet berekend worden als het aantal personen.
+        """
+        tree = self.parse_text(rule_text)
+        self.assertNoParseErrors()
+
+        rule_text_with_alle = """
+        Regel Bepaal Alle Aantal
+        geldig altijd
+            Het resultaat moet berekend worden als het aantal alle personen.
+        """
+        tree = self.parse_text(rule_text_with_alle)
+        self.assertNoParseErrors()
+
+    def test_regel_concatenatie(self):
+        """Tests parsing a rule using string concatenation with 'en' and 'of'."""
+        # Test with 'de concatenatie van' syntax
+        rule_text_with_keyword = """
+        Regel String Concatenatie Met Keyword
+        geldig altijd
+            De volledige naam moet berekend worden als de concatenatie van voornaam, tussenvoegsel en achternaam.
+        """
+        tree = self.parse_text(rule_text_with_keyword)
+        self.assertNoParseErrors()
+
+        # Test with simple concatenation using 'en'
+        rule_text_with_en = """
+        Regel String Concatenatie Met En
+        geldig altijd
+            De naam moet berekend worden als voornaam, tussenvoegsel en achternaam.
+        """
+        tree = self.parse_text(rule_text_with_en)
+        self.assertNoParseErrors()
+
+        # Test with simple concatenation using 'of'
+        rule_text_with_of = """
+        Regel String Concatenatie Met Of
+        geldig altijd
+            Het adres moet berekend worden als straat, nummer of postcode.
+        """
+        tree = self.parse_text(rule_text_with_of)
+        self.assertNoParseErrors()
+
 if __name__ == '__main__':
     unittest.main() 

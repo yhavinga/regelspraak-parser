@@ -184,7 +184,7 @@ parameterDefinition
     ;
 
 parameterNamePhrase // Dedicated rule for parameter names
-    : (DE | HET)? IDENTIFIER+ // Reverted to include optional article
+    : (DE | HET)? (IDENTIFIER | AANTAL)+ // Allow AANTAL token to be used in parameter names
     ;
 
 parameterMetLidwoord // Used within expression, but defined with parameter def
@@ -312,6 +312,8 @@ expressie
     : comparisonExpression // Top level of expression starts with comparison (or additive if no comparison)
     ;
 
+// --- Other Expression Rules --- 
+
 comparisonExpression
     : left=additiveExpression ( comparisonOperator right=additiveExpression )?
     ;
@@ -350,23 +352,26 @@ primaryExpression : // Corresponds roughly to terminals/functions/references in 
       ABSOLUTE_TIJDSDUUR_VAN primaryExpression TOT primaryExpression (IN_HELE unitName=IDENTIFIER)?  # AbsTijdsduurFuncExpr
     | TIJDSDUUR_VAN primaryExpression TOT primaryExpression (IN_HELE unitName=IDENTIFIER)?            # TijdsduurFuncExpr
     | SOM_VAN (ALLE? onderwerpReferentie)                                                             # SomFuncExpr
+    | HET AANTAL (ALLE? onderwerpReferentie)                                                         # AantalFuncExpr // EBNF 13.4.16.41/42
     | NUMBER (PERCENT_SIGN | p=IDENTIFIER) VAN primaryExpression                                    # PercentageFuncExpr
     | primaryExpression afronding                                                                   # AfrondingExpr  // EBNF 13.4.16.21
     | primaryExpression COMMA begrenzing                                                            # BegrenzingExpr // EBNF 13.4.16.23
+    | CONCATENATIE_VAN primaryExpression (COMMA primaryExpression)* (EN | OF) primaryExpression     # ConcatenatieExpr // EBNF 13.4.16.2
+    | primaryExpression (COMMA primaryExpression)+ (EN | OF) primaryExpression                      # SimpleConcatenatieExpr // Simple concatenation without keyword
 
     // Added for §13.4.16 functions
-    | WORTEL_VAN expressie                                          # WortelFuncExpr // EBNF 13.4.16.13 (Simplified, no rounding yet)
-    | ABSOLUTE_WAARDE_VAN LPAREN expressie RPAREN                   # AbsValFuncExpr // EBNF 13.4.16.17
-    | MINIMALE_WAARDE_VAN expressie (COMMA expressie)* EN expressie # MinValFuncExpr // EBNF 13.4.16.15
-    | MAXIMALE_WAARDE_VAN expressie (COMMA expressie)* EN expressie # MaxValFuncExpr // EBNF 13.4.16.16
-    | HET JAAR UIT expressie                                        # JaarUitFuncExpr // EBNF 13.4.16.18
-    | DE MAAND UIT expressie                                        # MaandUitFuncExpr // EBNF 13.4.16.19
-    | DE DAG UIT expressie                                          # DagUitFuncExpr // EBNF 13.4.16.20
-    | DE_DATUM_MET LPAREN expressie COMMA expressie COMMA expressie RPAREN  # DatumMetFuncExpr // EBNF 13.4.16.31
-    | EERSTE_PAASDAG_VAN LPAREN expressie RPAREN                    # PasenFuncExpr // EBNF 13.4.16.32
-    | primaryExpression (PLUS | MIN) expressie identifier           # DateCalcExpr // EBNF 13.4.16.33
-    | EERSTE_VAN expressie (COMMA expressie)* EN expressie          # EersteDatumFuncExpr // EBNF 13.4.16.34
-    | LAATSTE_VAN expressie (COMMA expressie)* EN expressie         # LaatsteDatumFuncExpr // EBNF 13.4.16.35
+    | WORTEL_VAN primaryExpression                                          # WortelFuncExpr // EBNF 13.4.16.13 (Simplified, no rounding yet)
+    | ABSOLUTE_WAARDE_VAN LPAREN primaryExpression RPAREN                   # AbsValFuncExpr // EBNF 13.4.16.17
+    | MINIMALE_WAARDE_VAN primaryExpression (COMMA primaryExpression)* EN primaryExpression # MinValFuncExpr // EBNF 13.4.16.15
+    | MAXIMALE_WAARDE_VAN primaryExpression (COMMA primaryExpression)* EN primaryExpression # MaxValFuncExpr // EBNF 13.4.16.16
+    | HET JAAR UIT primaryExpression                                        # JaarUitFuncExpr // EBNF 13.4.16.18
+    | DE MAAND UIT primaryExpression                                        # MaandUitFuncExpr // EBNF 13.4.16.19
+    | DE DAG UIT primaryExpression                                          # DagUitFuncExpr // EBNF 13.4.16.20
+    | DE_DATUM_MET LPAREN primaryExpression COMMA primaryExpression COMMA primaryExpression RPAREN  # DatumMetFuncExpr // EBNF 13.4.16.31
+    | EERSTE_PAASDAG_VAN LPAREN primaryExpression RPAREN                    # PasenFuncExpr // EBNF 13.4.16.32
+    | primaryExpression (PLUS | MIN) primaryExpression identifier           # DateCalcExpr // EBNF 13.4.16.33
+    | EERSTE_VAN primaryExpression (COMMA primaryExpression)* EN primaryExpression          # EersteDatumFuncExpr // EBNF 13.4.16.34
+    | LAATSTE_VAN primaryExpression (COMMA primaryExpression)* EN primaryExpression         # LaatsteDatumFuncExpr // EBNF 13.4.16.35
 
     // References
     | attribuutReferentie                                           # AttrRefExpr
