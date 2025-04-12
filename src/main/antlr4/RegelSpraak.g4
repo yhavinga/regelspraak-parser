@@ -345,38 +345,53 @@ powerExpression // New rule for exponentiation
 
 powerOperator : TOT_DE_MACHT ; // New rule for operator
 
-primaryExpression // Corresponds roughly to terminals/functions/references in §13.4.16
+primaryExpression : // Corresponds roughly to terminals/functions/references in §13.4.16
     // Functions (Simplified subset)
-    : ABSOLUTE_TIJDSDUUR_VAN primaryExpression TOT primaryExpression (IN_HELE unitName=IDENTIFIER)?
-    | TIJDSDUUR_VAN primaryExpression TOT primaryExpression (IN_HELE unitName=IDENTIFIER)?
-    | SOM_VAN (ALLE? onderwerpReferentie) // Aggregation
-    | NUMBER (PERCENT_SIGN | p=IDENTIFIER) VAN primaryExpression // Percentage function/unit?
+      ABSOLUTE_TIJDSDUUR_VAN primaryExpression TOT primaryExpression (IN_HELE unitName=IDENTIFIER)?  # AbsTijdsduurFuncExpr
+    | TIJDSDUUR_VAN primaryExpression TOT primaryExpression (IN_HELE unitName=IDENTIFIER)?            # TijdsduurFuncExpr
+    | SOM_VAN (ALLE? onderwerpReferentie)                                                             # SomFuncExpr
+    | NUMBER (PERCENT_SIGN | p=IDENTIFIER) VAN primaryExpression                                    # PercentageFuncExpr
+
+    // Added for §13.4.16 functions
+    | WORTEL_VAN expressie                                          # WortelFuncExpr // EBNF 13.4.16.13 (Simplified, no rounding yet)
+    | ABSOLUTE_WAARDE_VAN LPAREN expressie RPAREN                   # AbsValFuncExpr // EBNF 13.4.16.17
+    | HET JAAR UIT expressie                                        # JaarUitFuncExpr // EBNF 13.4.16.18
+    | DE MAAND UIT expressie                                        # MaandUitFuncExpr // EBNF 13.4.16.19
+    | DE DAG UIT expressie                                          # DagUitFuncExpr // EBNF 13.4.16.20
 
     // References
-    | attribuutReferentie
-    | bezieldeReferentie
-    | naamwoord // Simple noun phrase as expression?
-    | parameterMetLidwoord // Added based on spec §13.4.16.1 - check original G4
+    | attribuutReferentie                                           # AttrRefExpr
+    | bezieldeReferentie                                            # BezieldeRefExpr
+    | naamwoord                                                     # NaamwoordExpr // Simple noun phrase as expression?
+    | parameterMetLidwoord                                          # ParamRefExpr // Added based on spec §13.4.16.1 - check original G4
 
     // Literals & Keywords
-    | REKENDATUM
-    | identifier // Bare identifier as expression?
-    | NUMBER
-    | STRING_LITERAL
-    | datumLiteral // Added DATE_TIME_LITERAL via datumLiteral rule
-    | WAAR | ONWAAR
-    | HIJ // Pronoun reference
+    | REKENDATUM                                                    # RekendatumKeywordExpr
+    | identifier                                                    # IdentifierExpr // Bare identifier as expression?
+    | NUMBER                                                        # NumberLiteralExpr
+    | STRING_LITERAL                                                # StringLiteralExpr
+    | datumLiteral                                                  # DatumLiteralExpr // Added DATE_TIME_LITERAL via datumLiteral rule
+    | WAAR                                                          # BooleanTrueLiteralExpr
+    | ONWAAR                                                        # BooleanFalseLiteralExpr
+    | HIJ                                                           # PronounExpr // Pronoun reference
 
     // Grouping
-    | LPAREN expressie RPAREN
+    | LPAREN expressie RPAREN                                       # ParenExpr
+    ;
+
+
+
+// §13.3.10 Dagsoort Definition (Added based on spec)
+dagsoortDefinition
+    : DAGSOORT naamwoord SEMICOLON?
     ;
 
 // Note: Many specific function calls (wortel, macht, etc.) and expression types
 // from §13.4.16 are not present in the simplified original G4 provided.
 // The refactored expression structure (comparison -> additive -> primary)
 // handles basic precedence.
-
-// §13.3.10 Dagsoort Definition (Added based on spec)
-dagsoortDefinition
-    : DAGSOORT naamwoord SEMICOLON?
-    ;
+// Note: While functions like wortel, abs, date extraction, and sum have been added,
+// many other specific function calls (min/max, rounding, date creation, etc.)
+// and expression types from §13.4.16 are still not explicitly handled.
+// The refactored expression structure (comparison -> additive -> primary)
+// handles basic operator precedence for the implemented operators.

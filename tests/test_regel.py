@@ -119,5 +119,58 @@ class RegelTests(RegelSpraakTestCase):
         self.assertIsNotNone(tree)
         self.assertNoParseErrors()
 
+    def test_regel_wortel_van(self):
+        """Test parsing a rule using 'de wortel van' function."""
+        input_text = """Regel bereken wortel
+            geldig altijd
+                Het resultaat moet berekend worden als de wortel van het invoer getal.
+        """
+        # NOTE: This will FAIL until grammar is updated
+        tree = self.parse_text(input_text)
+        # Check for errors later after grammar update
+        self.assertNoParseErrors()
+        # For now, just check if parsing happens without exception
+        self.assertIsNotNone(tree)
+
+    def test_regel_absolute_waarde_van(self):
+        """Test parsing a rule using 'de absolute waarde van' function."""
+        input_text = """Regel bereken absolute waarde
+            geldig altijd
+                Het resultaat moet berekend worden als de absolute waarde van (-5).
+        """
+        tree = self.parse_text(input_text)
+        self.assertNoParseErrors()
+        self.assertIsNotNone(tree)
+
+    def test_regel_jaar_uit(self):
+        """Test parsing a rule using 'het jaar uit' function."""
+        input_text = """Regel haal_jaar_op
+            geldig altijd
+                Het geboortejaar moet berekend worden als het jaar uit de geboortedatum.
+        """
+        tree = self.parse_text(input_text)
+        self.assertNoParseErrors()
+        self.assertIsNotNone(tree)
+
+    def test_regel_maand_uit(self):
+        """Test parsing a rule using 'de maand uit' function."""
+        input_text = """Regel haal_maand_op
+            geldig altijd
+                De geboortemaand moet berekend worden als de maand uit de geboortedatum.
+        """
+        tree = self.parse_text(input_text)
+        self.assertNoParseErrors()
+        self.assertIsNotNone(tree)
+
+    def test_regel_dag_uit(self):
+        """Test parsing a rule using 'de dag uit' function."""
+        input_text = """Regel haal_dag_op
+            geldig altijd
+                De geboortedag moet berekend worden als de dag uit de geboortedatum.
+        """
+        tree = self.parse_text(input_text)
+        self.assertNoParseErrors()
+        self.assertIsNotNone(tree)
+
 if __name__ == '__main__':
     unittest.main() 
