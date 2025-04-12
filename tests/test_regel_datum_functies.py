@@ -49,6 +49,38 @@ class RegelSpraakDatumFunctiesTest(RegelSpraakTestCase):
         self.assertIsNotNone(tree)
         self.assertNoParseErrors()
         
+    def test_eerste_van_datum(self):
+        """Test 'de eerste van' date function (§13.4.16.34)."""
+        code = """Regel testEersteVanDatum
+            geldig altijd
+                de vroegste datum moet gesteld worden op de eerste van 01-01-2024, 15-03-2024, 30-06-2024 en 25-12-2024.
+        """
+        tree = self.parse_text(code)
+        self.assertIsNotNone(tree)
+        self.assertNoParseErrors()
+        
+    def test_laatste_van_datum(self):
+        """Test 'de laatste van' date function (§13.4.16.35)."""
+        code = """Regel testLaatsteVanDatum
+            geldig altijd
+                de laatste datum moet gesteld worden op de laatste van 01-01-2024, 15-03-2024, 30-06-2024 en 25-12-2024.
+        """
+        tree = self.parse_text(code)
+        self.assertIsNotNone(tree)
+        self.assertNoParseErrors()
+        
+    def test_eerste_laatste_mixed_expressions(self):
+        """Test 'de eerste/laatste van' with mixed expressions."""
+        code = """Regel testMixedDates
+            geldig altijd
+                de speciale datum moet gesteld worden op de eerste van Rekendatum, de geboortedatum van een persoon en 01-01-2025.
+        Daarbij geldt:
+                de uiterste datum is de laatste van de vervaldatum, Rekendatum plus 30 dagen en 31-12-2025.
+        """
+        tree = self.parse_text(code)
+        self.assertIsNotNone(tree)
+        self.assertNoParseErrors()
+    
     def test_complex_date_calculation(self):
         """Test more complex date calculations combining multiple functions."""
         code = """Regel testComplexDatum

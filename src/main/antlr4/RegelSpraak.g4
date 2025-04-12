@@ -365,6 +365,8 @@ primaryExpression : // Corresponds roughly to terminals/functions/references in 
     | DE_DATUM_MET LPAREN expressie COMMA expressie COMMA expressie RPAREN  # DatumMetFuncExpr // EBNF 13.4.16.31
     | EERSTE_PAASDAG_VAN LPAREN expressie RPAREN                    # PasenFuncExpr // EBNF 13.4.16.32
     | primaryExpression (PLUS | MIN) expressie identifier           # DateCalcExpr // EBNF 13.4.16.33
+    | EERSTE_VAN expressie (COMMA expressie)* EN expressie          # EersteDatumFuncExpr // EBNF 13.4.16.34
+    | LAATSTE_VAN expressie (COMMA expressie)* EN expressie         # LaatsteDatumFuncExpr // EBNF 13.4.16.35
 
     // References
     | attribuutReferentie                                           # AttrRefExpr
