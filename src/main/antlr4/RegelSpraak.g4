@@ -282,8 +282,8 @@ voorwaardeKwantificatie // EBNF 13.4.13.4 (Simplified)
     : ALLE // Only handle ALLE for now
     ;
 
-samengesteldeVoorwaardeOnderdeel // EBNF 13.4.13.6 (Simplified)
-    : BULLET genesteVoorwaarde ( BULLET genesteVoorwaarde )*
+samengesteldeVoorwaardeOnderdeel // EBNF 13.4.13.6 (Simplified, with alternative bullets)
+    : (BULLET | MINUS | ASTERISK) genesteVoorwaarde ( (BULLET | MINUS | ASTERISK) genesteVoorwaarde )*
     ;
 
 genesteVoorwaarde // EBNF 13.4.13.7 (Simplified)

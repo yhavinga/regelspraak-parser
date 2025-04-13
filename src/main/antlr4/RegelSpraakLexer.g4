@@ -242,12 +242,13 @@ SEMICOLON: ';';
 SLASH: '/';
 PERCENT_SIGN: '%';
 BULLET: '•';
+ASTERISK: '*';
 L_ANGLE_QUOTE: '«';
 R_ANGLE_QUOTE: '»';
 CARET: '^';
 WS: [ \t\r\n]+ -> channel(HIDDEN);
 LINE_COMMENT: '//' ~[\r\n]* -> skip;
-fragment MINUS: '-';
+MINUS: '-';
 fragment LETTER: [a-zA-ZáàâäãåçéèêëíìîïñóòôöõúùûüýÿÁÀÂÄÃÅÇÉÈÊËÍÌÎÏÑÓÒÔÖÕÚÙÛÜÝŸ];
 fragment DIGIT : [0-9] ;
 
