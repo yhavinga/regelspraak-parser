@@ -214,7 +214,7 @@ LB: 'lb';
 MI: 'mi';
 
 // --- Standard Tokens (No predicates) ---
-IDENTIFIER : LETTER (LETTER | DIGIT | '_' | '\'')* ;
+IDENTIFIER : LETTER (LETTER | DIGIT | '_' | '\'' | '-')* ;
 NUMBER: (MINUS? DIGIT+ (',' DIGIT+)? | MINUS? DIGIT+ '_' DIGIT+ '/' DIGIT+ | MINUS? DIGIT+ '/' DIGIT+);
 EQUALS: '=';
 

@@ -19,7 +19,7 @@ definitie
 
 // --- Beslistabel Rule (Added based on Spec) ---
 beslistabel
-    : BESLISTABEL identifier
+    : BESLISTABEL naamwoord ( regelVersie )?
     ;
 
 // --- Basic Building Blocks ---
@@ -206,7 +206,7 @@ rolSpecificatie
 
 // --- RegelSpraak Rule Structure (§13.4.2) ---
 regel
-    : REGEL name+=IDENTIFIER+
+    : REGEL naamwoord NUMBER?
       regelVersie
       resultaatDeel ( voorwaardeDeel DOT? | DOT )? // Adjusted termination logic
       ( variabeleDeel )? // Optional variable block
@@ -231,7 +231,7 @@ resultaatDeel
     // Specific result types like gelijkstelling, kenmerkToekenning, etc. are merged here
     ;
 
-// §13.4.12 Voorwaarde Deel (Simplified in original G4)
+// §13.4.12 Voorwaarde Deel
 voorwaardeDeel
     : INDIEN ( expressie | toplevelSamengesteldeVoorwaarde ) // Allows simple expression or complex structure
     ;
@@ -274,7 +274,7 @@ bezieldeReferentie // Used in primaryExpression
 
 // §13.4.13 Samengestelde voorwaarde (Simplified structure)
 toplevelSamengesteldeVoorwaarde
-    : (HIJ | onderwerpReferentie) AAN voorwaardeKwantificatie VOLGENDE_VOORWAARDEN VOLDOET COLON
+    : (HIJ | HET | onderwerpReferentie) AAN voorwaardeKwantificatie VOLGENDE_VOORWAARDEN VOLDOET COLON // Added HET as alternative subject
       samengesteldeVoorwaardeOnderdeel
     ;
 
@@ -321,8 +321,11 @@ toplevelVoorwaardeVergelijking // Toplevel
     ;
 
 // Specific comparison types for the test case (Simplified - Toplevel versions needed for conditieBijExpressie)
-objectVergelijking // Non-toplevel example
-    : onderwerpReferentie IS identifier // E.g., zijn reis is duurzaam
+objectVergelijking // Non-toplevel example & comparison
+    : onderwerpReferentie IS identifier // Kenmerk check: zijn reis IS duurzaam
+    | onderwerpReferentie HEEFT identifier // Kenmerk check: hij HEEFT recht
+    | onderwerpReferentie IS GELIJK_AAN expressie // Comparison: zijn woonprovincie IS GELIJK_AAN Friesland
+    | onderwerpReferentie IS ONGELIJK_AAN expressie // Comparison
     ;
 
 toplevelObjectVergelijking // Toplevel equivalent (guessing structure based on Spec §13.4.14.47)
