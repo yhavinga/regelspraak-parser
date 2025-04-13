@@ -276,10 +276,13 @@ bezieldeReferentie // Used in primaryExpression
 toplevelSamengesteldeVoorwaarde
     : (HIJ | HET | onderwerpReferentie) AAN voorwaardeKwantificatie VOLGENDE_VOORWAARDEN VOLDOET COLON // Added HET as alternative subject
       samengesteldeVoorwaardeOnderdeel
+    | ER AAN voorwaardeKwantificatie VOLGENDE_VOORWAARDEN WORDT_VOLDAAN COLON  // Support "er aan ... wordt voldaan" format
+      samengesteldeVoorwaardeOnderdeel
     ;
 
 voorwaardeKwantificatie // EBNF 13.4.13.4 (Simplified)
-    : ALLE // Only handle ALLE for now
+    : ALLE                             // All conditions must apply
+    | TENMINSTE (EEN_TELWOORD | TWEE_TELWOORD | DRIE_TELWOORD | VIER_TELWOORD | NUMBER) VAN DE  // Support "tenminste <number> van de"
     ;
 
 samengesteldeVoorwaardeOnderdeel // EBNF 13.4.13.6 (Simplified, with alternative bullets)

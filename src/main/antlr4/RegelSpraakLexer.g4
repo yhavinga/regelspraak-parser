@@ -48,6 +48,7 @@ AAN_DE_ELFPROEF: 'aan de elfproef';
 IS_GROTER_OF_GELIJK_AAN: 'is groter of gelijk aan';
 IS_GROTER_DAN: 'is groter dan';
 KLEINER_IS_DAN: 'kleiner is dan';
+WORDT_VOLDAAN: 'wordt voldaan';
 
 // --- Other Keywords (Grouped by category) ---
 
@@ -109,6 +110,8 @@ VOLDOEN: 'voldoen';
 VOLDOET: 'voldoet';
 WEG_VAN_NUL: 'weg van nul';
 WORTEL_VAN: 'de wortel van';
+TENMINSTE: 'tenminste';
+TEN_MINSTE: 'ten minste';
 
 // GegevensSpraak Detail Keywords
 BEZIELD: '(bezield)';
@@ -157,7 +160,6 @@ EEN_TELWOORD: 'één';
 GEEN_VAN_DE: 'geen van de';
 PRECIES: 'precies';
 TEN_HOOGSTE: 'ten hoogste';
-TEN_MINSTE: 'ten minste';
 TWEE_TELWOORD: 'twee';
 VIER_TELWOORD: 'vier';
 
@@ -197,6 +199,7 @@ VOLGENDE_VOORWAARDEN: 'volgende voorwaarden';
 VOOR: 'voor';
 WAAR: 'waar';
 WEEK: 'week';
+ER: 'er';
 
 // Units and Common Measurements
 METER: 'meter';

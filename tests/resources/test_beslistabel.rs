@@ -6,7 +6,7 @@ Beslistabel Woonregio factor
 Regel woonregio factor 1
   geldig altijd
     De woonregio factor van een Natuurlijk persoon moet gesteld worden op 1
-    indien het aan alle volgende voorwaarden voldoet:
+    indien er aan tenminste één van de volgende voorwaarden wordt voldaan:
       • zijn woonprovincie is gelijk aan Friesland
       • zijn woonprovincie is gelijk aan Groningen
       • zijn woonprovincie is gelijk aan Drenthe
@@ -25,8 +25,15 @@ Regel woonregio factor 2
 Regel woonregio factor 3
   geldig altijd
     De woonregio factor van een Natuurlijk persoon moet gesteld worden op 3
-    indien het aan alle volgende voorwaarden voldoet:
+    indien er aan tenminste drie van de volgende voorwaarden wordt voldaan:
       * zijn woonprovincie is gelijk aan Noord-Holland
       * zijn woonprovincie is gelijk aan Zuid-Holland
       * zijn woonprovincie is gelijk aan Utrecht
       * zijn woonprovincie is gelijk aan Noord-Brabant.
+
+Regel woonregio factor 4
+  geldig altijd
+    De woonregio factor van een Natuurlijk persoon moet gesteld worden op 4
+    indien het aan alle volgende voorwaarden voldoet:
+      * zijn woonprovincie is gelijk aan Noord-Holland
+      * zijn woonprovincie is ongelijk aan Zuid-Holland
