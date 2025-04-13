@@ -1,6 +1,9 @@
 # RegelSpraak Parser
 
-An ANTLR4-based parser for the RegelSpraak v2.1.0 language, a Dutch domain-specific language for expressing business rules and decisions. This package allows parsing RegelSpraak text and integrating it into other Python applications.
+> [!WARNING]
+> **EXPERIMENTAL, WORK IN PROGRESS.** This parser is incomplete and under active development.
+
+An incomplete ANTLR4-based parser for the RegelSpraak v2.1.0 language, a Dutch domain-specific language for expressing business rules and decisions. This package allows parsing RegelSpraak text and integrating it into other Python applications.
 
 ## Overview
 
