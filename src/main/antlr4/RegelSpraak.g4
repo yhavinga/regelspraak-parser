@@ -225,10 +225,28 @@ versieGeldigheid
 resultaatDeel
     : (naamwoord | attribuutReferentie) ( WORDT_BEREKEND_ALS expressie | WORDT_GESTELD_OP expressie ) # GelijkstellingResultaat
     | onderwerpReferentie (IS | HEEFT) kenmerkNaam                                                # KenmerkFeitResultaat
+    | onderwerpReferentie HEEFT naamwoord (MET | TOT) onderwerpReferentie                       # FeitCreatieResultaat
     | identifier+ ( WORDT_BEREKEND_ALS expressie | WORDT_GESTELD_OP expressie )                   # CapitalizedGelijkstellingResultaat // For capitalized cases
     | (HET_KWARTAAL | HET_DEEL_PER_MAAND | HET_DEEL_PER_JAAR) identifier* ( WORDT_BEREKEND_ALS expressie | WORDT_GESTELD_OP expressie ) ( (VANAF | VAN) datumLiteral (TOT | TOT_EN_MET) datumLiteral )? DOT? # SpecialPhraseResultaat
     | HET_AANTAL_DAGEN_IN (MAAND | JAAR) ( WORDT_BEREKEND_ALS expressie | WORDT_GESTELD_OP expressie ) # AantalDagenInResultaat
     // Specific result types like gelijkstelling, kenmerkToekenning, etc. are merged here
+    ;
+
+// --- Consistentieregel Structure ---
+consistentieregel
+    : CONSISTENTIEREGEL naamwoord
+      ( uniekzijnResultaat
+      | inconsistentResultaat ( voorwaardeDeel DOT? | DOT )? )
+    ;
+
+// Specific result types for consistentieregel
+uniekzijnResultaat
+    : onderwerpReferentie MOETEN_UNIEK_ZIJN DOT?
+    ;
+
+inconsistentResultaat
+    : (DE | HET)? naamwoord ( IS_INCONSISTENT | IS INCONSISTENT )
+    | ER IS_INCONSISTENT    // Allow "Er is inconsistent" pattern
     ;
 
 // §13.4.12 Voorwaarde Deel
@@ -490,21 +508,4 @@ regelStatusCondition // Now potentially part of comparisonExpression
 // §13.3.10 Dagsoort Definition (Added based on spec)
 dagsoortDefinition
     : DAGSOORT naamwoord SEMICOLON?
-    ;
-
-// --- Consistentieregel Structure ---
-consistentieregel
-    : CONSISTENTIEREGEL naamwoord
-      ( uniekzijnResultaat
-      | inconsistentResultaat ( voorwaardeDeel DOT? | DOT )? )
-    ;
-
-// Specific result types for consistentieregel
-uniekzijnResultaat
-    : onderwerpReferentie MOETEN_UNIEK_ZIJN DOT?
-    ;
-
-inconsistentResultaat
-    : (DE | HET)? naamwoord ( IS_INCONSISTENT | IS INCONSISTENT )
-    | ER IS_INCONSISTENT    // Allow "Er is inconsistent" pattern
     ;

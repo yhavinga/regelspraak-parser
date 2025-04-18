@@ -1118,7 +1118,7 @@ Een compleet voorbeeld behorende bij het vaste patroon van een RegelSpraak-regel
 
 Allereerst zal een RegelSpraak-regel een naam moeten krijgen. De naamgevingsconstructie van een RegelSpraak-regel begint altijd met het (vaste) woord Regel, gevolgd door een zelf te kiezen unieke naam van de regel. Vaak wordt hierbij een zo logisch mogelijke naam gekozen die aanduidt wat de betreffende regel zal doen bij uitvoering. Een voorbeeld van een RegelSpraakregel hierbij is:
 
-Rege1 bepaal leeftijd
+Regel bepaal leeftijd
 
 ## Syntax Regel specificatie:
 
@@ -1140,7 +1140,7 @@ De geldigheidsperioden van verschillende regelversies van een regel mogen elkaar
 Een voorbeeld van een RegelSpraak-regel wat betreft een regelversie is als volgt weer te geven:
 
 ```
-Rege1 bepaal leeftijd
+Regel bepaal leeftijd
     geldig altijd
 ```
 
@@ -1196,7 +1196,7 @@ Tot slot is het van belang te weten in welke rekenvolgorde de onderdelen van een
 Om het attribuut leeftijd van objecttype Natuurlijk persoon binnen de TOKA casus een correcte waarde te geven kunnen we de volgende regel opstellen:
 
 ```
-Rege1 bepaal leeftijd
+Regel bepaal leeftijd
     geldig altijd
         De leeftijd van een Natuurlijk persoon moet berekend worden als de tijdsduur van zijn
         geboortedatum tot de datum van de vlucht van zijn reis in hele jaren.
@@ -1581,7 +1581,7 @@ Zoals opgemerkt in paragraaf 3.1 is het in RegelSpraak niet mogelijk om te verwi
 We hebben onderstaande regel om de leeftijd van een Natuurlijk persoon te bepalen op basis van zijn geboortedatum en de, voor dit voorbeeld willekeurig gekozen, datum 11 november 2022. We maken in deze regel gebruik van de rekenkundige expressie tijdsduur die in paragraaf 6.9 verder zal worden uitgelegd.
 
 ```
-Rege1 bepaal 1eeftijd
+Regel bepaal 1eeftijd
     geldig altijd
         De leeftijd van een Natuurlijk persoon moet berekend worden als de tijdsduur van de
 ```
@@ -1607,7 +1607,7 @@ Figuur 13: de regel bepaal leeftijd wordt drie keer uitgevoerd, elke keer voor e
 Zoals eerder opgemerkt zal onze voorbeeldregel anders weergegeven worden in RegelSpraak. De reden hiervoor is dat het objecttype van het universele onderwerp Natuurlijk persoon bezield is (zie paragraaf 5.5.3). Zoals al eerder uitgelegd in paragraaf 3.1.1 kan naar bezielde objecttypen verwezen worden met een verwijzend voornaamwoord 'hij' en een bezittelijk voornaamwoord 'zijn'. Dit kan echter alleen als er slechts één onderwerp is met een bezield objecttype, wat in ons voorbeeld het geval is. We kunnen het dus over zijn geboortedatum hebben in plaats van over de geboortedatum van een Natuurlijk persoon. Onze voorbeeldregel uit de vorige paragraaf zou er in RegelSpraak dan ook als volgt uit kunnen (moeten) zien:
 
 ```
-Rege1 bepaal leeftijd
+Regel bepaal leeftijd
     geldig altijd
         De Teeftijd van een Natuurlijk persoon moet berekend worden als de tijdsduur van zijn
         geboortedatum tot 11 november 2022 in hele jaren.
@@ -1782,7 +1782,7 @@ Opmerking: deze syntaxspecificatie makt reeds gebruik van RegelSpraak-concepten 
 
 Het aantal instanties in een verzameling kan bepaald worden met de getalaggregatiefunctie het aantal. We kunnen bijvoorbeeld met het aantal bepalen hoeveel passagiers een vlucht heeft. Als invoer gebruiken we de meervoudige expressie passagiers van de reis, en het resultaat is het aantal instanties van Natuurlijk persoon dat de rol passagier invult bij de instantie van Vlucht. In RegelSpraak ziet dit er als volgt uit:
 
-Rege1 Hoeveelheid passagiers van een reis
+Regel Hoeveelheid passagiers van een reis
 geldig altijd
 De hoeveelheid passagiers van een reis moet berekend worden als het aantal passagiers van de reis.
 
@@ -2371,12 +2371,12 @@ In RegelSpraak kan de periode (tijdsduur) tussen twee datum-tijd expressies bepa
 \section*{Voorbeelden zijn:}
 ```
 
-Rege1 Leeftijd passagier
+Regel Leeftijd passagier
 geldig altijd
 De leeftijd van een passagier moet berekend worden als de tijdsduur van zijn geboortedatum
 tot de vluchtdatum van zijn reis in hele jaren.
 of
-Rege1 Leeftijd passagier
+Regel Leeftijd passagier
 geldig altijd
 De leeftijd van een passagier moet berekend worden als de tijdsduur van zijn geboortedatum
 tot de vluchtdatum van zijn reis in millisecondes.
@@ -2391,7 +2391,7 @@ Rege 1 Leeftijd passagier
 geldig altijd
 De leeftijd van een passagier moet berekend worden als de absolute tijdsduur van zijn
 geboortedatum tot de vluchtdatum van zijn reis in hele jaren.
-Rege1 Leeftijd passagier
+Regel Leeftijd passagier
 geldig altijd
 De leeftijd van een passagier moet berekend worden als de absolute tijdsduur van de vluchtdatum van zijn reis tot zijn geboortedatum in hele jaren.
 
@@ -2520,7 +2520,7 @@ Tabel 15: lege waarden en datum plus/min tijdseenheid.
 RegelSpraak bevat een patroon om de numerieke waarde van de dag, maand of jaar uit een datum te bepalen. Het resultaat is dan een positief geheel getal met de waarde van de dag, maand of jaar van de gespecificeerde datum. Een voorbeeld hiervan is ${ }^{24}$ :
 ```
 
-Rege1 Hoogseizoen
+Regel Hoogseizoen
 geldig altijd
 Een Vlucht is in het hoogseizoen
 indien er aan ten minste één van de volgende voorwaarden wordt voldaan:
@@ -2549,7 +2549,7 @@ ${ }^{24}$ Merk op dat in het voorbeeld een voorwaardendeel wordt gebruikt. Het 
 
 RegelSpraak bevat een patroon voor het bepalen van de datum van de eerste paasdag van een jaar. Het jaartal wordt gespecificeerd door een geheel getal en het resultaat zal een datum in dagen zijn. Een voorbeeld hiervan is ${ }^{25}$ :
 
-Rege1 Paaskorting
+Regel Paaskorting
 ge1dig altijd
 Een vlucht is een reis met paaskorting
 indien de vluchtdatum van de vlucht gelijk is aan de eerste paasdag van (het jaar uit (de vluchtdatum van de vlucht)).
@@ -2656,7 +2656,7 @@ Op basis van het eenheidssysteem Tijd (zie paragraaf 3.7 ) worden met de in het 
 Zo kan bijvoorbeeld de waarde van een attribuut belastingvermindering, dat als datatype een numerieke waarde in € per maand heeft, worden afgeleid van een parameter STANDAARD BELASTINGVERMINDERING met een numerieke waarde in € per jaar. Dit kan worden uitgedrukt met de volgende regel:
 ```
 
-Rege1 Belastingvermindering
+Regel Belastingvermindering
 geldig altijd
 De belastingvermindering van een passagier moet gesteld worden op de STANDAARD
 BELASTINGVERMINDERING
@@ -2678,7 +2678,7 @@ De (gebroken) periode waarover het tijdsevenredig deel moet worden berekend word
 Een voorbeeld van een regel waarin een tijdsevenredig deel wordt berekend op basis van een deel van een maand ziet er als volgt uit:
 ```
 
-Rege1 Belastingvermindering
+Regel Belastingvermindering
 geldig altijd
 De belastingvermindering van een passagier moet gesteld worden op
 het tijdsevenredig dee] per maand van de STANDAARD BELASTINGVERMINDERING
@@ -2721,7 +2721,7 @@ In de regel is gespecificeerd dat waarden per maand moeten worden afgeleid. De p
 Als in afwijking van voorbeeld 1 de waarden niet per maand, maar per jaar moeten worden afgeleid dan ziet de regel er als volgt uit:
 ```
 
-Rege1 Belastingvermindering
+Regel Belastingvermindering
 geldig altijd
 De belastingvermindering van een passagier moet gesteld worden op
 (het tijdsevenredig deel per jaar van de STANDAARD BELASTINGVERMINDERING
@@ -2748,10 +2748,10 @@ In de regel is gespecificeerd dat waarden per jaar moeten worden afgeleid. De pe
 De totale berekening wordt complexer als naast de tijdsevenredige verdeling ook een omrekening op basis van de tijdseenheden van de datatypes van toepassing is.
 ```
 
-Rege1 Belastingvermindering
+Regel Belastingvermindering
 geldig altijd
 De belastingvermindering van een passagier moet gesteld worden op
-(het tijdsevenredig dee? per maand van de STANDAARD BELASTINGVERMINDERING
+(het tijdsevenredig deel per maand van de STANDAARD BELASTINGVERMINDERING
 gedurende de tijd dat hij een recht op belastingvermindering heeft).
 
 ```
@@ -3152,7 +3152,7 @@ duurzaamheidskorting minimale afstand.
 Aangezien we hier een kenmerk en een attribuut van slechts één instantie controleren, kunnen we de deze regel ook als volgt opschrijven:
 ```
 
-Rege1 recht op duurzaamheidskorting
+Regel recht op duurzaamheidskorting
 geldig altijd
 Een passagier heeft recht op duurzaamheidskorting
 indien hij aan alle volgende voorwaarden voldoet:
@@ -3165,7 +3165,7 @@ duurzaamheidskorting minimale atstand.
 We zouden deze samengestelde conditie ook kunnen gebruiken als criterium in een consistentieregel. De regel hieronder zal inconsistent zijn wanneer de Passagier niet aan het samengestelde criterium voldoen:
 ```
 
-Rege1 controleer duurzaamheidskorting
+Regel controleer duurzaamheidskorting
 ge1dig altijd
 Een passagier moet voldoen aan alle van de volgende criteria:
 - zijn reis is duurzaam
@@ -3179,7 +3179,7 @@ De lijst met condities kan bestaan uit enkele condities zoals hierboven besproke
 Om het gebruik van geneste predicaten te illustreren breiden we het voorwaardendeel uit het bovenstaand voorbeeld uit, door toe te voegen dat een persoon ouder dan 64 jaar moet zijn om in aanmerking te komen voor duurzaamheidskorting. Gebruikmakend van enkele kenmerken van Natuurlijk persoon kunnen we dan het volgende schrijven:
 ```
 
-Rege1 recht op duurzaamheidskorting voor ouderen
+Regel recht op duurzaamheidskorting voor ouderen
 geldig altijd
 Een passagier heeft recht op duurzaamheidskorting
 indien hij aan alle volgende voorwaarden voldoet:
@@ -3298,7 +3298,7 @@ Een gelijkstelling is een actie waarbij een attribuut een waarde krijgt die word
 1) Bij het toekennen van een waarde uit een berekeningsexpressie is het taalpatroon "De/het <attribuut> van een <onderwerpexpressie> moet berekend worden als <expressie>" waarbij de expressie zowel een getalexpressie als datumexpressie kan zijn (met beide kan immers gerekend worden). Een voorbeeld uit de TOKA-casus is de te betalen belasting, in het geval dat de vlucht geen rondvlucht is en de vlucht niet duurzaam is:
 ```
 
-Rege1 Te betalen belasting
+Regel Te betalen belasting
 geldig altijd
 De te betalen belasting van een Natuurlijk persoon moet berekend worden als
 zijn belasting op basis van afstand plus zijn belasting op basis van reisduur
@@ -3693,7 +3693,7 @@ In een dagsoortdefinitie worden voorwaarden opgenomen om concreet te bepalen wan
 voor de dagsoort kerstdag kan dan ook als volgt opgesteld worden:
 ```
 
-Rege1 Kerstdag
+Regel Kerstdag
 geldig altijd
 Een dag is een kerstdag
 indien de dag aan alle volgende voorwaarden voldoet:
@@ -3754,7 +3754,7 @@ ${ }^{33}$ Het predicaat is gevuurd (zie paragraaf Fout! Verwijzingsbron niet ge
 }
 
 Parameter volwassenleeftijd : Numeriek (niet-negatief geheel getal) met eenheid jr
-Rege1 Kenmerktoekenning persoon minderjarig
+Regel Kenmerktoekenning persoon minderjarig
 geldig altijd
 Een Natuurlijk persoon is minderjarig
 indien zijn leeftijd kleiner is dan de volwassenleeftijd.
@@ -3860,7 +3860,7 @@ indien zijn burgerservicenummer aan alle volgende voorwaarden voldoet:
 In het volgende voorbeeld wordt bepaald of een natuurlijk persoon een passagier is van 18 tot en met 24 jaar. Hiervoor moet hij aan een aantal voorwaarden voldoen. In het voorbeeld zie je dit terug in de tekst hij aan .... Het woord "hij" verwijst hier terug naar de natuurlijk persoon.
 ```
 
-Rege1 Passagier van 18 tm 24 jaar
+Regel Passagier van 18 tm 24 jaar
 geldig altijd
 Een Natuurlijk persoon is een passagier van 18 tot en met 24 jaar
 indien hij aan alle volgende voorwaarden voldoet:
@@ -3932,7 +3932,7 @@ Zoals in paragraaf 8.4.18.4 beschreven wordt in andere gevallen dan bij de enkel
 Bij gebruik hiervan ziet de regel er bijvoorbeeld zo uit:
 ```
 
-Rege1 Belastingvermindering
+Regel Belastingvermindering
 geldig altijd
 De te betalen belasting van een passagier moet berekend worden als
 zijn belasting,op basis van afstand plus zijn belasting op basis van reisduur
@@ -3951,7 +3951,7 @@ Een variabele wordt gedefinieerd met een expressie. Voor uitgebreidere informati
 Als er variabelen worden gebruikt in een regel, dan staan ze gespecificeerd achter de woorden Daarbij geldt: aan het eind van een regelversie. De specificatie van een variabele bestaat uit de naam van de variabele (eventueel voorafgegaan door een bepaald lidwoord), gevolgd door het woord is en tot slot de expressie die de variabele specificeert. Ter illustratie volgt hieronder een regel om de belasting op basis van afstand te bepalen, waarbij gebruik gemaakt wordt van twee variabelen $X$ en $Y$ :
 ```
 
-Rege1 belasting op basis van afstand
+Regel belasting op basis van afstand
 geldig vanaf 2018
 De belasting op basis van afstand van een passagier moet gesteld worden op X min Y
 indien hij aan alle volgende voorwaarden voldoet:
@@ -4036,7 +4036,7 @@ geldig altijd
 Een voorbeeld van RegelSpraakregels met overeenkomstige delen zijn de regels omtrent de Woonregio factor:
 ```
 
-Rege1 woonregio factor 1
+Regel woonregio factor 1
 geldig altijd
 De woonregio factor van een Natuurlijk persoon moet gesteld worden op 1
 indien er aan tenminste één van de volgende voorwaarden wordt voldaan:
@@ -4045,7 +4045,7 @@ indien er aan tenminste één van de volgende voorwaarden wordt voldaan:
 - zijn woonprovincie is gelijk aan Drenthe
 - zijn woonprovincie is gelijk aan zeeland
 - zijn woonprovincie is gelijk aan Limburg.
-Rege1 Woonregio factor 2
+Regel Woonregio factor 2
 geldig altijd
 De woonregio factor van een Natuurlijk persoon moet gesteld worden op 2
 indien er aan tenminste één van de volgende voorwaarden wordt voldaan:
@@ -4053,7 +4053,7 @@ indien er aan tenminste één van de volgende voorwaarden wordt voldaan:
 - zijn woonprovincie is gelijk aan Gelderland
 - zijn woonprovincie is gelijk aan Overijssel
 - zijn woonprovincie is gelijk aan Flevoland.
-Rege1 Woonregio factor 3
+Regel Woonregio factor 3
 geldig altijd
 De woonregio factor van een Natuurlijk persoon moet gesteld worden op 3
 indien er aan tenminste één van de volgende voorwaarden wordt voldaan:
@@ -4124,7 +4124,7 @@ verschillende gelijkstellingen of kenmerktoekenningen hebben, maar wel dezelfde 
 In de regels voor Woonregio factor wordt alleen gebruik gemaakt van de voorwaarde 'gelijk is aan', waardoor één conditie-kolom nodig is. In onderstaande regel voor Belasting op basis van reisduur Tweede schijf worden twee voorwaarden gebruikt: 'is groter dan' en 'is kleiner of gelijk aan'.
 ```
 
-Rege1 Belasting op basis van reisduur Tweede schijf
+Regel Belasting op basis van reisduur Tweede schijf
 geldig altijd
 De belasting op basis van reisduur van een passagier moet berekend worden als het
 percentage reisduur tweede schijf van zijn belasting op basis van afstand naar
