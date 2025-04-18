@@ -221,7 +221,7 @@ versieGeldigheid
     | VANAF datumLiteral ( (TM | TOT_EN_MET) datumLiteral )?
     ;
 
-// §13.4.3 Resultaat Deel (Simplified in original G4)
+// §13.4.3 Resultaat Deel
 resultaatDeel
     : (naamwoord | attribuutReferentie) ( WORDT_BEREKEND_ALS expressie | WORDT_GESTELD_OP expressie ) # GelijkstellingResultaat
     | onderwerpReferentie (IS | HEEFT) kenmerkNaam                                                # KenmerkFeitResultaat
@@ -233,18 +233,7 @@ resultaatDeel
 
 // §13.4.12 Voorwaarde Deel
 voorwaardeDeel
-    : INDIEN ( expressie | toplevelSamengesteldeVoorwaarde ) // Allows simple expression or complex structure
-    ;
-
-// §13.4.2 Variabele Deel
-variabeleDeel // Use single token
-    : DAARBIJ_GELDT
-      variabeleToekenning* // Changed to * to allow zero or more
-      DOT
-    ;
-
-variabeleToekenning
-    : naamwoord IS expressie SEMICOLON?
+    : INDIEN ( expressie | toplevelSamengesteldeVoorwaarde ) // Restore complex conditions, keep simple ones in expressie
     ;
 
 // --- RegelSpraak Onderwerpketen (§13.4.1) & References ---
@@ -290,96 +279,58 @@ samengesteldeVoorwaardeOnderdeel // EBNF 13.4.13.6 (Simplified, with alternative
     ;
 
 genesteVoorwaarde // EBNF 13.4.13.7 (Simplified)
-    : elementaireVoorwaarde // Only handling elementaire for now
+    : expressie // NEW: Nested conditions are now handled by the expression hierarchy
     ;
 
-// §13.4.14 Elementaire voorwaarde (Simplified)
-elementaireVoorwaarde // Corresponds to non-toplevel elementaire voorwaarde
-    : voorwaardeVergelijking
-    // | consistentieVoorwaarde // Spec §13.4.14.49 - Not implemented
-    // | periodevergelijkingElementair // Spec §13.4.14.69 - Not implemented
+// §13.4.2 Variabele Deel
+variabeleDeel // Use single token
+    : DAARBIJ_GELDT
+      variabeleToekenning* // Changed to * to allow zero or more
+      DOT
     ;
 
-// §13.4.14.1 Toplevel Elementaire voorwaarde
-toplevelElementaireVoorwaarde
-    : toplevelVoorwaardeVergelijking
-    // | toplevelConsistentieVoorwaarde // Spec §13.4.14.1 - Not implemented
+variabeleToekenning
+    : naamwoord IS expressie SEMICOLON?
     ;
 
-// §13.4.14.2 & §13.4.14.50 VoorwaardeVergelijking
-voorwaardeVergelijking // Non-toplevel
-    : objectVergelijking
-    | getalVergelijking
-    // | tekstVergelijking // Spec §13.4.14.50 - Not implemented
-    // | datumVergelijking // Spec §13.4.14.50 - Not implemented
-    // | booleanVergelijking // Spec §13.4.14.50 - Not implemented
-    ;
-
-toplevelVoorwaardeVergelijking // Toplevel
-    : toplevelObjectVergelijking
-    | toplevelGetalVergelijking
-    // | toplevelTekstVergelijking // Spec §13.4.14.2 - Not implemented
-    // | toplevelDatumVergelijking // Spec §13.4.14.2 - Not implemented
-    // | toplevelBooleanVergelijking // Spec §13.4.14.2 - Not implemented
-    ;
-
-// Specific comparison types for the test case (Simplified - Toplevel versions needed for conditieBijExpressie)
-objectVergelijking // Non-toplevel example & comparison
-    : onderwerpReferentie IS identifier // Kenmerk check: zijn reis IS duurzaam
-    | onderwerpReferentie HEEFT identifier // Kenmerk check: hij HEEFT recht
-    | onderwerpReferentie IS_GELIJK_AAN expressie // New token-based comparison
-    | onderwerpReferentie IS_ONGELIJK_AAN expressie // New token-based comparison
-    ;
-
-toplevelObjectVergelijking // Toplevel equivalent (guessing structure based on Spec §13.4.14.47)
-    : onderwerpReferentie GELIJK_AAN identifier // Example: Status GELIJK_AAN 'Actief'
-    | onderwerpReferentie ONGELIJK_AAN identifier
-    // Add other toplevel object comparison forms if needed
-    ;
-
-getalVergelijking
-    : leftOperand comparisonOp NUMBER
-    ;
-
-leftOperand
-    : naamwoord
-    | attribuutReferentie
-    | bezieldeReferentie
-    ;
-
-comparisonOp
-    : IS_GROTER_OF_GELIJK_AAN | IS_GROTER_DAN | IS_KLEINER_DAN | IS_KLEINER_OF_GELIJK_AAN
-    | IS_GELIJK_AAN | IS_ONGELIJK_AAN
-    | KLEINER_IS_DAN
-    | GROTER_DAN
-    ;
-
-toplevelGetalVergelijking // Toplevel equivalent (guessing structure based on Spec §13.4.14.23)
-    : (naamwoord | attribuutReferentie | bezieldeReferentie) comparisonOperator NUMBER
-    // Add other toplevel number comparison forms if needed
-    ;
-
-// --- RegelSpraak Expressions (§13.4.15, §13.4.16) (Simplified / Refactored in original G4) ---
+// --- RegelSpraak Expressions (§13.4.15, §13.4.16) --- NOW INCLUDES CONDITIONS
 
 expressie
-    : comparisonExpression // Top level of expression starts with comparison (or additive if no comparison)
+    : logicalExpression // Start with logical OR/AND (if needed, otherwise comparison)
     ;
 
-// --- Other Expression Rules --- 
+// Add logical operators if needed (e.g., EN, OF at condition level)
+// logicalExpression
+//     : left=comparisonExpression ( op=(EN | OF) right=comparisonExpression )*
+//     ;
+
+logicalExpression // For now, just pass through to comparison
+    : comparisonExpression
+    ;
 
 comparisonExpression
-    : left=additiveExpression ( comparisonOperator right=additiveExpression )?
+    : left=additiveExpression ( comparisonOperator right=additiveExpression )? # BinaryComparisonExpr
+    | unaryCondition # UnaryConditionExpr // Integrate unary conditions here
+    | regelStatusCondition # RegelStatusConditionExpr // Integrate rule status checks here
+    | left=additiveExpression IS identifier # IsKenmerkExpr // Integrate IS kenmerk check
+    | left=additiveExpression HEEFT identifier # HeeftKenmerkExpr // Integrate HEEFT kenmerk check
     ;
 
-comparisonOperator // Limited set from original G4
+comparisonOperator // Expanded list
     : GELIJK_AAN | ONGELIJK_AAN
     | GROTER_DAN | GROTER_OF_GELIJK_AAN
     | KLEINER_DAN | KLEINER_OF_GELIJK_AAN
-    | KLEINER_IS_DAN // Note: Potential overlap/ambiguity with other operators? Check spec/lexer.
+    | KLEINER_IS_DAN
     | IS // Used in boolean contexts?
     | LATER_DAN | LATER_OF_GELIJK_AAN // Date operators
     | EERDER_DAN | EERDER_OF_GELIJK_AAN // Date operators
     | NIET // Unary negation - position might need checking based on full spec
+
+    // Add phrase tokens
+    | IS_GELIJK_AAN | IS_ONGELIJK_AAN | IS_KLEINER_DAN | IS_KLEINER_OF_GELIJK_AAN | IS_GROTER_DAN | IS_GROTER_OF_GELIJK_AAN
+    | ZIJN_GELIJK_AAN | ZIJN_ONGELIJK_AAN | ZIJN_KLEINER_DAN | ZIJN_KLEINER_OF_GELIJK_AAN | ZIJN_GROTER_DAN | ZIJN_GROTER_OF_GELIJK_AAN
+    | IS_LATER_DAN | IS_LATER_OF_GELIJK_AAN | IS_EERDER_DAN | IS_EERDER_OF_GELIJK_AAN
+    | ZIJN_LATER_DAN | ZIJN_LATER_OF_GELIJK_AAN | ZIJN_EERDER_DAN | ZIJN_EERDER_OF_GELIJK_AAN
     ;
 
 additiveExpression
@@ -427,11 +378,11 @@ primaryExpression : // Corresponds roughly to terminals/functions/references in 
     | LAATSTE_VAN primaryExpression (COMMA primaryExpression)* EN primaryExpression         # LaatsteDatumFuncExpr // EBNF 13.4.16.35
 
     // Added for §13.4.16.45-53 Aggregations & Conditional Expressions
-    | HET_TOTAAL_VAN expressie conditieBijExpressie?                                                        # TotaalVanExpr // EBNF 13.4.16.51
+    | HET_TOTAAL_VAN expressie (GEDURENDE_DE_TIJD_DAT condition=expressie)?                               # TotaalVanExpr // EBNF 13.4.16.51 - Simplified condition
     | HET_AANTAL_DAGEN_IN (DE MAAND | HET JAAR) DAT expressie                                         # HetAantalDagenInExpr // Special case
-    | identifier+ HET_TOTAAL_VAN expressie conditieBijExpressie?                                          # CapitalizedTotaalVanExpr // Special case for "Het totaal van" with capitalization
-    | HET_TIJDSEVENREDIG_DEEL_PER (MAAND | JAAR) VAN expressie conditieBijExpressie?                      # TijdsevenredigDeelExpr // Made conditieBijExpressie optional
-    | identifier+ HET_TIJDSEVENREDIG_DEEL_PER (MAAND | JAAR) VAN expressie conditieBijExpressie?          # CapitalizedTijdsevenredigDeelExpr // Made conditieBijExpressie optional
+    | identifier+ HET_TOTAAL_VAN expressie (GEDURENDE_DE_TIJD_DAT condition=expressie)?                  # CapitalizedTotaalVanExpr // Special case for "Het totaal van" with capitalization - Simplified condition
+    | HET_TIJDSEVENREDIG_DEEL_PER (MAAND | JAAR) VAN expressie (GEDURENDE_DE_TIJD_DAT condition=expressie)? # TijdsevenredigDeelExpr // Simplified condition
+    | identifier+ HET_TIJDSEVENREDIG_DEEL_PER (MAAND | JAAR) VAN expressie (GEDURENDE_DE_TIJD_DAT condition=expressie)? # CapitalizedTijdsevenredigDeelExpr // Simplified condition
     | (getalAggregatieFunctie | datumAggregatieFunctie) attribuutReferentie dimensieSelectie         # DimensieAggExpr // EBNF 13.4.16.45 (Placeholder for now, needs refinement)
     
     // References
@@ -475,8 +426,8 @@ begrenzingMaximum
     ;
 
 // EBNF 13.4.16.50 Conditie bij Expressie
-conditieBijExpressie
-    : GEDURENDE_DE_TIJD_DAT ( toplevelElementaireVoorwaarde | toplevelSamengesteldeVoorwaarde )
+conditieBijExpressie // Keep this rule name for clarity? Or inline GEDURENDE_DE_TIJD_DAT?
+    : GEDURENDE_DE_TIJD_DAT condition=expressie // Reference expressie directly
     | periodevergelijkingEnkelvoudig // Reuse existing definition if suitable
     ;
 
@@ -518,6 +469,22 @@ aggregerenOverVerzameling // EBNF 13.4.16.48 - Using naamwoord for meervoud, ide
 
 aggregerenOverBereik // EBNF 13.4.16.49 - Using naamwoord for meervoud, identifier for waarde
     : DE naamwoord IN LBRACE identifier (COMMA identifier)* EN identifier RBRACE
+    ;
+
+// --- New Unary Conditions and Status Checks ---
+
+// Represents unary conditions like 'is leeg', 'voldoet aan...', 'is een dagsoort'
+unaryCondition // Now potentially part of comparisonExpression
+    : expr=primaryExpression op=(IS_LEEG | IS_GEVULD | VOLDOET_AAN_DE_ELFPROEF | VOLDOET_NIET_AAN_DE_ELFPROEF | ZIJN_LEEG | ZIJN_GEVULD | VOLDOEN_AAN_DE_ELFPROEF | VOLDOEN_NIET_AAN_DE_ELFPROEF) # unaryCheckCondition
+    | expr=primaryExpression op=(IS_NUMERIEK_MET_EXACT | IS_NIET_NUMERIEK_MET_EXACT | ZIJN_NUMERIEK_MET_EXACT | ZIJN_NIET_NUMERIEK_MET_EXACT) NUMBER CIJFERS # unaryNumeriekExactCondition
+    | expr=primaryExpression op=(IS_EEN_DAGSOORT | ZIJN_EEN_DAGSOORT | IS_GEEN_DAGSOORT | ZIJN_GEEN_DAGSOORT) dagsoort=identifier # unaryDagsoortCondition
+    | ref=onderwerpReferentie MOETEN_UNIEK_ZIJN # unaryUniekCondition // Specific for 'moeten uniek zijn'
+    | expr=primaryExpression IS_INCONSISTENT # unaryInconsistentDataCondition // For 'data is inconsistent'
+    ;
+
+// Represents conditions checking the status of a rule
+regelStatusCondition // Now potentially part of comparisonExpression
+    : REGEL name=naamwoord op=(IS_GEVUURD | IS_INCONSISTENT) # regelStatusCheck
     ;
 
 // §13.3.10 Dagsoort Definition (Added based on spec)

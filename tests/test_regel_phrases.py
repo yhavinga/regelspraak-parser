@@ -51,53 +51,48 @@ class RegelPhraseTests(RegelSpraakTestCase):
 
     # --- Placeholder Tests for Unused Phrase Tokens (Require Grammar Updates) ---
 
-    @unittest.skip("Requires grammar update for ZIJN_... comparison tokens")
     def test_zijn_groter_dan_hypothetical(self):
-        """Hypothetical test for 'zijn groter dan' (requires grammar update)."""
+        """Hypothetical test for 'zijn groter dan'."""
         input_text = """Regel check bedragen
             geldig altijd
                 Het resultaat is WAAR
                 indien de bedragen zijn groter dan 100.
         """
         tree = self.parse_text(input_text)
-        # self.assertNoParseErrors() # This will fail until grammar supports it
+        self.assertNoParseErrors()
 
-    @unittest.skip("Requires grammar update for IS_LEEG/IS_GEVULD tokens")
     def test_is_leeg_hypothetical(self):
-        """Hypothetical test for 'is leeg' (requires grammar update)."""
+        """Hypothetical test for 'is leeg'. """
         input_text = """Regel check veld
             geldig altijd
                 Het resultaat is WAAR
                 indien het adres is leeg.
         """
         tree = self.parse_text(input_text)
-        # self.assertNoParseErrors()
+        self.assertNoParseErrors()
 
-    @unittest.skip("Requires grammar update for IS_LEEG/IS_GEVULD tokens")
     def test_is_gevuld_hypothetical(self):
-        """Hypothetical test for 'is gevuld' (requires grammar update)."""
+        """Hypothetical test for 'is gevuld'. """
         input_text = """Regel check invoer
             geldig altijd
                 Het resultaat is WAAR
                 indien de invoer is gevuld.
         """
         tree = self.parse_text(input_text)
-        # self.assertNoParseErrors()
+        self.assertNoParseErrors()
 
-    @unittest.skip("Requires grammar update for VOLDOET_..._ELFPROEF tokens")
     def test_voldoet_aan_elfproef_hypothetical(self):
-        """Hypothetical test for 'voldoet aan de elfproef' (requires grammar update)."""
+        """Hypothetical test for 'voldoet aan de elfproef'. """
         input_text = """Regel check BSN
             geldig altijd
                 Het resultaat is WAAR
                 indien het BSN voldoet aan de elfproef.
         """
         tree = self.parse_text(input_text)
-        # self.assertNoParseErrors()
+        self.assertNoParseErrors()
 
-    @unittest.skip("Requires grammar update for IS_NUMERIEK_MET_EXACT tokens")
     def test_is_numeriek_met_exact_hypothetical(self):
-        """Hypothetical test for 'is numeriek met exact' (requires grammar update)."""
+        """Hypothetical test for 'is numeriek met exact'. """
         input_text = """Regel check postcode format
             geldig altijd
                 Het resultaat is WAAR
@@ -105,11 +100,10 @@ class RegelPhraseTests(RegelSpraakTestCase):
         """
         # Note: Grammar would need to handle "4 cijfers" part too.
         tree = self.parse_text(input_text)
-        # self.assertNoParseErrors()
+        self.assertNoParseErrors()
 
-    @unittest.skip("Requires grammar update for IS_EEN_DAGSOORT tokens")
     def test_is_een_dagsoort_hypothetical(self):
-        """Hypothetical test for 'is een <Dagsoort>' (requires grammar update)."""
+        """Hypothetical test for 'is een <Dagsoort>'. """
         input_text = """Regel check werkdag
             geldig altijd
                 Het resultaat is WAAR
@@ -117,22 +111,20 @@ class RegelPhraseTests(RegelSpraakTestCase):
         """
         # Note: Assumes 'Werkdag' is a defined Dagsoort identifier.
         tree = self.parse_text(input_text)
-        # self.assertNoParseErrors()
+        self.assertNoParseErrors()
 
-    @unittest.skip("Requires grammar update for MOETEN_UNIEK_ZIJN token")
     def test_moeten_uniek_zijn_hypothetical(self):
-        """Hypothetical test for 'moeten uniek zijn' (requires grammar update)."""
+        """Hypothetical test for 'moeten uniek zijn'. """
         input_text = """Regel check unieke emails
             geldig altijd
                 Het resultaat is WAAR
                 indien de email adressen moeten uniek zijn.
         """
         tree = self.parse_text(input_text)
-        # self.assertNoParseErrors()
+        self.assertNoParseErrors()
 
-    @unittest.skip("Requires grammar update for IS_GEVUURD token")
     def test_is_gevuurd_hypothetical(self):
-        """Hypothetical test for 'is gevuurd' (requires grammar update)."""
+        """Hypothetical test for 'is gevuurd'. """
         input_text = """Regel check afhankelijkheid
             geldig altijd
                 Het resultaat is WAAR
@@ -140,21 +132,18 @@ class RegelPhraseTests(RegelSpraakTestCase):
         """
         # Note: Grammar needs to handle rule name references here.
         tree = self.parse_text(input_text)
-        # self.assertNoParseErrors()
+        self.assertNoParseErrors()
 
-    @unittest.skip("Requires grammar update for IS_INCONSISTENT token")
     def test_is_inconsistent_hypothetical(self):
-        """Hypothetical test for 'is inconsistent' (requires grammar update)."""
+        """Hypothetical test for 'is inconsistent'. """
         input_text = """Regel check data validiteit
             geldig altijd
                 De data is valide
                 indien de invoer data is inconsistent.
         """
         tree = self.parse_text(input_text)
-        # self.assertNoParseErrors()
+        self.assertNoParseErrors()
 
-# Add other ZIJN comparison tests similarly if needed, skipping them.
-# Add tests for date comparisons (IS_LATER_DAN, etc.) similarly, skipping them.
 
 if __name__ == '__main__':
-    unittest.main() 
+    unittest.main()
