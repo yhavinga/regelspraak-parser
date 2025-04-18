@@ -327,8 +327,8 @@ toplevelVoorwaardeVergelijking // Toplevel
 objectVergelijking // Non-toplevel example & comparison
     : onderwerpReferentie IS identifier // Kenmerk check: zijn reis IS duurzaam
     | onderwerpReferentie HEEFT identifier // Kenmerk check: hij HEEFT recht
-    | onderwerpReferentie IS GELIJK_AAN expressie // Comparison: zijn woonprovincie IS GELIJK_AAN Friesland
-    | onderwerpReferentie IS ONGELIJK_AAN expressie // Comparison
+    | onderwerpReferentie IS_GELIJK_AAN expressie // New token-based comparison
+    | onderwerpReferentie IS_ONGELIJK_AAN expressie // New token-based comparison
     ;
 
 toplevelObjectVergelijking // Toplevel equivalent (guessing structure based on Spec §13.4.14.47)
@@ -346,6 +346,12 @@ getalVergelijking // Non-toplevel example
     | (naamwoord | attribuutReferentie | bezieldeReferentie) IS GROTER_OF_GELIJK_AAN NUMBER // Adding support for "is groter of gelijk aan" pattern
     | (naamwoord | attribuutReferentie | bezieldeReferentie) IS GELIJK_AAN NUMBER // Adding support for "is gelijk aan" pattern
     | (naamwoord | attribuutReferentie | bezieldeReferentie) IS ONGELIJK_AAN NUMBER // Adding support for "is ongelijk aan" pattern
+    | (naamwoord | attribuutReferentie | bezieldeReferentie) IS_KLEINER_DAN NUMBER // New token-based comparison
+    | (naamwoord | attribuutReferentie | bezieldeReferentie) IS_GROTER_DAN NUMBER // New token-based comparison 
+    | (naamwoord | attribuutReferentie | bezieldeReferentie) IS_GELIJK_AAN NUMBER // New token-based comparison
+    | (naamwoord | attribuutReferentie | bezieldeReferentie) IS_ONGELIJK_AAN NUMBER // New token-based comparison
+    | (naamwoord | attribuutReferentie | bezieldeReferentie) IS_KLEINER_OF_GELIJK_AAN NUMBER // New token-based comparison 
+    | (naamwoord | attribuutReferentie | bezieldeReferentie) IS_GROTER_OF_GELIJK_AAN NUMBER // New token-based comparison
     ;
 
 toplevelGetalVergelijking // Toplevel equivalent (guessing structure based on Spec §13.4.14.23)
@@ -396,7 +402,7 @@ powerOperator : TOT_DE_MACHT ; // New rule for operator
 
 primaryExpression : // Corresponds roughly to terminals/functions/references in §13.4.16
     // Functions (Simplified subset)
-      ABSOLUTE_TIJDSDUUR_VAN primaryExpression TOT primaryExpression (IN_HELE unitName=IDENTIFIER)?  # AbsTijdsduurFuncExpr
+      DE_ABSOLUTE_TIJDSDUUR_VAN primaryExpression TOT primaryExpression (IN_HELE unitName=IDENTIFIER)?  # AbsTijdsduurFuncExpr
     | TIJDSDUUR_VAN primaryExpression TOT primaryExpression (IN_HELE unitName=IDENTIFIER)?            # TijdsduurFuncExpr
     | SOM_VAN (ALLE? onderwerpReferentie)                                                             # SomFuncExpr
     | HET? AANTAL (ALLE? onderwerpReferentie)                                                         # AantalFuncExpr // Made HET optional
@@ -407,25 +413,25 @@ primaryExpression : // Corresponds roughly to terminals/functions/references in 
     | primaryExpression (COMMA primaryExpression)+ (EN | OF) primaryExpression                      # SimpleConcatenatieExpr // Simple concatenation without keyword
 
     // Added for §13.4.16 functions
-    | WORTEL_VAN primaryExpression                                          # WortelFuncExpr // EBNF 13.4.16.13 (Simplified, no rounding yet)
-    | ABSOLUTE_WAARDE_VAN LPAREN primaryExpression RPAREN                   # AbsValFuncExpr // EBNF 13.4.16.17
-    | MINIMALE_WAARDE_VAN primaryExpression (COMMA primaryExpression)* EN primaryExpression # MinValFuncExpr // EBNF 13.4.16.15
-    | MAXIMALE_WAARDE_VAN primaryExpression (COMMA primaryExpression)* EN primaryExpression # MaxValFuncExpr // EBNF 13.4.16.16
+    | DE_WORTEL_VAN primaryExpression                                          # WortelFuncExpr // EBNF 13.4.16.13 (Simplified, no rounding yet)
+    | DE_ABSOLUTE_WAARDE_VAN LPAREN primaryExpression RPAREN                   # AbsValFuncExpr // EBNF 13.4.16.17
+    | DE_MINIMALE_WAARDE_VAN primaryExpression (COMMA primaryExpression)* EN primaryExpression # MinValFuncExpr // EBNF 13.4.16.15
+    | DE_MAXIMALE_WAARDE_VAN primaryExpression (COMMA primaryExpression)* EN primaryExpression # MaxValFuncExpr // EBNF 13.4.16.16
     | HET JAAR UIT primaryExpression                                        # JaarUitFuncExpr // EBNF 13.4.16.18
     | DE MAAND UIT primaryExpression                                        # MaandUitFuncExpr // EBNF 13.4.16.19
     | DE DAG UIT primaryExpression                                          # DagUitFuncExpr // EBNF 13.4.16.20
     | DE_DATUM_MET LPAREN primaryExpression COMMA primaryExpression COMMA primaryExpression RPAREN  # DatumMetFuncExpr // EBNF 13.4.16.31
-    | EERSTE_PAASDAG_VAN LPAREN primaryExpression RPAREN                    # PasenFuncExpr // EBNF 13.4.16.32
+    | DE_EERSTE_PAASDAG_VAN LPAREN primaryExpression RPAREN                    # PasenFuncExpr // EBNF 13.4.16.32
     | primaryExpression (PLUS | MIN) primaryExpression identifier           # DateCalcExpr // EBNF 13.4.16.33
     | EERSTE_VAN primaryExpression (COMMA primaryExpression)* EN primaryExpression          # EersteDatumFuncExpr // EBNF 13.4.16.34
     | LAATSTE_VAN primaryExpression (COMMA primaryExpression)* EN primaryExpression         # LaatsteDatumFuncExpr // EBNF 13.4.16.35
 
     // Added for §13.4.16.45-53 Aggregations & Conditional Expressions
-    | TOTAAL_VAN expressie conditieBijExpressie?                                                        # TotaalVanExpr // EBNF 13.4.16.51
+    | HET_TOTAAL_VAN expressie conditieBijExpressie?                                                        # TotaalVanExpr // EBNF 13.4.16.51
     | HET_AANTAL_DAGEN_IN (DE MAAND | HET JAAR) DAT expressie                                         # HetAantalDagenInExpr // Special case
-    | identifier+ TOTAAL_VAN expressie conditieBijExpressie?                                          # CapitalizedTotaalVanExpr // Special case for "Het totaal van" with capitalization
-    | TIJDSEVENREDIG_DEEL_PER (MAAND | JAAR) VAN expressie conditieBijExpressie?                      # TijdsevenredigDeelExpr // Made conditieBijExpressie optional
-    | identifier+ TIJDSEVENREDIG_DEEL_PER (MAAND | JAAR) VAN expressie conditieBijExpressie?          # CapitalizedTijdsevenredigDeelExpr // Made conditieBijExpressie optional
+    | identifier+ HET_TOTAAL_VAN expressie conditieBijExpressie?                                          # CapitalizedTotaalVanExpr // Special case for "Het totaal van" with capitalization
+    | HET_TIJDSEVENREDIG_DEEL_PER (MAAND | JAAR) VAN expressie conditieBijExpressie?                      # TijdsevenredigDeelExpr // Made conditieBijExpressie optional
+    | identifier+ HET_TIJDSEVENREDIG_DEEL_PER (MAAND | JAAR) VAN expressie conditieBijExpressie?          # CapitalizedTijdsevenredigDeelExpr // Made conditieBijExpressie optional
     | (getalAggregatieFunctie | datumAggregatieFunctie) attribuutReferentie dimensieSelectie         # DimensieAggExpr // EBNF 13.4.16.45 (Placeholder for now, needs refinement)
     
     // References
@@ -486,8 +492,8 @@ periodevergelijkingEnkelvoudig // Reusing/defining for conditieBijExpressie and 
 // EBNF 13.4.16.42 Getal Aggregatie Functie
 getalAggregatieFunctie
     : HET? AANTAL // Made HET optional
-    | MAXIMALE_WAARDE_VAN
-    | MINIMALE_WAARDE_VAN
+    | DE_MAXIMALE_WAARDE_VAN
+    | DE_MINIMALE_WAARDE_VAN
     | SOM_VAN
     ;
 

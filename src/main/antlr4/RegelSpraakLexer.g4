@@ -18,14 +18,14 @@ GEDURENDE_DE_GEHELE: 'gedurende de gehele';
 WORDT_BEREKEND_ALS: 'moet berekend worden als';
 WORDT_GESTELD_OP: 'moet gesteld worden op';
 WORDT_GEINITIALISEERD_OP: 'moet geïnitialiseerd worden op';
-ABSOLUTE_TIJDSDUUR_VAN: 'de absolute tijdsduur van';
-ABSOLUTE_WAARDE_VAN: 'de absolute waarde van';
-MAXIMALE_WAARDE_VAN: 'de maximale waarde van';
-MINIMALE_WAARDE_VAN: 'de minimale waarde van';
-TOTAAL_VAN: 'het totaal van';
-TIJDSEVENREDIG_DEEL_PER: 'het tijdsevenredig deel per';
+DE_ABSOLUTE_TIJDSDUUR_VAN: 'de absolute tijdsduur van';
+DE_ABSOLUTE_WAARDE_VAN: 'de absolute waarde van';
+DE_MAXIMALE_WAARDE_VAN: 'de maximale waarde van';
+DE_MINIMALE_WAARDE_VAN: 'de minimale waarde van';
+HET_TOTAAL_VAN: 'het totaal van';
+HET_TIJDSEVENREDIG_DEEL_PER: 'het tijdsevenredig deel per';
 DE_DATUM_MET: 'de datum met jaar, maand en dag';
-EERSTE_PAASDAG_VAN: 'de eerste paasdag van';
+DE_EERSTE_PAASDAG_VAN: 'de eerste paasdag van';
 ALS_ONVERDEELDE_REST_BLIJFT: 'Als onverdeelde rest blijft';
 MET_EEN_MINIMUM_VAN: 'met een minimum van';
 MET_EEN_MAXIMUM_VAN: 'met een maximum van';
@@ -49,6 +49,47 @@ IS_GROTER_OF_GELIJK_AAN: 'is groter of gelijk aan';
 IS_GROTER_DAN: 'is groter dan';
 KLEINER_IS_DAN: 'kleiner is dan';
 WORDT_VOLDAAN: 'wordt voldaan';
+
+// --- Comparison Phrase Tokens ---
+IS_GELIJK_AAN: 'is gelijk aan';
+IS_ONGELIJK_AAN: 'is ongelijk aan';
+IS_KLEINER_DAN: 'is kleiner dan';
+IS_KLEINER_OF_GELIJK_AAN: 'is kleiner of gelijk aan';
+ZIJN_GELIJK_AAN: 'zijn gelijk aan';
+ZIJN_ONGELIJK_AAN: 'zijn ongelijk aan';
+ZIJN_GROTER_DAN: 'zijn groter dan';
+ZIJN_GROTER_OF_GELIJK_AAN: 'zijn groter of gelijk aan';
+ZIJN_KLEINER_DAN: 'zijn kleiner dan';
+ZIJN_KLEINER_OF_GELIJK_AAN: 'zijn kleiner of gelijk aan';
+IS_LATER_DAN: 'is later dan';
+IS_LATER_OF_GELIJK_AAN: 'is later of gelijk aan';
+IS_EERDER_DAN: 'is eerder dan';
+IS_EERDER_OF_GELIJK_AAN: 'is eerder of gelijk aan';
+ZIJN_LATER_DAN: 'zijn later dan';
+ZIJN_LATER_OF_GELIJK_AAN: 'zijn later of gelijk aan';
+ZIJN_EERDER_DAN: 'zijn eerder dan';
+ZIJN_EERDER_OF_GELIJK_AAN: 'zijn eerder of gelijk aan';
+
+// --- Condition Phrase Tokens ---
+IS_LEEG: 'is leeg';
+IS_GEVULD: 'is gevuld';
+ZIJN_LEEG: 'zijn leeg';
+ZIJN_GEVULD: 'zijn gevuld';
+VOLDOET_AAN_DE_ELFPROEF: 'voldoet aan de elfproef';
+VOLDOEN_AAN_DE_ELFPROEF: 'voldoen aan de elfproef';
+VOLDOET_NIET_AAN_DE_ELFPROEF: 'voldoet niet aan de elfproef';
+VOLDOEN_NIET_AAN_DE_ELFPROEF: 'voldoen niet aan de elfproef';
+IS_NUMERIEK_MET_EXACT: 'is numeriek met exact';
+IS_NIET_NUMERIEK_MET_EXACT: 'is niet numeriek met exact';
+ZIJN_NUMERIEK_MET_EXACT: 'zijn numeriek met exact';
+ZIJN_NIET_NUMERIEK_MET_EXACT: 'zijn niet numeriek met exact';
+IS_EEN_DAGSOORT: 'is een';
+ZIJN_EEN_DAGSOORT: 'zijn een';
+IS_GEEN_DAGSOORT: 'is geen';
+ZIJN_GEEN_DAGSOORT: 'zijn geen';
+MOETEN_UNIEK_ZIJN: 'moeten uniek zijn';
+IS_GEVUURD: 'is gevuurd';
+IS_INCONSISTENT: 'is inconsistent';
 
 // --- Other Keywords (Grouped by category) ---
 
@@ -109,7 +150,7 @@ VERMINDERD_MET: 'verminderd met';
 VOLDOEN: 'voldoen';
 VOLDOET: 'voldoet';
 WEG_VAN_NUL: 'weg van nul';
-WORTEL_VAN: 'de wortel van';
+DE_WORTEL_VAN: 'de wortel van';
 TENMINSTE: 'tenminste';
 TEN_MINSTE: 'ten minste';
 
