@@ -4,10 +4,10 @@ from typing import Union, List, Dict, Optional
 from antlr4 import CommonTokenStream, FileStream, InputStream
 import math
 
-from .model import Domain, ObjectType, Rule
+from .model import DomainModel as Domain, ObjectType, Regel as Rule
 from .generated.RegelSpraakLexer import RegelSpraakLexer
 from .generated.RegelSpraakParser import RegelSpraakParser as AntlrParser
-from .generated.RegelSpraakVisitor import RegelSpraakVisitor
+from .visitor import RegelSpraakModelBuilder
 
 class ParseError(Exception):
     """Raised when parsing RegelSpraak code fails."""
@@ -69,7 +69,7 @@ class RegelSpraakParser:
         lexer = RegelSpraakLexer(input_stream)
         token_stream = CommonTokenStream(lexer)
         parser = AntlrParser(token_stream)
-        tree = parser.domain()
+        tree = parser.regelSpraakDocument()
         
         visitor = RegelSpraakModelBuilder()
         return visitor.visit(tree)
