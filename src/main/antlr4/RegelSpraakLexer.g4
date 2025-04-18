@@ -94,6 +94,7 @@ IS_INCONSISTENT: 'is inconsistent';
 // --- Other Keywords (Grouped by category) ---
 
 // Top-Level & Definition Keywords
+CONSISTENTIEREGEL: 'Consistentieregel';
 REGEL: 'Regel';
 BESLISTABEL: 'Beslistabel';
 OBJECTTYPE: 'Objecttype';

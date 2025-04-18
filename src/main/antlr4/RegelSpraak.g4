@@ -4,7 +4,7 @@ options { tokenVocab=RegelSpraakLexer; }
 
 // --- Start Rule ---
 regelSpraakDocument // Top level container
-    : ( definitie | regel | beslistabel | eenheidsysteemDefinition )* EOF
+    : ( definitie | regel | beslistabel | consistentieregel | eenheidsysteemDefinition )* EOF
     ;
 
 // --- Top-Level Definitions ---
@@ -490,4 +490,21 @@ regelStatusCondition // Now potentially part of comparisonExpression
 // §13.3.10 Dagsoort Definition (Added based on spec)
 dagsoortDefinition
     : DAGSOORT naamwoord SEMICOLON?
+    ;
+
+// --- Consistentieregel Structure ---
+consistentieregel
+    : CONSISTENTIEREGEL naamwoord
+      ( uniekzijnResultaat
+      | inconsistentResultaat ( voorwaardeDeel DOT? | DOT )? )
+    ;
+
+// Specific result types for consistentieregel
+uniekzijnResultaat
+    : onderwerpReferentie MOETEN_UNIEK_ZIJN DOT?
+    ;
+
+inconsistentResultaat
+    : (DE | HET)? naamwoord ( IS_INCONSISTENT | IS INCONSISTENT )
+    | ER IS_INCONSISTENT    // Allow "Er is inconsistent" pattern
     ;
