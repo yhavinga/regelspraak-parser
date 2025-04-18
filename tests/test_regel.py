@@ -317,5 +317,47 @@ class RegelTests(RegelSpraakTestCase):
     #     # self.assertNoParseErrors()
     #     pass
 
+    def test_multi_rule_parsing(self):
+        """
+        Tests the flexibility of the grammar in handling multiple rules with varied formatting.
+        
+        This test verifies the parser's ability to correctly process documents where:
+        
+        1. Multiple rules appear in sequence in a single file
+        
+        2. Different statement termination styles are used:
+           - Some statements end with explicit periods
+           - Others rely on newlines as implicit terminators
+        
+        3. Whitespace appears in various positions:
+           - Around bullet points
+           - Between expressions and keywords
+           - Within parenthesized expressions
+           - Before/after statement terminators
+        
+        4. Single-letter variable names are used (e.g., "X is 500")
+        
+        5. Expressions span multiple lines with indentation
+        
+        The parser successfully handles all these cases because whitespace (including
+        newlines) is treated as hidden tokens in the lexer via:
+        `WS: [ \t\r\n]+ -> channel(HIDDEN);`
+        
+        This approach maintains clean grammar rules while supporting flexible document
+        formatting that matches natural language writing styles.
+        """
+        # Switch to document parsing mode to process multiple rules
+        original_parser_rule = self.parser_rule
+        self.parser_rule = 'regelSpraakDocument'
+        
+        try:
+            # Parse the file with multiple rules
+            tree = self.parse_file('multi_rule_test.rs')
+            self.assertIsNotNone(tree)
+            self.assertNoParseErrors()
+        finally:
+            # Restore original parser rule
+            self.parser_rule = original_parser_rule
+
 if __name__ == '__main__':
     unittest.main() 

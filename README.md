@@ -232,6 +232,10 @@ The ANTLR grammar (`RegelSpraak.g4` and `RegelSpraakLexer.g4`) incorporates spec
     *   **Hidden Whitespace Channel:** Changing the lexer's whitespace rule (`WS: [ \t\r\n]+ -> channel(HIDDEN);`) to use a hidden channel instead of `skip` was crucial. This preserves whitespace information for the parser, preventing incorrect merging of adjacent words while still ignoring whitespace for grammar rule matching.
     *   **Explicit Parser Alternatives:** Adding specific alternatives in parser rules (like `resultaatDeel` and `primaryExpression`) to handle capitalized versions or common variations of these multi-word phrases provided necessary disambiguation for the parser.
     This strategy, while adding some specific phrase handling, proved necessary for robustly parsing the intended natural language structures.
+*   **Whitespace & Newline Handling:** The grammar sends all whitespace (spaces, tabs, newlines) to the HIDDEN channel using `WS: [ \t\r\n]+ -> channel(HIDDEN);` in the lexer. This design choice:
+    *   Significantly simplifies the grammar by removing the need for explicit `NEWLINE*` sequences throughout the rules
+    *   Allows for flexible document formatting without changing semantic meaning
+    *   Enables termination of statements with either periods, semicolons, or simple newlines
 
 ## Testing
 
