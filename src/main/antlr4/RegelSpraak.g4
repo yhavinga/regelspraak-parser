@@ -33,6 +33,7 @@ naamPhrase // Used within naamwoord
     | NIEUWE IDENTIFIER+ // Allow 'nieuwe' in names
     | NIEUWE IDENTIFIER+ MET IDENTIFIER+ // Allow 'nieuwe X met Y' pattern in rule names
     | identifier+ MET identifier+ // Allow 'X met Y' pattern in rule names
+    | NIET IDENTIFIER+ // Allow 'niet X' pattern
     ;
 
 naamwoord // Modified to handle structure like 'phrase (preposition phrase)*'
@@ -209,10 +210,22 @@ rolSpecificatie
 
 // --- RegelSpraak Rule Structure (§13.4.2) ---
 regel
-    : REGEL naamwoord NUMBER?
+    : REGEL regelName NUMBER?
       regelVersie
       resultaatDeel ( voorwaardeDeel DOT? | DOT )? // Adjusted termination logic
       ( variabeleDeel )? // Optional variable block
+    ;
+
+// Allow flexible rule naming for our tests
+regelName
+    : IDENTIFIER+ // Simple rule name
+    | naamwoord // General case using the naamwoord pattern for other rule names
+    | IDENTIFIER+ KENMERK // Handle "check kenmerk" pattern
+    | IDENTIFIER+ ROL // Handle "check rol" pattern
+    | IDENTIFIER+ NIET KENMERK // Handle "check niet kenmerk" pattern
+    | IDENTIFIER+ NIET ROL // Handle "check niet rol" pattern 
+    | IDENTIFIER+ KENMERKEN IDENTIFIER+ // Handle "check kenmerken meervoud" pattern
+    | IDENTIFIER+ ROLLEN IDENTIFIER+ // Handle "check rollen meervoud" pattern
     ;
 
 regelVersie
@@ -263,7 +276,7 @@ uniekzijnResultaat
     ;
 
 inconsistentResultaat
-    : (DE | HET)? naamwoord ( IS_INCONSISTENT | IS INCONSISTENT )
+    : (DE | HET | ER)? naamwoord IS_INCONSISTENT
     ;
 
 // §13.4.12 Voorwaarde Deel
@@ -296,11 +309,11 @@ bezieldeReferentie // Used in primaryExpression
 
 // --- RegelSpraak Condition Parts (§13.4.13 - §13.4.14) (Simplified in original G4) ---
 
-// §13.4.13 Samengestelde voorwaarde
+// §13.4.13 Samengestelde voorwaarde (Simplified structure)
 toplevelSamengesteldeVoorwaarde
-    : ER_AAN voorwaardeKwantificatie VOLGENDE_VOORWAARDEN WORDT_VOLDAAN COLON  // Support "er aan ... wordt voldaan" format
+    : (HIJ | HET | onderwerpReferentie) AAN voorwaardeKwantificatie VOLGENDE_VOORWAARDEN VOLDOET COLON // Added HET as alternative subject
       samengesteldeVoorwaardeOnderdeel
-    | (HIJ | HET | onderwerpReferentie) AAN voorwaardeKwantificatie VOLGENDE_VOORWAARDEN VOLDOET COLON // Added HET as alternative subject
+    | ER_AAN voorwaardeKwantificatie VOLGENDE_VOORWAARDEN WORDT_VOLDAAN COLON  // Support "er aan ... wordt voldaan" format with ER_AAN token
       samengesteldeVoorwaardeOnderdeel
     ;
 
@@ -431,7 +444,7 @@ primaryExpression : // Corresponds roughly to terminals/functions/references in 
     | identifier                                                    # IdentifierExpr // Bare identifier as expression?
     | NUMBER                                                        # NumberLiteralExpr
     | STRING_LITERAL                                                # StringLiteralExpr
-    | ENUM_LITERAL                                                  # EnumLiteralExpr // Added explicit support for enum literals
+    | ENUM_LITERAL                                                  # EnumLiteralExpr // Add explicit support for enum literals
     | datumLiteral                                                  # DatumLiteralExpr // Added DATE_TIME_LITERAL via datumLiteral rule
     | WAAR                                                          # BooleanTrueLiteralExpr
     | ONWAAR                                                        # BooleanFalseLiteralExpr
@@ -514,6 +527,8 @@ unaryCondition // Now potentially part of comparisonExpression
     : expr=primaryExpression op=(IS_LEEG | IS_GEVULD | VOLDOET_AAN_DE_ELFPROEF | VOLDOET_NIET_AAN_DE_ELFPROEF | ZIJN_LEEG | ZIJN_GEVULD | VOLDOEN_AAN_DE_ELFPROEF | VOLDOEN_NIET_AAN_DE_ELFPROEF) # unaryCheckCondition
     | expr=primaryExpression op=(IS_NUMERIEK_MET_EXACT | IS_NIET_NUMERIEK_MET_EXACT | ZIJN_NUMERIEK_MET_EXACT | ZIJN_NIET_NUMERIEK_MET_EXACT) NUMBER CIJFERS # unaryNumeriekExactCondition
     | expr=primaryExpression op=(IS_EEN_DAGSOORT | ZIJN_EEN_DAGSOORT | IS_GEEN_DAGSOORT | ZIJN_GEEN_DAGSOORT) dagsoort=identifier # unaryDagsoortCondition
+    | expr=primaryExpression op=(IS_KENMERK | ZIJN_KENMERK | IS_NIET_KENMERK | ZIJN_NIET_KENMERK) kenmerk=identifier # unaryKenmerkCondition
+    | expr=primaryExpression op=(IS_ROL | ZIJN_ROL | IS_NIET_ROL | ZIJN_NIET_ROL) rol=identifier # unaryRolCondition
     | ref=onderwerpReferentie MOETEN_UNIEK_ZIJN # unaryUniekCondition // Specific for 'moeten uniek zijn'
     | expr=primaryExpression IS_INCONSISTENT # unaryInconsistentDataCondition // For 'data is inconsistent'
     ;

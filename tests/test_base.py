@@ -2,6 +2,7 @@ import os
 import unittest
 from antlr4 import FileStream, CommonTokenStream, InputStream
 from antlr4.error.ErrorListener import ErrorListener
+from antlr4.tree.Tree import ParseTree, TerminalNode  # Import ParseTree and TerminalNode
 from regelspraak.generated.RegelSpraakLexer import RegelSpraakLexer
 from regelspraak.generated.RegelSpraakParser import RegelSpraakParser
 
@@ -42,6 +43,28 @@ class RegelSpraakTestCase(unittest.TestCase):
         """Assert that no parse errors occurred."""
         if self.error_listener.errors:
             raise AssertionError(f"Parse errors occurred: {self.error_listener.errors}")
+
+    def find_node_of_type(self, node: ParseTree, target_type):
+        """
+        Recursively searches the parse tree for the first node of the specified type.
+
+        Args:
+            node: The current node in the parse tree (starts with the root).
+            target_type: The ANTLR context class to search for (e.g., RegelSpraakParser.UnaryKenmerkConditionContext).
+
+        Returns:
+            The first node found matching the target_type, or None if not found.
+        """
+        if isinstance(node, target_type):
+            return node
+
+        if not isinstance(node, TerminalNode) and hasattr(node, 'children'):
+            for child in node.children:
+                found = self.find_node_of_type(child, target_type)
+                if found:
+                    return found
+        return None
+
 
 class TestErrorListener(ErrorListener): # Inherit from ErrorListener
     def __init__(self):
