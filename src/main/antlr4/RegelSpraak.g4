@@ -337,21 +337,21 @@ toplevelObjectVergelijking // Toplevel equivalent (guessing structure based on S
     // Add other toplevel object comparison forms if needed
     ;
 
-getalVergelijking // Non-toplevel example
-    : (naamwoord | attribuutReferentie | bezieldeReferentie) (IS_GROTER_OF_GELIJK_AAN | GROTER_DAN | IS_GROTER_DAN) NUMBER // Added naamwoord, limited operators
-    | (naamwoord | attribuutReferentie | bezieldeReferentie) IS KLEINER_DAN NUMBER // Adding support for "is kleiner dan" pattern
-    | (naamwoord | attribuutReferentie | bezieldeReferentie) KLEINER_IS_DAN NUMBER // Keep support for "kleiner is dan" pattern
-    | (naamwoord | attribuutReferentie | bezieldeReferentie) IS KLEINER_OF_GELIJK_AAN NUMBER // Adding support for "is kleiner of gelijk aan" pattern
-    | (naamwoord | attribuutReferentie | bezieldeReferentie) IS GROTER_DAN NUMBER // Adding support for "is groter dan" pattern
-    | (naamwoord | attribuutReferentie | bezieldeReferentie) IS GROTER_OF_GELIJK_AAN NUMBER // Adding support for "is groter of gelijk aan" pattern
-    | (naamwoord | attribuutReferentie | bezieldeReferentie) IS GELIJK_AAN NUMBER // Adding support for "is gelijk aan" pattern
-    | (naamwoord | attribuutReferentie | bezieldeReferentie) IS ONGELIJK_AAN NUMBER // Adding support for "is ongelijk aan" pattern
-    | (naamwoord | attribuutReferentie | bezieldeReferentie) IS_KLEINER_DAN NUMBER // New token-based comparison
-    | (naamwoord | attribuutReferentie | bezieldeReferentie) IS_GROTER_DAN NUMBER // New token-based comparison 
-    | (naamwoord | attribuutReferentie | bezieldeReferentie) IS_GELIJK_AAN NUMBER // New token-based comparison
-    | (naamwoord | attribuutReferentie | bezieldeReferentie) IS_ONGELIJK_AAN NUMBER // New token-based comparison
-    | (naamwoord | attribuutReferentie | bezieldeReferentie) IS_KLEINER_OF_GELIJK_AAN NUMBER // New token-based comparison 
-    | (naamwoord | attribuutReferentie | bezieldeReferentie) IS_GROTER_OF_GELIJK_AAN NUMBER // New token-based comparison
+getalVergelijking
+    : leftOperand comparisonOp NUMBER
+    ;
+
+leftOperand
+    : naamwoord
+    | attribuutReferentie
+    | bezieldeReferentie
+    ;
+
+comparisonOp
+    : IS_GROTER_OF_GELIJK_AAN | IS_GROTER_DAN | IS_KLEINER_DAN | IS_KLEINER_OF_GELIJK_AAN
+    | IS_GELIJK_AAN | IS_ONGELIJK_AAN
+    | KLEINER_IS_DAN
+    | GROTER_DAN
     ;
 
 toplevelGetalVergelijking // Toplevel equivalent (guessing structure based on Spec §13.4.14.23)
