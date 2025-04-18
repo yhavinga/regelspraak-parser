@@ -32,6 +32,7 @@ naamPhrase // Used within naamwoord
     | identifier+ // Allow all identifiers (covers capitalized Het, De, etc.)
     | NIEUWE IDENTIFIER+ // Allow 'nieuwe' in names
     | NIEUWE IDENTIFIER+ MET IDENTIFIER+ // Allow 'nieuwe X met Y' pattern in rule names
+    | identifier+ MET identifier+ // Allow 'X met Y' pattern in rule names
     ;
 
 naamwoord // Modified to handle structure like 'phrase (preposition phrase)*'
@@ -225,12 +226,12 @@ versieGeldigheid
 
 // §13.4.3 Resultaat Deel
 resultaatDeel
-    : (naamwoord | attribuutReferentie) ( WORDT_BEREKEND_ALS expressie | WORDT_GESTELD_OP expressie ) # GelijkstellingResultaat
+    : (naamwoord | attribuutReferentie) ( WORDT_BEREKEND_ALS expressie | WORDT_GESTELD_OP expressie | WORDT_GEINITIALISEERD_OP expressie ) # GelijkstellingResultaat
     | onderwerpReferentie (IS | HEEFT) kenmerkNaam                                                # KenmerkFeitResultaat
     | onderwerpReferentie HEEFT naamwoord (MET | TOT) onderwerpReferentie                       # FeitCreatieResultaat
-    | identifier+ ( WORDT_BEREKEND_ALS expressie | WORDT_GESTELD_OP expressie )                   # CapitalizedGelijkstellingResultaat // For capitalized cases
-    | (HET_KWARTAAL | HET_DEEL_PER_MAAND | HET_DEEL_PER_JAAR) identifier* ( WORDT_BEREKEND_ALS expressie | WORDT_GESTELD_OP expressie ) ( (VANAF | VAN) datumLiteral (TOT | TOT_EN_MET) datumLiteral )? DOT? # SpecialPhraseResultaat
-    | HET_AANTAL_DAGEN_IN (MAAND | JAAR) ( WORDT_BEREKEND_ALS expressie | WORDT_GESTELD_OP expressie ) # AantalDagenInResultaat
+    | identifier+ ( WORDT_BEREKEND_ALS expressie | WORDT_GESTELD_OP expressie | WORDT_GEINITIALISEERD_OP expressie )                   # CapitalizedGelijkstellingResultaat // For capitalized cases
+    | (HET_KWARTAAL | HET_DEEL_PER_MAAND | HET_DEEL_PER_JAAR) identifier* ( WORDT_BEREKEND_ALS expressie | WORDT_GESTELD_OP expressie | WORDT_GEINITIALISEERD_OP expressie ) ( (VANAF | VAN) datumLiteral (TOT | TOT_EN_MET) datumLiteral )? DOT? # SpecialPhraseResultaat
+    | HET_AANTAL_DAGEN_IN (MAAND | JAAR) ( WORDT_BEREKEND_ALS expressie | WORDT_GESTELD_OP expressie | WORDT_GEINITIALISEERD_OP expressie ) # AantalDagenInResultaat
     | objectCreatie                                                                    # ObjectCreatieActie
     ;
 
