@@ -1,19 +1,29 @@
 ---
-description: Project information and conventions for the RegelSpraak v2.1.0 ANTLR grammar implementation
-globs: ["*.g4"]
+description: Project information and conventions for the RegelSpraak v2.1.0 ANTLR grammar, execution engine, and UI implementation
+globs: ["*.g4", "src/**/*.py", "examples/**/*.py", "ui/**/*.py"]
 alwaysApply: false
 ---
 
-# RegelSpraak v2.1.0 ANTLR Grammar - Project Information
+# RegelSpraak v2.1.0 - Project Information
 
 **Purpose:**
-This context provides information for generating an ANTLR v4 grammar (`.g4` file) capable of parsing the RegelSpraak language, version 2.1.0, as defined in the "RegelSpraak-specificatie v2.1.0.md" document. The grammar should cover both GegevensSpraak definitions (Objecttypes, Parameters, etc.) and RegelSpraak rules (Regels, Beslistabellen fragments).
+This project encompasses the development of an ANTLR v4 grammar (`.g4` file) for RegelSpraak v2.1.0, a Python-based execution engine to interpret RegelSpraak definitions, a user interface for interaction and simulation, and example implementations like the TOKA case. The grammar parses the language defined in "RegelSpraak-specificatie v2.1.0.md", covering both GegevensSpraak and RegelSpraak constructs. The engine executes the parsed logic, and the UI provides an interface for managing rules and running simulations.
 
 **Source Specification:**
 "RegelSpraak-specificatie v2.1.0.md"
 
+**Components:**
+1.  **ANTLR Grammar:** Located in the root, defines the `RegelSpraak.g4` file.
+2.  **Parser & Datamodel (`src/regelspraak`):** Python bindings generated from ANTLR, plus Pydantic models representing the parsed constructs.
+3.  **Execution Engine (`src/regelspraak_engine`):** Python code to interpret and execute the logic defined in parsed RegelSpraak files. Uses a Visitor pattern on the datamodel or ANTLR tree.
+4.  **Examples (`examples/`):** Contains example RegelSpraak files (`.rs`) and Python scripts to run demonstrations, starting with the TOKA case (`examples/toka/`).
+5.  **User Interface (`ui/`):** Web-based UI (e.g., Streamlit or Flask) for rule editing and simulation.
+6.  **Tests (`tests/`):** Unit tests for the parser, engine, and potentially UI components.
+
 **Target:**
-ANTLR v4 (specify target language like Java, Python, etc., when generating the parser code from the `.g4` file).
+*   ANTLR v4 grammar.
+*   Python 3.8+ execution engine and supporting code.
+*   Python web framework (Streamlit/Flask) for the UI.
 
 **ANTLR Conventions Used:**
 *   Parser rule names start with a lowercase letter (e.g., `regel`).
@@ -22,8 +32,39 @@ ANTLR v4 (specify target language like Java, Python, etc., when generating the p
 *   Whitespace (`WS` lexer rule) should generally be skipped (`-> skip`).
 *   Comments (if defined, e.g., `LINE_COMMENT`) should also be skipped.
 
+**Project Structure (Mono-repo):**
+```
+yhavinga-regelspraak-parser/
+├── src/
+│   ├── regelspraak/          # Parser code + Pydantic model
+│   └── regelspraak_engine/   # Execution Engine (Interpreter)
+│       ├── __init__.py
+│       └── interpreter.py
+├── examples/                 # Examples Folder
+│   └── toka/
+│       ├── __init__.py
+│       ├── run_toka_simulation.py
+│       ├── toka_objecttypes.rs
+│       ├── toka_parameters.rs
+│       └── toka_regels.rs
+├── ui/                       # UI Code
+│   └── web_ui/               # (or streamlit_app)
+│       ├── __init__.py
+│       └── app.py
+├── tests/
+│   ├── engine/             # Engine Tests
+│   └── ...                 # Parser Tests
+├── requirements.txt          # Python dependencies
+├── setup.py
+└── README.md
+└── main/
+    └── antlr4/
+        └── RegelSpraak.g4          # ANTLR Grammar File
+```
+
 **Goal:**
-Define a `RegelSpraak.g4` file containing both lexer and parser rules based on the provided context files (`02-lexer-rules.mdc`, `03-parser-rules.mdc`, `04-specific-constructs.mdc`). Use the examples (`05-examples.mdc`) to verify the grammar logic.
+Develop and integrate the grammar, parser, execution engine, and UI components. Use the TOKA example (`examples/toka/`) to demonstrate and test the end-to-end workflow. Refine the grammar (`RegelSpraak.g4`) using the provided context files (`02-lexer-rules.mdc`, `03-parser-rules.mdc`, `04-specific-constructs.mdc`) and verify against examples.
 
 **File Pattern:**
-pattern: *.g4
+pattern: *.g4, src/**/*.py, examples/**/*.py, ui/**/*.py
+# Ensure the glob patterns match the files these rules should apply to.
