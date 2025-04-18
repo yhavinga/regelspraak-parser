@@ -50,6 +50,13 @@ IS_GROTER_DAN: 'is groter dan';
 KLEINER_IS_DAN: 'kleiner is dan';
 WORDT_VOLDAAN: 'wordt voldaan';
 
+// Object creation tokens
+ER_WORDT_EEN_NIEUW: [Ee] 'r wordt een nieuw';
+AANGEMAAKT: 'aangemaakt';
+CREEER: 'Creëer';
+NIEUWE: 'nieuwe';
+ER_AAN: [Ee] 'r aan';
+
 // --- Comparison Phrase Tokens ---
 IS_GELIJK_AAN: 'is gelijk aan';
 IS_ONGELIJK_AAN: 'is ongelijk aan';
@@ -241,7 +248,6 @@ VOLGENDE_VOORWAARDEN: 'volgende voorwaarden';
 VOOR: 'voor';
 WAAR: 'waar';
 WEEK: 'week';
-ER: 'er';
 
 // Units and Common Measurements
 METER: 'meter';

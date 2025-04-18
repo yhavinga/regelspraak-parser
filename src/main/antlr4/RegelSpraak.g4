@@ -30,6 +30,8 @@ identifier
 naamPhrase // Used within naamwoord
     : (DE | HET | ZIJN)? IDENTIFIER+
     | identifier+ // Allow all identifiers (covers capitalized Het, De, etc.)
+    | NIEUWE IDENTIFIER+ // Allow 'nieuwe' in names
+    | NIEUWE IDENTIFIER+ MET IDENTIFIER+ // Allow 'nieuwe X met Y' pattern in rule names
     ;
 
 naamwoord // Modified to handle structure like 'phrase (preposition phrase)*'
@@ -229,7 +231,22 @@ resultaatDeel
     | identifier+ ( WORDT_BEREKEND_ALS expressie | WORDT_GESTELD_OP expressie )                   # CapitalizedGelijkstellingResultaat // For capitalized cases
     | (HET_KWARTAAL | HET_DEEL_PER_MAAND | HET_DEEL_PER_JAAR) identifier* ( WORDT_BEREKEND_ALS expressie | WORDT_GESTELD_OP expressie ) ( (VANAF | VAN) datumLiteral (TOT | TOT_EN_MET) datumLiteral )? DOT? # SpecialPhraseResultaat
     | HET_AANTAL_DAGEN_IN (MAAND | JAAR) ( WORDT_BEREKEND_ALS expressie | WORDT_GESTELD_OP expressie ) # AantalDagenInResultaat
-    // Specific result types like gelijkstelling, kenmerkToekenning, etc. are merged here
+    | objectCreatie                                                                    # ObjectCreatieActie
+    ;
+
+// Object creation rule based on 13.4.6 in reference
+objectCreatie
+    : ER_WORDT_EEN_NIEUW objectType=naamwoord AANGEMAAKT objectAttributeInit? DOT?
+    | CREEER EEN NIEUWE objectType=naamwoord objectAttributeInit? DOT?
+    ;
+
+// Attribute initialization during object creation
+objectAttributeInit
+    : MET attribuut=naamwoord waarde=expressie attributeInitVervolg*
+    ;
+
+attributeInitVervolg
+    : EN attribuut=naamwoord waarde=expressie
     ;
 
 // --- Consistentieregel Structure ---
@@ -246,7 +263,6 @@ uniekzijnResultaat
 
 inconsistentResultaat
     : (DE | HET)? naamwoord ( IS_INCONSISTENT | IS INCONSISTENT )
-    | ER IS_INCONSISTENT    // Allow "Er is inconsistent" pattern
     ;
 
 // §13.4.12 Voorwaarde Deel
@@ -279,11 +295,11 @@ bezieldeReferentie // Used in primaryExpression
 
 // --- RegelSpraak Condition Parts (§13.4.13 - §13.4.14) (Simplified in original G4) ---
 
-// §13.4.13 Samengestelde voorwaarde (Simplified structure)
+// §13.4.13 Samengestelde voorwaarde
 toplevelSamengesteldeVoorwaarde
-    : (HIJ | HET | onderwerpReferentie) AAN voorwaardeKwantificatie VOLGENDE_VOORWAARDEN VOLDOET COLON // Added HET as alternative subject
+    : ER_AAN voorwaardeKwantificatie VOLGENDE_VOORWAARDEN WORDT_VOLDAAN COLON  // Support "er aan ... wordt voldaan" format
       samengesteldeVoorwaardeOnderdeel
-    | ER AAN voorwaardeKwantificatie VOLGENDE_VOORWAARDEN WORDT_VOLDAAN COLON  // Support "er aan ... wordt voldaan" format
+    | (HIJ | HET | onderwerpReferentie) AAN voorwaardeKwantificatie VOLGENDE_VOORWAARDEN VOLDOET COLON // Added HET as alternative subject
       samengesteldeVoorwaardeOnderdeel
     ;
 
@@ -414,6 +430,7 @@ primaryExpression : // Corresponds roughly to terminals/functions/references in 
     | identifier                                                    # IdentifierExpr // Bare identifier as expression?
     | NUMBER                                                        # NumberLiteralExpr
     | STRING_LITERAL                                                # StringLiteralExpr
+    | ENUM_LITERAL                                                  # EnumLiteralExpr // Added explicit support for enum literals
     | datumLiteral                                                  # DatumLiteralExpr // Added DATE_TIME_LITERAL via datumLiteral rule
     | WAAR                                                          # BooleanTrueLiteralExpr
     | ONWAAR                                                        # BooleanFalseLiteralExpr
