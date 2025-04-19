@@ -1,125 +1,114 @@
-# RegelSpraak Interpreter Project Plan
+# RegelSpraak Engine Development Plan
 
 ## 1. Introduction
 
-This document outlines the plan to develop the existing `regelspraak-parser` project beyond simple parsing into a functional RegelSpraak interpreter. The goal is to create a system capable of executing RegelSpraak rules, managing state, and potentially providing interactive interfaces like a REPL or a Jupyter Notebook kernel.
+This document outlines the development plan for the `regelspraak-parser` project, evolving it into a functional RegelSpraak engine capable of parsing, analyzing, and executing RegelSpraak rules. It follows a defined project structure and an incremental, phase-based development approach.
 
-This plan builds upon the existing ANTLR4 grammar, generated parser code, basic data models, and unit tests.
+The goal is to create a robust, testable, and maintainable system following Python best practices, ultimately producing a language-agnostic Intermediate Representation (IR) and a Python-based interpreter.
 
-## 2. Phases
+## 2. Development Approach & Phases
 
-The development is broken down into the following major phases:
+We will adopt an incremental approach, focusing on building a minimal vertical slice ("Steel Thread") first and then expanding functionality phase by phase. This ensures a runnable product early on and allows for iterative refinement.
 
-**Phase 1: Solidify Parsing and Abstract Syntax Tree (AST) Generation**
-    * Goal: Ensure the parser correctly handles the full v2.1.0 specification and produces a robust, usable AST.
+*   **Project Structure:** The code will be organized into modules within `src/regelspraak/`: `parse` (ANTLR artifacts, CST-to-IR builder), `ir` (IR definitions, span info), `sema` (semantic analysis), `exec` (interpreter components), `cli`, and `kernel`.
+*   **Core Strategy:** The primary parsing pipeline will be: ANTLR Parse Tree -> Visitor -> Python IR (Dataclasses) -> Python Interpreter.
+*   **Methodology:** Implement the minimal viable functionality end-to-end first, then iteratively add features, ensuring tests pass at each stage.
 
-**Phase 2: Develop the Core Interpreter Engine**
-    * Goal: Create the "brain" that understands the AST and executes RegelSpraak semantics.
+**Development Phases:**
 
-**Phase 3: Build Interactive Interfaces (Optional but Recommended)**
-    * Goal: Provide user-friendly ways to interact with the interpreter (REPL, Jupyter).
+*   **Phase 1: Core Parsing & IR**
+    *   Goal: Establish the core parsing pipeline (text -> ANTLR -> IR) and the essential, source-annotated IR structure.
+    *   Key Modules: `grammar/`, `src/regelspraak/parse/`, `src/regelspraak/ir/`, `tests/ir/`.
+*   **Phase 2: Semantic Analysis & Linting**
+    *   Goal: Add static analysis to detect errors like duplicate definitions or undefined references before execution.
+    *   Key Modules: `src/regelspraak/sema/`, `src/regelspraak/cli/` (lint command), `tests/sema/`, `tests/fixtures/`.
+*   **Phase 3: Interpreter Engine & Tracing**
+    *   Goal: Implement the core execution engine based on the IR, including state management and execution tracing.
+    *   Key Modules: `src/regelspraak/exec/`, `tests/exec/`.
+*   **Phase 4: Command-Line Interface (CLI) & REPL**
+    *   Goal: Provide basic interactive command-line tools for using the engine.
+    *   Key Modules: `src/regelspraak/cli/` (run command, REPL).
+*   **Phase 5: Advanced Features & Integrations (Optional / Future)**
+    *   Goal: Explore performance optimization, notebook integration, and web service deployment.
+    *   Key Modules: `src/regelspraak/kernel/`, `src/regelspraak/exec/compiler.py`, `service/`.
+*   **Phase 6: Continuous Integration & Quality Assurance (Ongoing)**
+    *   Goal: Maintain code quality, ensure stability, and automate checks throughout development.
+    *   Key Components: `pytest` config, `.github/workflows/`, linting/formatting configs (`pyproject.toml`), `.gitignore`.
 
-**Phase 4: Testing, Refinement, and Documentation**
-    * Goal: Ensure correctness, usability, and maintainability.
+## 3. Detailed Tasks by Phase
 
-## 3. Detailed Tasks
+### Phase 1: Core Parsing & IR ("Steel Thread")
 
-### Phase 1: Parsing & AST Refinement
+*   [x] **Task 1.1: Project Structure Setup:** Create the necessary directories (`grammar/`, `src/regelspraak/parse/`, `src/regelspraak/ir/`, `tests/ir/`, etc.).
+*   [x] **Task 1.2: Grammar Placement:** Ensure `RegelSpraakLexer.g4` and `RegelSpraak.g4` are placed in `grammar/`.
+*   [ ] **Task 1.3: Generate ANTLR Artifacts:** Run the ANTLR command (`antlr4 -Dlanguage=Python3 -package regelspraak.parse.antlr -o src/regelspraak/parse/antlr grammar/*.g4`) to generate Python files in `src/regelspraak/parse/antlr/`.
+*   [ ] **Task 1.4: Define Core IR Nodes (`ir/nodes.py`):** Implement basic `dataclasses` for core IR elements (`Module`, `ObjectType`, `Rule`, `Expr` subtypes, `Parameter`, `TypeRef`). Review existing code moved from `model.py` and align/expand as needed. Focus initially on types needed for a minimal parsing example.
+*   [ ] **Task 1.5: Implement Span Helper (`ir/span.py`):** Create the `Span` dataclass (`start_line`, `start_col`, `end_line`, `end_col`) and `from_token(token)` static method. Populate the existing empty file.
+*   [ ] **Task 1.6: Implement Initial Visitor (`parse/builder.py`):**
+    *   Review/Update the `ToIR` class (moved from `visitor.py`) inheriting from `RegelSpraakVisitor`.
+    *   Implement/Verify the `span(ctx)` helper method.
+    *   Implement `visitRegelSpraakDocument`.
+    *   Implement visitor methods (e.g., `visitObjectTypeDefinition`, `visitRule`) needed for the minimal "steel thread" example, constructing IR nodes and assigning spans.
+*   [ ] **Task 1.7: Basic IR Unit Tests (`tests/ir/`):**
+    *   Create test files (e.g., `test_builder.py`).
+    *   Write tests parsing minimal strings, invoking the visitor, and asserting the resulting IR structure, content, and spans.
 
-*   [ ] **Task 1.1: Verify/Update Grammar:** Briefly review `RegelSpraak.g4` against the full EBNF specification (Chapter 13) to ensure major constructs are covered. Make minor corrections if necessary.
-*   [ ] **Task 1.2: Regenerate ANTLR Code:** If the grammar was modified, regenerate the Python parser/lexer/visitor/listener files using the `antlr4` command specified in `README.md`.
-*   [ ] **Task 1.3: Expand Data Model (`model.py`):**
-    *   Define more granular dataclasses to represent the full RegelSpraak AST. This includes specific nodes for:
-        *   Expressions (Arithmetic, Comparison, Logical, Function Calls, Literals, References)
-        *   Statements (Gelijkstelling, Kenmerktoekenning, ObjectCreatie, FeitCreatie, Verdeling, Initialisatie, etc.)
-        *   Conditions (Elementaire, Samengestelde, Predicates)
-        *   Definitions (ObjectType, Parameter, Domein, Dimensie, FeitType, Eenheid, Tijdlijn details)
-        *   Units, Dimensions, Enumerations.
-    *   Ensure the model can capture relationships (e.g., an expression contains sub-expressions, a rule contains conditions and results).
-*   [ ] **Task 1.4: Complete AST Visitor (`visitor.py`):**
-    *   Thoroughly implement the `RegelSpraakModelBuilder` visitor.
-    *   Ensure `visit` methods exist for *all relevant parser rule contexts* defined in `RegelSpraakParser.py` (e.g., `visitRegel`, `visitGelijkstelling`, `visitVoorwaardeDeel`, `visitGetalExpressie`, etc.).
-    *   Each `visit` method should construct and return the corresponding AST node(s) defined in the expanded `model.py`.
-    *   Handle the structure of expressions (operator precedence) and conditions correctly when building the AST.
-*   [ ] **Task 1.5: Refine Parser Tests:**
-    *   Update existing tests (`test_*.py`) to not only check for parsing success (`assertNoParseErrors`) but also to verify the structure and content of the generated AST (the `Domain` object and its children returned by the visitor).
-    *   Add tests for constructs not yet covered.
+### Phase 2: Semantic Analysis & Linting
 
-### Phase 2: Core Interpreter Engine
+*   [ ] **Task 2.1: Implement Semantic Checker (`sema/checker.py`):**
+    *   Create the `SemanticChecker` class (populate existing empty file).
+    *   Implement `collect` pass (build symbol table, check duplicates).
+    *   Implement `validate_rules` pass (check undefined references via recursive `_walk_expr`).
+*   [ ] **Task 2.2: Create `lint` CLI Command (`cli/__main__.py`):**
+    *   Add a `lint` command using `click` (populate existing empty file).
+    *   Command should parse file to IR, run `SemanticChecker`, print errors.
+*   [ ] **Task 2.3: Semantic Checker Tests (`tests/sema/`):**
+    *   Create test files (e.g., `test_checker.py`).
+    *   Create sample `.rs` files in `tests/fixtures/` with semantic errors.
+    *   Write tests calling a `lint(text)` wrapper and asserting expected error messages.
 
-*   [ ] **Task 2.1: Design Interpreter Class:**
-    *   Create a new `Interpreter` class (e.g., in `src/regelspraak/interpreter.py`).
-    *   This class will hold the runtime state and execution logic.
-*   [ ] **Task 2.2: Implement State Management:**
-    *   The `Interpreter` needs to manage:
-        *   Definitions: Loaded ObjectTypes, Domains, Parameters, etc. (from the AST).
-        *   Runtime Instances: In-memory representations of created objects (e.g., instances of `Natuurlijk persoon`).
-        *   Parameter Values: Current values assigned to parameters.
-        *   Variable Scopes: Handle variables defined within rules (`Daarbij geldt:`).
-        *   Time-dependent Data: A mechanism to store and query attribute/kenmerk values that change over time (if implementing time-dependency fully).
-*   [ ] **Task 2.3: Implement AST Walker/Evaluator:**
-    *   The `Interpreter` needs a method (e.g., `evaluate(node)`) that recursively walks the AST generated in Phase 1.
-    *   Refactor/Move the evaluation logic from `parser.py` (e.g., `handle_arithmetic`) into the `Interpreter`, making it operate on the AST nodes from `model.py`.
-*   [ ] **Task 2.4: Implement Full Semantics:**
-    *   Implement the execution logic for *all* RegelSpraak expressions and operations based on the specifications (Chapters 6, 7, 8, 9):
-        *   Arithmetic, Comparisons, Logical Operations.
-        *   Function calls (`tijdsduur van`, `som van`, `aantal`, etc.).
-        *   Handling of `leeg` values according to spec tables.
-        *   Type checking during evaluation.
-        *   Unit conversions based on `Eenheidsysteem` definitions.
-        *   Evaluation of conditions and predicates.
-        *   Execution of result parts (`gelijkstelling`, `kenmerktoekenning`, `objectCreatie`, `feitCreatie`, `verdeling`, etc.), modifying the interpreter's state.
-    *   Implement the logic for resolving time-dependent values if applicable.
-*   [ ] **Task 2.5: Implement Rule Execution Flow:**
-    *   Add methods to load rules into the interpreter state.
-    *   Implement logic to select and execute rules based on context (e.g., triggered by data changes or explicit calls).
-    *   Handle the `geldig` clauses (rule versions) based on a provided `Rekendatum`.
-    *   Implement the execution order (evaluate conditions, handle variables, execute results).
-*   [ ] **Task 2.6: Handle Beslistabellen:** Decide on a strategy:
-    *   *Option A:* Pre-process Beslistabellen into standard `Regel` AST nodes before interpretation.
-    *   *Option B:* Add specific logic to the `Interpreter` to handle the structure and evaluation of Beslistabel AST nodes.
+### Phase 3: Interpreter Engine & Tracing
 
-### Phase 3: Build Interactive Interfaces
+*   [ ] **Task 3.1: Define Trace Interface (`exec/trace.py`):** Implement `TraceSink` ABC and a basic `PrintTrace` implementation (populate existing empty file).
+*   [ ] **Task 3.2: Implement Runtime Context (`exec/context.py`):**
+    *   Create `Instance` class.
+    *   Create `Context` class (holding `module`, `parameters`, `instances`, `trace`).
+    *   Implement instance creation and state access methods (populate existing empty file).
+*   [ ] **Task 3.3: Implement Evaluator (`exec/evaluator.py`):**
+    *   Create `Eval` class (IR visitor). Takes `Context`.
+    *   Implement `visit_Rule`, expression visitors (`visit_BinaryOp`, etc.), and `_apply_action` logic.
+    *   Integrate calls to the `TraceSink` (populate existing empty file).
+*   [ ] **Task 3.4: Implement Runtime Types (`exec/runtime_types.py`):** Define helpers for runtime type handling if needed (populate existing empty file).
+*   [ ] **Task 3.5: Interpreter Tests (`tests/exec/`):**
+    *   Create test files (`test_evaluator.py`, `test_context.py`).
+    *   Write unit tests for expression evaluation.
+    *   Write integration tests: load IR, create Context, run Eval, assert final state and/or trace output.
 
-*   [ ] **Task 3.1: Develop REPL:**
-    *   Create a command-line interface using `cmd` or `prompt_toolkit`.
-    *   Implement parsing of user input (RegelSpraak definitions/rules/commands).
-    *   Define commands for:
-        *   Loading files (`load <file>`).
-        *   Defining elements directly (`Objecttype ...`, `Regel ...`).
-        *   Setting context (`set parameter <name> = <value>`).
-        *   Creating instances (`create <var> = <ObjectType> with ...`).
-        *   Evaluating expressions or rules (`evaluate <expression>`, `execute <rule>`).
-        *   Querying state (`get <instance>.<attribute>`, `show definitions`).
-        *   Saving/loading state.
-        *   Exiting (`exit`).
-    *   Connect these commands to the `Interpreter` instance.
-    *   Handle multi-line input for definitions/rules.
-*   [ ] **Task 3.2: Develop Jupyter Kernel:**
-    *   Install `ipykernel`.
-    *   Create a custom Kernel class inheriting from `ipykernel.kernelbase.Kernel`.
-    *   Implement `do_execute` to parse and interpret RegelSpraak code from cells, updating the persistent `Interpreter` state associated with the kernel.
-    *   Implement `do_complete` for basic code completion (optional).
-    *   Decide how users interact: pure RegelSpraak cells vs. magic commands vs. Python API calls within cells.
-    *   Package the kernel for installation (`jupyter kernelspec install ...`).
+### Phase 4: Command-Line Interface (CLI) & REPL
 
-### Phase 4: Testing, Refinement, and Documentation
+*   [ ] **Task 4.1: Enhance CLI (`cli/__main__.py`):**
+    *   Implement `run` command: takes `.rs` file + data, runs Eval, prints result/trace.
+    *   Implement `repl` command: interactive loop using `prompt_toolkit`, maintains `Context`.
+*   [ ] **Task 4.2: CLI Tests:** Add tests for the `run` and `repl` commands if feasible.
 
-*   [ ] **Task 4.1: Comprehensive Testing:**
-    *   Write integration tests for the `Interpreter` engine, simulating rule execution scenarios with specific inputs and expected outputs.
-    *   Test edge cases, `leeg` value handling, type/unit errors, time-dependency logic.
-    *   Add tests for the REPL commands and Jupyter kernel functionality if implemented.
-    *   Use the TOKA casus extensively for test scenarios.
-*   [ ] **Task 4.2: Improve Error Handling:**
-    *   Provide clearer error messages for parsing errors (linking to source location).
-    *   Implement informative runtime errors from the interpreter (e.g., "TypeError: Cannot add Numeriek and Tekst", "UndefinedVariableError: 'X'", "UnitMismatchError: Cannot compare 'jr' and 'km'").
-*   [ ] **Task 4.3: Documentation:**
-    *   Update `README.md` to reflect the interpreter capabilities and link to this `PLAN.md`.
-    *   Document the structure of the AST (`model.py`).
-    *   Document the public API of the `Interpreter` class.
-    *   Provide usage examples for the REPL and/or Jupyter kernel.
-    *   Document any known limitations or deviations from the specification.
-*   [ ] **Task 4.4: Refinements (Optional):**
-    *   Performance profiling and optimization.
-    *   Add state serialization (save/load definitions and runtime instances).
-    *   Consider advanced features like debugging hooks, rule tracing, visualization of the object model or rule execution.
+### Phase 5: Advanced Features & Integrations (Optional / Future)
+
+*   [ ] **Task 5.1: Jupyter Kernel (`kernel/`):** Implement `ipykernel.kernelbase.Kernel` subclass, `do_execute`, packaging.
+*   [ ] **Task 5.2: Code-Gen Optimiser (`exec/compiler.py`):** Implement `compile_rule`, IR-to-AST conversion, caching, benchmarks.
+*   [ ] **Task 5.3: FastAPI Service (`service/`):** Implement FastAPI app, Pydantic models, endpoint logic, Dockerfile.
+
+### Phase 6: Continuous Integration & Quality Assurance (Ongoing)
+
+*   [x] **Task 6.1: Basic Setup:** `.gitignore` created/updated, `pyproject.toml` created.
+*   [ ] **Task 6.2: Testing Framework:** Configure `pytest`, `pytest-cov`.
+*   [ ] **Task 6.3: Linting/Formatting:** Configure `black`, `ruff`, `mypy` in `pyproject.toml`.
+*   [ ] **Task 6.4: GitHub Actions (`.github/workflows/ci.yml`):** Create workflow for setup, linting, testing (matrix), coverage.
+*   [ ] **Task 6.5: Grammar Check:** Add CI step to verify generated ANTLR files match source `.g4`.
+*   [ ] **Task 6.6: Semantic Fixture Check:** Add CI step to run `lint` command against `tests/fixtures/*.rs`.
+
+## 4. Documentation
+
+*   [ ] Update `README.md` progressively.
+*   [ ] Maintain docstrings for public APIs.
+*   [ ] Keep this `PLAN.md` updated.
+*   [ ] Document limitations or specification deviations.

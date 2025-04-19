@@ -1,7 +1,5 @@
 """RegelSpraak Parser Package"""
-
-from .parser import RegelSpraakParser, ParseError
-from .model import ObjectType, Regel, DomainModel
+from .ir.nodes import ObjectType, Regel, DomainModel # Import Regel directly
 
 __version__ = '0.1.0'
-__all__ = ['RegelSpraakParser', 'ParseError', 'ObjectType', 'Regel', 'DomainModel'] 
+__all__ = ['ObjectType', 'Regel', 'DomainModel'] 

@@ -23,22 +23,46 @@ The core components are the ANTLR grammar files (`.g4`) and the Python runtime c
 ```
 regelspraak-parser/
 ├── .gitignore
+├── LICENSE
 ├── README.md
+├── specification/          # Language specification documents
 ├── requirements.txt        # Runtime dependencies
 ├── setup.py                # Package setup script
-├── specification/          # Language specification documents
+├── grammar/                # Source ANTLR grammar files
+│   ├── RegelSpraakLexer.g4
+│   └── RegelSpraak.g4
 ├── src/
 │   └── regelspraak/        # Main Python package
 │       ├── __init__.py
-│       └── generated/      # ANTLR-generated parser files (IMPORTANT: create this dir)
-│           └── ...         # Lexer, Parser, Listener, Visitor Python files
-│   └── main/
-│       └── antlr4/         # Source ANTLR grammar files
-│           ├── RegelSpraakLexer.g4
-│           └── RegelSpraak.g4
-├── tests/                  # Test files using unittest
-│   ├── resources/          # Test RegelSpraak files
-│   └── ...                 # Python test scripts (test_*.py)
+│       ├── parse/          # ANTLR output + CST→IR builder
+│       │   ├── antlr/      # Generated ANTLR files
+│       │   │   └── ...
+│       │   ├── builder.py  # CST to IR Visitor
+│       │   └── errors.py   # Parsing error handling
+│       ├── ir/             # Language-agnostic Intermediate Representation (AST)
+│       │   ├── __init__.py
+│       │   ├── nodes.py    # IR node definitions (data classes)
+│       │   ├── span.py     # Source code location tracking
+│       │   └── serde.py    # Serialization/deserialization helpers (optional)
+│       ├── sema/           # Semantic analysis & linting
+│       │   ├── __init__.py
+│       │   └── checker.py  # Symbol table, type checking, etc.
+│       ├── exec/           # Interpreter/Execution engine
+│       │   ├── __init__.py
+│       │   ├── context.py  # Runtime state (instances, parameters)
+│       │   ├── evaluator.py # IR tree evaluator
+│       │   ├── trace.py    # Execution tracing mechanism
+│       │   └── runtime_types.py # Runtime type representations
+│       ├── cli/            # Command-Line Interface
+│       │   ├── __init__.py
+│       │   └── __main__.py # Main CLI entry point (e.g., using click)
+│       └── kernel/         # Jupyter kernel implementation (optional)
+│           └── __init__.py
+├── tests/                  # Unit and integration tests
+│   ├── grammar/            # Tests for grammar/parsing
+│   ├── ir/                 # Tests for IR structure and construction
+│   ├── exec/               # Tests for the interpreter/evaluator
+│   └── fixtures/           # Sample RegelSpraak files for testing
 └── examples/               # Example RegelSpraak files (if any)
 ```
 
@@ -96,26 +120,24 @@ Refer to the official ANTLR documentation for Windows installation or alternativ
 
 ### 3. Generating Parser Files (Development Only)
 
-If you modify the `.g4` grammar files, you **must** regenerate the Python parser code. **Ensure the output directory `src/regelspraak/generated/` exists before running.**
+If you modify the `.g4` grammar files located in the `grammar/` directory, you **must** regenerate the Python parser code. Ensure the output directory `src/regelspraak/parse/antlr/` exists before running.
 
-The recommended command generates the Lexer, Parser, Visitor, and Listener files together in the correct package structure:
+The recommended command generates the necessary Python files from the grammar:
 
 ```bash
 # Make sure you are in the project root directory
-# Ensure the output directory exists: mkdir -p src/regelspraak/generated
+# Ensure the output directory exists: mkdir -p src/regelspraak/parse/antlr
 
-cd src/main/antlr4 ; \
-antlr4 -Dlanguage=Python3 RegelSpraakLexer.g4 -o ../../../src/regelspraak/generated ; \
-antlr4 -Dlanguage=Python3 -visitor -listener RegelSpraak.g4 -o ../../../src/regelspraak/generated -package regelspraak.generated ; \
-cd ../../..
+cd grammar ; \
+antlr4 -Dlanguage=Python3 RegelSpraakLexer.g4 -o ../src/regelspraak/parse/antlr ; \ 
+antlr4 -Dlanguage=Python3 -visitor -listener RegelSpraak.g4 -o ../src/regelspraak/parse/antlr -package regelspraak.parse.antlr; \
+cd ..
 ```
 
-*   `-Dlanguage=Python3`: Specifies the target language.
-*   `RegelSpraak.g4 RegelSpraakLexer.g4`: Specifies the grammar files to process.
-*   `-o src/regelspraak/generated`: Defines the output directory for generated files.
-*   `-visitor`: Generates the base Visitor class (used by `src/regelspraak/visitor.py`).
-*   `-listener`: Generates the base Listener class (provides an alternative processing pattern).
-*   `-package regelspraak.generated`: Ensures the generated Python files are part of the `regelspraak.generated` package, crucial for correct imports within the project.
+*   `-Dlanguage=Python3`: Specifies the target language (Python).
+*   `-package regelspraak.parse.antlr`: Sets the Python package for the generated files. This is crucial for correct imports.
+*   `-o src/regelspraak/parse/antlr`: Defines the output directory for the generated files.
+*   `grammar/RegelSpraakLexer.g4 grammar/RegelSpraak.g4`: Specifies the input grammar files. Note: ANTLR typically generates visitor/listener code by default when needed or requested by flags; check ANTLR documentation if specific generation flags (`-visitor`, `-listener`) are required for your workflow.
 
 ## Usage
 
@@ -126,10 +148,10 @@ After installation (`pip install -e .`) and generating the parser files (if need
 ```python
 # Example: create a script `parse_example.py` in the root directory
 from antlr4 import FileStream, CommonTokenStream, InputStream
-from regelspraak.generated.RegelSpraakLexer import RegelSpraakLexer
-from regelspraak.generated.RegelSpraakParser import RegelSpraakParser
+from regelspraak.parse.antlr.RegelSpraakLexer import RegelSpraakLexer
+from regelspraak.parse.antlr.RegelSpraakParser import RegelSpraakParser
 # Optional: Import your custom Visitor or Listener if you create one
-# from regelspraak.visitor import MyRegelSpraakVisitor
+# from regelspraak.parse.builder import ToIR
 
 # Example using a file path
 # input_stream = FileStream("path/to/your_regelspraak_file.rs", encoding='utf-8')
@@ -155,13 +177,17 @@ tree = parser.regelSpraakDocument()
 print(tree.toStringTree(recog=parser))
 
 # 2. Implement and use a Visitor (Recommended for structured processing):
-# visitor = MyRegelSpraakVisitor()
+# Assuming your visitor is now in regelspraak.parse.builder
+# from regelspraak.parse.builder import ToIR
+# visitor = ToIR()
 # result = visitor.visitRegelSpraakDocument(tree)
 # print(f"Visitor Result: {result}")
 
 # 3. Implement and use a Listener (For event-driven processing):
+# Assuming a listener might be generated in regelspraak.parse.antlr
+# from regelspraak.parse.antlr.RegelSpraakListener import RegelSpraakListener
 # walker = ParseTreeWalker()
-# listener = MyRegelSpraakListener()
+# listener = MyRegelSpraakListener() # Replace with your actual listener class
 # walker.walk(listener, tree)
 # # Access results gathered by the listener
 ```
@@ -179,9 +205,10 @@ print(tree.toStringTree(recog=parser))
     # In your other project's code (e.g., my_app.py)
     from antlr4 import InputStream, CommonTokenStream
     # Import directly from the installed package
-    from regelspraak.generated.RegelSpraakLexer import RegelSpraakLexer
-    from regelspraak.generated.RegelSpraakParser import RegelSpraakParser
-    # Potentially import your custom Visitor/Listener if included in the package
+    from regelspraak.parse.antlr.RegelSpraakLexer import RegelSpraakLexer
+    from regelspraak.parse.antlr.RegelSpraakParser import RegelSpraakParser
+    # Potentially import your custom Visitor/Listener
+    # from regelspraak.parse.builder import ToIR # Example visitor import
 
     def parse_regelspraak_text(text: str):
         input_stream = InputStream(text)
@@ -191,7 +218,8 @@ print(tree.toStringTree(recog=parser))
         tree = parser.regelSpraakDocument() # Or appropriate entry rule
 
         # Process the tree, e.g., using a visitor
-        # visitor = MyRegelSpraakVisitor() # Assuming you packaged a visitor
+        # Assuming your visitor is now in regelspraak.parse.builder
+        # from regelspraak.parse.builder import ToIR # Example visitor import
         # processed_data = visitor.visit(tree)
         # return processed_data
 
@@ -239,13 +267,11 @@ The ANTLR grammar (`RegelSpraak.g4` and `RegelSpraakLexer.g4`) incorporates spec
 
 ## Testing
 
-The test suite uses Python's `unittest` framework. Ensure the package is installed in editable mode (`pip install -e .`) and parser files are generated before running tests.
+The test suite uses Python's `unittest` framework and resides in the `tests/` directory. Ensure the package is installed (preferably in editable mode: `pip install -e .`) and parser files are generated before running tests.
 
 ```bash
 # Run all tests from the project root directory
 python -m unittest discover -s tests -p 'test_*.py'
-# Or use the provided script (if it handles discovery)
-# ./tests/run_tests.py
 ```
 
 ## License

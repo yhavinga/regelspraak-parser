@@ -1,6 +1,6 @@
 import unittest
 from tests.test_base import RegelSpraakTestCase
-from regelspraak.generated.RegelSpraakParser import RegelSpraakParser # Import Parser
+from regelspraak.parse.antlr.RegelSpraakParser import RegelSpraakParser
 
 class IsKenmerkIsRolTests(RegelSpraakTestCase):
     @classmethod
