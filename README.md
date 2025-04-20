@@ -68,13 +68,6 @@ regelspraak-parser/
 *   `jupyter_kernel.py`: Optional, isolated Jupyter kernel logic.
 *   `utils.py`: Lightweight helpers (memoization, visitor mixins, etc.).
 
-### Why this still scales
-
-*   **Flat import graph:** Users typically only need `from regelspraak import parse_text, Evaluator, Runtime`.
-*   **Module size:** Each module can grow significantly (~800 lines) before needing refactoring (e.g., split `engine.py` into `engine.py` and `optimizer.py`).
-*   **Tooling simplicity:** `pytest`, `mypy`, `coverage` configuration remains straightforward.
-*   **IDE navigation:** "Go to symbol" remains fast with fewer modules.
-
 ### Generated code isolation
 
 *   The generated ANTLR code resides in `src/regelspraak/_antlr/`. This directory should be ignored by Git locally, but *checked-in* versions can be included when publishing packages (wheels).

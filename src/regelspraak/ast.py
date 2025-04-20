@@ -5,12 +5,26 @@ from enum import Enum
 
 # --- Basic Types & Enums ---
 
+@dataclass(frozen=True)
+class SourceSpan:
+    """Represents the start and end position of a node in the source code."""
+    start_line: int
+    start_col: int
+    end_line: int
+    end_col: int
+
+    @classmethod
+    def unknown(cls) -> 'SourceSpan':
+        """Creates a SourceSpan instance representing an unknown location."""
+        return cls(-1, -1, -1, -1)
+
 class Operator(Enum):
     # Arithmetic
     PLUS = "+"
     MIN = "-"
     MAAL = "*"
     GEDEELD_DOOR = "/"
+    MACHT = "^" # Power/Exponentiation
     # Comparison
     GELIJK_AAN = "=="
     NIET_GELIJK_AAN = "!="
@@ -32,12 +46,12 @@ class Operator(Enum):
 @dataclass
 class Expression:
     """Base class for all expressions."""
-    pass
+    span: SourceSpan
 
 @dataclass
 class Literal(Expression):
     """Represents a literal value (string, number, boolean, date, etc.)."""
-    value: Any
+    value: Any # Non-default must come first
     datatype: Optional[str] = None # e.g., "Numeriek", "Tekst", "Datum", "Boolean"
     eenheid: Optional[str] = None
 
@@ -50,6 +64,11 @@ class AttributeReference(Expression):
 class VariableReference(Expression):
     """Represents a reference to a rule variable."""
     variable_name: str
+
+@dataclass
+class ParameterReference(Expression):
+    """Represents a reference to a global parameter."""
+    parameter_name: str
 
 @dataclass
 class BinaryExpression(Expression):
@@ -80,6 +99,7 @@ class Attribuut:
     """Represents an attribute definition within an ObjectType."""
     naam: str
     datatype: str # Could be a simple string or a reference to Domein
+    span: SourceSpan
     eenheid: Optional[str] = None
     is_lijst: bool = False # Indicates if it's a list (e.g., 'lijst van ...')
     # Add other fields as needed: constraints, dimensions, tijdlijn, etc.
@@ -89,12 +109,14 @@ class Attribuut:
 class Kenmerk:
     """Represents a characteristic (kenmerk) definition."""
     naam: str
+    span: SourceSpan
     # description: Optional[str] = None
 
 @dataclass
 class ObjectType:
     """Represents a RegelSpraak object type definition."""
     naam: str
+    span: SourceSpan
     meervoud: Optional[str] = None
     bezield: bool = False
     attributen: Dict[str, Attribuut] = field(default_factory=dict)
@@ -107,6 +129,7 @@ class Parameter:
     """Represents a RegelSpraak parameter definition."""
     naam: str
     datatype: str
+    span: SourceSpan
     eenheid: Optional[str] = None
     waarde: Optional[Literal] = None # Parsed literal value
     # description: Optional[str] = None
@@ -115,6 +138,7 @@ class Parameter:
 class Domein:
     """Represents a RegelSpraak domain definition (Type or Enumeration)."""
     naam: str
+    span: SourceSpan
     basis_type: Optional[str] = None # e.g., Numeriek, Tekst, Datum
     eenheid: Optional[str] = None
     constraints: List[Any] = field(default_factory=list) # e.g., range, pattern
@@ -127,11 +151,12 @@ class Domein:
 class Voorwaarde:
     """Represents the condition part of a rule."""
     expressie: Expression
+    span: SourceSpan
 
 @dataclass
 class ResultaatDeel:
     """Base class for rule results."""
-    pass
+    span: SourceSpan
 
 @dataclass
 class Gelijkstelling(ResultaatDeel):
@@ -145,6 +170,7 @@ class KenmerkToekenning(ResultaatDeel):
     target: AttributeReference # Often refers to the object itself implicitly
     kenmerk_naam: str
     is_negated: bool = False # For 'is niet'
+    # span inherited and now required
 
 # Potentially add other ResultaatDeel types: Verdeling, Actie, etc.
 
@@ -153,6 +179,7 @@ class Regel:
     """Represents a RegelSpraak rule definition."""
     naam: str
     # versie_info: Any # TODO: Define structure for version/validity
+    span: SourceSpan
     resultaat: ResultaatDeel
     voorwaarde: Optional[Voorwaarde] = None
     # Map variable name to its definition expression
@@ -166,6 +193,7 @@ class Regel:
 @dataclass
 class DomainModel:
     """Container for all parsed RegelSpraak elements."""
+    span: SourceSpan
     objecttypes: Dict[str, ObjectType] = field(default_factory=dict)
     parameters: Dict[str, Parameter] = field(default_factory=dict)
     domeinen: Dict[str, Domein] = field(default_factory=dict)
