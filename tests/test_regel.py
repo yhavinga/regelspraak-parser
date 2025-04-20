@@ -360,4 +360,4 @@ class RegelTests(RegelSpraakTestCase):
             self.parser_rule = original_parser_rule
 
 if __name__ == '__main__':
-    unittest.main() 
+    unittest.main()
