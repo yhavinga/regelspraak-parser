@@ -28,43 +28,72 @@ regelspraak-parser/
 ├── specification/          # Language specification documents
 ├── requirements.txt        # Runtime dependencies
 ├── setup.py                # Package setup script
-├── grammar/                # Source ANTLR grammar files
+├── grammar/                # Source ANTLR grammar files (.g4)
 │   ├── RegelSpraakLexer.g4
 │   └── RegelSpraak.g4
 ├── src/
-│   └── regelspraak/        # Main Python package
-│       ├── __init__.py
-│       ├── parse/          # ANTLR output + CST→IR builder
-│       │   ├── antlr/      # Generated ANTLR files
-│       │   │   └── ...
-│       │   ├── builder.py  # CST to IR Visitor
-│       │   └── errors.py   # Parsing error handling
-│       ├── ir/             # Language-agnostic Intermediate Representation (AST)
-│       │   ├── __init__.py
-│       │   ├── nodes.py    # IR node definitions (data classes)
-│       │   ├── span.py     # Source code location tracking
-│       │   └── serde.py    # Serialization/deserialization helpers (optional)
-│       ├── sema/           # Semantic analysis & linting
-│       │   ├── __init__.py
-│       │   └── checker.py  # Symbol table, type checking, etc.
-│       ├── exec/           # Interpreter/Execution engine
-│       │   ├── __init__.py
-│       │   ├── context.py  # Runtime state (instances, parameters)
-│       │   ├── evaluator.py # IR tree evaluator
-│       │   ├── trace.py    # Execution tracing mechanism
-│       │   └── runtime_types.py # Runtime type representations
-│       ├── cli/            # Command-Line Interface
-│       │   ├── __init__.py
-│       │   └── __main__.py # Main CLI entry point (e.g., using click)
-│       └── kernel/         # Jupyter kernel implementation (optional)
-│           └── __init__.py
-├── tests/                  # Unit and integration tests
-│   ├── grammar/            # Tests for grammar/parsing
-│   ├── ir/                 # Tests for IR structure and construction
-│   ├── exec/               # Tests for the interpreter/evaluator
+│   └── regelspraak/        # Main Python package (flat structure)
+│       ├── __init__.py     # Exports public API
+│       ├── _antlr/         # Generated ANTLR files (isolated)
+│       │   └── ...
+│       ├── parsing.py      # Parser frontend, CST -> IR builder
+│       ├── ast.py          # Intermediate Representation (AST nodes)
+│       ├── semantics.py    # Semantic analysis (symbol table, type checks)
+│       ├── runtime.py      # Runtime data objects (Instance, Value, etc.)
+│       ├── engine.py       # Execution engine/interpreter
+│       ├── errors.py       # Custom exception types
+│       ├── cli.py          # Command-line interface logic
+│       ├── jupyter_kernel.py # Optional Jupyter integration
+│       └── utils.py        # Shared utility functions
+├── tests/                  # Unit and integration tests (mirrors src structure)
+│   ├── test_parsing.py
+│   ├── test_ast.py
+│   ├── test_semantics.py
+│   ├── test_runtime.py
+│   ├── test_engine.py
+│   ├── test_cli.py
 │   └── fixtures/           # Sample RegelSpraak files for testing
 └── examples/               # Example RegelSpraak files (if any)
 ```
+
+### How each file is structured
+
+*   `parsing.py`: High-level functions (`parse_text`, `compile_file`), parser facade, inner `_Builder(Visitor)` class.
+*   `ast.py`: Immutable dataclasses for IR nodes, `SourceSpan`, JSON serialization helpers.
+*   `semantics.py`: `SymbolTable`, `StaticChecker` visitor, returns `list[Issue]` without raising.
+*   `runtime.py`: Runtime data representation (`ParameterStore`, `Instance`, `Value`, `Unit`). No evaluation logic.
+*   `engine.py`: `Evaluator` class (runs rules), `TraceEvent`, `TraceSink`, optional `explain()` helper.
+*   `errors.py`: `ParseError`, `SemanticError`, `RuntimeError`, etc.
+*   `cli.py`: `click` group (`compile`, `validate`, `run`, `explain`). No rule logic.
+*   `jupyter_kernel.py`: Optional, isolated Jupyter kernel logic.
+*   `utils.py`: Lightweight helpers (memoization, visitor mixins, etc.).
+
+### Why this still scales
+
+*   **Flat import graph:** Users typically only need `from regelspraak import parse_text, Evaluator, Runtime`.
+*   **Module size:** Each module can grow significantly (~800 lines) before needing refactoring (e.g., split `engine.py` into `engine.py` and `optimizer.py`).
+*   **Tooling simplicity:** `pytest`, `mypy`, `coverage` configuration remains straightforward.
+*   **IDE navigation:** "Go to symbol" remains fast with fewer modules.
+
+### Generated code isolation
+
+*   The generated ANTLR code resides in `src/regelspraak/_antlr/`. This directory should be ignored by Git locally, but *checked-in* versions can be included when publishing packages (wheels).
+*   Keeping generated code separate prevents accidental imports of generated classes instead of handwritten ones.
+
+### Entry points exported in `__init__.py`
+
+```python
+# src/regelspraak/__init__.py
+from .parsing import parse_text, parse_file
+from .ast import DomainModel # Represents the parsed document/module
+from .engine import Evaluator, TraceEvent, TraceSink
+# from .runtime import Runtime, Instance, ParameterStore # Not yet implemented/exported
+from .errors import ParseError, SemanticError, RuntimeError, RegelspraakError
+
+# Public API definition is typically handled by __all__ in __init__.py
+# __all__ = [...] 
+```
+This provides a clean, discoverable API for downstream users while keeping the codebase maintainable.
 
 ## Requirements
 
@@ -120,41 +149,36 @@ Refer to the official ANTLR documentation for Windows installation or alternativ
 
 ### 3. Generating Parser Files (Development Only)
 
-If you modify the `.g4` grammar files located in the `grammar/` directory, you **must** regenerate the Python parser code. Ensure the output directory `src/regelspraak/parse/antlr/` exists before running.
+If you modify the `.g4` grammar files located in the `grammar/` directory, you **must** regenerate the Python parser code. Ensure the output directory `src/regelspraak/_antlr/` exists before running.
 
 The recommended command generates the necessary Python files from the grammar:
 
 ```bash
 # Make sure you are in the project root directory
-# Ensure the output directory exists: mkdir -p src/regelspraak/parse/antlr
+# Ensure the output directory exists: mkdir -p src/regelspraak/_antlr
 
 cd grammar ; \
-antlr4 -Dlanguage=Python3 RegelSpraakLexer.g4 -o ../src/regelspraak/parse/antlr ; \ 
-antlr4 -Dlanguage=Python3 -visitor -listener RegelSpraak.g4 -o ../src/regelspraak/parse/antlr -package regelspraak.parse.antlr; \
+antlr4 -Dlanguage=Python3 RegelSpraakLexer.g4 -o ../src/regelspraak/_antlr ; \
+antlr4 -Dlanguage=Python3 -visitor -listener RegelSpraak.g4 -o ../src/regelspraak/_antlr -package regelspraak._antlr ; \
 cd ..
 ```
 
 *   `-Dlanguage=Python3`: Specifies the target language (Python).
-*   `-package regelspraak.parse.antlr`: Sets the Python package for the generated files. This is crucial for correct imports.
-*   `-o src/regelspraak/parse/antlr`: Defines the output directory for the generated files.
-*   `grammar/RegelSpraakLexer.g4 grammar/RegelSpraak.g4`: Specifies the input grammar files. Note: ANTLR typically generates visitor/listener code by default when needed or requested by flags; check ANTLR documentation if specific generation flags (`-visitor`, `-listener`) are required for your workflow.
+*   `-package regelspraak._antlr`: Sets the Python package for the generated files. This is crucial for correct imports within the `_antlr` sub-package.
+*   `-o src/regelspraak/_antlr`: Defines the output directory for the generated files.
 
 ## Usage
 
 ### As a Standalone Tool (Within this Project)
 
-After installation (`pip install -e .`) and generating the parser files (if needed), you can run scripts that use the parser.
+After installation (`pip install -e .`) and generating the parser files (if needed), you can use the library components.
 
 ```python
 # Example: create a script `parse_example.py` in the root directory
-from antlr4 import FileStream, CommonTokenStream, InputStream
-from regelspraak.parse.antlr.RegelSpraakLexer import RegelSpraakLexer
-from regelspraak.parse.antlr.RegelSpraakParser import RegelSpraakParser
-# Optional: Import your custom Visitor or Listener if you create one
-# from regelspraak.parse.builder import ToIR
-
-# Example using a file path
-# input_stream = FileStream("path/to/your_regelspraak_file.rs", encoding='utf-8')
+# Import necessary components from the public API
+from regelspraak import parse_text, DomainModel, Evaluator 
+# Import specific error types
+from regelspraak.errors import ParseError, SemanticError, RuntimeError
 
 # Example using raw text
 input_text = """
@@ -162,69 +186,80 @@ Objecttype de Persoon
     het naam Tekst;
     de leeftijd Numeriek (positief geheel getal);
 Einde objecttype.
+
+Regel PersoonIsMeerderjarig
+    Voor elke Persoon p:
+        Als de leeftijd van p >= 18
+        Dan is p meerderjarig.
 """
-input_stream = InputStream(input_text)
 
-lexer = RegelSpraakLexer(input_stream)
-stream = CommonTokenStream(lexer)
-parser = RegelSpraakParser(stream)
+try:
+    # 1. Parse text into Intermediate Representation (IR/AST)
+    # parse_text combines lexing, parsing, and building the IR
+    # Use DomainModel as the type hint for the parsed result
+    module: DomainModel = parse_text(input_text)
+    print("--- IR/AST ---")
+    # You might add a pretty-print or serialization method to DomainModel/AST nodes
+    print(module) # Placeholder: print the top-level DomainModel object
 
-# Parse starting from the 'regelSpraakDocument' rule (adjust if needed)
-tree = parser.regelSpraakDocument()
+    # 2. (Optional) Perform Semantic Analysis (e.g., type checking, symbol resolution)
+    # from regelspraak.semantics import validate # Assuming a validate function exists
+    # issues = validate(module)
+    # if issues:
+    #     print("\\n--- Semantic Issues ---")
+    #     for issue in issues:
+    #         print(issue)
+    #     # Decide whether to proceed despite issues
 
-# Process the Parse Tree (Choose one method):
-# 1. Use ANTLR's built-in tree representation (for debugging):
-print(tree.toStringTree(recog=parser))
+    # 3. (Optional) Execute the rules using the Engine
+    # from regelspraak.runtime import RuntimeContext # Assuming context class exists
+    # context = RuntimeContext() # Initialize runtime state
+    # evaluator = Evaluator(context)
+    # trace = evaluator.execute_model(module) # Use execute_model (plural)
+    # print("\\n--- Execution Trace (Summary) ---")
+    # # Assuming trace object has methods like summary() or events list
+    # # print(trace.summary()) 
 
-# 2. Implement and use a Visitor (Recommended for structured processing):
-# Assuming your visitor is now in regelspraak.parse.builder
-# from regelspraak.parse.builder import ToIR
-# visitor = ToIR()
-# result = visitor.visitRegelSpraakDocument(tree)
-# print(f"Visitor Result: {result}")
+except (ParseError, SemanticError, RuntimeError) as e:
+    print(f"Error: {e}")
 
-# 3. Implement and use a Listener (For event-driven processing):
-# Assuming a listener might be generated in regelspraak.parse.antlr
-# from regelspraak.parse.antlr.RegelSpraakListener import RegelSpraakListener
-# walker = ParseTreeWalker()
-# listener = MyRegelSpraakListener() # Replace with your actual listener class
-# walker.walk(listener, tree)
-# # Access results gathered by the listener
+# Note: The original example showed direct ANTLR usage.
+# The new structure encourages using higher-level functions like parse_text.
+# Direct ANTLR interaction would now involve imports from regelspraak._antlr
+# and potentially regelspraak.parsing._builder if accessing the visitor directly.
 ```
 
 ### As a Library in Another Project
 
-1.  **Install the Package:** Install the `regelspraak-parser` package into your other project's environment. You can install it from:
-    *   A Git repository: `pip install git+https://your-git-repo-url/regelspraak-parser.git`
-    *   A local directory (if checked out): `pip install /path/to/regelspraak-parser`
-    *   A built wheel (`.whl`) file.
+1.  **Install the Package:** Install the `regelspraak-parser` package into your other project's environment (e.g., `pip install regelspraak-parser`).
 
-2.  **Use in your Python Code:** Import and use the parser components similarly to the standalone example.
+2.  **Use in your Python Code:** Import the high-level functions and classes from the `regelspraak` package.
 
     ```python
     # In your other project's code (e.g., my_app.py)
-    from antlr4 import InputStream, CommonTokenStream
-    # Import directly from the installed package
-    from regelspraak.parse.antlr.RegelSpraakLexer import RegelSpraakLexer
-    from regelspraak.parse.antlr.RegelSpraakParser import RegelSpraakParser
-    # Potentially import your custom Visitor/Listener
-    # from regelspraak.parse.builder import ToIR # Example visitor import
+    from regelspraak import parse_text, Evaluator, DomainModel
+    from regelspraak.errors import ParseError, SemanticError, RuntimeError
+    # Potentially import runtime context if needed
+    # from regelspraak.runtime import RuntimeContext 
 
-    def parse_regelspraak_text(text: str):
-        input_stream = InputStream(text)
-        lexer = RegelSpraakLexer(input_stream)
-        stream = CommonTokenStream(lexer)
-        parser = RegelSpraakParser(stream)
-        tree = parser.regelSpraakDocument() # Or appropriate entry rule
+    def process_regelspraak_code(text: str):
+        try:
+            # Parse the text directly into the IR/AST DomainModel
+            module: DomainModel = parse_text(text)
+            print("Successfully parsed into IR.")
 
-        # Process the tree, e.g., using a visitor
-        # Assuming your visitor is now in regelspraak.parse.builder
-        # from regelspraak.parse.builder import ToIR # Example visitor import
-        # processed_data = visitor.visit(tree)
-        # return processed_data
+            # Example: You could now validate or execute the module
+            # context = RuntimeContext() # Initialize context
+            # evaluator = Evaluator(context)
+            # results = evaluator.execute_model(module)
+            # return results
 
-        # Or return the raw tree or string representation for now
-        return tree.toStringTree(recog=parser)
+            # For now, just return the parsed module representation
+            return str(module) # Replace with desired output format
+
+        except (ParseError, SemanticError, RuntimeError) as e:
+            print(f"Failed to process RegelSpraak: {e}")
+            return None
 
     # Example usage
     regelspraak_code = """
@@ -232,8 +267,10 @@ print(tree.toStringTree(recog=parser))
         Geldigheid: altijd;
     Einde domein.
     """
-    parsed_output = parse_regelspraak_text(regelspraak_code)
-    print(parsed_output)
+    parsed_output = process_regelspraak_code(regelspraak_code)
+    if parsed_output:
+        print("\n--- Processed Output ---")
+        print(parsed_output)
     ```
 
 ## Grammar Implementation Notes

@@ -1,51 +1,106 @@
-"""RegelSpraak parse tree visitor that builds model objects."""
-from typing import Dict, List, Any, Optional, Union
+"""RegelSpraak parser frontend: functions to parse text/files into an AST/IR."""
+from pathlib import Path
+from typing import Union, Dict, List, Any, Optional
 import logging
 
-# Import enhanced models
-from .model import (
-    DomainModel, ObjectType, Attribuut, Kenmerk, Regel, Parameter, Domein,
+from antlr4 import CommonTokenStream, FileStream, InputStream
+
+# Import AST nodes (using DomainModel for now as in existing builder)
+from .ast import DomainModel
+# Import ANTLR generated files from the _antlr directory
+from ._antlr.RegelSpraakLexer import RegelSpraakLexer
+from ._antlr.RegelSpraakParser import RegelSpraakParser as AntlrParser
+from ._antlr.RegelSpraakVisitor import RegelSpraakVisitor
+# Import custom error type
+from .errors import ParseError
+
+# Import enhanced models (assuming these are now in ast.py or runtime.py)
+# TODO: Verify these imports after ast.py and runtime.py are finalized
+from .ast import (
+    ObjectType, Attribuut, Kenmerk, Regel, Parameter, Domein,
     Voorwaarde, ResultaatDeel, Gelijkstelling, KenmerkToekenning,
     Expression, Literal, AttributeReference, VariableReference,
     BinaryExpression, UnaryExpression, FunctionCall, Operator
 )
-# Import ANTLR generated files
-from .generated.RegelSpraakParser import RegelSpraakParser
-# ADD explicit import for context classes used in type hints
-# from .generated.RegelSpraakParser import (
-#     # RegelSpraakParser, # Already imported above
-#     DefinitieContext,
-#     ObjectTypeDefinitionContext,
-#     DomeinDefinitionContext,
-#     AttribuutSpecificatieContext,
-#     KenmerkSpecificatieContext,
-#     NaamwoordContext,
-#     RegelSpraakDocumentContext,
-#     RegelContext,
-#     ResultaatDeelContext,
-#     AttribuutReferentieContext,
-#     OnderwerpReferentieContext,
-#     # BasisOnderwerpContext, # Not directly used in hints?
-#     KenmerkNaamContext,
-#     VoorwaardeDeelContext,
-#     VariabeleDeelContext,
-#     VariabeleToekenningContext,
-#     ExpressieContext,
-#     ComparisonExpressionContext,
-#     AdditiveExpressionContext,
-#     # MultiplicativeExpressionContext, # Not in grammar
-#     # UnaryExpressionContext,        # Not in grammar
-#     PrimaryExpressionContext,
-#     # LiteralContext, # Not a rule in grammar
-#     FunctionCallContext,
-#     DatumLiteralContext, # Added for primary expression
-#     # ArgumentListContext, # Used internally in visitFunctionCall
-#     # EenheidSpecificatieContext, # Used internally in visitLiteral/visitFunctionCall
-#     # Add any other specific contexts used in method signatures...
-# )
-from .generated.RegelSpraakVisitor import RegelSpraakVisitor
 
 logger = logging.getLogger(__name__)
+
+# --- Public Parsing API ---
+
+def parse_file(file_path: Union[str, Path]) -> DomainModel:
+    """Parse RegelSpraak code from a file.
+
+    Args:
+        file_path: Path to the file containing RegelSpraak code.
+
+    Returns:
+        DomainModel object representing the parsed content.
+
+    Raises:
+        ParseError: If parsing fails.
+        FileNotFoundError: If the file does not exist.
+    """
+    try:
+        # Ensure file_path is a string for FileStream
+        input_stream = FileStream(str(file_path), encoding='utf-8')
+        return _parse_stream(input_stream)
+    except FileNotFoundError: # Re-raise specific error
+        raise
+    except Exception as e:
+        # Catch potential ANTLR errors or builder errors
+        raise ParseError(f"Failed to parse file {file_path}: {e}") from e
+
+def parse_text(text: str) -> DomainModel:
+    """Parse RegelSpraak code from a string.
+
+    Args:
+        text: String containing RegelSpraak code.
+
+    Returns:
+        DomainModel object representing the parsed content.
+
+    Raises:
+        ParseError: If parsing fails.
+    """
+    try:
+        input_stream = InputStream(text)
+        return _parse_stream(input_stream)
+    except Exception as e:
+        # Catch potential ANTLR errors or builder errors
+        raise ParseError(f"Failed to parse text: {e}") from e
+
+# --- Internal Parsing Logic ---
+
+def _parse_stream(input_stream) -> DomainModel:
+    """Core parsing function using ANTLR lexer, parser, and custom visitor."""
+    lexer = RegelSpraakLexer(input_stream)
+    token_stream = CommonTokenStream(lexer)
+    parser = AntlrParser(token_stream)
+    # TODO: Add error listener for more detailed errors
+    # parser.removeErrorListeners() # Remove default console listener
+    # error_listener = MyErrorListener() # Replace with your custom listener
+    # parser.addErrorListener(error_listener)
+
+    tree = parser.regelSpraakDocument() # Start parsing from the root rule
+
+    # TODO: Check for syntax errors collected by the listener here
+    # if error_listener.errors:
+    #     raise ParseError(...)
+
+    # Build the AST/IR using the visitor
+    visitor = RegelSpraakModelBuilder()
+    domain_model = visitor.visit(tree)
+
+    if not isinstance(domain_model, DomainModel):
+         # This might happen if the visitor returns None or something unexpected
+         logger.error(f"Visitor did not return a DomainModel object, got: {type(domain_model)}")
+         raise ParseError("Internal error: Failed to build the domain model from the parse tree.")
+
+    return domain_model
+
+
+# --- CST to AST/IR Builder Visitor ---
+# (The RegelSpraakModelBuilder class originally from builder.py remains below)
 
 # Helper function to get text safely
 def safe_get_text(ctx):
@@ -53,32 +108,32 @@ def safe_get_text(ctx):
 
 # Helper to map tokens to Operator enum
 OPERATOR_MAP = {
-    RegelSpraakParser.PLUS: Operator.PLUS,
-    RegelSpraakParser.MIN: Operator.MIN,
-    RegelSpraakParser.VERMINDERD_MET: Operator.MIN, # Assuming VERMINDERD_MET maps to MINUS
-    RegelSpraakParser.MAAL: Operator.MAAL,           # Added MAAL
-    RegelSpraakParser.GEDEELD_DOOR: Operator.GEDEELD_DOOR, # Added GEDEELD_DOOR
-    RegelSpraakParser.GELIJK_AAN: Operator.GELIJK_AAN,
-    RegelSpraakParser.ONGELIJK_AAN: Operator.NIET_GELIJK_AAN, # Assuming ONGELIJK_AAN maps to !=
-    RegelSpraakParser.KLEINER_DAN: Operator.KLEINER_DAN,
-    RegelSpraakParser.GROTER_DAN: Operator.GROTER_DAN,
-    RegelSpraakParser.KLEINER_OF_GELIJK_AAN: Operator.KLEINER_OF_GELIJK_AAN,
-    RegelSpraakParser.GROTER_OF_GELIJK_AAN: Operator.GROTER_OF_GELIJK_AAN,
-    RegelSpraakParser.IS: Operator.IS,
-    RegelSpraakParser.EN: Operator.EN,             # Added EN
-    RegelSpraakParser.OF: Operator.OF,             # Added OF
-    RegelSpraakParser.NIET: Operator.NIET,           # Added NIET (for unary)
-    RegelSpraakParser.IN: Operator.IN              # Added IN
+    AntlrParser.PLUS: Operator.PLUS,
+    AntlrParser.MIN: Operator.MIN,
+    AntlrParser.VERMINDERD_MET: Operator.MIN, # Assuming VERMINDERD_MET maps to MINUS
+    AntlrParser.MAAL: Operator.MAAL,           # Added MAAL
+    AntlrParser.GEDEELD_DOOR: Operator.GEDEELD_DOOR, # Added GEDEELD_DOOR
+    AntlrParser.GELIJK_AAN: Operator.GELIJK_AAN,
+    AntlrParser.ONGELIJK_AAN: Operator.NIET_GELIJK_AAN, # Assuming ONGELIJK_AAN maps to !=
+    AntlrParser.KLEINER_DAN: Operator.KLEINER_DAN,
+    AntlrParser.GROTER_DAN: Operator.GROTER_DAN,
+    AntlrParser.KLEINER_OF_GELIJK_AAN: Operator.KLEINER_OF_GELIJK_AAN,
+    AntlrParser.GROTER_OF_GELIJK_AAN: Operator.GROTER_OF_GELIJK_AAN,
+    AntlrParser.IS: Operator.IS,
+    AntlrParser.EN: Operator.EN,             # Added EN
+    AntlrParser.OF: Operator.OF,             # Added OF
+    AntlrParser.NIET: Operator.NIET,           # Added NIET (for unary)
+    AntlrParser.IN: Operator.IN              # Added IN
 }
 
 class RegelSpraakModelBuilder(RegelSpraakVisitor):
     """Visitor that builds model objects from a RegelSpraak parse tree."""
 
-    def visitRegelSpraakDocument(self, ctx: RegelSpraakParser.RegelSpraakDocumentContext) -> DomainModel:
+    def visitRegelSpraakDocument(self, ctx: AntlrParser.RegelSpraakDocumentContext) -> DomainModel:
         """Visit the root document node and build the DomainModel."""
         domain_model = DomainModel()
         for child in ctx.children:
-            if isinstance(child, RegelSpraakParser.DefinitieContext):
+            if isinstance(child, AntlrParser.DefinitieContext):
                 definition = self.visit(child)
                 if isinstance(definition, ObjectType):
                     domain_model.objecttypes[definition.naam] = definition
@@ -86,7 +141,7 @@ class RegelSpraakModelBuilder(RegelSpraakVisitor):
                     domain_model.domeinen[definition.naam] = definition
                 else:
                      logger.warning(f"Unhandled definition type: {type(definition)}")
-            elif isinstance(child, RegelSpraakParser.RegelContext):
+            elif isinstance(child, AntlrParser.RegelContext):
                 rule = self.visitRegel(child)
                 if rule:
                     domain_model.regels.append(rule)
@@ -94,7 +149,7 @@ class RegelSpraakModelBuilder(RegelSpraakVisitor):
 
     # --- Visit Definitions ---
 
-    def visitDefinitie(self, ctx: RegelSpraakParser.DefinitieContext) -> Any:
+    def visitDefinitie(self, ctx: AntlrParser.DefinitieContext) -> Any:
         """Visit a definition node and delegate to specific definition visitors."""
         if ctx.objectTypeDefinition():
             return self.visitObjectTypeDefinition(ctx.objectTypeDefinition())
@@ -107,14 +162,14 @@ class RegelSpraakModelBuilder(RegelSpraakVisitor):
             # It might be an empty definition context or whitespace, which is fine.
             return None
 
-    def visitNaamwoord(self, ctx: RegelSpraakParser.NaamwoordContext) -> str:
+    def visitNaamwoord(self, ctx: AntlrParser.NaamwoordContext) -> str:
         """Extracts the core name string from a naamwoord context."""
         # Simplified: concatenates all identifiers. Needs refinement for complex cases.
         name_parts = [id_token.getText() for id_token in ctx.IDENTIFIER()]
         return " ".join(name_parts)
         # TODO: Handle voorzetsel parts if needed for disambiguation or structure
 
-    def visitObjectTypeDefinition(self, ctx: RegelSpraakParser.ObjectTypeDefinitionContext) -> ObjectType:
+    def visitObjectTypeDefinition(self, ctx: AntlrParser.ObjectTypeDefinitionContext) -> ObjectType:
         """Visit an object type definition and build an ObjectType object."""
         naam_ctx = ctx.naamwoord()
         naam = self.visitNaamwoord(naam_ctx)
@@ -134,7 +189,7 @@ class RegelSpraakModelBuilder(RegelSpraakVisitor):
                     obj_type.kenmerken[kenmerk.naam] = kenmerk
         return obj_type
 
-    def visitAttribuutSpecificatie(self, ctx: RegelSpraakParser.AttribuutSpecificatieContext) -> Optional[Attribuut]:
+    def visitAttribuutSpecificatie(self, ctx: AntlrParser.AttribuutSpecificatieContext) -> Optional[Attribuut]:
         """Visit an attribute specification and build an Attribuut object."""
         naam = self.visitNaamwoord(ctx.naamwoord())
         datatype_str = None
@@ -158,7 +213,7 @@ class RegelSpraakModelBuilder(RegelSpraakVisitor):
         # TODO: Handle GEDIMENSIONEERD_MET if needed
         return Attribuut(naam=naam, datatype=datatype_str, eenheid=eenheid)
 
-    def visitKenmerkSpecificatie(self, ctx: RegelSpraakParser.KenmerkSpecificatieContext) -> Optional[Kenmerk]:
+    def visitKenmerkSpecificatie(self, ctx: AntlrParser.KenmerkSpecificatieContext) -> Optional[Kenmerk]:
         """Visit a kenmerk specification and build a Kenmerk object."""
         naam = None
         if ctx.identifier():
@@ -173,7 +228,7 @@ class RegelSpraakModelBuilder(RegelSpraakVisitor):
         # TODO: Potentially handle BIJVOEGLIJK / BEZITTELIJK if needed by the model
         return Kenmerk(naam=naam)
 
-    def visitDomeinDefinition(self, ctx: RegelSpraakParser.DomeinDefinitionContext) -> Domein:
+    def visitDomeinDefinition(self, ctx: AntlrParser.DomeinDefinitionContext) -> Domein:
          """Visit a domain definition and build a Domein object."""
          naam = " ".join([id_token.getText() for id_token in ctx.name])
          basis_type = None
@@ -210,7 +265,7 @@ class RegelSpraakModelBuilder(RegelSpraakVisitor):
 
     # --- Visit Rule Components ---
 
-    def visitRegel(self, ctx: RegelSpraakParser.RegelContext) -> Optional[Regel]:
+    def visitRegel(self, ctx: AntlrParser.RegelContext) -> Optional[Regel]:
         """Visit a rule definition and build a Regel object."""
         naam = " ".join([id_token.text for id_token in ctx.name])
         resultaat = self.visitResultaatDeel(ctx.resultaatDeel())
@@ -231,7 +286,7 @@ class RegelSpraakModelBuilder(RegelSpraakVisitor):
             variabelen=variabelen
         )
 
-    def visitResultaatDeel(self, ctx: RegelSpraakParser.ResultaatDeelContext) -> Optional[ResultaatDeel]:
+    def visitResultaatDeel(self, ctx: AntlrParser.ResultaatDeelContext) -> Optional[ResultaatDeel]:
         """Visit a result part and build Gelijkstelling or KenmerkToekenning."""
         target_ref: Optional[AttributeReference] = None
         if ctx.attribuutReferentie():
@@ -265,7 +320,7 @@ class RegelSpraakModelBuilder(RegelSpraakVisitor):
             logger.warning(f"Unknown resultaatDeel structure: {safe_get_text(ctx)}")
             return None
 
-    def visitVoorwaardeDeel(self, ctx: RegelSpraakParser.VoorwaardeDeelContext) -> Optional[Voorwaarde]:
+    def visitVoorwaardeDeel(self, ctx: AntlrParser.VoorwaardeDeelContext) -> Optional[Voorwaarde]:
         """Visit a condition part and build a Voorwaarde object."""
         expressie = self.visitExpressie(ctx.expressie())
         if not expressie:
@@ -273,7 +328,7 @@ class RegelSpraakModelBuilder(RegelSpraakVisitor):
              return None
         return Voorwaarde(expressie=expressie)
 
-    def visitVariabeleDeel(self, ctx: RegelSpraakParser.VariabeleDeelContext) -> Dict[str, Expression]:
+    def visitVariabeleDeel(self, ctx: AntlrParser.VariabeleDeelContext) -> Dict[str, Expression]:
         """Visit a variable part and build a dictionary of variable assignments."""
         variables = {}
         for toekenning_ctx in ctx.variabeleToekenning():
@@ -287,7 +342,7 @@ class RegelSpraakModelBuilder(RegelSpraakVisitor):
 
     # --- Visit Expressions ---
 
-    def visitExpressie(self, ctx: RegelSpraakParser.ExpressieContext) -> Optional[Expression]:
+    def visitExpressie(self, ctx: AntlrParser.ExpressieContext) -> Optional[Expression]:
         """Visit a generic expression context and delegate based on structure."""
         # This needs to handle the precedence and structure defined in the grammar.
         # Example: Start with the lowest precedence (like logical OR) and work upwards.
@@ -324,7 +379,7 @@ class RegelSpraakModelBuilder(RegelSpraakVisitor):
         if ctx.getChildCount() == 1: # Simple delegation if only one child (like primary)
             # Check the type of the child before visiting
             child = ctx.getChild(0)
-            if isinstance(child, RegelSpraakParser.ComparisonExpressionContext):
+            if isinstance(child, AntlrParser.ComparisonExpressionContext):
                  return self.visitComparisonExpression(child)
             else:
                  # If it's not comparison, it might be something else the grammar allows
@@ -335,7 +390,7 @@ class RegelSpraakModelBuilder(RegelSpraakVisitor):
 
         # Handle potential logical operators (EN/OF) if they were added to the expressie rule directly
         # Example (assuming grammar was: expressie: expressie (EN|OF) expressie | comparisonExpression)
-        if ctx.getChildCount() == 3 and ctx.getChild(1).symbol.type in [RegelSpraakParser.EN, RegelSpraakParser.OF]:
+        if ctx.getChildCount() == 3 and ctx.getChild(1).symbol.type in [AntlrParser.EN, AntlrParser.OF]:
             left = self.visitExpressie(ctx.expressie(0))
             right = self.visitExpressie(ctx.expressie(1))
             op_token = ctx.getChild(1).symbol
@@ -350,7 +405,7 @@ class RegelSpraakModelBuilder(RegelSpraakVisitor):
         logger.warning(f"Unhandled expression structure in visitExpressie: {safe_get_text(ctx)}")
         return None
 
-    def visitComparisonExpression(self, ctx: RegelSpraakParser.ComparisonExpressionContext) -> Optional[Expression]:
+    def visitComparisonExpression(self, ctx: AntlrParser.ComparisonExpressionContext) -> Optional[Expression]:
         """Visit a comparison expression (==, !=, <, >, <=, >=, is)."""
         # Grammar: left=additiveExpression ( comparisonOperator right=additiveExpression )?
         left_expr = self.visitAdditiveExpression(ctx.additiveExpression(0))
@@ -376,7 +431,7 @@ class RegelSpraakModelBuilder(RegelSpraakVisitor):
             # If no operator, it's just the left additive expression
             return left_expr
 
-    def visitAdditiveExpression(self, ctx: RegelSpraakParser.AdditiveExpressionContext) -> Optional[Expression]:
+    def visitAdditiveExpression(self, ctx: AntlrParser.AdditiveExpressionContext) -> Optional[Expression]:
         """Visit an additive expression (+, -). Handles left associativity."""
         # Grammar: left=primaryExpression ( additiveOperator right=primaryExpression )*
 
@@ -417,15 +472,15 @@ class RegelSpraakModelBuilder(RegelSpraakVisitor):
         return current_expr
 
     # Removed visitMultiplicativeExpression as it's not in the grammar
-    # def visitMultiplicativeExpression(self, ctx: RegelSpraakParser.MultiplicativeExpressionContext) -> Optional[Expression]:
+    # def visitMultiplicativeExpression(self, ctx: AntlrParser.MultiplicativeExpressionContext) -> Optional[Expression]:
     #     ...
 
     # Removed visitUnaryExpression as it's not explicitly in the grammar's expression hierarchy
-    # def visitUnaryExpression(self, ctx: RegelSpraakParser.UnaryExpressionContext) -> Optional[Expression]:
+    # def visitUnaryExpression(self, ctx: AntlrParser.UnaryExpressionContext) -> Optional[Expression]:
     #    ...
 
 
-    def visitPrimaryExpression(self, ctx: RegelSpraakParser.PrimaryExpressionContext) -> Optional[Expression]:
+    def visitPrimaryExpression(self, ctx: AntlrParser.PrimaryExpressionContext) -> Optional[Expression]:
         """Visit a primary expression (literal, reference, function call, parens)."""
         # Grammar: primaryExpression
         # : ABSOLUTE_TIJDSDUUR_VAN ...
@@ -519,7 +574,7 @@ class RegelSpraakModelBuilder(RegelSpraakVisitor):
             logger.warning(f"Unknown primary expression type: {safe_get_text(ctx)}")
             return None
 
-    def visitAttribuutReferentie(self, ctx: RegelSpraakParser.AttribuutReferentieContext) -> Optional[AttributeReference]:
+    def visitAttribuutReferentie(self, ctx: AntlrParser.AttribuutReferentieContext) -> Optional[AttributeReference]:
         """Visit an attribute reference and build an AttributeReference object."""
         attribute_name = self.visitNaamwoord(ctx.naamwoord())
         # Recursively build the path from the nested onderwerpReferentie
@@ -531,7 +586,7 @@ class RegelSpraakModelBuilder(RegelSpraakVisitor):
         full_path = [attribute_name] + base_path
         return AttributeReference(path=full_path)
 
-    def visitOnderwerpReferentieToPath(self, ctx: RegelSpraakParser.OnderwerpReferentieContext) -> List[str]:
+    def visitOnderwerpReferentieToPath(self, ctx: AntlrParser.OnderwerpReferentieContext) -> List[str]:
         """Helper to convert onderwerpReferentie into a path list for AttributeReference."""
         path = []
         # Simplified: extracts text from basisOnderwerp parts. Needs refinement.
@@ -568,7 +623,7 @@ class RegelSpraakModelBuilder(RegelSpraakVisitor):
         # return list(reversed(path))
         return path
 
-    def visitBasisOnderwerpToString(self, ctx: RegelSpraakParser.BasisOnderwerpContext) -> str:
+    def visitBasisOnderwerpToString(self, ctx: AntlrParser.BasisOnderwerpContext) -> str:
         """Extracts a string representation from basisOnderwerp."""
         # Handles pronoun (HIJ), identifier, or naamwoord
         if ctx.HIJ():
@@ -578,7 +633,7 @@ class RegelSpraakModelBuilder(RegelSpraakVisitor):
             return " ".join([id_token.getText() for id_token in ctx.IDENTIFIER()])
         return "<unknown_basis_onderwerp>"
 
-    def visitKenmerkNaam(self, ctx: RegelSpraakParser.KenmerkNaamContext) -> str:
+    def visitKenmerkNaam(self, ctx: AntlrParser.KenmerkNaamContext) -> str:
         """Extract the name string from a kenmerkNaam context."""
         # Can be identifier or naamwoord
         return safe_get_text(ctx)

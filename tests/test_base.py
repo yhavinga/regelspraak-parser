@@ -3,8 +3,8 @@ import unittest
 from antlr4 import FileStream, CommonTokenStream, InputStream
 from antlr4.error.ErrorListener import ErrorListener
 from antlr4.tree.Tree import ParseTree, TerminalNode  # Import ParseTree and TerminalNode
-from regelspraak.parse.antlr.RegelSpraakLexer import RegelSpraakLexer
-from regelspraak.parse.antlr.RegelSpraakParser import RegelSpraakParser
+from regelspraak._antlr.RegelSpraakLexer import RegelSpraakLexer
+from regelspraak._antlr.RegelSpraakParser import RegelSpraakParser
 
 # --- Test Framework Code ---
 class RegelSpraakTestCase(unittest.TestCase):
