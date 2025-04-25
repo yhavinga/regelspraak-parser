@@ -1,0 +1,21 @@
+{
+  "parameters": {
+    "volwassenleeftijd": 18 
+  },
+  "instances": [
+    {
+      "object_type_naam": "Natuurlijk persoon",
+      "instance_id": "person_15",
+      "attributen": {
+        "leeftijd": 15
+      }
+    },
+    {
+      "object_type_naam": "Natuurlijk persoon",
+      "instance_id": "person_25",
+      "attributen": {
+        "leeftijd": 25
+      }
+    }
+  ]
+} 

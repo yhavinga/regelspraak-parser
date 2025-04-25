@@ -222,6 +222,94 @@ except (ParseError, SemanticError, RuntimeError) as e:
 # and potentially regelspraak.parsing._builder if accessing the visitor directly.
 ```
 
+### As a Command-Line Tool
+
+This package also provides a command-line interface (CLI) for basic validation and execution tasks. Ensure the package is installed (`pip install .` or `pip install -e .`).
+
+You can invoke the CLI using `python -m regelspraak` followed by a command:
+
+**1. Validate Syntax:**
+Check if a RegelSpraak file is syntactically correct according to the grammar.
+
+Example:
+```bash
+python -m regelspraak validate tests/resources/steelthread_example.rs
+```
+
+Output on success:
+```
+Validating steelthread_example.rs...
+Parsing successful.
+'steelthread_example.rs' validation successful.
+```
+
+**2. Run Rules:**
+Parse a RegelSpraak file, optionally load initial runtime data from a JSON file, execute the rules, and print the final state.
+
+```bash
+python -m regelspraak run path/to/your/file.rs [--data path/to/data.json]
+```
+
+*   `--data <path>`: Optional path to a JSON file containing initial parameters and object instances. The expected JSON structure is:
+    ```json
+    {
+      "parameters": {
+        "parameter_name": value,
+        ...
+      },
+      "instances": [
+        {
+          "object_type_naam": "TypeName",
+          "instance_id": "optional_unique_id",
+          "attributen": {
+            "attribute_name": value,
+            ...
+          },
+          "kenmerken": {
+            "kenmerk_name": true/false,
+             ...
+          } // Optional
+        },
+        ...
+      ]
+    }
+    ```
+
+Example (using the steel thread example):
+```bash
+python -m regelspraak run tests/resources/steelthread_example.rs --data tests/resources/steelthread_data.json
+```
+
+Example Output:
+```
+Running steelthread_example.rs...
+Loading data from steelthread_data.json...
+Parsing successful.
+Runtime context created.
+Loading parameters...
+  Loaded parameter 'volwassenleeftijd' = 18
+Loading instances...
+  Created and added instance: person_15 (Type: Natuurlijk persoon)
+TRACE: ASSIGNMENT - instance='Natuurlijk persoon[person_15]', target='leeftijd', old_value=None, new_value=15
+    Set attribute 'leeftijd' = 15
+  Created and added instance: person_25 (Type: Natuurlijk persoon)
+TRACE: ASSIGNMENT - instance='Natuurlijk persoon[person_25]', target='leeftijd', old_value=None, new_value=25
+    Set attribute 'leeftijd' = 25
+Executing model...
+TRACE: (Line 7) RULE_FIRED - rule_name='Kenmerktoekenning persoon minderjarig'
+TRACE: (Line 9) ASSIGNMENT - instance='Natuurlijk persoon[person_15]', target='kenmerk:minderjarig', old_value=False, new_value=True
+
+Execution finished.
+
+Final Runtime Context State (raw):
+  Parameters: {'volwassenleeftijd': Value(value=18, datatype='Numeriek(geheel getal)', eenheid='jr')}
+  Instances: defaultdict(<class 'list'>, {'Natuurlijk persoon': [RuntimeObject(object_type_naam='Natuurlijk persoon', attributen={'leeftijd': Value(value=15, datatype='Numeriek(geheel getal)', eenheid='jr')}, kenmerken={'minderjarig': True}, instance_id='person_15'), RuntimeObject(object_type_naam='Natuurlijk persoon', attributen={'leeftijd': Value(value=25, datatype='Numeriek(geheel getal)', eenheid='jr')}, kenmerken={}, instance_id='person_25')]})
+```
+
+If errors occur during parsing, data loading, or execution, the command will print an error message and exit with a non-zero status code.
+
+
+
 ### As a Library in Another Project
 
 1.  **Install the Package:** Install the `regelspraak-parser` package into your other project's environment (e.g., `pip install regelspraak-parser`).

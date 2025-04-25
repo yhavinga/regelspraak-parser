@@ -43,7 +43,7 @@ class RuntimeContext:
     # Stores parameter names mapped to their runtime Value
     parameters: Dict[str, Value] = field(default_factory=dict)
     # Stores object instances, keyed by object type name for easier lookup
-    objects: Dict[str, List[RuntimeObject]] = field(default_factory=lambda: defaultdict(list))
+    instances: Dict[str, List[RuntimeObject]] = field(default_factory=lambda: defaultdict(list))
     # Stores variables within the current rule execution scope
     variables: Dict[str, Any] = field(default_factory=dict) # Raw Python values for variables
     # Tracks the object instance currently being evaluated (e.g., by a rule)
@@ -99,12 +99,12 @@ class RuntimeContext:
 
     def add_object(self, obj: RuntimeObject):
         """Adds an object instance to the context, grouped by type."""
-        self.objects[obj.object_type_naam].append(obj)
+        self.instances[obj.object_type_naam].append(obj)
         # Maybe trace object creation?
 
     def find_objects_by_type(self, object_type_naam: str) -> List[RuntimeObject]:
         """Finds all object instances of a specific type."""
-        return self.objects.get(object_type_naam, [])
+        return self.instances.get(object_type_naam, [])
 
     def set_current_instance(self, instance: Optional[RuntimeObject]):
         """Sets the instance currently being processed (e.g., by a rule)."""

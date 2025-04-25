@@ -4,6 +4,7 @@ from typing import Union, Dict, List, Any, Optional
 import logging
 
 from antlr4 import CommonTokenStream, FileStream, InputStream
+from antlr4.error.ErrorListener import ErrorListener # Import ErrorListener
 
 # Import AST nodes (using DomainModel for now as in existing builder)
 from .ast import DomainModel
@@ -28,6 +29,23 @@ from .ast import (
 )
 
 logger = logging.getLogger(__name__)
+
+# --- Custom ANTLR Error Listener ---
+class RegelspraakErrorListener(ErrorListener):
+    """Custom ANTLR Error Listener to collect syntax errors."""
+    def __init__(self):
+        super().__init__()
+        self.errors = []
+
+    def syntaxError(self, recognizer, offendingSymbol, line, column, msg, e):
+        """Called by ANTLR when a syntax error is detected."""
+        # Add line, column, and message for better reporting
+        self.errors.append({'line': line, 'column': column, 'msg': msg})
+        # Log the error immediately as well
+        logger.warning(f"Syntax Error at Line {line}:{column} - {msg}")
+
+    # Optional: Implement reportAmbiguity, reportAttemptingFullContext, reportContextSensitivity
+    # if needed for more detailed grammar debugging.
 
 # --- Public Parsing API ---
 
@@ -80,18 +98,26 @@ def _parse_stream(input_stream) -> DomainModel:
     lexer = RegelSpraakLexer(input_stream)
     token_stream = CommonTokenStream(lexer)
     parser = AntlrParser(token_stream)
-    # TODO: Add error listener for more detailed errors
-    # parser.removeErrorListeners() # Remove default console listener
-    # error_listener = MyErrorListener() # Replace with your custom listener
-    # parser.addErrorListener(error_listener)
+    
+    # Remove default listener and add our custom one
+    parser.removeErrorListeners()
+    error_listener = RegelspraakErrorListener()
+    parser.addErrorListener(error_listener)
 
     tree = parser.regelSpraakDocument() # Start parsing from the root rule
 
-    # TODO: Check for syntax errors collected by the listener here
-    # if error_listener.errors:
-    #     raise ParseError(...)
+    # Check for syntax errors collected by the listener *before* visiting
+    if error_listener.errors:
+        # Combine collected errors into a single message or use the first one
+        first_error = error_listener.errors[0]
+        error_msg = f"Line {first_error['line']}:{first_error['column']}: {first_error['msg']}"
+        # Add details if needed
+        # error_details = "\n".join([f"  Line {e['line']}:{e['column']}: {e['msg']}" for e in error_listener.errors])
+        # raise ParseError(f"Syntax errors found:\n{error_details}")
+        # Raise ParseError with info from the first error found
+        raise ParseError(error_msg) 
 
-    # Build the AST/IR using the visitor
+    # Build the AST/IR using the visitor only if no syntax errors
     visitor = RegelSpraakModelBuilder()
     domain_model = visitor.visit(tree)
 
