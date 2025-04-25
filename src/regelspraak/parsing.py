@@ -228,6 +228,12 @@ def get_span_from_ctx(ctx: Optional[ParserRuleContext]) -> SourceSpan:
 class RegelSpraakModelBuilder(RegelSpraakVisitor):
     """Visitor that builds model objects from a RegelSpraak parse tree."""
 
+    def __init__(self):
+        """Initialize the model builder with tracking for parameter names."""
+        super().__init__()
+        # Set to track parameter names for differentiating ParameterReference from VariableReference
+        self.parameter_names = set()
+
     # Helper method to get span from context
     def get_span(self, ctx) -> SourceSpan:
         # This now always returns a valid SourceSpan (real or unknown)
@@ -236,6 +242,9 @@ class RegelSpraakModelBuilder(RegelSpraakVisitor):
     def visitRegelSpraakDocument(self, ctx: AntlrParser.RegelSpraakDocumentContext) -> DomainModel:
         """Visit the root document node and build the DomainModel."""
         domain_model = DomainModel(span=self.get_span(ctx))
+        # Reset parameter names for new document
+        self.parameter_names = set()
+        
         for child in ctx.children:
             if isinstance(child, AntlrParser.DefinitieContext):
                 definition = self.visit(child)
@@ -245,6 +254,8 @@ class RegelSpraakModelBuilder(RegelSpraakVisitor):
                     domain_model.domeinen[definition.naam] = definition
                 elif isinstance(definition, Parameter):
                     domain_model.parameters[definition.naam] = definition
+                    # Add parameter name to our tracking set
+                    self.parameter_names.add(definition.naam)
                 elif definition is not None:
                      logger.warning(f"Unhandled definition type: {type(definition)} from {safe_get_text(child)}")
             elif isinstance(child, AntlrParser.RegelContext):
@@ -463,6 +474,11 @@ class RegelSpraakModelBuilder(RegelSpraakVisitor):
         if not naam or not datatype_str:
              logger.error(f"Could not parse parameter: name='{naam}', datatype='{datatype_str}' in {safe_get_text(ctx)}")
              return None
+
+        # Add parameter name to our tracking set
+        if naam:
+            self.parameter_names.add(naam)
+            logger.debug(f"Added parameter name to tracking: '{naam}'")
 
         # TODO: Parse literal value if present (e.g., Parameter x : Numeriek is 5)
 
@@ -709,40 +725,6 @@ class RegelSpraakModelBuilder(RegelSpraakVisitor):
             logger.debug(f"    BezieldeReferentie returning: None")
             return None
 
-
-
-    # --- Default Visit ---
-    def visitChildren(self, node):
-        """Override default visitChildren to potentially collect results differently if needed."""
-        result = []
-        n = node.getChildCount()
-        for i in range(n):
-            child_result = self.visit(node.getChild(i))
-            if child_result is not None:
-                # Decide how to aggregate results (list, dict, single value?)
-                # Default behavior is often not useful for model building.
-                # Specific visit methods handle aggregation.
-                 if isinstance(child_result, list):
-                     result.extend(child_result)
-                 else:
-                     result.append(child_result)
-        # Usually, specific visit methods return the built model object directly,
-        # making the aggregated result here less relevant unless needed for lists.
-        # Return None or a specific aggregation if required by a parent rule.
-        # For our purpose, returning the list might be okay for debugging,
-        # but specific visitors should return the actual model objects.
-        if len(result) == 1:
-            return result[0]
-        elif len(result) > 1:
-            # This case might indicate an unhandled aggregation scenario
-             logger.debug(f"visitChildren aggregated multiple results: {result}")
-             return result
-        return None # No significant children visited
-
-    # Catch-all for unhandled nodes (optional)
-    # def visitTerminal(self, node):
-    #     pass 
-
     # --- Expression Visitors ---
 
     def _build_binary_expression(self, ctx, operator_map, sub_visitor_func, operator_rule_name: Optional[str] = None) -> Optional[Expression]:
@@ -986,8 +968,14 @@ class RegelSpraakModelBuilder(RegelSpraakVisitor):
             # -------------------------------------
             logger.debug(f"    Name returned by visitNaamwoord: '{name}'")
             if name:
-                # Assume variable/param ref for now (needs symbol table)
-                result = VariableReference(variable_name=name, span=self.get_span(ctx))
+                # Check if this is a parameter name
+                if name in self.parameter_names:
+                    logger.debug(f"    Name '{name}' is a known parameter, creating ParameterReference")
+                    result = ParameterReference(parameter_name=name, span=self.get_span(ctx))
+                else:
+                    # Not a parameter, assume variable reference
+                    logger.debug(f"    Name '{name}' is not a known parameter, creating VariableReference")
+                    result = VariableReference(variable_name=name, span=self.get_span(ctx))
                 logger.debug(f"    Returning: {result}")
                 return result
             else:
@@ -1002,8 +990,14 @@ class RegelSpraakModelBuilder(RegelSpraakVisitor):
             logger.debug("  -> Matched IdentifierExprContext")
             name = ctx.identifier().getText()
             logger.debug(f"    Extracted identifier: '{name}'")
-            # Assume variable/param ref (needs symbol table)
-            result = VariableReference(variable_name=name, span=self.get_span(ctx))
+            # Check if this is a parameter name
+            if name in self.parameter_names:
+                logger.debug(f"    Identifier '{name}' is a known parameter, creating ParameterReference")
+                result = ParameterReference(parameter_name=name, span=self.get_span(ctx))
+            else:
+                # Not a parameter, assume variable reference
+                logger.debug(f"    Identifier '{name}' is not a known parameter, creating VariableReference")
+                result = VariableReference(variable_name=name, span=self.get_span(ctx))
             logger.debug(f"    Returning: {result}")
             return result
         elif isinstance(ctx, AntlrParser.NumberLiteralExprContext):
@@ -1155,8 +1149,28 @@ class RegelSpraakModelBuilder(RegelSpraakVisitor):
                 # Specific visit methods handle aggregation.
                  if isinstance(child_result, list):
                      result.extend(child_result)
+                 else:
+                     result.append(child_result)
+        # Usually, specific visit methods return the built model object directly,
+        # making the aggregated result here less relevant unless needed for lists.
+        # Return None or a specific aggregation if required by a parent rule.
+        # For our purpose, returning the list might be okay for debugging,
+        # but specific visitors should return the actual model objects.
+        if len(result) == 1:
+            return result[0]
+        elif len(result) > 1:
+            # This case might indicate an unhandled aggregation scenario
+             logger.debug(f"visitChildren aggregated multiple results: {result}")
+             return result
+        return None # No significant children visited
 
-        # --- Helper for Consistent Name Extraction ---
+    # Catch-all for unhandled nodes (optional)
+    # def visitTerminal(self, node):
+    #     pass 
+
+    # --- Expression Visitors ---
+   
+
     def _extract_canonical_name(self, name_ctx: Optional[ParserRuleContext]) -> Optional[str]:
         """
         Extracts a canonical name from various name-related contexts,
