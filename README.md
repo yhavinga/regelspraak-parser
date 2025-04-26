@@ -24,73 +24,52 @@ The core components are the ANTLR grammar files (`.g4`) and the Python runtime c
 regelspraak-parser/
 ├── .gitignore
 ├── LICENSE
-├── README.md
-├── specification/          # Language specification documents
+├── Makefile                # Makefile for common tasks like parser generation and testing
+├── README.md               # This file
 ├── requirements.txt        # Runtime dependencies
 ├── setup.py                # Package setup script
 ├── grammar/                # Source ANTLR grammar files (.g4)
 │   ├── RegelSpraakLexer.g4
 │   └── RegelSpraak.g4
+├── specification/          # Language specification documents
+│   └── ...
 ├── src/
-│   └── regelspraak/        # Main Python package (flat structure)
+│   └── regelspraak/        # Main Python package
 │       ├── __init__.py     # Exports public API
 │       ├── _antlr/         # Generated ANTLR files (isolated)
-│       │   └── ...
+│       │   └── ...         # (Generated files - may not be in git)
 │       ├── parsing.py      # Parser frontend, CST -> IR builder
 │       ├── ast.py          # Intermediate Representation (AST nodes)
-│       ├── semantics.py    # Semantic analysis (symbol table, type checks)
+│       ├── semantics.py    # Semantic analysis (symbol table, type checks - placeholder)
 │       ├── runtime.py      # Runtime data objects (Instance, Value, etc.)
 │       ├── engine.py       # Execution engine/interpreter
 │       ├── errors.py       # Custom exception types
-│       ├── cli.py          # Command-line interface logic
+│       ├── repl.py         # Interactive REPL logic
 │       ├── jupyter_kernel.py # Optional Jupyter integration
-│       └── utils.py        # Shared utility functions
-├── tests/                  # Unit and integration tests (mirrors src structure)
-│   ├── test_parsing.py
-│   ├── test_ast.py
-│   ├── test_semantics.py
-│   ├── test_runtime.py
-│   ├── test_engine.py
-│   ├── test_cli.py
-│   └── fixtures/           # Sample RegelSpraak files for testing
-└── examples/               # Example RegelSpraak files (if any)
+│       └── cli.py          # Command-line interface logic
+└── tests/                  # Unit and integration tests
+    ├── __init__.py
+    ├── run_tests.py        # Test runner script
+    ├── test_base.py        # Base class for tests
+    ├── test_*.py           # Various test files (e.g., test_cli.py, test_regel.py)
+    └── resources/          # Sample RegelSpraak files for testing
+        └── *.rs            # Test files
+        └── *.json          # Test data files
 ```
 
 ### How each file is structured
 
-*   `parsing.py`: High-level functions (`parse_text`, `compile_file`), parser facade, inner `_Builder(Visitor)` class.
+*   `parsing.py`: High-level functions (`parse_text`, `parse_file`), parser facade, inner `_Builder(Visitor)` class.
 *   `ast.py`: Immutable dataclasses for IR nodes, `SourceSpan`, JSON serialization helpers.
-*   `semantics.py`: `SymbolTable`, `StaticChecker` visitor, returns `list[Issue]` without raising.
-*   `runtime.py`: Runtime data representation (`ParameterStore`, `Instance`, `Value`, `Unit`). No evaluation logic.
+*   `semantics.py`: Placeholder for `SymbolTable`, `StaticChecker` visitor, should return `list[Issue]` without raising.
+*   `runtime.py`: Runtime data representation (`RuntimeContext`, `RuntimeObject`, `Value`, `Unit`). No evaluation logic.
 *   `engine.py`: `Evaluator` class (runs rules), `TraceEvent`, `TraceSink`, optional `explain()` helper.
 *   `errors.py`: `ParseError`, `SemanticError`, `RuntimeError`, etc.
-*   `cli.py`: `click` group (`compile`, `validate`, `run`, `explain`). No rule logic.
-*   `jupyter_kernel.py`: Optional, isolated Jupyter kernel logic.
-*   `utils.py`: Lightweight helpers (memoization, visitor mixins, etc.).
-
-### Generated code isolation
-
-*   The generated ANTLR code resides in `src/regelspraak/_antlr/`. This directory should be ignored by Git locally, but *checked-in* versions can be included when publishing packages (wheels).
-*   Keeping generated code separate prevents accidental imports of generated classes instead of handwritten ones.
-
-### Entry points exported in `__init__.py`
-
-```python
-# src/regelspraak/__init__.py
-from .parsing import parse_text, parse_file
-from .ast import DomainModel # Represents the parsed document/module
-from .engine import Evaluator, TraceEvent, TraceSink
-# from .runtime import Runtime, Instance, ParameterStore # Not yet implemented/exported
-from .errors import ParseError, SemanticError, RuntimeError, RegelspraakError
-
-# Public API definition is typically handled by __all__ in __init__.py
-# __all__ = [...] 
-```
-This provides a clean, discoverable API for downstream users while keeping the codebase maintainable.
+*   `cli.py`: `click` group (`validate`, `run`). No rule logic.
 
 ## Requirements
 
-- Python 3.8+
+- Python 3.7+
 - ANTLR 4.13.1+ **Tool** (for generating parser code, not required for runtime use)
 - Java Runtime Environment (JRE) (for running the ANTLR tool)
 
@@ -111,13 +90,16 @@ source venv/bin/activate  # Linux/Mac
 
 To use the parser within this project or install it for use in other projects:
 
-**A) Install Runtime Dependencies:**
-The required Python library (`antlr4-python3-runtime`) is listed in `requirements.txt` and `setup.py`.
+**A) Install Dependencies:**
+Install the required Python libraries listed in `requirements.txt`. Note that `setup.py` currently only lists `antlr4-python3-runtime`; for CLI functionality, you must install all requirements.
 
 ```bash
+# Install all runtime dependencies
 pip install -r requirements.txt
-# or directly via setup.py (which also installs the runtime dependency)
+
+# Then install the regelspraak package itself
 pip install .
+
 # For development (allows editing the source without reinstalling):
 # pip install -e .
 ```
@@ -126,7 +108,7 @@ pip install .
 If you need to modify the grammar (`.g4` files) and regenerate the parser code, you need the ANTLR 4 tool.
 
 ```bash
-# Example for Linux/Mac:
+# Example for Linux/Mac (Adjust path as needed):
 cd /usr/local/lib
 curl -O https://www.antlr.org/download/antlr-4.13.1-complete.jar
 
@@ -144,8 +126,12 @@ Refer to the official ANTLR documentation for Windows installation or alternativ
 
 If you modify the `.g4` grammar files located in the `grammar/` directory, you **must** regenerate the Python parser code. Ensure the output directory `src/regelspraak/_antlr/` exists before running.
 
-The recommended command generates the necessary Python files from the grammar:
+You can use the `Makefile`:
+```bash
+make parser
+```
 
+Or run the ANTLR commands directly (ensure the `antlr4` alias from Step 2B is set up):
 ```bash
 # Make sure you are in the project root directory
 # Ensure the output directory exists: mkdir -p src/regelspraak/_antlr
@@ -162,73 +148,58 @@ cd ..
 
 ## Usage
 
-### As a Standalone Tool (Within this Project)
+You can use the parser either via the command-line interface or by importing it as a library in your code.
 
-After installation (`pip install -e .`) and generating the parser files (if needed), you can use the library components.
+### Command-Line Interface
 
-```python
-# Example: create a script `parse_example.py` in the root directory
-# Import necessary components from the public API
-from regelspraak import parse_text, DomainModel, Evaluator 
-# Import specific error types
-from regelspraak.errors import ParseError, SemanticError, RuntimeError
 
-# Example using raw text
-input_text = """
-Objecttype de Persoon
-    het naam Tekst;
-    de leeftijd Numeriek (positief geheel getal);
-Einde objecttype.
+Provides both batch processing commands and an interactive REPL session. Ensure the package and its dependencies are installed (see Installation).
 
-Regel PersoonIsMeerderjarig
-    Voor elke Persoon p:
-        Als de leeftijd van p >= 18
-        Dan is p meerderjarig.
-"""
+**1. Interactive REPL Session (Default):**
+Launch an interactive session for step-by-step development, testing, and inspection of RegelSpraak code and runtime state.
 
-try:
-    # 1. Parse text into Intermediate Representation (IR/AST)
-    # parse_text combines lexing, parsing, and building the IR
-    # Use DomainModel as the type hint for the parsed result
-    module: DomainModel = parse_text(input_text)
-    print("--- IR/AST ---")
-    # You might add a pretty-print or serialization method to DomainModel/AST nodes
-    print(module) # Placeholder: print the top-level DomainModel object
+```bash
+python -m regelspraak
 
-    # 2. (Optional) Perform Semantic Analysis (e.g., type checking, symbol resolution)
-    # from regelspraak.semantics import validate # Assuming a validate function exists
-    # issues = validate(module)
-    # if issues:
-    #     print("\\n--- Semantic Issues ---")
-    #     for issue in issues:
-    #         print(issue)
-    #     # Decide whether to proceed despite issues
-
-    # 3. (Optional) Execute the rules using the Engine
-    # from regelspraak.runtime import RuntimeContext # Assuming context class exists
-    # context = RuntimeContext() # Initialize runtime state
-    # evaluator = Evaluator(context)
-    # trace = evaluator.execute_model(module) # Use execute_model (plural)
-    # print("\\n--- Execution Trace (Summary) ---")
-    # # Assuming trace object has methods like summary() or events list
-    # # print(trace.summary()) 
-
-except (ParseError, SemanticError, RuntimeError) as e:
-    print(f"Error: {e}")
-
-# Note: The original example showed direct ANTLR usage.
-# The new structure encourages using higher-level functions like parse_text.
-# Direct ANTLR interaction would now involve imports from regelspraak._antlr
-# and potentially regelspraak.parsing._builder if accessing the visitor directly.
+RegelSpraak REPL v0.1.0
+Type ':help' for commands, ':quit' to exit
+Use '.' on a newline to end multi-line input
+RegelSpraak>
 ```
 
-### As a Command-Line Tool
+This starts the REPL. Key features:
+- Enter RegelSpraak definitions directly (end multi-line input with `.` on a new line).
+- Use meta-commands:
+    - `:help`: Show available commands.
+    - `:load <filename.rs>`: Load and merge definitions from a file.
+    - `:reset`: Clear the current session state.
+    - `:show ctx`: Display the current parameters, types, rules, and instances.
+    - `:trace on|off`: Enable/disable execution tracing output.
+    - `:quit` or `:q`: Exit the REPL.
+- Execute Python code using the `py:` prefix (e.g., `py: context.set_parameter(...)`). Access `context`, `RuntimeObject`, `Value`.
+- Evaluate simple expressions using `Evaluate <instance> is <kenmerk>`.
+- Command history is saved (requires `prompt_toolkit`).
 
-This package also provides a command-line interface (CLI) for basic validation and execution tasks. Ensure the package is installed (`pip install .` or `pip install -e .`).
+*Example REPL Session:*
 
-You can invoke the CLI using `python -m regelspraak` followed by a command:
+```
+RegelSpraak> :load tests/resources/steelthread_example.rs
+Loaded and merged model from tests/resources/steelthread_example.rs
+RegelSpraak> py: context.set_parameter('volwassenleeftijd', 18, unit='jr')
+RegelSpraak> py: p1 = RuntimeObject(object_type_naam='Natuurlijk persoon', instance_id='p1')
+RegelSpraak> py: context.add_object(p1)
+RegelSpraak> py: context.set_attribute(p1, 'leeftijd', 15)
+TRACE: ASSIGNMENT - instance='Natuurlijk persoon[p1]', target='leeftijd', old_value=None, new_value=15
+RegelSpraak> py: evaluator.execute_model(domain_model)
+TRACE: (Line 7) RULE_FIRED - rule_name='Kenmerktoekenning persoon minderjarig'
+TRACE: (Line 9) ASSIGNMENT - instance='Natuurlijk persoon[p1]', target='kenmerk:minderjarig', old_value=False, new_value=True
+RegelSpraak> Evaluate p1 is minderjarig
+waar
+RegelSpraak> :quit
+Exiting...
+```
 
-**1. Validate Syntax:**
+**2. Validate Syntax:**
 Check if a RegelSpraak file is syntactically correct according to the grammar.
 
 Example:
@@ -243,7 +214,7 @@ Parsing successful.
 'steelthread_example.rs' validation successful.
 ```
 
-**2. Run Rules:**
+**3. Run Rules:**
 Parse a RegelSpraak file, optionally load initial runtime data from a JSON file, execute the rules, and print the final state.
 
 ```bash
@@ -297,7 +268,7 @@ TRACE: ASSIGNMENT - instance='Natuurlijk persoon[person_25]', target='leeftijd',
     Set attribute 'leeftijd' = 25
 Executing model...
 TRACE: (Line 7) RULE_FIRED - rule_name='Kenmerktoekenning persoon minderjarig'
-TRACE: (Line 9) ASSIGNMENT - instance='Natuurlijk persoon[person_15]', target='kenmerk:minderjarig', old_value=False, new_value=True
+TRACE: (Line 10) ASSIGNMENT - instance='Natuurlijk persoon[person_15]', target='kenmerk:minderjarig', old_value=False, new_value=True
 
 Execution finished.
 
@@ -308,51 +279,94 @@ Final Runtime Context State (raw):
 
 If errors occur during parsing, data loading, or execution, the command will print an error message and exit with a non-zero status code.
 
+### Programmatic API
 
+For integration into other Python applications.
 
-### As a Library in Another Project
+```python
+# In your other project's code (e.g., my_app.py)
+from regelspraak.parsing import parse_text
+from regelspraak.ast import DomainModel
+from regelspraak.runtime import RuntimeContext, Value, RuntimeObject
+from regelspraak.engine import Evaluator, PrintTraceSink
+from regelspraak.errors import ParseError, SemanticError, RuntimeError
 
-1.  **Install the Package:** Install the `regelspraak-parser` package into your other project's environment (e.g., `pip install regelspraak-parser`).
+def process_regelspraak_code(text: str):
+    try:
+        # Parse the text directly into the IR/AST DomainModel
+        model: DomainModel = parse_text(text)
+        print("Successfully parsed into IR.")
 
-2.  **Use in your Python Code:** Import the high-level functions and classes from the `regelspraak` package.
+        # Create a runtime context with a trace sink for debugging
+        trace_sink = PrintTraceSink()
+        context = RuntimeContext(domain_model=model, trace_sink=trace_sink)
+        
+        # Add parameter values
+        context.add_parameter("volwassenleeftijd", 
+                             Value(value=18, datatype="Numeriek(geheel getal)", eenheid="jr"))
+        
+        # Create object instances
+        person_young = RuntimeObject(object_type_naam="Natuurlijk persoon", instance_id="person_15")
+        person_young.attributen["leeftijd"] = Value(value=15, datatype="Numeriek(geheel getal)", eenheid="jr")
+        
+        person_adult = RuntimeObject(object_type_naam="Natuurlijk persoon", instance_id="person_25")
+        person_adult.attributen["leeftijd"] = Value(value=25, datatype="Numeriek(geheel getal)", eenheid="jr")
+        
+        # Add instances to context
+        context.add_object(person_young)
+        context.add_object(person_adult)
+        
+        # Create evaluator and execute rules
+        evaluator = Evaluator(context)
+        results = evaluator.execute_model(model)
+        print(f"Execution complete: {results}")
+        
+        # Access updated state
+        instances = context.find_objects_by_type("Natuurlijk persoon")
+        for instance in instances:
+            print(f"Instance {instance.instance_id}:")
+            for attr_name, attr_value in instance.attributen.items():
+                print(f"  - {attr_name}: {attr_value.value}")
+            print(f"  - kenmerken: {instance.kenmerken}")
+        
+        return instances
 
-    ```python
-    # In your other project's code (e.g., my_app.py)
-    from regelspraak import parse_text, Evaluator, DomainModel
-    from regelspraak.errors import ParseError, SemanticError, RuntimeError
-    # Potentially import runtime context if needed
-    # from regelspraak.runtime import RuntimeContext 
+    except (ParseError, SemanticError, RuntimeError) as e:
+        print(f"Failed to process RegelSpraak: {e}")
+        return None
 
-    def process_regelspraak_code(text: str):
-        try:
-            # Parse the text directly into the IR/AST DomainModel
-            module: DomainModel = parse_text(text)
-            print("Successfully parsed into IR.")
+# Example usage
+regelspraak_code = """
+Parameter de volwassenleeftijd : Numeriek (geheel getal) met eenheid jr;
 
-            # Example: You could now validate or execute the module
-            # context = RuntimeContext() # Initialize context
-            # evaluator = Evaluator(context)
-            # results = evaluator.execute_model(module)
-            # return results
+Objecttype de Natuurlijk persoon
+    is minderjarig kenmerk (bijvoeglijk);
+    de leeftijd Numeriek (geheel getal) met eenheid jr;
 
-            # For now, just return the parsed module representation
-            return str(module) # Replace with desired output format
+Regel Kenmerktoekenning persoon minderjarig
+    geldig altijd
+        Een Natuurlijk persoon is minderjarig
+        indien zijn leeftijd kleiner is dan de volwassenleeftijd.
+"""
+instances = process_regelspraak_code(regelspraak_code)
 
-        except (ParseError, SemanticError, RuntimeError) as e:
-            print(f"Failed to process RegelSpraak: {e}")
-            return None
-
-    # Example usage
-    regelspraak_code = """
-    Domein Rechtshulp definitie
-        Geldigheid: altijd;
-    Einde domein.
-    """
-    parsed_output = process_regelspraak_code(regelspraak_code)
-    if parsed_output:
-        print("\n--- Processed Output ---")
-        print(parsed_output)
-    ```
+# Output will show:
+# Successfully parsed into IR.
+# Parameters: {'volwassenleeftijd': Value(value=18, datatype='Numeriek(geheel getal)', eenheid='jr')}
+# Initial state:
+#   person_15 kenmerken: {}
+#   person_25 kenmerken: {}
+# TRACE: (Line 8) RULE_FIRED - rule_name='Kenmerktoekenning persoon minderjarig'
+# TRACE: (Line 10) ASSIGNMENT - instance='Natuurlijk persoon[person_15]', target='kenmerk:minderjarig', old_value=False, new_value=True
+# Execution complete: {'Kenmerktoekenning persoon minderjarig': [{'instance_id': 'person_15', 'status': 'evaluated'}, {'instance_id': 'person_25', 'status': 'evaluated'}]}
+# Final state:
+# Instance person_15:
+#   - leeftijd: 15
+#   - kenmerken: {'minderjarig': True}
+# Instance person_25:
+#   - leeftijd: 25
+#   - kenmerken: {}
+```
 
 ## Grammar Implementation Notes
 
@@ -366,9 +380,9 @@ The ANTLR grammar (`RegelSpraak.g4` and `RegelSpraakLexer.g4`) incorporates spec
 *   **Variable Block Termination:** The `variabeleDeel` (`Daarbij geldt: ...`) requires each `variabeleToekenning` within it to optionally end with a `SEMICOLON` (due to `SEMICOLON?` in the rule) and the entire block must end with a `DOT`.
 *   **Expression Parsing:** Expression parsing (`expressie`, `primaryExpression`, etc.) handles arithmetic (with standard operator precedence via the rule hierarchy: power > mult/div > add/sub), comparisons, logical operations, and specific function calls (`TIJDSDUUR_VAN`, `SOM_VAN`). It removes left-recursion common in expression grammars.
 *   **"aantal" Keyword Handling:** The grammar implements special handling for the word "aantal" which appears both as part of the aggregation function "het aantal" and in parameter names like "het aantal kinderen". This is resolved by:
-    1. Making AANTAL a standalone token in the lexer (matching just "aantal")
-    2. Using a pattern "HET AANTAL" in the primaryExpression rule for the function
-    3. Explicitly allowing AANTAL tokens in the parameterNamePhrase rule to support parameter names containing "aantal"
+    1.  Making AANTAL a standalone token in the lexer (matching just "aantal")
+    2.  Using a pattern "HET AANTAL" in the primaryExpression rule for the function
+    3.  Explicitly allowing AANTAL tokens in the parameterNamePhrase rule to support parameter names containing "aantal"
     This approach preserves the ability to use words that function both as keywords and parts of identifiers.
 *   **Eenheidsysteem Parsing:** Handling the `Eenheidsysteem` definition presented a specific challenge due to the context-sensitive nature of unit names described in Specification §3.7. Words like `meter`, `seconde`, `minuut` act as keywords elsewhere in the grammar but must be treated as identifiers (or specific unit tokens) within the `Eenheidsysteem` block (e.g., `de meter m`). Attempts to resolve this using standard ANTLR techniques like Lexer Modes or Semantic Predicates encountered difficulties, including runtime parsing errors (incorrect mode transitions, extraneous input) and persistent Python code generation issues (`IndentationError`) when using embedded parser actions with the ANTLR Python target. An external listener approach also proved complex due to the timing of mode switches relative to token consumption. The final working solution avoids modes and predicates. It defines specific lexer tokens for common unit abbreviations (e.g., `M`, `KG`, `S`) alongside the existing keywords (`METER`, `KILOGRAM`, etc.). A dedicated parser rule, `unitIdentifier`, explicitly lists all valid token types for a unit (standard `IDENTIFIER`, keywords like `METER`, abbreviations like `KG`). The `eenheidEntry` and `eenheidMacht` parser rules were updated to use `unitIdentifier`, allowing the parser context to correctly interpret these tokens within unit definitions without ambiguity. This deviates slightly from the specification's syntax example which uses `<naamwoord>` for the unit name, but correctly parses the intended structure given the keyword conflicts.
 *   **Advanced Aggregations & Conditionals (§13.4.16.45-.53):** The grammar now includes support for advanced aggregation functions (`TOTAAL_VAN`, `AANTAL_DAGEN_IN`, `TIJDSEVENREDIG_DEEL_PER`) and conditional expressions (`conditieBijExpressie`). Dimension aggregation rules (`dimensieSelectie`, `aggregerenOver...`) are also included based on the specification.
@@ -387,10 +401,17 @@ The ANTLR grammar (`RegelSpraak.g4` and `RegelSpraakLexer.g4`) incorporates spec
 
 The test suite uses Python's `unittest` framework and resides in the `tests/` directory. Ensure the package is installed (preferably in editable mode: `pip install -e .`) and parser files are generated before running tests.
 
+You can use the `Makefile`:
 ```bash
-# Run all tests from the project root directory
+make test
+```
+
+Or run a selection of the tests manually:
+
+```bash
 python -m unittest discover -s tests -p 'test_*.py'
 ```
+
 
 ## License
 
@@ -411,7 +432,6 @@ Please ensure your code follows the existing style and includes appropriate test
 ### Development Setup
 
 1. Follow the installation instructions above
-2. Install development dependencies: `pip install -r requirements-dev.txt` (if exists)
-3. Run tests before submitting: `python -m unittest discover -s tests -p 'test_*.py'`
-4. Ensure your code passes all existing tests
-5. Add new tests for new functionality
+2. Run tests before submitting: `python -m unittest discover -s tests -p 'test_*.py'`
+3. Ensure your code passes all existing tests
+4. Add new tests for new functionality

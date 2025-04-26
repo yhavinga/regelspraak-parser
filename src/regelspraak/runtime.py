@@ -67,14 +67,19 @@ class RuntimeContext:
         # if self.trace_sink: self.trace_sink.value_read(...) # Needs expr node
         return param_value.value
 
-    def set_parameter(self, name: str, raw_value: Any):
-         """Sets a parameter's value (constructs Value object). Requires definition lookup."""
+    def set_parameter(self, name: str, raw_value: Any, unit: Optional[str] = None):
+         """Sets a parameter's value (constructs Value object). Requires definition lookup.
+            Optionally overrides the unit defined in the model.
+         """
          param_def = self.domain_model.parameters.get(name)
          if not param_def:
              raise RuntimeError(f"Cannot set parameter '{name}': Definition not found in domain model.")
          
+         # Use the provided unit if given, otherwise fallback to definition's unit
+         eenheid_to_use = unit if unit is not None else param_def.eenheid
+         
          # TODO: Type check raw_value against param_def.datatype? Conversion?
-         value_obj = Value(value=raw_value, datatype=param_def.datatype, eenheid=param_def.eenheid)
+         value_obj = Value(value=raw_value, datatype=param_def.datatype, eenheid=eenheid_to_use)
          self.parameters[name] = value_obj
          # TODO: Trace assignment?
 
@@ -119,28 +124,34 @@ class RuntimeContext:
         # TODO: Trace value read?
         return attr_value.value
 
-    def set_attribute(self, instance: RuntimeObject, attr_name: str, raw_value: Any, span: Optional[ast.SourceSpan] = None):
-        """Sets an attribute's value on an instance (constructs Value object)."""
+    def set_attribute(self, instance: RuntimeObject, attr_name: str, raw_value: Any,
+                        unit: Optional[str] = None, span: Optional[ast.SourceSpan] = None):
+        """Sets an attribute's value on an instance (constructs Value object).
+        Optionally overrides the unit defined in the model and provides a span for tracing.
+        """
         # Find the ObjectType definition to get expected datatype and unit
         obj_type_def = self.domain_model.objecttypes.get(instance.object_type_naam)
         if not obj_type_def:
              raise RuntimeError(f"ObjectType '{instance.object_type_naam}' definition not found.")
-        
+
         attr_def = obj_type_def.attributen.get(attr_name)
         if not attr_def:
              raise RuntimeError(f"Attribute '{attr_name}' not defined in ObjectType '{instance.object_type_naam}'.")
 
+        # Use the provided unit if given, otherwise fallback to definition's unit
+        eenheid_to_use = unit if unit is not None else attr_def.eenheid
+
         # TODO: Type check raw_value against attr_def.datatype? Conversion?
         datatype = attr_def.datatype
-        eenheid = attr_def.eenheid
-        
-        value_obj = Value(value=raw_value, datatype=datatype, eenheid=eenheid)
-        
+
+        value_obj = Value(value=raw_value, datatype=datatype, eenheid=eenheid_to_use)
+
         old_value_obj = instance.attributen.get(attr_name)
         old_raw_value = old_value_obj.value if old_value_obj else None
-        
+
         instance.attributen[attr_name] = value_obj
-        
+
+        # Use the provided span for tracing if available
         if self.trace_sink:
             self.trace_sink.assignment(instance, attr_name, old_raw_value, raw_value, span)
 

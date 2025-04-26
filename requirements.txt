@@ -1,3 +1,5 @@
 antlr4-python3-runtime==4.13.1
 python-dateutil>=2.8.0
-click 
+click
+prompt_toolkit>=3.0.0
+pexpect

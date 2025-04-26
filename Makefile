@@ -32,7 +32,7 @@ parser:
 .PHONY: test
 test:
 	@echo "Running unit tests..."
-	$(PYTHON) -m unittest discover -s $(TEST_DIR) -p 'test_*.py'
+	$(PYTHON) -m unittest discover -s $(TEST_DIR)
 	@echo "Tests complete."
 
 # Target to clean generated files and cache

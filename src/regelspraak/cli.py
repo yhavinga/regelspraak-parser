@@ -9,10 +9,13 @@ from .errors import RegelspraakError, ParseError, RuntimeError # Added RuntimeEr
 from .runtime import RuntimeContext, Value, RuntimeObject # Added Value, RuntimeObject
 from .engine import Evaluator, PrintTraceSink
 
-@click.group()
-def cli():
+@click.group(invoke_without_command=True)
+@click.pass_context
+def cli(ctx):
     """RegelSpraak Parser & Engine CLI."""
-    pass
+    # If no subcommand is given, launch the REPL
+    if ctx.invoked_subcommand is None:
+        ctx.invoke(repl)
 
 @cli.command()
 @click.argument("file", type=click.Path(exists=True, path_type=pathlib.Path))
@@ -164,6 +167,13 @@ def run(file: pathlib.Path, data: Optional[pathlib.Path]):
     except Exception as e:
         click.secho(f"Unexpected Error during run: {e}", fg='red', err=True)
         sys.exit(1)
+
+@cli.command()
+def repl():
+    """Start an interactive RegelSpraak REPL session."""
+    # Import here to avoid circular imports
+    from .repl import start_repl
+    start_repl()
 
 # Entry point for script execution (e.g., if run directly)
 if __name__ == '__main__':
