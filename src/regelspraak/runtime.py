@@ -63,8 +63,15 @@ class RuntimeContext:
         if param_value is None:
              # Check definition? Or just fail? Fail for now.
              raise RuntimeError(f"Parameter '{name}' not found in runtime context.")
-        # TODO: Trace value read?
-        # if self.trace_sink: self.trace_sink.value_read(...) # Needs expr node
+        
+        # Trace parameter read
+        if self.trace_sink:
+            self.trace_sink.parameter_read(
+                name=name, 
+                value=param_value.value,
+                instance_id=self.current_instance.instance_id if self.current_instance else None
+            )
+            
         return param_value.value
 
     def set_parameter(self, name: str, raw_value: Any, unit: Optional[str] = None):
@@ -89,16 +96,34 @@ class RuntimeContext:
         """Gets a variable's value from the current rule scope."""
         if name not in self.variables:
             raise RuntimeError(f"Variable '{name}' not defined in current scope.")
-        # TODO: Trace value read?
-        return self.variables[name]
+        
+        value = self.variables[name]
+        
+        # Trace the variable read
+        if self.trace_sink:
+            self.trace_sink.variable_read(
+                name=name,
+                value=value,
+                instance_id=self.current_instance.instance_id if self.current_instance else None
+            )
+            
+        return value
 
     def set_variable(self, name: str, value: Any, span: Optional[ast.SourceSpan] = None):
         """Sets a variable's value in the current rule scope."""
         # TODO: Consider type checking based on rule variable definition?
         old_value = self.variables.get(name)
         self.variables[name] = value
-        # TODO: Trace variable assignment? Needs more event details.
-        # if self.trace_sink: self.trace_sink.variable_assignment(...)
+        
+        # Trace the variable assignment
+        if self.trace_sink:
+            self.trace_sink.variable_write(
+                name=name,
+                old_value=old_value,
+                new_value=value,
+                span=span,
+                instance_id=self.current_instance.instance_id if self.current_instance else None
+            )
 
     # --- Object Instance / Attribute / Kenmerk Handling ---
 
@@ -121,7 +146,15 @@ class RuntimeContext:
         if attr_value is None:
             # Check definition? Default value? Fail for now.
             raise RuntimeError(f"Attribute '{attr_name}' not found on instance of '{instance.object_type_naam}'.")
-        # TODO: Trace value read?
+        
+        # Trace attribute read
+        if self.trace_sink:
+            self.trace_sink.attribute_read(
+                instance=instance,
+                attr_name=attr_name,
+                value=attr_value.value
+            )
+            
         return attr_value.value
 
     def set_attribute(self, instance: RuntimeObject, attr_name: str, raw_value: Any,
@@ -162,10 +195,19 @@ class RuntimeContext:
         if not obj_type_def or kenmerk_name not in obj_type_def.kenmerken:
              # Decide: error or default false? Default false seems more forgiving.
              # raise RuntimeError(f"Kenmerk '{kenmerk_name}' not defined for ObjectType '{instance.object_type_naam}'.")
-             return False 
-             
-        # TODO: Trace value read?
-        return instance.kenmerken.get(kenmerk_name, False) # Default to False if not explicitly set
+             value = False
+        else:
+             value = instance.kenmerken.get(kenmerk_name, False) # Default to False if not explicitly set
+        
+        # Trace kenmerk read
+        if self.trace_sink:
+            self.trace_sink.kenmerk_read(
+                instance=instance,
+                kenmerk_name=kenmerk_name,
+                value=value
+            )
+        
+        return value
 
     def set_kenmerk(self, instance: RuntimeObject, kenmerk_name: str, value: bool, span: Optional[ast.SourceSpan] = None):
         """Sets a kenmerk's boolean state on an instance."""
