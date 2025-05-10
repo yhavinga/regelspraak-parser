@@ -164,7 +164,7 @@ OPERATOR_MAP = {
     AntlrParser.IS_KLEINER_DAN: Operator.KLEINER_DAN,             # Exists
     AntlrParser.KLEINER_IS_DAN: Operator.KLEINER_DAN,             # Exists
     AntlrParser.IS_GROTER_DAN: Operator.GROTER_DAN,               # Exists
-    # AntlrParser.GROTER_IS_DAN does not exist
+    AntlrParser.GROTER_IS_DAN: Operator.GROTER_DAN,               # Added for new syntax
     AntlrParser.IS_KLEINER_OF_GELIJK_AAN: Operator.KLEINER_OF_GELIJK_AAN, # Exists
     AntlrParser.IS_GROTER_OF_GELIJK_AAN: Operator.GROTER_OF_GELIJK_AAN, # Exists
 

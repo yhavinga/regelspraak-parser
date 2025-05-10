@@ -368,7 +368,7 @@ comparisonOperator // Expanded list
     : GELIJK_AAN | ONGELIJK_AAN
     | GROTER_DAN | GROTER_OF_GELIJK_AAN
     | KLEINER_DAN | KLEINER_OF_GELIJK_AAN
-    | KLEINER_IS_DAN
+    | KLEINER_IS_DAN | GROTER_IS_DAN
     | IS // Used in boolean contexts?
     | LATER_DAN | LATER_OF_GELIJK_AAN // Date operators
     | EERDER_DAN | EERDER_OF_GELIJK_AAN // Date operators

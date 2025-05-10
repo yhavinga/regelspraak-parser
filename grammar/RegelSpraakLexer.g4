@@ -45,8 +45,7 @@ OP_VOLGORDE_VAN: 'op volgorde van';
 NAAR_RATO_VAN: 'naar rato van';
 NUMERIEK_MET_EXACT: 'numeriek met exact';
 AAN_DE_ELFPROEF: 'aan de elfproef';
-IS_GROTER_OF_GELIJK_AAN: 'is groter of gelijk aan';
-IS_GROTER_DAN: 'is groter dan';
+GROTER_IS_DAN: 'groter is dan';
 KLEINER_IS_DAN: 'kleiner is dan';
 WORDT_VOLDAAN: 'wordt voldaan';
 
@@ -63,6 +62,8 @@ IS_GELIJK_AAN: 'is gelijk aan';
 IS_ONGELIJK_AAN: 'is ongelijk aan';
 IS_KLEINER_DAN: 'is kleiner dan';
 IS_KLEINER_OF_GELIJK_AAN: 'is kleiner of gelijk aan';
+IS_GROTER_DAN: 'is groter dan';
+IS_GROTER_OF_GELIJK_AAN: 'is groter of gelijk aan';
 ZIJN_GELIJK_AAN: 'zijn gelijk aan';
 ZIJN_ONGELIJK_AAN: 'zijn ongelijk aan';
 ZIJN_GROTER_DAN: 'zijn groter dan';
