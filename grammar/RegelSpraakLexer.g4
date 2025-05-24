@@ -278,6 +278,11 @@ FT: 'ft';
 LB: 'lb';
 MI: 'mi';
 
+// Monetary Units
+EURO_SYMBOL: '€';
+DOLLAR_SYMBOL: '$';
+
+
 // --- Standard Tokens (No predicates) ---
 IDENTIFIER : LETTER (LETTER | DIGIT | '_' | '\'' | '-')* ;
 NUMBER: (MINUS? DIGIT+ (',' DIGIT+)? | MINUS? DIGIT+ '_' DIGIT+ '/' DIGIT+ | MINUS? DIGIT+ '/' DIGIT+);

@@ -881,7 +881,10 @@ class RegelSpraakModelBuilder(RegelSpraakVisitor):
                 eenheid = ctx.unitName.text
             elif ctx.PERCENT_SIGN():
                 eenheid = "%"
-
+            elif ctx.EURO_SYMBOL():
+                eenheid = "€"
+            elif ctx.DOLLAR_SYMBOL():
+                eenheid = "$"
         if not naam or not datatype_str:
              logger.error(f"Could not parse attribute: name='{naam}', datatype='{datatype_str}' in {safe_get_text(ctx)}")
              return None
@@ -914,9 +917,13 @@ class RegelSpraakModelBuilder(RegelSpraakVisitor):
 
          if ctx.MET_EENHEID():
              if ctx.unitName:
-                 eenheid = ctx.unitName.getText()
+                 eenheid = ctx.unitName.text
              elif ctx.PERCENT_SIGN():
                  eenheid = "%"
+             elif ctx.EURO_SYMBOL():
+                 eenheid = "€"
+             elif ctx.DOLLAR_SYMBOL():
+                 eenheid = "$"
 
          if ctx.domeinType().numeriekDatatype():
              basis_type = "Numeriek" # TODO: Parse details like geheel, niet-negatief
@@ -964,6 +971,10 @@ class RegelSpraakModelBuilder(RegelSpraakVisitor):
                 eenheid = ctx.unitName.text
             elif hasattr(ctx, 'PERCENT_SIGN') and ctx.PERCENT_SIGN():
                 eenheid = "%"
+            elif hasattr(ctx, 'EURO_SYMBOL') and ctx.EURO_SYMBOL():
+                eenheid = "€"
+            elif hasattr(ctx, 'DOLLAR_SYMBOL') and ctx.DOLLAR_SYMBOL():
+                eenheid = "$"
 
         if not naam or not datatype_str:
              logger.error(f"Could not parse parameter: name='{naam}', datatype='{datatype_str}' in {safe_get_text(ctx)}")

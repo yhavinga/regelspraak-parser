@@ -70,9 +70,9 @@ kenmerkSpecificatie
 // §13.3.2 Attribuut Specificatie
 attribuutSpecificatie
     : naamwoord ( datatype | domeinRef )
-      (MET_EENHEID (unitName=IDENTIFIER | PERCENT_SIGN))? // Simplified unit from original G4
+      (MET_EENHEID (unitName=IDENTIFIER | PERCENT_SIGN | EURO_SYMBOL | DOLLAR_SYMBOL))?
       (GEDIMENSIONEERD_MET dimensieRef (EN dimensieRef)*)?
-      tijdlijn? // Uncommented based on Spec
+      tijdlijn? 
     ;
 
 // §13.3.3 Datatypes
@@ -143,6 +143,7 @@ unitIdentifier
     : IDENTIFIER
     | METER | KILOGRAM | SECONDE | MINUUT | UUR | VOET | POND | MIJL // Keywords
     | M | KG | S | FT | LB | MIN | MI // Abbreviations + Keyword MIN
+    | EURO_SYMBOL | DOLLAR_SYMBOL
     ;
 
 // Eenheid expressions
@@ -150,6 +151,7 @@ eenheidExpressie // Corresponds to unit structure in §13.3.3.2/3. Simplified ba
     : eenheidMacht ( SLASH eenheidMacht )?
     | NUMBER
     | PERCENT_SIGN // Added % as a unit alternative
+    | EURO_SYMBOL | DOLLAR_SYMBOL
     ;
 
 eenheidMacht // EBNF 13.3.5.5. Simplified based on original G4 & spec.
