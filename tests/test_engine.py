@@ -62,7 +62,7 @@ class EngineSteelthreadTests(RegelSpraakTestCase):
         adult_age_value = 18 # The runtime value for the parameter
         context.add_parameter(
             self.param_name, 
-            Value(value=adult_age_value, datatype=param_def.datatype, eenheid=param_def.eenheid)
+            Value(value=adult_age_value, datatype=param_def.datatype, unit=param_def.eenheid)
         )
         logger.debug(f"Added parameter '{self.param_name}' with value {adult_age_value} to context.")
 
@@ -77,8 +77,8 @@ class EngineSteelthreadTests(RegelSpraakTestCase):
         self.assertIsNotNone(attr_def, f"Attribuut '{self.attribute_name}' definition not found.")
 
         # Set attribute values
-        person_under_age.attributen[self.attribute_name] = Value(value=15, datatype=attr_def.datatype, eenheid=attr_def.eenheid)
-        person_over_age.attributen[self.attribute_name] = Value(value=25, datatype=attr_def.datatype, eenheid=attr_def.eenheid)
+        person_under_age.attributen[self.attribute_name] = Value(value=15, datatype=attr_def.datatype, unit=attr_def.eenheid)
+        person_over_age.attributen[self.attribute_name] = Value(value=25, datatype=attr_def.datatype, unit=attr_def.eenheid)
 
         # Add instances to context
         context.add_object(person_under_age)

@@ -1,8 +1,9 @@
 """RegelSpraak execution engine and evaluation logic."""
 import math
-from typing import Any, Dict, Optional, List, TYPE_CHECKING
+from typing import Any, Dict, Optional, List, TYPE_CHECKING, Union
 from dataclasses import dataclass, field
 import logging
+from decimal import Decimal
 
 # Import AST nodes
 from . import ast
@@ -12,12 +13,14 @@ from .ast import (
     Gelijkstelling, KenmerkToekenning # Added ResultaatDeel types
 )
 # Import Runtime components
-from .runtime import RuntimeContext, RuntimeObject # Use actual RuntimeContext
+from .runtime import RuntimeContext, RuntimeObject, Value # Import Value directly
+# Import arithmetic operations
+from .arithmetic import UnitArithmetic
 # Import custom error
 from .errors import RuntimeError # Use the custom RuntimeError
 
 if TYPE_CHECKING:
-    from .runtime import Value # For type checking if needed elsewhere
+    pass
 
 logger = logging.getLogger(__name__)
 
@@ -33,6 +36,7 @@ class Evaluator:
     def __init__(self, context: RuntimeContext):
         """Initialize the Evaluator with a runtime context."""
         self.context = context
+        self.arithmetic = UnitArithmetic(context.unit_registry)
 
     def execute_model(self, domain_model: DomainModel):
         """Executes all rules in the domain model against the context."""
@@ -144,11 +148,13 @@ class Evaluator:
                         instance_id=instance.instance_id
                     )
                     
-                condition_met = self.evaluate_expression(rule.voorwaarde.expressie)
+                condition_value = self.evaluate_expression(rule.voorwaarde.expressie)
                 
-                if not isinstance(condition_met, bool):
-                    error_msg = f"Rule '{rule.naam}' condition evaluated to non-boolean value: {condition_met} ({type(condition_met)})"
+                if condition_value.datatype != "Boolean":
+                    error_msg = f"Rule '{rule.naam}' condition evaluated to non-boolean type: {condition_value.datatype}"
                     raise RegelspraakError(error_msg, span=rule.voorwaarde.span)
+                
+                condition_met = condition_value.value
                 
                 # Trace condition evaluation end
                 if self.context.trace_sink:
@@ -206,6 +212,7 @@ class Evaluator:
             if not res.target.path:
                 raise RegelspraakError("Gelijkstelling target path is empty.", span=res.target.span)
             attr_name = res.target.path[-1]
+            # Pass the Value object directly
             self.context.set_attribute(instance, attr_name, value, span=res.span)
 
         elif isinstance(res, KenmerkToekenning):
@@ -221,8 +228,8 @@ class Evaluator:
             raise RegelspraakError(f"Applying result for type {type(res)} not implemented", span=res.span)
 
 
-    def evaluate_expression(self, expr: Expression) -> Any:
-        """Evaluate an AST Expression node, returning the raw Python value."""
+    def evaluate_expression(self, expr: Expression) -> Value:
+        """Evaluate an AST Expression node, returning a Value object."""
         current_instance = self.context.current_instance
         instance_id = current_instance.instance_id if current_instance else None
         
@@ -237,8 +244,20 @@ class Evaluator:
         result = None
         try:
             if isinstance(expr, Literal):
-                # TODO: Potentially convert datatypes based on expr.datatype?
-                result = expr.value
+                # Wrap literal in Value object
+                # Determine datatype from literal type
+                if isinstance(expr.value, bool):
+                    datatype = "Boolean"
+                elif isinstance(expr.value, (int, float, Decimal)):
+                    datatype = "Numeriek"
+                elif isinstance(expr.value, str):
+                    datatype = "Tekst"
+                else:
+                    datatype = "Onbekend"
+                    
+                # Check if literal has unit info (would need to be added to AST)
+                unit = getattr(expr, 'unit', None)
+                result = Value(value=expr.value, datatype=datatype, unit=unit)
 
             elif isinstance(expr, VariableReference):
                 value = self.context.get_variable(expr.variable_name)
@@ -247,7 +266,7 @@ class Evaluator:
                 if self.context.trace_sink:
                     self.context.trace_sink.variable_read(
                         expr.variable_name, 
-                        value, 
+                        value.value if isinstance(value, Value) else value, 
                         expr=expr,
                         instance_id=instance_id
                     )
@@ -261,7 +280,7 @@ class Evaluator:
                 if self.context.trace_sink:
                     self.context.trace_sink.parameter_read(
                         expr.parameter_name, 
-                        value, 
+                        value.value if isinstance(value, Value) else value, 
                         expr=expr,
                         instance_id=instance_id
                     )
@@ -286,7 +305,7 @@ class Evaluator:
                         self.context.trace_sink.attribute_read(
                             self.context.current_instance,
                             attr_name,
-                            value,
+                            value.value if isinstance(value, Value) else value,
                             expr=expr
                         )
                         
@@ -353,97 +372,122 @@ class Evaluator:
                 
         return result
 
-    def _handle_binary(self, expr: BinaryExpression) -> Any:
-        """Handle binary operations."""
+    def _handle_binary(self, expr: BinaryExpression) -> Value:
+        """Handle binary operations, returning Value objects."""
         left_val = self.evaluate_expression(expr.left)
         op = expr.operator
 
-        # Handle IS and IN specially as right side might need different eval
+        # Handle IS and IN specially as they return boolean values
         if op == Operator.IS:
             # Right side should be a kenmerk name (string) or type name (string)
-            # We assume the right side AST node represents this directly (e.g., a Literal string or specific identifier node)
-            # Let's assume `evaluate_expression` on the right side gives the name string.
-            # This might be too simplistic if right side can be complex expr yielding a string.
-            right_name = self.evaluate_expression(expr.right) # Assumes this yields the string name
-            if not isinstance(right_name, str):
-                raise RegelspraakError(f"Right side of 'IS' must evaluate to a string (kenmerk/type name), got {type(right_name)}", span=expr.right.span)
-            if not isinstance(left_val, RuntimeObject):
-                 # Check if left_val is an instance held in a variable? Requires lookup.
-                 # For now, assume left_val *is* the instance if rule is structured correctly
-                 # This needs review based on how rule context/scoping works.
-                 # Let's try getting current instance if left_val isn't one directly.
-                 instance = self.context.current_instance 
-                 # raise RegelspraakError(f"Left side of 'IS' must be an object instance, got {type(left_val)}", span=expr.left.span)
-            else: 
-                 instance = left_val # If eval(left) directly yields an instance
+            right_val = self.evaluate_expression(expr.right)
+            if not isinstance(right_val.value, str):
+                raise RegelspraakError(f"Right side of 'IS' must evaluate to a string (kenmerk/type name), got {type(right_val.value)}", span=expr.right.span)
             
-            if instance is None: # Check after attempting retrieval
-                 raise RegelspraakError("Could not determine object instance for 'IS' check.", span=expr.left.span)
+            # For IS operator, we need the actual object instance
+            # If left_val is an object reference, we need to resolve it
+            instance = self.context.current_instance  # Default to current instance
+            
+            if instance is None:
+                raise RegelspraakError("Could not determine object instance for 'IS' check.", span=expr.left.span)
                  
-            return self.context.check_is(instance, right_name)
+            bool_result = self.context.check_is(instance, right_val.value)
+            return Value(value=bool_result, datatype="Boolean", unit=None)
 
         elif op == Operator.IN:
-            right_val = self.evaluate_expression(expr.right) # Evaluate to get the collection
-            return self.context.check_in(left_val, right_val)
+            right_val = self.evaluate_expression(expr.right)
+            # Extract raw values for IN check
+            left_raw = left_val.value if isinstance(left_val, Value) else left_val
+            right_raw = right_val.value if isinstance(right_val, Value) else right_val
+            bool_result = self.context.check_in(left_raw, right_raw)
+            return Value(value=bool_result, datatype="Boolean", unit=None)
 
-        # Standard evaluation for other operators where both sides are simple values
+        # Standard evaluation for other operators
         right_val = self.evaluate_expression(expr.right)
 
-        # Arithmetic (TODO: Consider type/unit checks?)
-        if op == Operator.PLUS: return left_val + right_val
-        elif op == Operator.MIN: return left_val - right_val
-        elif op == Operator.MAAL: return left_val * right_val
+        # Arithmetic operations using unit-aware arithmetic
+        if op == Operator.PLUS:
+            return self.arithmetic.add(left_val, right_val)
+        elif op == Operator.MIN:
+            return self.arithmetic.subtract(left_val, right_val)
+        elif op == Operator.MAAL:
+            return self.arithmetic.multiply(left_val, right_val)
         elif op == Operator.GEDEELD_DOOR:
-            # TODO: Handle potential type errors before division
-            if isinstance(right_val, (int, float)) and right_val == 0:
-                raise RegelspraakError("Division by zero", span=expr.span)
-            try:
-                return left_val / right_val
-            except Exception as e:
-                raise RegelspraakError(f"Type error during division: {e}", span=expr.span)
+            return self.arithmetic.divide(left_val, right_val, use_abs_style=False)
+        elif op == Operator.GEDEELD_DOOR_ABS:
+            return self.arithmetic.divide(left_val, right_val, use_abs_style=True)
         elif op == Operator.MACHT:
-             return left_val ** right_val # Python's power operator
+            return self.arithmetic.power(left_val, right_val)
 
-        # Comparison
-        elif op == Operator.GELIJK_AAN: return left_val == right_val
-        elif op == Operator.NIET_GELIJK_AAN: return left_val != right_val
-        elif op == Operator.KLEINER_DAN: return left_val < right_val
-        elif op == Operator.GROTER_DAN: return left_val > right_val
-        elif op == Operator.KLEINER_OF_GELIJK_AAN: return left_val <= right_val
-        elif op == Operator.GROTER_OF_GELIJK_AAN: return left_val >= right_val
+        # Comparison operations - return boolean Values
+        elif op in [Operator.GELIJK_AAN, Operator.NIET_GELIJK_AAN, 
+                    Operator.KLEINER_DAN, Operator.GROTER_DAN,
+                    Operator.KLEINER_OF_GELIJK_AAN, Operator.GROTER_OF_GELIJK_AAN]:
+            
+            # For comparisons, we need to check unit compatibility and convert if needed
+            if left_val.datatype in ["Numeriek", "Percentage", "Bedrag"] and \
+               right_val.datatype in ["Numeriek", "Percentage", "Bedrag"]:
+                # Check units are compatible
+                if not self.arithmetic._check_units_compatible(left_val, right_val, "comparison"):
+                    raise RegelspraakError(f"Cannot compare values with incompatible units: '{left_val.unit}' and '{right_val.unit}'", span=expr.span)
+                
+                # Convert right to left's unit if needed
+                if left_val.unit != right_val.unit and left_val.unit and right_val.unit:
+                    right_val = self.arithmetic._convert_to_unit(right_val, left_val.unit)
+            
+            # Extract values for comparison
+            left_cmp = left_val.value
+            right_cmp = right_val.value
+            
+            # Perform comparison
+            if op == Operator.GELIJK_AAN:
+                result = left_cmp == right_cmp
+            elif op == Operator.NIET_GELIJK_AAN:
+                result = left_cmp != right_cmp
+            elif op == Operator.KLEINER_DAN:
+                result = left_cmp < right_cmp
+            elif op == Operator.GROTER_DAN:
+                result = left_cmp > right_cmp
+            elif op == Operator.KLEINER_OF_GELIJK_AAN:
+                result = left_cmp <= right_cmp
+            elif op == Operator.GROTER_OF_GELIJK_AAN:
+                result = left_cmp >= right_cmp
+                
+            return Value(value=result, datatype="Boolean", unit=None)
 
-        # Logical
+        # Logical operations - expect boolean Values
         elif op == Operator.EN:
-            if not isinstance(left_val, bool) or not isinstance(right_val, bool):
-                 raise RegelspraakError(f"Operator 'en' requires boolean operands, got {type(left_val)} and {type(right_val)}", span=expr.span)
-            return left_val and right_val
+            if left_val.datatype != "Boolean" or right_val.datatype != "Boolean":
+                raise RegelspraakError(f"Operator 'en' requires boolean operands, got {left_val.datatype} and {right_val.datatype}", span=expr.span)
+            result = left_val.value and right_val.value
+            return Value(value=result, datatype="Boolean", unit=None)
+            
         elif op == Operator.OF:
-            if not isinstance(left_val, bool) or not isinstance(right_val, bool):
-                 raise RegelspraakError(f"Operator 'of' requires boolean operands, got {type(left_val)} and {type(right_val)}", span=expr.span)
-            return left_val or right_val
+            if left_val.datatype != "Boolean" or right_val.datatype != "Boolean":
+                raise RegelspraakError(f"Operator 'of' requires boolean operands, got {left_val.datatype} and {right_val.datatype}", span=expr.span)
+            result = left_val.value or right_val.value
+            return Value(value=result, datatype="Boolean", unit=None)
 
         else:
-            # Should not happen if IS/IN handled above
             raise RegelspraakError(f"Unsupported or unhandled binary operator: {op.name}", span=expr.span)
 
-    def _handle_unary(self, expr: UnaryExpression) -> Any:
-        """Handle unary operations."""
+    def _handle_unary(self, expr: UnaryExpression) -> Value:
+        """Handle unary operations, returning Value objects."""
         operand_val = self.evaluate_expression(expr.operand)
         op = expr.operator
 
         if op == Operator.NIET:
-            if not isinstance(operand_val, bool):
-                 raise RegelspraakError(f"Operator 'niet' requires a boolean operand, got {type(operand_val)}", span=expr.operand.span)
-            return not operand_val
+            if operand_val.datatype != "Boolean":
+                 raise RegelspraakError(f"Operator 'niet' requires a boolean operand, got {operand_val.datatype}", span=expr.operand.span)
+            result = not operand_val.value
+            return Value(value=result, datatype="Boolean", unit=None)
         elif op == Operator.MIN: # Handle unary minus
-             if not isinstance(operand_val, (int, float)): # Add other numeric types? Decimal?
-                 raise RegelspraakError(f"Unary minus requires a numeric operand, got {type(operand_val)}", span=expr.operand.span)
-             return -operand_val
+            return self.arithmetic.negate(operand_val)
         else:
             raise RegelspraakError(f"Unsupported unary operator: {op.name}", span=expr.span)
 
-    def _handle_function_call(self, expr: FunctionCall) -> Any:
-        """Handle function calls (basic built-ins)."""
+    def _handle_function_call(self, expr: FunctionCall) -> Value:
+        """Handle function calls (basic built-ins), returning Value objects."""
         current_instance = self.context.current_instance
         instance_id = current_instance.instance_id if current_instance else None
         
@@ -451,11 +495,12 @@ class Evaluator:
         args = [self.evaluate_expression(arg) for arg in expr.arguments]
         func_name = expr.function_name.lower() # Normalize name
         
-        # Trace function call start
+        # Trace function call start (extract raw values for tracing)
         if self.context.trace_sink:
+            raw_args = [arg.value if isinstance(arg, Value) else arg for arg in args]
             self.context.trace_sink.function_call_start(
                 expr, 
-                args, 
+                raw_args, 
                 instance_id=instance_id
             )
         
@@ -464,24 +509,60 @@ class Evaluator:
             # TODO: Implement more robust function handling (registry?)
             # Basic built-ins:
             if func_name == "abs":
-                if len(args) != 1: raise RegelspraakError(f"Function 'abs' expects 1 argument, got {len(args)}", span=expr.span)
-                result = abs(args[0])
+                if len(args) != 1: 
+                    raise RegelspraakError(f"Function 'abs' expects 1 argument, got {len(args)}", span=expr.span)
+                arg = args[0]
+                if arg.datatype not in ["Numeriek", "Bedrag"]:
+                    raise RegelspraakError(f"Function 'abs' requires numeric argument, got {arg.datatype}", span=expr.span)
+                abs_val = abs(arg.to_decimal())
+                result = Value(value=abs_val, datatype=arg.datatype, unit=arg.unit)
+                
             elif func_name == "max":
-                if not args: raise RegelspraakError("Function 'max' requires at least one argument", span=expr.span)
-                result = max(args)
+                if not args: 
+                    raise RegelspraakError("Function 'max' requires at least one argument", span=expr.span)
+                # Check all args have compatible types and units
+                first_type = args[0].datatype
+                first_unit = args[0].unit
+                for arg in args[1:]:
+                    if arg.datatype != first_type:
+                        raise RegelspraakError(f"Function 'max' requires all arguments to have same type", span=expr.span)
+                    if not self.arithmetic._check_units_compatible(args[0], arg, "max"):
+                        raise RegelspraakError(f"Function 'max' requires compatible units", span=expr.span)
+                # Convert all to first unit and find max
+                values = [self.arithmetic._convert_to_unit(arg, first_unit).to_decimal() if arg.unit != first_unit 
+                         else arg.to_decimal() for arg in args]
+                max_val = max(values)
+                result = Value(value=max_val, datatype=first_type, unit=first_unit)
+                
             elif func_name == "min":
-                if not args: raise RegelspraakError("Function 'min' requires at least one argument", span=expr.span)
-                result = min(args)
+                if not args: 
+                    raise RegelspraakError("Function 'min' requires at least one argument", span=expr.span)
+                # Similar to max
+                first_type = args[0].datatype
+                first_unit = args[0].unit
+                for arg in args[1:]:
+                    if arg.datatype != first_type:
+                        raise RegelspraakError(f"Function 'min' requires all arguments to have same type", span=expr.span)
+                    if not self.arithmetic._check_units_compatible(args[0], arg, "min"):
+                        raise RegelspraakError(f"Function 'min' requires compatible units", span=expr.span)
+                values = [self.arithmetic._convert_to_unit(arg, first_unit).to_decimal() if arg.unit != first_unit 
+                         else arg.to_decimal() for arg in args]
+                min_val = min(values)
+                result = Value(value=min_val, datatype=first_type, unit=first_unit)
+                
             elif func_name == "len": # Example: length of list/string
-                if len(args) != 1: raise RegelspraakError(f"Function 'len' expects 1 argument, got {len(args)}", span=expr.span)
-                try: result = len(args[0])
-                except TypeError: raise RegelspraakError(f"Argument to 'len' does not support length calculation ({type(args[0])})", span=expr.arguments[0].span)
+                if len(args) != 1: 
+                    raise RegelspraakError(f"Function 'len' expects 1 argument, got {len(args)}", span=expr.span)
+                arg = args[0]
+                if arg.datatype != "Tekst":
+                    raise RegelspraakError(f"Function 'len' requires text argument, got {arg.datatype}", span=expr.span)
+                length = len(arg.value)
+                result = Value(value=length, datatype="Numeriek", unit=None)
+                
             # --- RegelSpraak specific (Placeholders) ---
             elif func_name == "tijdsduur van":
-                # Use RegelspraakError instead of NotImplementedError with keyword args
                 raise RegelspraakError(f"Function '{expr.function_name}' not fully implemented", span=expr.span)
             elif func_name == "som van":
-                # Use RegelspraakError instead of NotImplementedError with keyword args
                 raise RegelspraakError(f"Function '{expr.function_name}' not fully implemented", span=expr.span)
             # ... other functions like 'gemiddelde van', 'aantal' ...
             else:
@@ -491,9 +572,10 @@ class Evaluator:
         finally:
             # Trace function call end (even if there was an error)
             if self.context.trace_sink:
+                result_raw = result.value if isinstance(result, Value) else result
                 self.context.trace_sink.function_call_end(
                     expr, 
-                    result, 
+                    result_raw, 
                     instance_id=instance_id
                 )
                 

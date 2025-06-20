@@ -38,7 +38,7 @@ class RuntimeContextTests(unittest.TestCase):
         self.assertIsNotNone(attr_value)
         self.assertEqual(attr_value.value, 1.5)
         self.assertEqual(attr_value.datatype, "Numeriek")
-        self.assertEqual(attr_value.eenheid, "decennia") # Check the overridden unit
+        self.assertEqual(attr_value.unit, "decennia") # Check the overridden unit
 
     # Optional: Add a test for setting attribute with span
     def test_set_attribute_with_span(self):
@@ -48,7 +48,7 @@ class RuntimeContextTests(unittest.TestCase):
          attr_value = self.person1.attributen.get("leeftijd")
          self.assertIsNotNone(attr_value)
          self.assertEqual(attr_value.value, 30)
-         self.assertEqual(attr_value.eenheid, "jr") # Default unit
+         self.assertEqual(attr_value.unit, "jr") # Default unit
 
     def test_set_parameter_without_unit(self):
         """Test setting a parameter value using the unit from the definition."""
@@ -57,7 +57,7 @@ class RuntimeContextTests(unittest.TestCase):
         self.assertIsNotNone(param_value)
         self.assertEqual(param_value.value, 18)
         self.assertEqual(param_value.datatype, "Numeriek")
-        self.assertEqual(param_value.eenheid, "jr") # Unit from definition
+        self.assertEqual(param_value.unit, "jr") # Unit from definition
 
     def test_set_parameter_with_unit_override(self):
         """Test setting a parameter value, overriding the unit from the definition."""
@@ -66,7 +66,7 @@ class RuntimeContextTests(unittest.TestCase):
         self.assertIsNotNone(param_value)
         self.assertEqual(param_value.value, 1.5)
         self.assertEqual(param_value.datatype, "Numeriek")
-        self.assertEqual(param_value.eenheid, "decennia") # Unit overridden
+        self.assertEqual(param_value.unit, "decennia") # Unit overridden
 
     def test_set_parameter_definition_not_found(self):
         """Test error when setting a parameter that is not defined."""
@@ -74,10 +74,13 @@ class RuntimeContextTests(unittest.TestCase):
             self.context.set_parameter("unknown_param", 100)
 
     def test_get_parameter(self):
-        """Test retrieving a parameter's raw value."""
+        """Test retrieving a parameter's value."""
         self.context.set_parameter("volwassenleeftijd", 21)
-        raw_value = self.context.get_parameter("volwassenleeftijd")
-        self.assertEqual(raw_value, 21)
+        value = self.context.get_parameter("volwassenleeftijd")
+        self.assertIsInstance(value, Value)
+        self.assertEqual(value.value, 21)
+        self.assertEqual(value.datatype, "Numeriek")
+        self.assertEqual(value.unit, "jr")
 
     def test_get_parameter_not_found(self):
         """Test error when retrieving a non-existent parameter."""
@@ -91,7 +94,7 @@ class RuntimeContextTests(unittest.TestCase):
         self.assertIsNotNone(attr_value)
         self.assertEqual(attr_value.value, 15)
         self.assertEqual(attr_value.datatype, "Numeriek")
-        self.assertEqual(attr_value.eenheid, "jr") # Unit from definition
+        self.assertEqual(attr_value.unit, "jr") # Unit from definition
 
     def test_set_attribute_definition_not_found(self):
         """Test error when setting an attribute not defined in the ObjectType."""
@@ -107,10 +110,13 @@ class RuntimeContextTests(unittest.TestCase):
 
 
     def test_get_attribute(self):
-        """Test retrieving an attribute's raw value."""
+        """Test retrieving an attribute's value."""
         self.context.set_attribute(self.person1, "leeftijd", 25)
-        raw_value = self.context.get_attribute(self.person1, "leeftijd")
-        self.assertEqual(raw_value, 25)
+        value = self.context.get_attribute(self.person1, "leeftijd")
+        self.assertIsInstance(value, Value)
+        self.assertEqual(value.value, 25)
+        self.assertEqual(value.datatype, "Numeriek")
+        self.assertEqual(value.unit, "jr")
 
     def test_get_attribute_not_set(self):
         """Test error when retrieving an attribute that hasn't been set."""

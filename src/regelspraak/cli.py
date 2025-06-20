@@ -102,7 +102,7 @@ def run(file: pathlib.Path, data: Optional[pathlib.Path]):
                     if param_def:
                         # TODO: Add type checking/conversion raw_value vs param_def.datatype?
                         # Use param_def.eenheid from Parameter definition
-                        param_value = Value(value=raw_value, datatype=param_def.datatype, eenheid=param_def.eenheid)
+                        param_value = Value(value=raw_value, datatype=param_def.datatype, unit=param_def.eenheid)
                         context.add_parameter(param_name, param_value)
                         click.echo(f"  Loaded parameter '{param_name}' = {raw_value}")
                     else:

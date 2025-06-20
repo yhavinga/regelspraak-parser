@@ -24,6 +24,7 @@ class Operator(Enum):
     MIN = "-"
     MAAL = "*"
     GEDEELD_DOOR = "/"
+    GEDEELD_DOOR_ABS = "/ABS" # Division with ABS-style rounding (5 decimals)
     MACHT = "^" # Power/Exponentiation
     # Comparison
     GELIJK_AAN = "=="

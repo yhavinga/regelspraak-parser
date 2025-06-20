@@ -1,26 +1,51 @@
 """Runtime representation of RegelSpraak concepts during evaluation."""
 
 from dataclasses import dataclass, field
-from typing import Any, Dict, Optional, List, TYPE_CHECKING
+from typing import Any, Dict, Optional, List, TYPE_CHECKING, Union
+from decimal import Decimal
 
 # Import AST and Error types using relative imports consistent with the project structure
 from . import ast
 from .errors import RuntimeError
+from .units import CompositeUnit, UnitRegistry
 
 if TYPE_CHECKING:
     # Use forward reference for type hint to avoid circular import
     from .engine import TraceSink 
 
-# TODO: Potentially integrate with a units library later.
-
 @dataclass(frozen=True)
 class Value:
     """Represents a runtime value with its type and unit."""
-    value: Any # The actual Python value (e.g., int, float, str, bool)
+    value: Any # The actual Python value (e.g., int, float, str, bool, Decimal)
     datatype: str # RegelSpraak datatype (e.g., "Numeriek", "Tekst", "Boolean")
-    eenheid: Optional[str] = None # Optional unit (e.g., "jr")
-
-    # TODO: Add methods for type checking, unit conversions, and comparisons?
+    unit: Optional[Union[str, CompositeUnit]] = None # Unit as string or CompositeUnit
+    
+    def to_decimal(self) -> Decimal:
+        """Convert numeric value to Decimal for precise arithmetic."""
+        if self.datatype not in ["Numeriek", "Percentage", "Bedrag"]:
+            raise RuntimeError(f"Cannot convert {self.datatype} to Decimal")
+        
+        if isinstance(self.value, Decimal):
+            return self.value
+        elif isinstance(self.value, (int, float)):
+            return Decimal(str(self.value))
+        elif isinstance(self.value, str):
+            # Handle string representations of numbers
+            try:
+                return Decimal(self.value)
+            except:
+                raise RuntimeError(f"Cannot convert string '{self.value}' to Decimal")
+        else:
+            raise RuntimeError(f"Cannot convert {type(self.value)} to Decimal")
+    
+    def get_composite_unit(self, registry: UnitRegistry) -> CompositeUnit:
+        """Get the unit as a CompositeUnit object."""
+        if isinstance(self.unit, CompositeUnit):
+            return self.unit
+        elif isinstance(self.unit, str):
+            return registry.parse_unit_string(self.unit)
+        else:
+            return CompositeUnit(numerator=[], denominator=[])
 
 
 @dataclass
@@ -39,13 +64,14 @@ class RuntimeContext:
     """Container for the runtime state during execution."""
     domain_model: ast.DomainModel # Link to the parsed model for definitions
     trace_sink: Optional['TraceSink'] = None # Optional sink for execution events
+    unit_registry: UnitRegistry = field(default_factory=UnitRegistry) # Unit system registry
 
     # Stores parameter names mapped to their runtime Value
     parameters: Dict[str, Value] = field(default_factory=dict)
     # Stores object instances, keyed by object type name for easier lookup
     instances: Dict[str, List[RuntimeObject]] = field(default_factory=lambda: defaultdict(list))
-    # Stores variables within the current rule execution scope
-    variables: Dict[str, Any] = field(default_factory=dict) # Raw Python values for variables
+    # Stores variables within the current rule execution scope  
+    variables: Dict[str, Value] = field(default_factory=dict) # Store Values, not raw values
     # Tracks the object instance currently being evaluated (e.g., by a rule)
     current_instance: Optional[RuntimeObject] = None
 
@@ -57,8 +83,8 @@ class RuntimeContext:
         self.parameters[name] = value
         # Maybe trace parameter loading?
 
-    def get_parameter(self, name: str) -> Any:
-        """Retrieves a parameter's raw value from the context."""
+    def get_parameter(self, name: str) -> Value:
+        """Retrieves a parameter's Value from the context."""
         param_value = self.parameters.get(name)
         if param_value is None:
              # Check definition? Or just fail? Fail for now.
@@ -72,7 +98,7 @@ class RuntimeContext:
                 instance_id=self.current_instance.instance_id if self.current_instance else None
             )
             
-        return param_value.value
+        return param_value
 
     def set_parameter(self, name: str, raw_value: Any, unit: Optional[str] = None):
          """Sets a parameter's value (constructs Value object). Requires definition lookup.
@@ -83,17 +109,17 @@ class RuntimeContext:
              raise RuntimeError(f"Cannot set parameter '{name}': Definition not found in domain model.")
          
          # Use the provided unit if given, otherwise fallback to definition's unit
-         eenheid_to_use = unit if unit is not None else param_def.eenheid
+         unit_to_use = unit if unit is not None else param_def.eenheid
          
          # TODO: Type check raw_value against param_def.datatype? Conversion?
-         value_obj = Value(value=raw_value, datatype=param_def.datatype, eenheid=eenheid_to_use)
+         value_obj = Value(value=raw_value, datatype=param_def.datatype, unit=unit_to_use)
          self.parameters[name] = value_obj
          # TODO: Trace assignment?
 
     # --- Variable Handling (Rule Scope) ---
 
-    def get_variable(self, name: str) -> Any:
-        """Gets a variable's value from the current rule scope."""
+    def get_variable(self, name: str) -> Value:
+        """Gets a variable's Value from the current rule scope."""
         if name not in self.variables:
             raise RuntimeError(f"Variable '{name}' not defined in current scope.")
         
@@ -103,14 +129,14 @@ class RuntimeContext:
         if self.trace_sink:
             self.trace_sink.variable_read(
                 name=name,
-                value=value,
+                value=value.value if isinstance(value, Value) else value,
                 instance_id=self.current_instance.instance_id if self.current_instance else None
             )
             
         return value
 
-    def set_variable(self, name: str, value: Any, span: Optional[ast.SourceSpan] = None):
-        """Sets a variable's value in the current rule scope."""
+    def set_variable(self, name: str, value: Value, span: Optional[ast.SourceSpan] = None):
+        """Sets a variable's Value in the current rule scope."""
         # TODO: Consider type checking based on rule variable definition?
         old_value = self.variables.get(name)
         self.variables[name] = value
@@ -119,8 +145,8 @@ class RuntimeContext:
         if self.trace_sink:
             self.trace_sink.variable_write(
                 name=name,
-                old_value=old_value,
-                new_value=value,
+                old_value=old_value.value if isinstance(old_value, Value) else old_value,
+                new_value=value.value if isinstance(value, Value) else value,
                 span=span,
                 instance_id=self.current_instance.instance_id if self.current_instance else None
             )
@@ -140,8 +166,8 @@ class RuntimeContext:
         """Sets the instance currently being processed (e.g., by a rule)."""
         self.current_instance = instance
 
-    def get_attribute(self, instance: RuntimeObject, attr_name: str) -> Any:
-        """Gets an attribute's raw value from a specific object instance."""
+    def get_attribute(self, instance: RuntimeObject, attr_name: str) -> Value:
+        """Gets an attribute's Value from a specific object instance."""
         attr_value = instance.attributen.get(attr_name)
         if attr_value is None:
             # Check definition? Default value? Fail for now.
@@ -155,11 +181,12 @@ class RuntimeContext:
                 value=attr_value.value
             )
             
-        return attr_value.value
+        return attr_value
 
-    def set_attribute(self, instance: RuntimeObject, attr_name: str, raw_value: Any,
+    def set_attribute(self, instance: RuntimeObject, attr_name: str, value: Union[Value, Any],
                         unit: Optional[str] = None, span: Optional[ast.SourceSpan] = None):
-        """Sets an attribute's value on an instance (constructs Value object).
+        """Sets an attribute's value on an instance.
+        Can accept either a Value object or a raw value (which will be wrapped in a Value).
         Optionally overrides the unit defined in the model and provides a span for tracing.
         """
         # Find the ObjectType definition to get expected datatype and unit
@@ -171,13 +198,16 @@ class RuntimeContext:
         if not attr_def:
              raise RuntimeError(f"Attribute '{attr_name}' not defined in ObjectType '{instance.object_type_naam}'.")
 
-        # Use the provided unit if given, otherwise fallback to definition's unit
-        eenheid_to_use = unit if unit is not None else attr_def.eenheid
-
-        # TODO: Type check raw_value against attr_def.datatype? Conversion?
-        datatype = attr_def.datatype
-
-        value_obj = Value(value=raw_value, datatype=datatype, eenheid=eenheid_to_use)
+        # If value is already a Value object, use it; otherwise wrap it
+        if isinstance(value, Value):
+            value_obj = value
+            # TODO: Validate that value_obj.datatype matches attr_def.datatype?
+        else:
+            # Use the provided unit if given, otherwise fallback to definition's unit
+            unit_to_use = unit if unit is not None else attr_def.eenheid
+            # TODO: Type check raw_value against attr_def.datatype? Conversion?
+            datatype = attr_def.datatype
+            value_obj = Value(value=value, datatype=datatype, unit=unit_to_use)
 
         old_value_obj = instance.attributen.get(attr_name)
         old_raw_value = old_value_obj.value if old_value_obj else None
@@ -186,7 +216,7 @@ class RuntimeContext:
 
         # Use the provided span for tracing if available
         if self.trace_sink:
-            self.trace_sink.assignment(instance, attr_name, old_raw_value, raw_value, span)
+            self.trace_sink.assignment(instance, attr_name, old_raw_value, value_obj.value, span)
 
     def get_kenmerk(self, instance: RuntimeObject, kenmerk_name: str) -> bool:
         """Gets a kenmerk's boolean state from an instance (defaults to False)."""
