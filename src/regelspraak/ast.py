@@ -39,6 +39,9 @@ class Operator(Enum):
     # Others related to TOKA/Specification
     IN = "in" # For collections/enumerations
     IS = "is" # For type/kenmerk checks
+    IS_NIET = "is niet" # For negated type/kenmerk checks
+    HEEFT = "heeft" # For possession/bezittelijk kenmerk checks
+    HEEFT_NIET = "heeft niet" # For negated possession checks
 
 
 # --- Expression Model ---
