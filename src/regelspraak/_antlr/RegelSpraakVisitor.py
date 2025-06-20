@@ -79,6 +79,11 @@ class RegelSpraakVisitor(ParseTreeVisitor):
         return self.visitChildren(ctx)
 
 
+    # Visit a parse tree produced by RegelSpraakParser#lijstDatatype.
+    def visitLijstDatatype(self, ctx:RegelSpraakParser.LijstDatatypeContext):
+        return self.visitChildren(ctx)
+
+
     # Visit a parse tree produced by RegelSpraakParser#numeriekDatatype.
     def visitNumeriekDatatype(self, ctx:RegelSpraakParser.NumeriekDatatypeContext):
         return self.visitChildren(ctx)
@@ -349,8 +354,8 @@ class RegelSpraakVisitor(ParseTreeVisitor):
         return self.visitChildren(ctx)
 
 
-    # Visit a parse tree produced by RegelSpraakParser#logicalExpression.
-    def visitLogicalExpression(self, ctx:RegelSpraakParser.LogicalExpressionContext):
+    # Visit a parse tree produced by RegelSpraakParser#LogicalExpr.
+    def visitLogicalExpr(self, ctx:RegelSpraakParser.LogicalExprContext):
         return self.visitChildren(ctx)
 
 

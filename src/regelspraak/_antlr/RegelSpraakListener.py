@@ -134,6 +134,15 @@ class RegelSpraakListener(ParseTreeListener):
         pass
 
 
+    # Enter a parse tree produced by RegelSpraakParser#lijstDatatype.
+    def enterLijstDatatype(self, ctx:RegelSpraakParser.LijstDatatypeContext):
+        pass
+
+    # Exit a parse tree produced by RegelSpraakParser#lijstDatatype.
+    def exitLijstDatatype(self, ctx:RegelSpraakParser.LijstDatatypeContext):
+        pass
+
+
     # Enter a parse tree produced by RegelSpraakParser#numeriekDatatype.
     def enterNumeriekDatatype(self, ctx:RegelSpraakParser.NumeriekDatatypeContext):
         pass
@@ -620,12 +629,12 @@ class RegelSpraakListener(ParseTreeListener):
         pass
 
 
-    # Enter a parse tree produced by RegelSpraakParser#logicalExpression.
-    def enterLogicalExpression(self, ctx:RegelSpraakParser.LogicalExpressionContext):
+    # Enter a parse tree produced by RegelSpraakParser#LogicalExpr.
+    def enterLogicalExpr(self, ctx:RegelSpraakParser.LogicalExprContext):
         pass
 
-    # Exit a parse tree produced by RegelSpraakParser#logicalExpression.
-    def exitLogicalExpression(self, ctx:RegelSpraakParser.LogicalExpressionContext):
+    # Exit a parse tree produced by RegelSpraakParser#LogicalExpr.
+    def exitLogicalExpr(self, ctx:RegelSpraakParser.LogicalExprContext):
         pass
 
 

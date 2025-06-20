@@ -81,7 +81,12 @@ datatype
     | tekstDatatype
     | booleanDatatype
     | datumTijdDatatype
+    | lijstDatatype
     // | percentageDatatype // Placeholder from Spec - Not in original G4
+    ;
+
+lijstDatatype
+    : LIJST VAN datatype
     ;
 
 numeriekDatatype
@@ -294,7 +299,7 @@ onderwerpReferentie // Allow sequence + nesting + pronoun
     ;
 
 basisOnderwerp // Base unit for subject/object reference
-    : (DE | HET | EEN | ZIJN)? IDENTIFIER+
+    : (DE | HET | EEN | ZIJN | ALLE)? IDENTIFIER+
     | HIJ
     ;
 
@@ -349,13 +354,9 @@ expressie
     : logicalExpression // Start with logical OR/AND (if needed, otherwise comparison)
     ;
 
-// Add logical operators if needed (e.g., EN, OF at condition level)
-// logicalExpression
-//     : left=comparisonExpression ( op=(EN | OF) right=comparisonExpression )*
-//     ;
-
-logicalExpression // For now, just pass through to comparison
-    : comparisonExpression
+// Logical operators (EN, OF) at expression level
+logicalExpression
+    : left=comparisonExpression ( op=(EN | OF) right=logicalExpression )? # LogicalExpr
     ;
 
 comparisonExpression
@@ -372,6 +373,7 @@ comparisonOperator // Expanded list
     | KLEINER_DAN | KLEINER_OF_GELIJK_AAN
     | KLEINER_IS_DAN | GROTER_IS_DAN
     | IS // Used in boolean contexts?
+    | IN // Collection membership
     | LATER_DAN | LATER_OF_GELIJK_AAN // Date operators
     | EERDER_DAN | EERDER_OF_GELIJK_AAN // Date operators
     | NIET // Unary negation - position might need checking based on full spec
@@ -399,17 +401,18 @@ powerExpression // New rule for exponentiation
     : left=primaryExpression ( powerOperator right=primaryExpression )*
     ;
 
-powerOperator : TOT_DE_MACHT ; // New rule for operator
+powerOperator : TOT_DE_MACHT | CARET ; // New rule for operator
 
 primaryExpression : // Corresponds roughly to terminals/functions/references in §13.4.16
     // Unary operators
       MIN primaryExpression                                                                         # UnaryMinusExpr
+    | MINUS primaryExpression                                                                       # UnaryMinusExpr
     | NIET primaryExpression                                                                        # UnaryNietExpr
     
     // Functions (Simplified subset)
     | DE_ABSOLUTE_TIJDSDUUR_VAN primaryExpression TOT primaryExpression (IN_HELE unitName=IDENTIFIER)?  # AbsTijdsduurFuncExpr
     | TIJDSDUUR_VAN primaryExpression TOT primaryExpression (IN_HELE unitName=IDENTIFIER)?            # TijdsduurFuncExpr
-    | SOM_VAN (ALLE? onderwerpReferentie)                                                             # SomFuncExpr
+    | SOM_VAN expressie                                                                               # SomFuncExpr
     | HET? AANTAL (ALLE? onderwerpReferentie)                                                         # AantalFuncExpr // Made HET optional
     | NUMBER (PERCENT_SIGN | p=IDENTIFIER) VAN primaryExpression                                    # PercentageFuncExpr
     | primaryExpression afronding                                                                   # AfrondingExpr  // EBNF 13.4.16.21
@@ -449,7 +452,7 @@ primaryExpression : // Corresponds roughly to terminals/functions/references in 
     // Literals & Keywords
     | REKENDATUM                                                    # RekendatumKeywordExpr
     | identifier                                                    # IdentifierExpr // Bare identifier as expression?
-    | NUMBER                                                        # NumberLiteralExpr
+    | NUMBER unitIdentifier?                                        # NumberLiteralExpr
     | STRING_LITERAL                                                # StringLiteralExpr
     | ENUM_LITERAL                                                  # EnumLiteralExpr // Add explicit support for enum literals
     | datumLiteral                                                  # DatumLiteralExpr // Added DATE_TIME_LITERAL via datumLiteral rule

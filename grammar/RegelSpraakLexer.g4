@@ -116,6 +116,7 @@ REGEL: 'Regel';
 BESLISTABEL: 'Beslistabel';
 OBJECTTYPE: 'Objecttype';
 DOMEIN: 'Domein';
+LIJST: 'Lijst';
 DIMENSIE: 'Dimensie';
 EENHEIDSYSTEEM: 'Eenheidsysteem';
 PARAMETER: 'Parameter';

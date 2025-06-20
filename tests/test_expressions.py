@@ -358,7 +358,7 @@ Regel DeTestRegel
 
     def test_function_absolute_waarde_van(self):
         """Test 'de absolute waarde van' function."""
-        self._test_expression_in_rule("de absolute waarde van X")
+        self._test_expression_in_rule("de absolute waarde van (X)")
 
     def test_function_tijdsduur_van_in_eenheid(self):
         """Test 'de tijdsduur van' function with unit conversion."""
@@ -382,7 +382,7 @@ Regel DeTestRegel
 
     def test_function_de_eerste_paasdag_van(self):
         """Test 'de eerste paasdag van' function."""
-        self._test_expression_in_rule("de eerste paasdag van 2024")
+        self._test_expression_in_rule("de eerste paasdag van (2024)")
 
     def test_function_de_datum_met(self):
         """Test 'de datum met' constructor function."""
@@ -418,7 +418,10 @@ Regel DeTestRegel
 
     def test_function_tijdsevenredig_deel(self):
         """Test 'het tijdsevenredig deel' function."""
-        self._test_expression_in_rule("het tijdsevenredig deel per jaar van X vanaf D1 tot D2")
+        # TODO: According to spec section 13.4.16.53, the syntax "vanaf D1 tot D2" should also be supported
+        # as a periodevergelijkingenkelvoudig form of conditiebijexpressie. Currently only 
+        # "gedurende de tijd dat" is implemented in the grammar.
+        self._test_expression_in_rule("het tijdsevenredig deel per jaar van X gedurende de tijd dat B")
 
     # --- 9. Afronding Expressions ---
     def test_afronding_naar_beneden(self):

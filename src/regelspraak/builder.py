@@ -98,10 +98,10 @@ OPERATOR_MAP = {
     # --- Logical Operators ---
     AntlrParser.EN: Operator.EN,
     AntlrParser.OF: Operator.OF,
-    AntlrParser.NIET: Operator.NIET, # Unary
-
-    # --- Set/Membership Operators ---
+    
+    # --- Collection Operators ---
     AntlrParser.IN: Operator.IN,
+    AntlrParser.NIET: Operator.NIET, # Unary
     # Add NIET_IN if defined in grammar
 }
 
@@ -595,32 +595,44 @@ class RegelSpraakModelBuilder(RegelSpraakVisitor):
              return None
 
     def visitLogicalExpression(self, ctx: AntlrParser.LogicalExpressionContext) -> Optional[Expression]:
-        """Visit logical expression. Delegates to comparisonExpression if no EN/OF is present."""
-        # Grammar: logicalExpression: comparisonExpression ( (EN | OF) comparisonExpression )* ;
-
-        # Check if EN or OF operators are present
-        has_logical_op = False
-        for i in range(ctx.getChildCount()):
-            child = ctx.getChild(i)
-            if isinstance(child, TerminalNode):
-                if child.getSymbol().type in [AntlrParser.EN, AntlrParser.OF]:
-                    has_logical_op = True
-                    break
+        """Visit logical expression. Handles LogicalExpr labeled alternative."""
+        # Grammar: logicalExpression: left=comparisonExpression ( op=(EN | OF) right=logicalExpression )? # LogicalExpr
         
-        if has_logical_op:
-            # If EN/OF present, use the binary builder with visitComparisonExpression for operands
-             logger.debug(f"Handling LogicalExpression with EN/OF operators: {safe_get_text(ctx)}")
-             return self._build_binary_expression(ctx, OPERATOR_MAP, self.visitComparisonExpression)
-        elif ctx.comparisonExpression():
-             # If no EN/OF, just visit the single comparisonExpression child
-             logger.debug(f"Handling LogicalExpression by delegating to ComparisonExpression: {safe_get_text(ctx)}")
-             return self.visitComparisonExpression(ctx.comparisonExpression())
+        if isinstance(ctx, AntlrParser.LogicalExprContext):
+            # Handle the labeled alternative
+            left = self.visitComparisonExpression(ctx.left)
+            if left is None:
+                return None
+                
+            # Check if there's a logical operator
+            if ctx.op:
+                op_token = ctx.op
+                if op_token.type not in OPERATOR_MAP:
+                    logger.warning(f"Unknown logical operator token type: {op_token.type}")
+                    return left
+                    
+                operator = OPERATOR_MAP[op_token.type]
+                right = self.visitLogicalExpression(ctx.right)
+                
+                if right is None:
+                    logger.warning(f"Right side of logical expression is None")
+                    return left
+                    
+                return BinaryExpression(
+                    left=left,
+                    operator=operator,
+                    right=right,
+                    span=self.get_span(ctx)
+                )
+            else:
+                # No operator, just return the comparison expression
+                return left
         else:
-             logger.warning(f"Unexpected logicalExpression structure (no EN/OF and no comparisonExpression child): {safe_get_text(ctx)}")
-             # Fallback: try visiting children generically, though likely incorrect
-             if ctx.getChildCount() > 0:
-                 return self.visit(ctx.getChild(0))
-             return None
+            # Fallback for unlabeled alternative (shouldn't happen with new grammar)
+            logger.warning(f"Unexpected logicalExpression structure: {safe_get_text(ctx)}")
+            if ctx.getChildCount() > 0:
+                return self.visit(ctx.getChild(0))
+            return None
 
     def visitComparisonExpression(self, ctx: AntlrParser.ComparisonExpressionContext) -> Optional[Expression]:
         """Visit comparison expression (==, !=, <, >, <=, >=, is, etc.). Handles alternatives."""
@@ -779,7 +791,14 @@ class RegelSpraakModelBuilder(RegelSpraakVisitor):
             num_text = ctx.NUMBER().getText().replace(',', '.')
             try:
                 value = float(num_text) if '.' in num_text or 'e' in num_text or 'E' in num_text else int(num_text)
-                return Literal(value=value, datatype="Numeriek", span=self.get_span(ctx))
+                
+                # Check if there's a unit
+                unit = None
+                if ctx.unitIdentifier():
+                    unit = ctx.unitIdentifier().getText()
+                    logger.debug(f"    Found unit: '{unit}'")
+                
+                return Literal(value=value, datatype="Numeriek", unit=unit, span=self.get_span(ctx))
             except ValueError:
                  logger.error(f"Invalid numeric literal: {ctx.NUMBER().getText()} in {safe_get_text(ctx)}")
                  return None
@@ -798,26 +817,69 @@ class RegelSpraakModelBuilder(RegelSpraakVisitor):
         elif isinstance(ctx, AntlrParser.PronounExprContext):
              return AttributeReference(path=["self"], span=self.get_span(ctx))
         # --- Handle Labeled Function Calls --- 
+        elif isinstance(ctx, AntlrParser.AbsValFuncExprContext):
+            # de absolute waarde van (expression)
+            expr = self.visitPrimaryExpression(ctx.primaryExpression())
+            if expr is None: return None
+            return FunctionCall(
+                function_name="absolute_waarde_van",
+                arguments=[expr],
+                span=self.get_span(ctx)
+            )
+        elif isinstance(ctx, AntlrParser.PasenFuncExprContext):
+            # de eerste paasdag van (expression)
+            expr = self.visitPrimaryExpression(ctx.primaryExpression())
+            if expr is None: return None
+            return FunctionCall(
+                function_name="eerste_paasdag_van",
+                arguments=[expr],
+                span=self.get_span(ctx)
+            )
+        elif isinstance(ctx, AntlrParser.SomFuncExprContext):
+            # SOM_VAN expressie
+            expr = self.visitExpressie(ctx.expressie())
+            if expr is None: return None
+            return FunctionCall(
+                function_name="som_van",
+                arguments=[expr],
+                span=self.get_span(ctx)
+            )
+        elif isinstance(ctx, AntlrParser.TijdsevenredigDeelExprContext):
+            # HET_TIJDSEVENREDIG_DEEL_PER (MAAND | JAAR) VAN expressie (GEDURENDE_DE_TIJD_DAT condition=expressie)?
+            expr = self.visitExpressie(ctx.expressie())
+            if expr is None: return None
+            
+            # Determine period type
+            period = "maand" if ctx.MAAND() else "jaar"
+            
+            # Check for condition
+            args = [expr]
+            if ctx.condition:
+                condition = self.visitExpressie(ctx.condition)
+                if condition:
+                    args.append(condition)
+            
+            return FunctionCall(
+                function_name=f"tijdsevenredig_deel_per_{period}",
+                arguments=args,
+                span=self.get_span(ctx)
+            )
         elif isinstance(ctx, AntlrParser.AbsTijdsduurFuncExprContext) or \
              isinstance(ctx, AntlrParser.TijdsduurFuncExprContext) or \
-             isinstance(ctx, AntlrParser.SomFuncExprContext) or \
              isinstance(ctx, AntlrParser.AantalFuncExprContext) or \
              isinstance(ctx, AntlrParser.PercentageFuncExprContext) or \
              isinstance(ctx, AntlrParser.WortelFuncExprContext) or \
-             isinstance(ctx, AntlrParser.AbsValFuncExprContext) or \
              isinstance(ctx, AntlrParser.MinValFuncExprContext) or \
              isinstance(ctx, AntlrParser.MaxValFuncExprContext) or \
              isinstance(ctx, AntlrParser.JaarUitFuncExprContext) or \
              isinstance(ctx, AntlrParser.MaandUitFuncExprContext) or \
              isinstance(ctx, AntlrParser.DagUitFuncExprContext) or \
              isinstance(ctx, AntlrParser.DatumMetFuncExprContext) or \
-             isinstance(ctx, AntlrParser.PasenFuncExprContext) or \
              isinstance(ctx, AntlrParser.DateCalcExprContext) or \
              isinstance(ctx, AntlrParser.EersteDatumFuncExprContext) or \
              isinstance(ctx, AntlrParser.LaatsteDatumFuncExprContext) or \
              isinstance(ctx, AntlrParser.TotaalVanExprContext) or \
              isinstance(ctx, AntlrParser.HetAantalDagenInExprContext) or \
-             isinstance(ctx, AntlrParser.TijdsevenredigDeelExprContext) or \
              isinstance(ctx, AntlrParser.DimensieAggExprContext):
              # TODO: Implement specific function visitors or a more robust visitFunctionCall
              # return self.visitFunctionCall(ctx) # Generic call needs implementation
