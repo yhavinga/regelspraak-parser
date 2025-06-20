@@ -93,6 +93,7 @@ OPERATOR_MAP = {
     # --- Identity/Type Checks ---
     AntlrParser.IS: Operator.IS,
     AntlrParser.ZIJN: Operator.IS, # Map ZIJN also to IS?
+    AntlrParser.HEEFT: Operator.HEEFT,
 
     # --- Logical Operators ---
     AntlrParser.EN: Operator.EN,
@@ -645,14 +646,16 @@ class RegelSpraakModelBuilder(RegelSpraakVisitor):
             kenmerk_name = ctx.identifier().getText()
             right_expr = VariableReference(variable_name=kenmerk_name, span=self.get_span(ctx.identifier()))
             if left_expr is None: return None
-            op = Operator.IS_NIET if ctx.IS_NIET() or ctx.ZIJN_NIET() else Operator.IS
+            # For now, just use IS operator. Negation should be handled at a different level
+            op = Operator.IS
             return BinaryExpression(left=left_expr, operator=op, right=right_expr, span=self.get_span(ctx))
         elif isinstance(ctx, AntlrParser.HeeftKenmerkExprContext):
             left_expr = self.visitAdditiveExpression(ctx.left)
             kenmerk_name = ctx.identifier().getText()
             right_expr = VariableReference(variable_name=kenmerk_name, span=self.get_span(ctx.identifier()))
             if left_expr is None: return None
-            op = Operator.HEEFT_NIET if ctx.IS_NIET() or ctx.ZIJN_NIET() else Operator.HEEFT # Needs HEEFT_NIET
+            # For now, just use HEEFT operator. Negation should be handled at a different level
+            op = Operator.HEEFT
             return BinaryExpression(left=left_expr, operator=op, right=right_expr, span=self.get_span(ctx))
         else:
              # Default case: Assume it's a chain like `additive op additive...`
@@ -691,7 +694,18 @@ class RegelSpraakModelBuilder(RegelSpraakVisitor):
         # --- End logging ---
 
         # --- Handle Labeled Alternatives FIRST ---
-        if isinstance(ctx, AntlrParser.BezieldeRefExprContext):
+        # Handle unary operators
+        if isinstance(ctx, AntlrParser.UnaryMinusExprContext):
+            logger.debug("  -> Matched UnaryMinusExprContext")
+            operand = self.visitPrimaryExpression(ctx.primaryExpression())
+            if operand is None: return None
+            return UnaryExpression(operator=Operator.MIN, operand=operand, span=self.get_span(ctx))
+        elif isinstance(ctx, AntlrParser.UnaryNietExprContext):
+            logger.debug("  -> Matched UnaryNietExprContext")
+            operand = self.visitPrimaryExpression(ctx.primaryExpression())
+            if operand is None: return None
+            return UnaryExpression(operator=Operator.NIET, operand=operand, span=self.get_span(ctx))
+        elif isinstance(ctx, AntlrParser.BezieldeRefExprContext):
              logger.debug("  -> Matched BezieldeRefExprContext")
              return self.visitBezieldeReferentie(ctx.bezieldeReferentie())
         elif isinstance(ctx, AntlrParser.AttrRefExprContext):
@@ -711,6 +725,16 @@ class RegelSpraakModelBuilder(RegelSpraakVisitor):
         elif isinstance(ctx, AntlrParser.ParenExprContext):
              logger.debug("  -> Matched ParenExprContext")
              return self.visitExpressie(ctx.expressie())
+        elif isinstance(ctx, AntlrParser.OnderwerpRefExprContext):
+            logger.debug("  -> Matched OnderwerpRefExprContext")
+            # For now, treat onderwerpReferentie as an attribute reference to self
+            # This is a simplification - may need refinement based on usage
+            onderwerp_text = safe_get_text(ctx.onderwerpReferentie())
+            logger.debug(f"    Onderwerp text: '{onderwerp_text}'")
+            # Create an attribute reference representing the object
+            result = AttributeReference(path=[onderwerp_text], span=self.get_span(ctx))
+            logger.debug(f"    Returning: {result}")
+            return result
         elif isinstance(ctx, AntlrParser.NaamwoordExprContext):
             logger.debug("  -> Matched NaamwoordExprContext")
             # --- Call dedicated visitNaamwoord ---

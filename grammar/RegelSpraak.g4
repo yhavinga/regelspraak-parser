@@ -359,11 +359,11 @@ logicalExpression // For now, just pass through to comparison
     ;
 
 comparisonExpression
-    : left=additiveExpression ( comparisonOperator right=additiveExpression )? # BinaryComparisonExpr
-    | unaryCondition # UnaryConditionExpr // Integrate unary conditions here
+    : left=additiveExpression IS identifier # IsKenmerkExpr // Try IS kenmerk check first
+    | left=additiveExpression HEEFT identifier # HeeftKenmerkExpr // Try HEEFT kenmerk check second
+    | left=additiveExpression ( comparisonOperator right=additiveExpression )? # BinaryComparisonExpr
+    | unaryCondition # UnaryConditionExpr // Try unary conditions after more specific patterns
     | regelStatusCondition # RegelStatusConditionExpr // Integrate rule status checks here
-    | left=additiveExpression IS identifier # IsKenmerkExpr // Integrate IS kenmerk check
-    | left=additiveExpression HEEFT identifier # HeeftKenmerkExpr // Integrate HEEFT kenmerk check
     ;
 
 comparisonOperator // Expanded list
@@ -402,8 +402,12 @@ powerExpression // New rule for exponentiation
 powerOperator : TOT_DE_MACHT ; // New rule for operator
 
 primaryExpression : // Corresponds roughly to terminals/functions/references in §13.4.16
+    // Unary operators
+      MIN primaryExpression                                                                         # UnaryMinusExpr
+    | NIET primaryExpression                                                                        # UnaryNietExpr
+    
     // Functions (Simplified subset)
-      DE_ABSOLUTE_TIJDSDUUR_VAN primaryExpression TOT primaryExpression (IN_HELE unitName=IDENTIFIER)?  # AbsTijdsduurFuncExpr
+    | DE_ABSOLUTE_TIJDSDUUR_VAN primaryExpression TOT primaryExpression (IN_HELE unitName=IDENTIFIER)?  # AbsTijdsduurFuncExpr
     | TIJDSDUUR_VAN primaryExpression TOT primaryExpression (IN_HELE unitName=IDENTIFIER)?            # TijdsduurFuncExpr
     | SOM_VAN (ALLE? onderwerpReferentie)                                                             # SomFuncExpr
     | HET? AANTAL (ALLE? onderwerpReferentie)                                                         # AantalFuncExpr // Made HET optional
@@ -438,6 +442,7 @@ primaryExpression : // Corresponds roughly to terminals/functions/references in 
     // References
     | attribuutReferentie                                           # AttrRefExpr
     | bezieldeReferentie                                            # BezieldeRefExpr
+    | onderwerpReferentie                                           # OnderwerpRefExpr // Added to support "een X" patterns
     | naamwoord                                                     # NaamwoordExpr // Simple noun phrase as expression?
     | parameterMetLidwoord                                          # ParamRefExpr // Added based on spec §13.4.16.1 - check original G4
 

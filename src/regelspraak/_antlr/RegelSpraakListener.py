@@ -629,6 +629,24 @@ class RegelSpraakListener(ParseTreeListener):
         pass
 
 
+    # Enter a parse tree produced by RegelSpraakParser#IsKenmerkExpr.
+    def enterIsKenmerkExpr(self, ctx:RegelSpraakParser.IsKenmerkExprContext):
+        pass
+
+    # Exit a parse tree produced by RegelSpraakParser#IsKenmerkExpr.
+    def exitIsKenmerkExpr(self, ctx:RegelSpraakParser.IsKenmerkExprContext):
+        pass
+
+
+    # Enter a parse tree produced by RegelSpraakParser#HeeftKenmerkExpr.
+    def enterHeeftKenmerkExpr(self, ctx:RegelSpraakParser.HeeftKenmerkExprContext):
+        pass
+
+    # Exit a parse tree produced by RegelSpraakParser#HeeftKenmerkExpr.
+    def exitHeeftKenmerkExpr(self, ctx:RegelSpraakParser.HeeftKenmerkExprContext):
+        pass
+
+
     # Enter a parse tree produced by RegelSpraakParser#BinaryComparisonExpr.
     def enterBinaryComparisonExpr(self, ctx:RegelSpraakParser.BinaryComparisonExprContext):
         pass
@@ -653,24 +671,6 @@ class RegelSpraakListener(ParseTreeListener):
 
     # Exit a parse tree produced by RegelSpraakParser#RegelStatusConditionExpr.
     def exitRegelStatusConditionExpr(self, ctx:RegelSpraakParser.RegelStatusConditionExprContext):
-        pass
-
-
-    # Enter a parse tree produced by RegelSpraakParser#IsKenmerkExpr.
-    def enterIsKenmerkExpr(self, ctx:RegelSpraakParser.IsKenmerkExprContext):
-        pass
-
-    # Exit a parse tree produced by RegelSpraakParser#IsKenmerkExpr.
-    def exitIsKenmerkExpr(self, ctx:RegelSpraakParser.IsKenmerkExprContext):
-        pass
-
-
-    # Enter a parse tree produced by RegelSpraakParser#HeeftKenmerkExpr.
-    def enterHeeftKenmerkExpr(self, ctx:RegelSpraakParser.HeeftKenmerkExprContext):
-        pass
-
-    # Exit a parse tree produced by RegelSpraakParser#HeeftKenmerkExpr.
-    def exitHeeftKenmerkExpr(self, ctx:RegelSpraakParser.HeeftKenmerkExprContext):
         pass
 
 
@@ -917,12 +917,30 @@ class RegelSpraakListener(ParseTreeListener):
         pass
 
 
+    # Enter a parse tree produced by RegelSpraakParser#UnaryNietExpr.
+    def enterUnaryNietExpr(self, ctx:RegelSpraakParser.UnaryNietExprContext):
+        pass
+
+    # Exit a parse tree produced by RegelSpraakParser#UnaryNietExpr.
+    def exitUnaryNietExpr(self, ctx:RegelSpraakParser.UnaryNietExprContext):
+        pass
+
+
     # Enter a parse tree produced by RegelSpraakParser#ConcatenatieExpr.
     def enterConcatenatieExpr(self, ctx:RegelSpraakParser.ConcatenatieExprContext):
         pass
 
     # Exit a parse tree produced by RegelSpraakParser#ConcatenatieExpr.
     def exitConcatenatieExpr(self, ctx:RegelSpraakParser.ConcatenatieExprContext):
+        pass
+
+
+    # Enter a parse tree produced by RegelSpraakParser#OnderwerpRefExpr.
+    def enterOnderwerpRefExpr(self, ctx:RegelSpraakParser.OnderwerpRefExprContext):
+        pass
+
+    # Exit a parse tree produced by RegelSpraakParser#OnderwerpRefExpr.
+    def exitOnderwerpRefExpr(self, ctx:RegelSpraakParser.OnderwerpRefExprContext):
         pass
 
 
@@ -1085,6 +1103,15 @@ class RegelSpraakListener(ParseTreeListener):
 
     # Exit a parse tree produced by RegelSpraakParser#ParenExpr.
     def exitParenExpr(self, ctx:RegelSpraakParser.ParenExprContext):
+        pass
+
+
+    # Enter a parse tree produced by RegelSpraakParser#UnaryMinusExpr.
+    def enterUnaryMinusExpr(self, ctx:RegelSpraakParser.UnaryMinusExprContext):
+        pass
+
+    # Exit a parse tree produced by RegelSpraakParser#UnaryMinusExpr.
+    def exitUnaryMinusExpr(self, ctx:RegelSpraakParser.UnaryMinusExprContext):
         pass
 
 

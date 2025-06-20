@@ -354,6 +354,16 @@ class RegelSpraakVisitor(ParseTreeVisitor):
         return self.visitChildren(ctx)
 
 
+    # Visit a parse tree produced by RegelSpraakParser#IsKenmerkExpr.
+    def visitIsKenmerkExpr(self, ctx:RegelSpraakParser.IsKenmerkExprContext):
+        return self.visitChildren(ctx)
+
+
+    # Visit a parse tree produced by RegelSpraakParser#HeeftKenmerkExpr.
+    def visitHeeftKenmerkExpr(self, ctx:RegelSpraakParser.HeeftKenmerkExprContext):
+        return self.visitChildren(ctx)
+
+
     # Visit a parse tree produced by RegelSpraakParser#BinaryComparisonExpr.
     def visitBinaryComparisonExpr(self, ctx:RegelSpraakParser.BinaryComparisonExprContext):
         return self.visitChildren(ctx)
@@ -366,16 +376,6 @@ class RegelSpraakVisitor(ParseTreeVisitor):
 
     # Visit a parse tree produced by RegelSpraakParser#RegelStatusConditionExpr.
     def visitRegelStatusConditionExpr(self, ctx:RegelSpraakParser.RegelStatusConditionExprContext):
-        return self.visitChildren(ctx)
-
-
-    # Visit a parse tree produced by RegelSpraakParser#IsKenmerkExpr.
-    def visitIsKenmerkExpr(self, ctx:RegelSpraakParser.IsKenmerkExprContext):
-        return self.visitChildren(ctx)
-
-
-    # Visit a parse tree produced by RegelSpraakParser#HeeftKenmerkExpr.
-    def visitHeeftKenmerkExpr(self, ctx:RegelSpraakParser.HeeftKenmerkExprContext):
         return self.visitChildren(ctx)
 
 
@@ -514,8 +514,18 @@ class RegelSpraakVisitor(ParseTreeVisitor):
         return self.visitChildren(ctx)
 
 
+    # Visit a parse tree produced by RegelSpraakParser#UnaryNietExpr.
+    def visitUnaryNietExpr(self, ctx:RegelSpraakParser.UnaryNietExprContext):
+        return self.visitChildren(ctx)
+
+
     # Visit a parse tree produced by RegelSpraakParser#ConcatenatieExpr.
     def visitConcatenatieExpr(self, ctx:RegelSpraakParser.ConcatenatieExprContext):
+        return self.visitChildren(ctx)
+
+
+    # Visit a parse tree produced by RegelSpraakParser#OnderwerpRefExpr.
+    def visitOnderwerpRefExpr(self, ctx:RegelSpraakParser.OnderwerpRefExprContext):
         return self.visitChildren(ctx)
 
 
@@ -606,6 +616,11 @@ class RegelSpraakVisitor(ParseTreeVisitor):
 
     # Visit a parse tree produced by RegelSpraakParser#ParenExpr.
     def visitParenExpr(self, ctx:RegelSpraakParser.ParenExprContext):
+        return self.visitChildren(ctx)
+
+
+    # Visit a parse tree produced by RegelSpraakParser#UnaryMinusExpr.
+    def visitUnaryMinusExpr(self, ctx:RegelSpraakParser.UnaryMinusExprContext):
         return self.visitChildren(ctx)
 
 
