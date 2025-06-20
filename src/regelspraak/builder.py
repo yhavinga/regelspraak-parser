@@ -582,17 +582,12 @@ class RegelSpraakModelBuilder(RegelSpraakVisitor):
         # According to typical ANTLR grammar structure for expressions,
         # the 'expressie' rule usually just points to the start of the
         # precedence climbing (e.g., logicalExpression).
-        if ctx.getChildCount() == 1:
-             child = ctx.getChild(0)
-             logger.debug(f"Visiting child of ExpressieContext: {type(child).__name__}")
-             return self.visit(child)
+        if ctx.logicalExpression():
+            return self.visitLogicalExpression(ctx.logicalExpression())
         else:
-             # This case should generally not happen if the grammar is well-formed.
-             logger.error(f"ExpressieContext has unexpected child count: {ctx.getChildCount()} in {safe_get_text(ctx)}")
-             # Attempt to visit first child as a desperate fallback
-             if ctx.getChildCount() > 0:
-                 return self.visit(ctx.getChild(0))
-             return None
+            # This case should generally not happen if the grammar is well-formed.
+            logger.error(f"ExpressieContext has no logicalExpression child: {safe_get_text(ctx)}")
+            return None
 
     def visitLogicalExpression(self, ctx: AntlrParser.LogicalExpressionContext) -> Optional[Expression]:
         """Visit logical expression. Handles LogicalExpr labeled alternative."""
@@ -739,33 +734,39 @@ class RegelSpraakModelBuilder(RegelSpraakVisitor):
              return self.visitExpressie(ctx.expressie())
         elif isinstance(ctx, AntlrParser.OnderwerpRefExprContext):
             logger.debug("  -> Matched OnderwerpRefExprContext")
-            # For now, treat onderwerpReferentie as an attribute reference to self
-            # This is a simplification - may need refinement based on usage
-            onderwerp_text = safe_get_text(ctx.onderwerpReferentie())
-            logger.debug(f"    Onderwerp text: '{onderwerp_text}'")
-            # Create an attribute reference representing the object
-            result = AttributeReference(path=[onderwerp_text], span=self.get_span(ctx))
+            onderwerp_ref = ctx.onderwerpReferentie()
+            
+            # Build path from onderwerp reference parts
+            path = self.visitOnderwerpReferentieToPath(onderwerp_ref)
+            logger.debug(f"    Built path: {path}")
+            
+            # Check if this is a single-element path that might be a parameter
+            if len(path) == 1 and path[0] in self.parameter_names:
+                logger.debug(f"    Recognized as parameter: '{path[0]}'")
+                return ParameterReference(parameter_name=path[0], span=self.get_span(ctx))
+            
+            # Otherwise treat as attribute reference
+            result = AttributeReference(path=path, span=self.get_span(ctx))
             logger.debug(f"    Returning: {result}")
             return result
         elif isinstance(ctx, AntlrParser.NaamwoordExprContext):
             logger.debug("  -> Matched NaamwoordExprContext")
-            # --- Call dedicated visitNaamwoord ---
-            name = self.visitNaamwoord(ctx.naamwoord())
-            # -------------------------------------
-            logger.debug(f"    Name returned by visitNaamwoord: '{name}'")
-            if name:
+            # Use _extract_canonical_name for consistent canonicalization
+            canonical_name = self._extract_canonical_name(ctx.naamwoord())
+            logger.debug(f"    Canonical name: '{canonical_name}'")
+            if canonical_name:
                 # Check if this is a parameter name
-                if name in self.parameter_names:
-                    logger.debug(f"    Name '{name}' is a known parameter, creating ParameterReference")
-                    result = ParameterReference(parameter_name=name, span=self.get_span(ctx))
+                if canonical_name in self.parameter_names:
+                    logger.debug(f"    Name '{canonical_name}' is a known parameter, creating ParameterReference")
+                    result = ParameterReference(parameter_name=canonical_name, span=self.get_span(ctx))
                 else:
                     # Not a parameter, assume variable reference
-                    logger.debug(f"    Name '{name}' is not a known parameter, creating VariableReference")
-                    result = VariableReference(variable_name=name, span=self.get_span(ctx))
+                    logger.debug(f"    Name '{canonical_name}' is not a known parameter, creating VariableReference")
+                    result = VariableReference(variable_name=canonical_name, span=self.get_span(ctx))
                 logger.debug(f"    Returning: {result}")
                 return result
             else:
-                logger.error(f"visitNaamwoord returned None for {safe_get_text(ctx)}")
+                logger.error(f"_extract_canonical_name returned None for {safe_get_text(ctx)}")
                 return None
         elif isinstance(ctx, AntlrParser.RekendatumKeywordExprContext):
             logger.debug("  -> Matched RekendatumKeywordExprContext")
@@ -1170,10 +1171,20 @@ class RegelSpraakModelBuilder(RegelSpraakVisitor):
 
     def visitVoorwaardeDeel(self, ctx: AntlrParser.VoorwaardeDeelContext) -> Optional[Voorwaarde]:
         """Visit a condition part and build a Voorwaarde object."""
-        expressie = self.visitExpressie(ctx.expressie())
-        if not expressie:
-             logger.error(f"Could not parse expression in voorwaardeDeel: {safe_get_text(ctx)}")
-             return None
+        # Check if we have an expression or a complex condition
+        if ctx.expressie():
+            expressie = self.visitExpressie(ctx.expressie())
+            if not expressie:
+                logger.error(f"Could not parse expression in voorwaardeDeel: {safe_get_text(ctx)}")
+                return None
+        elif ctx.toplevelSamengesteldeVoorwaarde():
+            # TODO: Implement support for complex conditions
+            logger.warning(f"Complex conditions not yet implemented: {safe_get_text(ctx)}")
+            return None
+        else:
+            logger.error(f"No expression found in voorwaardeDeel: {safe_get_text(ctx)}")
+            return None
+            
         return Voorwaarde(expressie=expressie, span=self.get_span(ctx))
 
     def visitVariabeleDeel(self, ctx: AntlrParser.VariabeleDeelContext) -> Dict[str, Expression]:
