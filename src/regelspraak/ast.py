@@ -106,6 +106,7 @@ class Attribuut:
     span: SourceSpan
     eenheid: Optional[str] = None
     is_lijst: bool = False # Indicates if it's a list (e.g., 'lijst van ...')
+    is_object_ref: bool = False # Indicates if this attribute references another object type
     # Add other fields as needed: constraints, dimensions, tijdlijn, etc.
     # description: Optional[str] = None
 
@@ -191,6 +192,25 @@ class Regel:
     # description: Optional[str] = None
     # metadata: Dict[str, Any] = field(default_factory=dict)
 
+# --- Feittype Definitions ---
+
+@dataclass
+class Rol:
+    """Represents a role in a feittype relationship."""
+    naam: str # Role name (e.g., "passagier", "reis")
+    object_type: str # Object type that fulfills this role (e.g., "Natuurlijk persoon", "Vlucht")
+    meervoudig: bool # Whether multiple instances allowed (e.g., multiple passengers per flight)
+    span: SourceSpan
+
+@dataclass
+class FeitType:
+    """Represents a feittype (relationship type) between object types."""
+    naam: str # Feittype name (e.g., "vlucht van natuurlijke personen")
+    wederkerig: bool # Whether reciprocal (e.g., partner relationship)
+    rollen: List[Rol] # Roles in the relationship (minimum 2)
+    span: SourceSpan
+    # relatie_beschrijving: Optional[str] = None # e.g., "betreft de verplaatsing van"
+
 
 # --- Top-Level Container ---
 
@@ -201,7 +221,8 @@ class DomainModel:
     objecttypes: Dict[str, ObjectType] = field(default_factory=dict)
     parameters: Dict[str, Parameter] = field(default_factory=dict)
     domeinen: Dict[str, Domein] = field(default_factory=dict)
+    feittypen: Dict[str, FeitType] = field(default_factory=dict)
     regels: List[Regel] = field(default_factory=list)
-    # Add other top-level elements like Feittype, Beslistabel as needed
+    # Add other top-level elements like Beslistabel as needed
     # description: Optional[str] = None
     # name: Optional[str] = None # If there's a top-level domain name 

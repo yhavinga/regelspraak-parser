@@ -25,6 +25,7 @@ class SymbolKind(Enum):
     VARIABLE = "variable"
     RULE = "rule"
     DOMAIN = "domain"
+    FEITTYPE = "feittype"
 
 
 @dataclass
@@ -157,6 +158,17 @@ class SemanticAnalyzer:
             except SemanticError as e:
                 self.errors.append(e)
         
+        # Collect feittypen
+        for feittype_name, feittype in model.feittypen.items():
+            try:
+                self.symbol_table.define(
+                    feittype_name,
+                    SymbolKind.FEITTYPE,
+                    definition=feittype
+                )
+            except SemanticError as e:
+                self.errors.append(e)
+        
         # Collect object types and their members
         for obj_name, obj_type in model.objecttypes.items():
             try:
@@ -168,6 +180,16 @@ class SemanticAnalyzer:
                 self.symbol_table.object_types[obj_name] = obj_type
             except SemanticError as e:
                 self.errors.append(e)
+        
+        # Second pass on object types: mark attributes as object references
+        # when their datatype matches another object type
+        for obj_name, obj_type in model.objecttypes.items():
+            for attr_name, attribuut in obj_type.attributen.items():
+                # Check if the attribute's datatype is an object type
+                if attribuut.datatype in model.objecttypes:
+                    # Mark this attribute as an object reference
+                    attribuut.is_object_ref = True
+                    logger.debug(f"Marked attribute '{attr_name}' of type '{obj_name}' as object reference to '{attribuut.datatype}'")
         
         # Collect rule names (for future cross-rule references)
         for regel in model.regels:

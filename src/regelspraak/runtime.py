@@ -206,8 +206,19 @@ class RuntimeContext:
             # Use the provided unit if given, otherwise fallback to definition's unit
             unit_to_use = unit if unit is not None else attr_def.eenheid
             # TODO: Type check raw_value against attr_def.datatype? Conversion?
-            datatype = attr_def.datatype
-            value_obj = Value(value=value, datatype=datatype, unit=unit_to_use)
+            
+            # Check if this attribute is an object reference
+            if attr_def.is_object_ref:
+                # Value should be a RuntimeObject
+                if isinstance(value, RuntimeObject):
+                    # Store the object reference with special datatype
+                    value_obj = Value(value=value, datatype="ObjectReference", unit=None)
+                else:
+                    raise RuntimeError(f"Attribute '{attr_name}' is an object reference but value is not a RuntimeObject")
+            else:
+                # Regular attribute
+                datatype = attr_def.datatype
+                value_obj = Value(value=value, datatype=datatype, unit=unit_to_use)
 
         old_value_obj = instance.attributen.get(attr_name)
         old_raw_value = old_value_obj.value if old_value_obj else None
