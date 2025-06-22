@@ -4,7 +4,7 @@ import pathlib
 import json
 from typing import Optional
 from .parsing import parse_text
-# from .semantics import validate as validate_semantics # Import later
+from .semantics import validate as validate_semantics
 from .errors import RegelspraakError, ParseError, RuntimeError # Added RuntimeError
 from .runtime import RuntimeContext, Value, RuntimeObject # Added Value, RuntimeObject
 from .engine import Evaluator, PrintTraceSink
@@ -29,16 +29,18 @@ def validate(file: pathlib.Path):
         domain_model = parse_text(text) # May raise ParseError
         click.echo("Parsing successful.")
         
-        # Step 2: Semantic Validation (Placeholder)
-        # issues = validate_semantics(domain_model) # Implement later
-        issues = [] # Placeholder
+        # Step 2: Semantic Validation
+        issues = validate_semantics(domain_model)
         
         if issues:
             click.echo(f"Found {len(issues)} semantic issues:")
             for issue in issues:
-                 span = issue.span
+                 span = issue.span if issue.span else None
                  # Use click.echo for consistent output styling
-                 click.secho(f"Error (Line {span.start_line}:{span.start_col}): {issue.message}", fg='red')
+                 if span:
+                     click.secho(f"Error (Line {span.start_line}:{span.start_col}): {str(issue)}", fg='red')
+                 else:
+                     click.secho(f"Error: {str(issue)}", fg='red')
             sys.exit(1)
         else:
             # If parsing succeeded and no semantic issues (yet), report success
@@ -74,7 +76,20 @@ def run(file: pathlib.Path, data: Optional[pathlib.Path]):
         text = file.read_text(encoding='utf-8')
         domain_model = parse_text(text)
         click.echo("Parsing successful.")
-        # TODO: Add semantic validation step here?
+        
+        # Semantic validation
+        semantic_errors = validate_semantics(domain_model)
+        if semantic_errors:
+            click.echo(f"Found {len(semantic_errors)} semantic errors:")
+            for error in semantic_errors:
+                span = error.span if error.span else None
+                if span:
+                    click.secho(f"Error (Line {span.start_line}:{span.start_col}): {str(error)}", fg='red')
+                else:
+                    click.secho(f"Error: {str(error)}", fg='red')
+            click.secho("Cannot execute due to semantic errors.", fg='red')
+            sys.exit(1)
+        click.echo("Semantic validation successful.")
         
         # Setup runtime
         trace_sink = PrintTraceSink() # Use PrintTraceSink by default

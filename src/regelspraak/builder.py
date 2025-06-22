@@ -852,7 +852,7 @@ class RegelSpraakModelBuilder(RegelSpraakVisitor):
                     unit = ctx.unitIdentifier().getText()
                     logger.debug(f"    Found unit: '{unit}'")
                 
-                return Literal(value=value, datatype="Numeriek", unit=unit, span=self.get_span(ctx))
+                return Literal(value=value, datatype="Numeriek", eenheid=unit, span=self.get_span(ctx))
             except ValueError:
                  logger.error(f"Invalid numeric literal: {ctx.NUMBER().getText()} in {safe_get_text(ctx)}")
                  return None
