@@ -105,40 +105,6 @@ OPERATOR_MAP = {
     # Add NIET_IN if defined in grammar
 }
 
-# Helper map for phrasal operators identified by their context node text
-OPERATOR_TEXT_MAP = {
-    # --- Comparison Phrases --- 
-    "is gelijk aan": Operator.GELIJK_AAN,
-    "zijn gelijk aan": Operator.GELIJK_AAN,
-    "is ongelijk aan": Operator.NIET_GELIJK_AAN,
-    "zijn ongelijk aan": Operator.NIET_GELIJK_AAN,
-    "kleiner is dan": Operator.KLEINER_DAN,
-    "is kleiner dan": Operator.KLEINER_DAN,
-    "zijn kleiner dan": Operator.KLEINER_DAN,
-    "groter is dan": Operator.GROTER_DAN, # Assuming this might exist
-    "is groter dan": Operator.GROTER_DAN,
-    "zijn groter dan": Operator.GROTER_DAN,
-    "is kleiner of gelijk aan": Operator.KLEINER_OF_GELIJK_AAN,
-    "zijn kleiner of gelijk aan": Operator.KLEINER_OF_GELIJK_AAN,
-    "is groter of gelijk aan": Operator.GROTER_OF_GELIJK_AAN,
-    "zijn groter of gelijk aan": Operator.GROTER_OF_GELIJK_AAN,
-
-    # --- Date/Time Comparison Phrases --- 
-    "is later dan": Operator.GROTER_DAN,
-    "zijn later dan": Operator.GROTER_DAN,
-    "is later of gelijk aan": Operator.GROTER_OF_GELIJK_AAN,
-    "zijn later of gelijk aan": Operator.GROTER_OF_GELIJK_AAN,
-    "is eerder dan": Operator.KLEINER_DAN,
-    "zijn eerder dan": Operator.KLEINER_DAN,
-    "is eerder of gelijk aan": Operator.KLEINER_OF_GELIJK_AAN,
-    "zijn eerder of gelijk aan": Operator.KLEINER_OF_GELIJK_AAN,
-
-    # --- Other Phrases (Add as needed) ---
-    "verminderd met": Operator.MIN,
-    "gedeeld door": Operator.GEDEELD_DOOR,
-    "tot de macht": Operator.MACHT,
-}
-
 # --- AST Builder Class ---
 
 class RegelSpraakModelBuilder(RegelSpraakVisitor):
@@ -327,38 +293,16 @@ class RegelSpraakModelBuilder(RegelSpraakVisitor):
             op_text = safe_get_text(op_node)
             op_sym_name = 'N/A' # Default symbolic name
 
-            # Strategy 1: Handle specific operator rule contexts if name provided
-            if operator_rule_name:
-                 expected_op_class = getattr(AntlrParser, operator_rule_name[0].upper() + f"{operator_rule_name}Context"[1:], None)
-                 logger.debug(f"Checking op_node type: {type(op_node).__name__}, Text: '{op_text}', Expected class: {expected_op_class.__name__ if expected_op_class else 'None'}") # Enhanced log
-                 if expected_op_class and isinstance(op_node, expected_op_class):
-                     # --- NEW: Use text-based lookup for specific operator contexts --- 
-                     logger.debug(f"Operator node '{op_text}' matches expected type {expected_op_class.__name__}. Attempting text-based lookup in OPERATOR_TEXT_MAP.")
-                     operator = OPERATOR_TEXT_MAP.get(op_text) # Use the full text
-                     if operator:
-                         op_type = -2 # Indicate found via text map (no single token type)
-                         op_sym_name = f"TEXT_MAP:{op_text}"
-                         logger.debug(f"  Found operator '{operator}' via text lookup for '{op_text}'. Setting op_type={op_type}, op_sym_name='{op_sym_name}'")
-                     else:
-                         # If text not found, log warning and child details for debugging
-                         logger.warning(f"Operator node '{op_text}' ({type(op_node).__name__}) text not found in OPERATOR_TEXT_MAP. Operator remains None.")
-                         logger.warning(f"  Logging children of '{op_text}':")
-                         for i in range(op_node.getChildCount()):
-                             child = op_node.getChild(i)
-                             child_text = safe_get_text(child)
-                             child_type_name = type(child).__name__
-                             child_symbol_type = -1
-                             child_symbol_name = 'N/A'
-                             if isinstance(child, TerminalNode):
-                                 child_symbol_type = child.getSymbol().type
-                                 child_symbol_name = AntlrParser.symbolicNames[child_symbol_type] if child_symbol_type >= 0 and child_symbol_type < len(AntlrParser.symbolicNames) else 'INVALID'
-                             logger.warning(f"    Child {i}: Type={child_type_name}, Text='{child_text}', SymbolType={child_symbol_type}, SymbolName='{child_symbol_name}'")
-                     # --- END NEW LOGIC ---
-                 else:
-                      logger.debug(f"Operator node '{op_text}' ({type(op_node).__name__}) did NOT match expected type {expected_op_class.__name__ if expected_op_class else 'None'}.") # Added log
+            # If operator node is a context (like comparisonOperator), extract the terminal node
+            if operator_rule_name and hasattr(op_node, 'children') and op_node.getChildCount() == 1:
+                # Operator context typically has a single terminal child
+                potential_terminal = op_node.getChild(0)
+                if isinstance(potential_terminal, TerminalNode):
+                    op_node = potential_terminal
+                    logger.debug(f"Extracted terminal operator from {operator_rule_name} context: '{safe_get_text(op_node)}'")
 
-            # Strategy 2: Handle simple terminal operators if operator is still None after Strategy 1
-            if operator is None and isinstance(op_node, TerminalNode):
+            # Handle terminal operators
+            if isinstance(op_node, TerminalNode):
                  op_type = op_node.getSymbol().type
                  op_sym_name = AntlrParser.symbolicNames[op_type] if op_type >= 0 and op_type < len(AntlrParser.symbolicNames) else 'INVALID'
                  logger.debug(f"Attempting lookup for TerminalNode operator.")
@@ -369,9 +313,9 @@ class RegelSpraakModelBuilder(RegelSpraakVisitor):
                  operator = operator_map.get(op_type)
                  logger.debug(f"  Lookup result (operator): {operator}")
 
-            # If operator is still None after targeted checks, then it's unknown
+            # If operator is still None, then it's unknown
             if operator is None:
-                logger.error(f"Unknown binary operator after targeted checks: '{op_text}' (Type: {op_type}, SymName: {op_sym_name}) Node: {type(op_node).__name__} in {safe_get_text(ctx)}")
+                logger.error(f"Unknown binary operator: '{op_text}' (Type: {op_type}, SymName: {op_sym_name}) Node: {type(op_node).__name__} in {safe_get_text(ctx)}")
                 return left # Or raise error
             # --- End Operator Identification ---
 
