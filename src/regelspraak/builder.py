@@ -482,7 +482,8 @@ class RegelSpraakModelBuilder(RegelSpraakVisitor):
     # 5. Reference Construction Methods
     def visitAttribuutReferentie(self, ctx: AntlrParser.AttribuutReferentieContext) -> Optional[AttributeReference]:
         """Visit an attribute reference and build an AttributeReference object."""
-        attribute_name = self.visitNaamwoord(ctx.naamwoord())
+        # Get the simple attribute name
+        attribute_name = self.visitAttribuutMetLidwoord(ctx.attribuutMetLidwoord())
         # Recursively build the path from the nested onderwerpReferentie
         base_path = self.visitOnderwerpReferentieToPath(ctx.onderwerpReferentie())
         if not base_path:
@@ -491,6 +492,14 @@ class RegelSpraakModelBuilder(RegelSpraakVisitor):
         # Prepend the attribute name to the path
         full_path = [attribute_name] + base_path
         return AttributeReference(path=full_path, span=self.get_span(ctx))
+    
+    def visitAttribuutMetLidwoord(self, ctx: AntlrParser.AttribuutMetLidwoordContext) -> str:
+        """Extract the attribute name from attribuutMetLidwoord context."""
+        # Skip the article (DE/HET) and join the identifierOrKeyword tokens
+        tokens = []
+        for child in ctx.identifierOrKeyword():
+            tokens.append(child.getText())
+        return " ".join(tokens)
 
     def visitBezieldeReferentie(self, ctx: AntlrParser.BezieldeReferentieContext) -> Optional[AttributeReference]:
         """Visit bezielde referentie (e.g., 'zijn leeftijd') and create an AttributeReference,
@@ -537,40 +546,30 @@ class RegelSpraakModelBuilder(RegelSpraakVisitor):
             return None
 
     def visitOnderwerpReferentieToPath(self, ctx: AntlrParser.OnderwerpReferentieContext) -> List[str]:
-        """Helper to convert onderwerpReferentie into a path list for AttributeReference."""
+        """Helper to convert onderwerpReferentie into a path list for AttributeReference.
+        
+        Grammar: onderwerpReferentie : basisOnderwerp ( voorzetsel basisOnderwerp )*
+        Example: "de straat van het adres van de persoon" -> ["straat", "adres", "persoon"]
+        """
         path = []
-        # Simplified: extracts text from basisOnderwerp parts. Needs refinement.
-        current_ctx = ctx
-        while current_ctx is not None:
-            # Check if basisOnderwerp is a method returning a list or single item
-            basis_onderwerpen = None
-            if hasattr(current_ctx, 'basisOnderwerp'):
-                potential_basis = current_ctx.basisOnderwerp()
-                if isinstance(potential_basis, list):
-                    basis_onderwerpen = potential_basis
-                elif potential_basis is not None:
-                    basis_onderwerpen = [potential_basis] # Wrap single item in list
-            
-            if basis_onderwerpen:
-                for basis_ctx in basis_onderwerpen:
-                     # Pass the individual context object
-                     path_part = self.visitBasisOnderwerpToString(basis_ctx)
-                     if path_part:
-                         path.append(path_part)
-            
-            # Navigate deeper if possible (simplified navigation)
-            if hasattr(current_ctx, 'onderwerpReferentie') and current_ctx.onderwerpReferentie():
-                # This logic seems incorrect based on the grammar `onderwerpReferentie: basisOnderwerp ( voorzetsel basisOnderwerp )*`
-                # There isn't a nested `onderwerpReferentie` within itself directly.
-                # Let's remove this recursive descent attempt within the loop.
-                # current_ctx = current_ctx.onderwerpReferentie()
-                current_ctx = None # Stop after processing direct children
-            else:
-                 current_ctx = None # Stop if no further basisOnderwerp or nesting
-
-        # Path should be built in order: basis ( voorzetsel basis )*
-        # No reversal needed based on grammar structure if loop processes correctly.
-        # return list(reversed(path))
+        
+        # Process all basisOnderwerp elements in the onderwerpReferentie
+        basis_onderwerpen = ctx.basisOnderwerp()
+        if not isinstance(basis_onderwerpen, list):
+            basis_onderwerpen = [basis_onderwerpen] if basis_onderwerpen else []
+        
+        logger.debug(f"visitOnderwerpReferentieToPath: found {len(basis_onderwerpen)} basisOnderwerp elements")
+        
+        # Extract text from each basisOnderwerp
+        for i, basis_ctx in enumerate(basis_onderwerpen):
+            path_part = self.visitBasisOnderwerpToString(basis_ctx)
+            logger.debug(f"  basisOnderwerp[{i}]: '{path_part}'")
+            if path_part:
+                path.append(path_part)
+        
+        # Path is built in the order of the grammar
+        # For "de straat van het adres van de persoon", we get ["straat", "adres", "persoon"]
+        logger.debug(f"  Final path: {path}")
         return path
 
     # 6. Expression Hierarchy Visitors

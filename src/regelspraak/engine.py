@@ -346,8 +346,49 @@ class Evaluator:
                             
                         result = value
                     else:
-                        # Handle accessing attributes of related objects (needs context traversal)
-                        raise RegelspraakError(f"Accessing attributes via path '{'.'.join(expr.path)}' not yet implemented.", span=expr.span)
+                        # Handle nested object references
+                        # Path like ["vluchtdatum", "reis", "persoon"] means:
+                        # person.reis.vluchtdatum (reversed for navigation)
+                        
+                        # Start from current instance and traverse the path
+                        current_obj = self.context.current_instance
+                        # Reverse path for navigation: ["vluchtdatum", "reis"] -> ["reis", "vluchtdatum"]
+                        nav_path = list(reversed(expr.path))
+                        
+                        # Navigate through all but the last element
+                        for i, segment in enumerate(nav_path[:-1]):
+                            # Get the attribute value which should be an object reference
+                            ref_value = self.context.get_attribute(current_obj, segment)
+                            
+                            # Check if it's an object reference
+                            if ref_value.datatype != "ObjectReference":
+                                raise RegelspraakError(
+                                    f"Expected ObjectReference for '{segment}' but got {ref_value.datatype}",
+                                    span=expr.span
+                                )
+                            
+                            # Move to the referenced object
+                            current_obj = ref_value.value
+                            if not isinstance(current_obj, RuntimeObject):
+                                raise RegelspraakError(
+                                    f"Invalid object reference in path at '{segment}'",
+                                    span=expr.span
+                                )
+                        
+                        # Get the final attribute from the last object
+                        final_attr = nav_path[-1]
+                        value = self.context.get_attribute(current_obj, final_attr)
+                        
+                        # Trace the final attribute read
+                        if self.context.trace_sink:
+                            self.context.trace_sink.attribute_read(
+                                current_obj,
+                                final_attr,
+                                value.value if isinstance(value, Value) else value,
+                                expr=expr
+                            )
+                        
+                        result = value
 
             elif isinstance(expr, BinaryExpression):
                 result = self._handle_binary(expr)

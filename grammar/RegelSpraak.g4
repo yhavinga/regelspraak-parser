@@ -354,8 +354,12 @@ basisOnderwerp // Base unit for subject/object reference
     | HIJ
     ;
 
-attribuutReferentie // Combination of spec 13.4.1.9 and reference structure
-    : naamwoord VAN onderwerpReferentie // Relies on onderwerpReferentie for nesting
+attribuutReferentie // According to spec: attribuutmetlidwoord "van" onderwerpketen
+    : attribuutMetLidwoord VAN onderwerpReferentie // Simple attribute + "van" + complex subject chain
+    ;
+
+attribuutMetLidwoord // Simple attribute name with optional article
+    : (DE | HET)? identifierOrKeyword+
     ;
 
 kenmerkNaam : onderwerpReferentie ; // Reuse onderwerpReferentie structure (as per original G4)
