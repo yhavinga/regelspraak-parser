@@ -8,7 +8,10 @@ __pycache__/
 *.pyd
 
 # ANTLR Generated Code
-src/regelspraak/generated/
+src/regelspraak/_antlr/
+
+# ANTLR Library
+lib/antlr*jar
 
 # Build artifacts
 dist/
@@ -18,4 +21,4 @@ build/
 # IDEs / Editors
 .vscode/
 .idea/
-*.swp 
+*.swp
