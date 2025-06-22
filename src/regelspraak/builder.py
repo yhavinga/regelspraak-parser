@@ -955,8 +955,8 @@ class RegelSpraakModelBuilder(RegelSpraakVisitor):
         if ctx.datatype():
             datatype_str = safe_get_text(ctx.datatype()) # Further parsing might be needed
         elif ctx.domeinRef():
-             # Assumes domeinRef gives the name directly
-            datatype_str = ctx.domeinRef().name.text # Use .text
+            # Visit the domain reference to get the domain name
+            datatype_str = self.visitDomeinRef(ctx.domeinRef())
 
         eenheid = None
         if ctx.MET_EENHEID():
@@ -992,21 +992,15 @@ class RegelSpraakModelBuilder(RegelSpraakVisitor):
 
     def visitDomeinDefinition(self, ctx: AntlrParser.DomeinDefinitionContext) -> Domein:
          """Visit a domain definition and build a Domein object."""
-         naam = " ".join([id_token.getText() for id_token in ctx.name])
+         naam = ctx.name.text
          basis_type = None
          eenheid = None
          enumeratie_waarden = None
          # constraints = [] # TODO: Parse constraints if grammar supports them
 
-         if ctx.MET_EENHEID():
-             if ctx.unitName:
-                 eenheid = ctx.unitName.text
-             elif ctx.PERCENT_SIGN():
-                 eenheid = "%"
-             elif ctx.EURO_SYMBOL():
-                 eenheid = "€"
-             elif ctx.DOLLAR_SYMBOL():
-                 eenheid = "$"
+         if ctx.MET_EENHEID() and ctx.eenheidExpressie():
+             # Get the unit expression text
+             eenheid = safe_get_text(ctx.eenheidExpressie())
 
          if ctx.domeinType().numeriekDatatype():
              basis_type = "Numeriek" # TODO: Parse details like geheel, niet-negatief
@@ -1030,6 +1024,10 @@ class RegelSpraakModelBuilder(RegelSpraakVisitor):
              span=self.get_span(ctx)
          )
 
+    def visitDomeinRef(self, ctx: AntlrParser.DomeinRefContext) -> str:
+        """Visit a domain reference and return the domain name."""
+        return ctx.name.text
+
     def visitParameterDefinition(self, ctx: AntlrParser.ParameterDefinitionContext) -> Optional[Parameter]:
         """Visit a parameter definition and build a Parameter object."""
         # Access the name via parameterNamePhrase rule
@@ -1042,7 +1040,7 @@ class RegelSpraakModelBuilder(RegelSpraakVisitor):
         if ctx.datatype():
             datatype_str = safe_get_text(ctx.datatype()) # Needs detail parsing
         elif ctx.domeinRef():
-            datatype_str = safe_get_text(ctx.domeinRef().name) if ctx.domeinRef().name else None
+            datatype_str = self.visitDomeinRef(ctx.domeinRef())
 
         eenheid = None
         if ctx.MET_EENHEID():

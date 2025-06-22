@@ -126,8 +126,8 @@ Domein TestStatusDomein is van het type Enumeratie
 Objecttype TestPersoon (bezield)
     de leeftijd Numeriek (geheel getal) met eenheid jr;
     de naam Tekst;
-    de status Domein TestStatusDomein;
-    het salaris Domein Bedrag met eenheid €;
+    de status TestStatusDomein;
+    het salaris Bedrag met eenheid €;
     isActief kenmerk (bijvoeglijk);
     heeftRijbewijs kenmerk (bezittelijk);
 

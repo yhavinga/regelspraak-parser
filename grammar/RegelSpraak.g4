@@ -124,7 +124,7 @@ getalSpecificatie // §13.3.3.7 - Use single tokens
 
 // §13.3.4 Domein Definition
 domeinDefinition
-    : DOMEIN name+=IDENTIFIER+ IS_VAN_HET_TYPE domeinType (MET_EENHEID eenheidExpressie )? SEMICOLON?
+    : DOMEIN name=IDENTIFIER IS_VAN_HET_TYPE domeinType (MET_EENHEID eenheidExpressie )? SEMICOLON?
     ;
 
 domeinType
@@ -141,7 +141,7 @@ enumeratieSpecificatie // §13.3.4.2
     ;
 
 domeinRef // Reference to a domain definition
-    : DOMEIN name=IDENTIFIER
+    : name=IDENTIFIER
     ;
 
 // §13.3.5 Eenheden & Eenheidsysteem (Added based on spec)

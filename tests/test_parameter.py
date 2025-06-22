@@ -31,7 +31,7 @@ class ParameterTests(RegelSpraakTestCase):
 
     def test_domein_parameter(self):
         """Test parsing a parameter referencing a Domein."""
-        input_text = "Parameter het aantal kinderen : Domein AantalKinderen;"
+        input_text = "Parameter het aantal kinderen : AantalKinderen;"
         tree = self.parse_text(input_text)
         self.assertNoParseErrors()
 

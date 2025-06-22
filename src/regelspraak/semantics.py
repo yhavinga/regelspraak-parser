@@ -24,6 +24,7 @@ class SymbolKind(Enum):
     KENMERK = "kenmerk"
     VARIABLE = "variable"
     RULE = "rule"
+    DOMAIN = "domain"
 
 
 @dataclass
@@ -140,6 +141,18 @@ class SemanticAnalyzer:
                     SymbolKind.PARAMETER,
                     datatype=param.datatype,
                     definition=param
+                )
+            except SemanticError as e:
+                self.errors.append(e)
+        
+        # Collect domains
+        for domein_name, domein in model.domeinen.items():
+            try:
+                self.symbol_table.define(
+                    domein_name,
+                    SymbolKind.DOMAIN,
+                    datatype=domein.basis_type,
+                    definition=domein
                 )
             except SemanticError as e:
                 self.errors.append(e)
