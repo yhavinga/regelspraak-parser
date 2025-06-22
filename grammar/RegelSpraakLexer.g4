@@ -172,6 +172,10 @@ WEG_VAN_NUL: 'weg van nul';
 DE_WORTEL_VAN: 'de wortel van';
 TENMINSTE: 'tenminste';
 TEN_MINSTE: 'ten minste';
+TEN_HOOGSTE: 'ten hoogste';
+PRECIES: 'precies';
+VOORWAARDE: 'voorwaarde';
+VOORWAARDEN: 'voorwaarden';
 
 // GegevensSpraak Detail Keywords
 BEZIELD: '(bezield)';
@@ -221,8 +225,7 @@ TOENEMENDE: 'toenemende';
 DRIE_TELWOORD: 'drie';
 EEN_TELWOORD: 'één';
 GEEN_VAN_DE: 'geen van de';
-PRECIES: 'precies';
-TEN_HOOGSTE: 'ten hoogste';
+GEEN: 'geen';
 TWEE_TELWOORD: 'twee';
 VIER_TELWOORD: 'vier';
 
@@ -259,6 +262,7 @@ UUR: 'uur';
 VAN: 'van';
 VOLGENDE_VOORWAARDE: 'volgende voorwaarde';
 VOLGENDE_VOORWAARDEN: 'volgende voorwaarden';
+VOLGENDE: 'volgende';  // Must be after compound tokens
 VOOR: 'voor';
 WAAR: 'waar';
 WEEK: 'week';
@@ -317,6 +321,7 @@ ASTERISK: '*';
 L_ANGLE_QUOTE: '«';
 R_ANGLE_QUOTE: '»';
 CARET: '^';
+DOUBLE_DOT: '..';
 WS: [ \t\r\n]+ -> channel(HIDDEN);
 LINE_COMMENT: '//' ~[\r\n]* -> skip;
 MINUS: '-';

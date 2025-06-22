@@ -182,7 +182,50 @@ class RegelSpraakModelBuilder(RegelSpraakVisitor):
                     naam_phrase_ctx = potential_naam_phrase[0] if isinstance(potential_naam_phrase, list) and potential_naam_phrase else \
                                       potential_naam_phrase if not isinstance(potential_naam_phrase, list) else None
                     if naam_phrase_ctx:
-                        nodes_to_process = [child for child in naam_phrase_ctx.children if isinstance(child, TerminalNode)]
+                        # Process both terminal nodes and identifierOrKeyword contexts
+                        for child in naam_phrase_ctx.children:
+                            if isinstance(child, TerminalNode):
+                                # Only add non-article terminal nodes
+                                token_type = child.getSymbol().type
+                                if token_type not in ignore_tokens:
+                                    nodes_to_process.append(child)
+                            elif hasattr(child, 'identifierOrKeyword') and callable(child.identifierOrKeyword):
+                                # This is an identifierOrKeyword context - get its terminal node
+                                id_or_kw_ctx = child
+                                if hasattr(id_or_kw_ctx, 'IDENTIFIER') and id_or_kw_ctx.IDENTIFIER():
+                                    nodes_to_process.append(id_or_kw_ctx.IDENTIFIER())
+                                elif hasattr(id_or_kw_ctx, 'DAG') and id_or_kw_ctx.DAG():
+                                    nodes_to_process.append(id_or_kw_ctx.DAG())
+                                elif hasattr(id_or_kw_ctx, 'MAAND') and id_or_kw_ctx.MAAND():
+                                    nodes_to_process.append(id_or_kw_ctx.MAAND())
+                                elif hasattr(id_or_kw_ctx, 'JAAR') and id_or_kw_ctx.JAAR():
+                                    nodes_to_process.append(id_or_kw_ctx.JAAR())
+                                elif hasattr(id_or_kw_ctx, 'AANTAL') and id_or_kw_ctx.AANTAL():
+                                    nodes_to_process.append(id_or_kw_ctx.AANTAL())
+                                elif hasattr(id_or_kw_ctx, 'PERIODE') and id_or_kw_ctx.PERIODE():
+                                    nodes_to_process.append(id_or_kw_ctx.PERIODE())
+                                elif hasattr(id_or_kw_ctx, 'REGEL') and id_or_kw_ctx.REGEL():
+                                    nodes_to_process.append(id_or_kw_ctx.REGEL())
+                                elif hasattr(id_or_kw_ctx, 'VOORWAARDE') and id_or_kw_ctx.VOORWAARDE():
+                                    nodes_to_process.append(id_or_kw_ctx.VOORWAARDE())
+                            elif type(child).__name__ == 'IdentifierOrKeywordContext':
+                                # Direct identifierOrKeyword context
+                                if hasattr(child, 'IDENTIFIER') and child.IDENTIFIER():
+                                    nodes_to_process.append(child.IDENTIFIER())
+                                elif hasattr(child, 'DAG') and child.DAG():
+                                    nodes_to_process.append(child.DAG())
+                                elif hasattr(child, 'MAAND') and child.MAAND():
+                                    nodes_to_process.append(child.MAAND())
+                                elif hasattr(child, 'JAAR') and child.JAAR():
+                                    nodes_to_process.append(child.JAAR())
+                                elif hasattr(child, 'AANTAL') and child.AANTAL():
+                                    nodes_to_process.append(child.AANTAL())
+                                elif hasattr(child, 'PERIODE') and child.PERIODE():
+                                    nodes_to_process.append(child.PERIODE())
+                                elif hasattr(child, 'REGEL') and child.REGEL():
+                                    nodes_to_process.append(child.REGEL())
+                                elif hasattr(child, 'VOORWAARDE') and child.VOORWAARDE():
+                                    nodes_to_process.append(child.VOORWAARDE())
                         logger.debug(f"      Processing NaamPhrase children for Naamwoord: {[safe_get_text(n) for n in nodes_to_process]}")
                     else: logger.warning(f"      _extract_canonical_name: No valid naamPhrase context found within NaamwoordContext '{safe_get_text(name_ctx)}'.")
                 else: logger.warning(f"      _extract_canonical_name: naamPhrase() returned None/empty within NaamwoordContext '{safe_get_text(name_ctx)}'.")
@@ -194,11 +237,16 @@ class RegelSpraakModelBuilder(RegelSpraakVisitor):
             logger.debug(f"      Processing direct children for ParameterNamePhrase: {[safe_get_text(n) for n in nodes_to_process]}")
 
         elif isinstance(name_ctx, AntlrParser.RegelNameContext):
-            # Directly process terminal children, add NUMBER to ignore list for rules
-            ignore_tokens.append(AntlrParser.NUMBER)
-            nodes_to_process = [child for child in name_ctx.children if isinstance(child, TerminalNode)]
-            logger.debug(f"      Processing direct children for RegelName: {[safe_get_text(n) for n in nodes_to_process]}")
-            # Note: This might need refinement if RegelName can contain non-terminals
+            # Check if it contains a naamwoord
+            if hasattr(name_ctx, 'naamwoord') and name_ctx.naamwoord():
+                # Delegate to naamwoord processing
+                return self._extract_canonical_name(name_ctx.naamwoord())
+            else:
+                # Directly process terminal children, add NUMBER to ignore list for rules
+                ignore_tokens.append(AntlrParser.NUMBER)
+                nodes_to_process = [child for child in name_ctx.children if isinstance(child, TerminalNode)]
+                logger.debug(f"      Processing direct children for RegelName: {[safe_get_text(n) for n in nodes_to_process]}")
+                # Note: This might need refinement if RegelName can contain non-terminals
 
         elif isinstance(name_ctx, AntlrParser.IdentifierContext):
              # If passed an identifier context directly, return its text
@@ -430,7 +478,7 @@ class RegelSpraakModelBuilder(RegelSpraakVisitor):
 
                 if naam_phrase_ctx: # Proceed only if we have a context to process
                     logger.debug(f"      Processing naamPhrase child: Text='{safe_get_text(naam_phrase_ctx)}', Type={type(naam_phrase_ctx).__name__}, ChildCount={naam_phrase_ctx.getChildCount()}")
-                    # --- Iterate children (TerminalNodes) of naamPhrase ---
+                    # --- Iterate children (TerminalNodes and identifierOrKeyword) of naamPhrase ---
                     for child in naam_phrase_ctx.children:
                          if isinstance(child, TerminalNode):
                               token_type = child.getSymbol().type
@@ -442,8 +490,13 @@ class RegelSpraakModelBuilder(RegelSpraakVisitor):
                                   logger.debug(f"          Appending token text: '{token_text}'")
                               else:
                                    logger.debug(f"          Ignoring article/non-noun token: '{token_text}'")
+                         elif type(child).__name__ == 'IdentifierOrKeywordContext':
+                              # Handle identifierOrKeyword context
+                              token_text = safe_get_text(child)
+                              core_noun_parts.append(token_text)
+                              logger.debug(f"          Appending identifierOrKeyword text: '{token_text}'")
                          else:
-                              logger.warning(f"        Unexpected non-TerminalNode child in naamPhrase: Type={type(child).__name__}")
+                              logger.warning(f"        Unexpected child type in naamPhrase: Type={type(child).__name__}")
                 # ... (else block for no valid context) ...
             # ... (else block for call returning None/empty) ...
 
@@ -474,12 +527,12 @@ class RegelSpraakModelBuilder(RegelSpraakVisitor):
 
     def visitBasisOnderwerpToString(self, ctx: AntlrParser.BasisOnderwerpContext) -> str:
         """Extracts a string representation from basisOnderwerp."""
-        # Handles pronoun (HIJ), identifier, or naamwoord
+        # Handles pronoun (HIJ) or identifierOrKeyword
         if ctx.HIJ():
             return "self" # Represent pronoun as 'self' or similar context key
-        elif ctx.IDENTIFIER():
-            # Combine identifiers, ignore DE/HET/EEN/ZIJN for the path key
-            return " ".join([id_token.getText() for id_token in ctx.IDENTIFIER()])
+        elif ctx.identifierOrKeyword():
+            # Combine identifierOrKeyword tokens, ignore DE/HET/EEN/ZIJN for the path key
+            return " ".join([id_token.getText() for id_token in ctx.identifierOrKeyword()])
         return "<unknown_basis_onderwerp>"
 
     # 5. Reference Construction Methods
@@ -1178,14 +1231,198 @@ class RegelSpraakModelBuilder(RegelSpraakVisitor):
                 logger.error(f"Could not parse expression in voorwaardeDeel: {safe_get_text(ctx)}")
                 return None
         elif ctx.toplevelSamengesteldeVoorwaarde():
-            # TODO: Implement support for complex conditions
-            logger.warning(f"Complex conditions not yet implemented: {safe_get_text(ctx)}")
-            return None
+            expressie = self.visitToplevelSamengesteldeVoorwaarde(ctx.toplevelSamengesteldeVoorwaarde())
+            if not expressie:
+                logger.error(f"Could not parse compound condition in voorwaardeDeel: {safe_get_text(ctx)}")
+                return None
         else:
             logger.error(f"No expression found in voorwaardeDeel: {safe_get_text(ctx)}")
             return None
             
         return Voorwaarde(expressie=expressie, span=self.get_span(ctx))
+
+    def visitToplevelSamengesteldeVoorwaarde(self, ctx: AntlrParser.ToplevelSamengesteldeVoorwaardeContext) -> Optional[Expression]:
+        """Visit a compound condition and build a logical expression."""
+        # Extract the subject (onderwerpReferentie, HIJ, HET, ER, or ER_AAN)
+        subject = None
+        if ctx.onderwerpReferentie():
+            subject = self.visitOnderwerpReferentie(ctx.onderwerpReferentie())
+        elif ctx.HIJ():
+            subject = VariableReference(name="hij", span=self.get_span(ctx.HIJ()))
+        elif ctx.HET():
+            subject = VariableReference(name="het", span=self.get_span(ctx.HET()))
+        elif ctx.ER():
+            subject = VariableReference(name="er", span=self.get_span(ctx.ER()))
+        elif ctx.ER_AAN():
+            subject = VariableReference(name="er", span=self.get_span(ctx.ER_AAN()))
+        
+        # Extract the quantification (alle, geen van de, ten minste één van de, etc.)
+        quantifier = self.visitVoorwaardeKwantificatie(ctx.voorwaardeKwantificatie())
+        
+        # Extract all the condition parts
+        conditions = []
+        for onderdeel_ctx in ctx.samengesteldeVoorwaardeOnderdeel():
+            condition = self.visitSamengesteldeVoorwaardeOnderdeel(onderdeel_ctx)
+            if condition:
+                conditions.append(condition)
+        
+        if not conditions:
+            logger.error("No conditions found in compound condition")
+            return None
+        
+        # Build the appropriate logical expression based on quantifier
+        if quantifier == "alle":
+            # All conditions must be true - use AND
+            result = conditions[0]
+            for condition in conditions[1:]:
+                result = BinaryExpression(
+                    left=result,
+                    operator=Operator.AND,
+                    right=condition,
+                    span=self.get_span(ctx)
+                )
+            return result
+        elif quantifier == "geen van de":
+            # None of the conditions should be true - use NOT(OR)
+            result = conditions[0]
+            for condition in conditions[1:]:
+                result = BinaryExpression(
+                    left=result,
+                    operator=Operator.OR,
+                    right=condition,
+                    span=self.get_span(ctx)
+                )
+            # Wrap in NOT
+            return UnaryExpression(
+                operator=Operator.NOT,
+                operand=result,
+                span=self.get_span(ctx)
+            )
+        elif quantifier.startswith("ten minste"):
+            # At least one condition must be true - use OR
+            result = conditions[0]
+            for condition in conditions[1:]:
+                result = BinaryExpression(
+                    left=result,
+                    operator=Operator.OR,
+                    right=condition,
+                    span=self.get_span(ctx)
+                )
+            return result
+        else:
+            logger.warning(f"Unknown quantifier: {quantifier}")
+            return None
+
+    def visitVoorwaardeKwantificatie(self, ctx: AntlrParser.VoorwaardeKwantificatieContext) -> str:
+        """Extract the quantification type from the context."""
+        if ctx.ALLE():
+            return "alle"
+        elif ctx.GEEN() and ctx.VAN() and ctx.DE():
+            return "geen van de"
+        elif ctx.TEN_MINSTE() or ctx.TENMINSTE():
+            # Check which number is specified
+            if ctx.EEN() or ctx.EEN_TELWOORD():
+                return "ten minste één van de"
+            elif ctx.TWEE_TELWOORD():
+                return "ten minste twee van de"
+            elif ctx.DRIE_TELWOORD():
+                return "ten minste drie van de"
+            elif ctx.VIER_TELWOORD():
+                return "ten minste vier van de"
+            else:
+                return "ten minste één van de"  # Default
+        elif ctx.TEN_HOOGSTE():
+            # Similar logic for TEN_HOOGSTE
+            if ctx.EEN() or ctx.EEN_TELWOORD():
+                return "ten hoogste één van de"
+            elif ctx.TWEE_TELWOORD():
+                return "ten hoogste twee van de"
+            elif ctx.DRIE_TELWOORD():
+                return "ten hoogste drie van de"
+            elif ctx.VIER_TELWOORD():
+                return "ten hoogste vier van de"
+            else:
+                return "ten hoogste één van de"  # Default
+        elif ctx.PRECIES():
+            # Similar logic for PRECIES
+            if ctx.EEN() or ctx.EEN_TELWOORD():
+                return "precies één van de"
+            elif ctx.TWEE_TELWOORD():
+                return "precies twee van de"
+            elif ctx.DRIE_TELWOORD():
+                return "precies drie van de"
+            elif ctx.VIER_TELWOORD():
+                return "precies vier van de"
+            else:
+                return "precies één van de"  # Default
+        else:
+            return "unknown"
+
+    def visitSamengesteldeVoorwaardeOnderdeel(self, ctx: AntlrParser.SamengesteldeVoorwaardeOnderdeelContext) -> Optional[Expression]:
+        """Visit a single condition part (with bullet prefix)."""
+        # Skip the bullet prefix and visit the actual condition
+        if ctx.elementaireVoorwaarde():
+            return self.visitElementaireVoorwaarde(ctx.elementaireVoorwaarde())
+        elif ctx.genesteSamengesteldeVoorwaarde():
+            return self.visitGenesteSamengesteldeVoorwaarde(ctx.genesteSamengesteldeVoorwaarde())
+        else:
+            logger.error("No condition found in samengesteldeVoorwaardeOnderdeel")
+            return None
+
+    def visitElementaireVoorwaarde(self, ctx: AntlrParser.ElementaireVoorwaardeContext) -> Optional[Expression]:
+        """Visit an elementary condition (just an expression)."""
+        return self.visitExpressie(ctx.expressie())
+
+    def visitGenesteSamengesteldeVoorwaarde(self, ctx: AntlrParser.GenesteSamengesteldeVoorwaardeContext) -> Optional[Expression]:
+        """Visit a nested compound condition."""
+        # This is similar to toplevelSamengesteldeVoorwaarde but nested
+        # Extract the subject
+        subject = None
+        if ctx.onderwerpReferentie():
+            subject = self.visitOnderwerpReferentie(ctx.onderwerpReferentie())
+        elif ctx.HIJ():
+            subject = VariableReference(name="hij", span=self.get_span(ctx.HIJ()))
+        elif ctx.ER():
+            subject = VariableReference(name="er", span=self.get_span(ctx.ER()))
+        
+        # Extract the quantification
+        quantifier = self.visitVoorwaardeKwantificatie(ctx.voorwaardeKwantificatie())
+        
+        # Extract all the condition parts
+        conditions = []
+        for onderdeel_ctx in ctx.samengesteldeVoorwaardeOnderdeel():
+            condition = self.visitSamengesteldeVoorwaardeOnderdeel(onderdeel_ctx)
+            if condition:
+                conditions.append(condition)
+        
+        if not conditions:
+            logger.error("No conditions found in nested compound condition")
+            return None
+        
+        # Build the appropriate logical expression based on quantifier
+        if quantifier == "alle":
+            result = conditions[0]
+            for condition in conditions[1:]:
+                result = BinaryExpression(
+                    left=result,
+                    operator=Operator.AND,
+                    right=condition,
+                    span=self.get_span(ctx)
+                )
+            return result
+        elif quantifier.startswith("ten minste"):
+            result = conditions[0]
+            for condition in conditions[1:]:
+                result = BinaryExpression(
+                    left=result,
+                    operator=Operator.OR,
+                    right=condition,
+                    span=self.get_span(ctx)
+                )
+            return result
+        else:
+            logger.warning(f"Unknown quantifier in nested condition: {quantifier}")
+            return None
 
     def visitVariabeleDeel(self, ctx: AntlrParser.VariabeleDeelContext) -> Dict[str, Expression]:
         """Visit a variable part and build a dictionary of variable assignments."""

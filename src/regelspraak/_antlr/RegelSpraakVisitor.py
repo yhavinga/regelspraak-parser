@@ -29,6 +29,11 @@ class RegelSpraakVisitor(ParseTreeVisitor):
         return self.visitChildren(ctx)
 
 
+    # Visit a parse tree produced by RegelSpraakParser#identifierOrKeyword.
+    def visitIdentifierOrKeyword(self, ctx:RegelSpraakParser.IdentifierOrKeywordContext):
+        return self.visitChildren(ctx)
+
+
     # Visit a parse tree produced by RegelSpraakParser#naamPhrase.
     def visitNaamPhrase(self, ctx:RegelSpraakParser.NaamPhraseContext):
         return self.visitChildren(ctx)
@@ -294,6 +299,36 @@ class RegelSpraakVisitor(ParseTreeVisitor):
         return self.visitChildren(ctx)
 
 
+    # Visit a parse tree produced by RegelSpraakParser#toplevelSamengesteldeVoorwaarde.
+    def visitToplevelSamengesteldeVoorwaarde(self, ctx:RegelSpraakParser.ToplevelSamengesteldeVoorwaardeContext):
+        return self.visitChildren(ctx)
+
+
+    # Visit a parse tree produced by RegelSpraakParser#voorwaardeKwantificatie.
+    def visitVoorwaardeKwantificatie(self, ctx:RegelSpraakParser.VoorwaardeKwantificatieContext):
+        return self.visitChildren(ctx)
+
+
+    # Visit a parse tree produced by RegelSpraakParser#samengesteldeVoorwaardeOnderdeel.
+    def visitSamengesteldeVoorwaardeOnderdeel(self, ctx:RegelSpraakParser.SamengesteldeVoorwaardeOnderdeelContext):
+        return self.visitChildren(ctx)
+
+
+    # Visit a parse tree produced by RegelSpraakParser#bulletPrefix.
+    def visitBulletPrefix(self, ctx:RegelSpraakParser.BulletPrefixContext):
+        return self.visitChildren(ctx)
+
+
+    # Visit a parse tree produced by RegelSpraakParser#elementaireVoorwaarde.
+    def visitElementaireVoorwaarde(self, ctx:RegelSpraakParser.ElementaireVoorwaardeContext):
+        return self.visitChildren(ctx)
+
+
+    # Visit a parse tree produced by RegelSpraakParser#genesteSamengesteldeVoorwaarde.
+    def visitGenesteSamengesteldeVoorwaarde(self, ctx:RegelSpraakParser.GenesteSamengesteldeVoorwaardeContext):
+        return self.visitChildren(ctx)
+
+
     # Visit a parse tree produced by RegelSpraakParser#onderwerpReferentie.
     def visitOnderwerpReferentie(self, ctx:RegelSpraakParser.OnderwerpReferentieContext):
         return self.visitChildren(ctx)
@@ -316,26 +351,6 @@ class RegelSpraakVisitor(ParseTreeVisitor):
 
     # Visit a parse tree produced by RegelSpraakParser#bezieldeReferentie.
     def visitBezieldeReferentie(self, ctx:RegelSpraakParser.BezieldeReferentieContext):
-        return self.visitChildren(ctx)
-
-
-    # Visit a parse tree produced by RegelSpraakParser#toplevelSamengesteldeVoorwaarde.
-    def visitToplevelSamengesteldeVoorwaarde(self, ctx:RegelSpraakParser.ToplevelSamengesteldeVoorwaardeContext):
-        return self.visitChildren(ctx)
-
-
-    # Visit a parse tree produced by RegelSpraakParser#voorwaardeKwantificatie.
-    def visitVoorwaardeKwantificatie(self, ctx:RegelSpraakParser.VoorwaardeKwantificatieContext):
-        return self.visitChildren(ctx)
-
-
-    # Visit a parse tree produced by RegelSpraakParser#samengesteldeVoorwaardeOnderdeel.
-    def visitSamengesteldeVoorwaardeOnderdeel(self, ctx:RegelSpraakParser.SamengesteldeVoorwaardeOnderdeelContext):
-        return self.visitChildren(ctx)
-
-
-    # Visit a parse tree produced by RegelSpraakParser#genesteVoorwaarde.
-    def visitGenesteVoorwaarde(self, ctx:RegelSpraakParser.GenesteVoorwaardeContext):
         return self.visitChildren(ctx)
 
 

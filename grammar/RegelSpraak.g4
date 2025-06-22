@@ -27,13 +27,25 @@ identifier
     : IDENTIFIER
     ;
 
+// Rule for tokens that can be used as identifiers in certain contexts
+identifierOrKeyword
+    : IDENTIFIER
+    | DAG        // "dag" - commonly used in "een dag"
+    | MAAND      // "maand" - used in date expressions
+    | JAAR       // "jaar" - used in date expressions
+    | AANTAL     // "aantal" - can be part of names
+    | PERIODE    // "periode" - can be an attribute name
+    | REGEL      // "regel" - can be referenced
+    | VOORWAARDE // "voorwaarde" - can be part of rule names
+    ;
+
 naamPhrase // Used within naamwoord
-    : (DE | HET | ZIJN)? IDENTIFIER+
-    | identifier+ // Allow all identifiers (covers capitalized Het, De, etc.)
-    | NIEUWE IDENTIFIER+ // Allow 'nieuwe' in names
-    | NIEUWE IDENTIFIER+ MET IDENTIFIER+ // Allow 'nieuwe X met Y' pattern in rule names
-    | identifier+ MET identifier+ // Allow 'X met Y' pattern in rule names
-    | NIET IDENTIFIER+ // Allow 'niet X' pattern
+    : (DE | HET | ZIJN)? identifierOrKeyword+
+    | identifierOrKeyword+ // Allow all identifiers (covers capitalized Het, De, etc.)
+    | NIEUWE identifierOrKeyword+ // Allow 'nieuwe' in names
+    | NIEUWE identifierOrKeyword+ MET identifierOrKeyword+ // Allow 'nieuwe X met Y' pattern in rule names
+    | identifierOrKeyword+ MET identifierOrKeyword+ // Allow 'X met Y' pattern in rule names
+    | NIET identifierOrKeyword+ // Allow 'niet X' pattern
     ;
 
 naamwoord // Modified to handle structure like 'phrase (preposition phrase)*'
@@ -270,6 +282,7 @@ attributeInitVervolg
     : EN attribuut=naamwoord waarde=expressie
     ;
 
+
 // --- Consistentieregel Structure ---
 consistentieregel
     : CONSISTENTIEREGEL naamwoord
@@ -291,6 +304,44 @@ voorwaardeDeel
     : INDIEN ( expressie | toplevelSamengesteldeVoorwaarde ) // Restore complex conditions, keep simple ones in expressie
     ;
 
+// §10.2 Samengestelde Voorwaarde (Compound Conditions)
+toplevelSamengesteldeVoorwaarde
+    : ER_AAN voorwaardeKwantificatie (VOLGENDE_VOORWAARDEN | VOLGENDE_VOORWAARDE) WORDT_VOLDAAN COLON
+      samengesteldeVoorwaardeOnderdeel+
+    | (onderwerpReferentie | HIJ | HET | ER) AAN voorwaardeKwantificatie (VOLGENDE_VOORWAARDEN | VOLGENDE_VOORWAARDE) VOLDOET COLON
+      samengesteldeVoorwaardeOnderdeel+
+    | (onderwerpReferentie | HIJ | HET | ER) VOLDOET AAN voorwaardeKwantificatie (VOLGENDE_VOORWAARDEN | VOLGENDE_VOORWAARDE) COLON
+      samengesteldeVoorwaardeOnderdeel+
+    ;
+
+voorwaardeKwantificatie
+    : ALLE
+    | GEEN VAN DE
+    | (TEN_MINSTE | TENMINSTE) (EEN | EEN_TELWOORD | TWEE_TELWOORD | DRIE_TELWOORD | VIER_TELWOORD) VAN DE
+    | TEN_HOOGSTE (EEN | EEN_TELWOORD | TWEE_TELWOORD | DRIE_TELWOORD | VIER_TELWOORD) VAN DE
+    | PRECIES (EEN | EEN_TELWOORD | TWEE_TELWOORD | DRIE_TELWOORD | VIER_TELWOORD) VAN DE
+    ;
+
+samengesteldeVoorwaardeOnderdeel
+    : bulletPrefix ( elementaireVoorwaarde | genesteSamengesteldeVoorwaarde )
+    ;
+
+bulletPrefix
+    : MINUS
+    | DOUBLE_DOT
+    | BULLET
+    | ASTERISK
+    ;
+
+elementaireVoorwaarde
+    : expressie  // Simple conditions are just expressions
+    ;
+
+genesteSamengesteldeVoorwaarde
+    : (onderwerpReferentie | HIJ | ER) VOLDOET AAN voorwaardeKwantificatie (VOLGENDE_VOORWAARDEN | VOLGENDE_VOORWAARDE) COLON
+      samengesteldeVoorwaardeOnderdeel+
+    ;
+
 // --- RegelSpraak Onderwerpketen (§13.4.1) & References ---
 
 // §13.4.1 Onderwerpketen (Simplified/Combined References in original G4)
@@ -299,7 +350,7 @@ onderwerpReferentie // Allow sequence + nesting + pronoun
     ;
 
 basisOnderwerp // Base unit for subject/object reference
-    : (DE | HET | EEN | ZIJN | ALLE)? IDENTIFIER+
+    : (DE | HET | EEN | ZIJN | ALLE)? identifierOrKeyword+
     | HIJ
     ;
 
@@ -314,28 +365,6 @@ bezieldeReferentie // Used in primaryExpression
     : ZIJN identifier
     ;
 
-// --- RegelSpraak Condition Parts (§13.4.13 - §13.4.14) (Simplified in original G4) ---
-
-// §13.4.13 Samengestelde voorwaarde (Simplified structure)
-toplevelSamengesteldeVoorwaarde
-    : (HIJ | HET | onderwerpReferentie) AAN voorwaardeKwantificatie VOLGENDE_VOORWAARDEN VOLDOET COLON // Added HET as alternative subject
-      samengesteldeVoorwaardeOnderdeel
-    | ER_AAN voorwaardeKwantificatie VOLGENDE_VOORWAARDEN WORDT_VOLDAAN COLON  // Support "er aan ... wordt voldaan" format with ER_AAN token
-      samengesteldeVoorwaardeOnderdeel
-    ;
-
-voorwaardeKwantificatie // EBNF 13.4.13.4 (Simplified)
-    : ALLE                             // All conditions must apply
-    | TENMINSTE (EEN_TELWOORD | TWEE_TELWOORD | DRIE_TELWOORD | VIER_TELWOORD | NUMBER) VAN DE  // Support "tenminste <number> van de"
-    ;
-
-samengesteldeVoorwaardeOnderdeel // EBNF 13.4.13.6 (Simplified, with alternative bullets)
-    : (BULLET | MINUS | ASTERISK) genesteVoorwaarde ( (BULLET | MINUS | ASTERISK) genesteVoorwaarde )*
-    ;
-
-genesteVoorwaarde // EBNF 13.4.13.7 (Simplified)
-    : expressie // NEW: Nested conditions are now handled by the expression hierarchy
-    ;
 
 // §13.4.2 Variabele Deel
 variabeleDeel // Use single token

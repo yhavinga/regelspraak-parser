@@ -44,6 +44,15 @@ class RegelSpraakListener(ParseTreeListener):
         pass
 
 
+    # Enter a parse tree produced by RegelSpraakParser#identifierOrKeyword.
+    def enterIdentifierOrKeyword(self, ctx:RegelSpraakParser.IdentifierOrKeywordContext):
+        pass
+
+    # Exit a parse tree produced by RegelSpraakParser#identifierOrKeyword.
+    def exitIdentifierOrKeyword(self, ctx:RegelSpraakParser.IdentifierOrKeywordContext):
+        pass
+
+
     # Enter a parse tree produced by RegelSpraakParser#naamPhrase.
     def enterNaamPhrase(self, ctx:RegelSpraakParser.NaamPhraseContext):
         pass
@@ -521,6 +530,60 @@ class RegelSpraakListener(ParseTreeListener):
         pass
 
 
+    # Enter a parse tree produced by RegelSpraakParser#toplevelSamengesteldeVoorwaarde.
+    def enterToplevelSamengesteldeVoorwaarde(self, ctx:RegelSpraakParser.ToplevelSamengesteldeVoorwaardeContext):
+        pass
+
+    # Exit a parse tree produced by RegelSpraakParser#toplevelSamengesteldeVoorwaarde.
+    def exitToplevelSamengesteldeVoorwaarde(self, ctx:RegelSpraakParser.ToplevelSamengesteldeVoorwaardeContext):
+        pass
+
+
+    # Enter a parse tree produced by RegelSpraakParser#voorwaardeKwantificatie.
+    def enterVoorwaardeKwantificatie(self, ctx:RegelSpraakParser.VoorwaardeKwantificatieContext):
+        pass
+
+    # Exit a parse tree produced by RegelSpraakParser#voorwaardeKwantificatie.
+    def exitVoorwaardeKwantificatie(self, ctx:RegelSpraakParser.VoorwaardeKwantificatieContext):
+        pass
+
+
+    # Enter a parse tree produced by RegelSpraakParser#samengesteldeVoorwaardeOnderdeel.
+    def enterSamengesteldeVoorwaardeOnderdeel(self, ctx:RegelSpraakParser.SamengesteldeVoorwaardeOnderdeelContext):
+        pass
+
+    # Exit a parse tree produced by RegelSpraakParser#samengesteldeVoorwaardeOnderdeel.
+    def exitSamengesteldeVoorwaardeOnderdeel(self, ctx:RegelSpraakParser.SamengesteldeVoorwaardeOnderdeelContext):
+        pass
+
+
+    # Enter a parse tree produced by RegelSpraakParser#bulletPrefix.
+    def enterBulletPrefix(self, ctx:RegelSpraakParser.BulletPrefixContext):
+        pass
+
+    # Exit a parse tree produced by RegelSpraakParser#bulletPrefix.
+    def exitBulletPrefix(self, ctx:RegelSpraakParser.BulletPrefixContext):
+        pass
+
+
+    # Enter a parse tree produced by RegelSpraakParser#elementaireVoorwaarde.
+    def enterElementaireVoorwaarde(self, ctx:RegelSpraakParser.ElementaireVoorwaardeContext):
+        pass
+
+    # Exit a parse tree produced by RegelSpraakParser#elementaireVoorwaarde.
+    def exitElementaireVoorwaarde(self, ctx:RegelSpraakParser.ElementaireVoorwaardeContext):
+        pass
+
+
+    # Enter a parse tree produced by RegelSpraakParser#genesteSamengesteldeVoorwaarde.
+    def enterGenesteSamengesteldeVoorwaarde(self, ctx:RegelSpraakParser.GenesteSamengesteldeVoorwaardeContext):
+        pass
+
+    # Exit a parse tree produced by RegelSpraakParser#genesteSamengesteldeVoorwaarde.
+    def exitGenesteSamengesteldeVoorwaarde(self, ctx:RegelSpraakParser.GenesteSamengesteldeVoorwaardeContext):
+        pass
+
+
     # Enter a parse tree produced by RegelSpraakParser#onderwerpReferentie.
     def enterOnderwerpReferentie(self, ctx:RegelSpraakParser.OnderwerpReferentieContext):
         pass
@@ -563,42 +626,6 @@ class RegelSpraakListener(ParseTreeListener):
 
     # Exit a parse tree produced by RegelSpraakParser#bezieldeReferentie.
     def exitBezieldeReferentie(self, ctx:RegelSpraakParser.BezieldeReferentieContext):
-        pass
-
-
-    # Enter a parse tree produced by RegelSpraakParser#toplevelSamengesteldeVoorwaarde.
-    def enterToplevelSamengesteldeVoorwaarde(self, ctx:RegelSpraakParser.ToplevelSamengesteldeVoorwaardeContext):
-        pass
-
-    # Exit a parse tree produced by RegelSpraakParser#toplevelSamengesteldeVoorwaarde.
-    def exitToplevelSamengesteldeVoorwaarde(self, ctx:RegelSpraakParser.ToplevelSamengesteldeVoorwaardeContext):
-        pass
-
-
-    # Enter a parse tree produced by RegelSpraakParser#voorwaardeKwantificatie.
-    def enterVoorwaardeKwantificatie(self, ctx:RegelSpraakParser.VoorwaardeKwantificatieContext):
-        pass
-
-    # Exit a parse tree produced by RegelSpraakParser#voorwaardeKwantificatie.
-    def exitVoorwaardeKwantificatie(self, ctx:RegelSpraakParser.VoorwaardeKwantificatieContext):
-        pass
-
-
-    # Enter a parse tree produced by RegelSpraakParser#samengesteldeVoorwaardeOnderdeel.
-    def enterSamengesteldeVoorwaardeOnderdeel(self, ctx:RegelSpraakParser.SamengesteldeVoorwaardeOnderdeelContext):
-        pass
-
-    # Exit a parse tree produced by RegelSpraakParser#samengesteldeVoorwaardeOnderdeel.
-    def exitSamengesteldeVoorwaardeOnderdeel(self, ctx:RegelSpraakParser.SamengesteldeVoorwaardeOnderdeelContext):
-        pass
-
-
-    # Enter a parse tree produced by RegelSpraakParser#genesteVoorwaarde.
-    def enterGenesteVoorwaarde(self, ctx:RegelSpraakParser.GenesteVoorwaardeContext):
-        pass
-
-    # Exit a parse tree produced by RegelSpraakParser#genesteVoorwaarde.
-    def exitGenesteVoorwaarde(self, ctx:RegelSpraakParser.GenesteVoorwaardeContext):
         pass
 
 
