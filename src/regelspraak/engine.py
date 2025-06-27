@@ -10,7 +10,7 @@ from . import ast
 from .ast import (
     Expression, Literal, VariableReference, AttributeReference, ParameterReference, # Added ParameterReference
     BinaryExpression, UnaryExpression, FunctionCall, Operator, DomainModel, Regel,
-    Gelijkstelling, KenmerkToekenning, ObjectCreatie # Added ResultaatDeel types
+    Gelijkstelling, KenmerkToekenning, ObjectCreatie, FeitCreatie # Added ResultaatDeel types
 )
 # Import Runtime components
 from .runtime import RuntimeContext, RuntimeObject, Value # Import Value directly
@@ -117,6 +117,93 @@ class Evaluator:
         target_ref: Optional[ast.AttributeReference] = None
         if isinstance(rule.resultaat, (Gelijkstelling, KenmerkToekenning)):
             target_ref = rule.resultaat.target
+        elif isinstance(rule.resultaat, FeitCreatie):
+            # For FeitCreatie, we need to determine which object type the rule iterates over
+            # This is complex - for now, try to deduce from subject1
+            if isinstance(rule.resultaat.subject1, AttributeReference) and rule.resultaat.subject1.path:
+                # If subject1 refers to an object type, use that
+                for path_elem in rule.resultaat.subject1.path:
+                    # First remove any articles
+                    clean_elem = path_elem
+                    for article in ['een ', 'de ', 'het ']:
+                        if clean_elem.lower().startswith(article):
+                            clean_elem = clean_elem[len(article):]
+                            break
+                    
+                    if clean_elem in self.context.domain_model.objecttypes:
+                        return clean_elem
+                    
+                    # Try to find object type within the path element
+                    # Be more careful - "product aanbieding" should match "Aanbieding" not "Product"
+                    # Try matching from the end with multiple words
+                    path_elem_lower = clean_elem.lower()
+                    words = path_elem_lower.split()
+                    if words:
+                        # First try to match the last word (most specific)
+                        # "product aanbieding" -> try "aanbieding" first
+                        last_word = words[-1]
+                        for obj_type in self.context.domain_model.objecttypes:
+                            obj_type_lower = obj_type.lower()
+                            if last_word == obj_type_lower:
+                                return obj_type
+                        
+                        # Then try longer combinations
+                        for length in range(len(words), 1, -1):
+                            # Try combinations starting from the end
+                            for start in range(len(words) - length + 1):
+                                candidate = ' '.join(words[start:start + length])
+                                for obj_type in self.context.domain_model.objecttypes:
+                                    obj_type_lower = obj_type.lower()
+                                    if candidate == obj_type_lower:
+                                        return obj_type
+            # Otherwise, check subject2
+            if isinstance(rule.resultaat.subject2, AttributeReference) and rule.resultaat.subject2.path:
+                for path_elem in rule.resultaat.subject2.path:
+                    # First remove any articles
+                    clean_elem = path_elem
+                    for article in ['een ', 'de ', 'het ']:
+                        if clean_elem.lower().startswith(article):
+                            clean_elem = clean_elem[len(article):]
+                            break
+                    
+                    if clean_elem in self.context.domain_model.objecttypes:
+                        return clean_elem
+                    
+                    # Try to find object type within the path element
+                    # Try matching from the end with multiple words
+                    path_elem_lower = clean_elem.lower()
+                    words = path_elem_lower.split()
+                    if words:
+                        # First try to match the last word (most specific)
+                        last_word = words[-1]
+                        for obj_type in self.context.domain_model.objecttypes:
+                            obj_type_lower = obj_type.lower()
+                            if last_word == obj_type_lower:
+                                return obj_type
+                        
+                        # Then try longer combinations
+                        for length in range(len(words), 1, -1):
+                            # Try combinations starting from the end
+                            for start in range(len(words) - length + 1):
+                                candidate = ' '.join(words[start:start + length])
+                                for obj_type in self.context.domain_model.objecttypes:
+                                    obj_type_lower = obj_type.lower()
+                                    if candidate == obj_type_lower:
+                                        return obj_type
+            # Try to find object type from roles in feittypes
+            # Check if subject1 or subject2 contain role names
+            if isinstance(rule.resultaat.subject1, AttributeReference) and rule.resultaat.subject1.path:
+                for path_elem in rule.resultaat.subject1.path:
+                    # Remove articles
+                    clean_elem = path_elem.lower().replace("een ", "").replace("de ", "").replace("het ", "")
+                    # Check if it's a role name in any feittype
+                    for feittype_naam, feittype in self.context.domain_model.feittypen.items():
+                        for rol in feittype.rollen:
+                            if rol.naam and clean_elem in rol.naam.lower():
+                                return rol.object_type
+            
+            # For FeitCreatie, default to checking all object types that have relationships
+            # This allows the rule to iterate over all instances that might participate
         elif rule.voorwaarde: # Less ideal, check condition structure
             # Look for common patterns like 'Een X ...' or 'zijn Y'
             pass # TODO: Implement more robust deduction if needed
@@ -175,7 +262,9 @@ class Evaluator:
 
             # 2. Check condition (voorwaarde)
             condition_met = True
-            if rule.voorwaarde:
+            # For FeitCreatie with conditions, skip condition check here
+            # The condition will be evaluated per target object during FeitCreatie processing
+            if rule.voorwaarde and not isinstance(rule.resultaat, FeitCreatie):
                 # Trace condition evaluation start
                 if self.context.trace_sink:
                     self.context.trace_sink.condition_eval_start(
@@ -307,6 +396,110 @@ class Evaluator:
                     rule_name=rule_name
                 )
         
+        elif isinstance(res, FeitCreatie):
+            # Handle FeitCreatie - create new fact instances (relationships) by navigation
+            # Pattern: Een [role1] van een [subject1] is een [role2] van een [subject2]
+            # Right side: Navigate to find existing objects via role2 of subject2
+            # Left side: Create new relationships with those objects in role1 of subject1
+            logger.info(f"FeitCreatie: role1='{res.role1}', subject1='{res.subject1.path[0] if res.subject1.path else 'None'}', role2='{res.role2}', subject2='{res.subject2.path[0] if res.subject2.path else 'None'}'")
+            
+            # Parse and navigate the complex subject2 pattern
+            target_objects = self._navigate_feitcreatie_subject(res.subject2, res.role2)
+            
+            
+            if not target_objects:
+                logger.info(f"FeitCreatie: No target objects found for pattern")
+                return
+            
+            # Determine subject1 object (usually current instance or explicitly referenced)
+            subject1_obj = self._resolve_feitcreatie_subject1(res.subject1)
+            
+            if not subject1_obj:
+                raise RegelspraakError(
+                    f"FeitCreatie could not resolve subject1: {res.subject1}",
+                    span=res.span
+                )
+            
+            # Find the appropriate feittype for the new relationship
+            matching_feittype = self._find_matching_feittype(res.role1)
+            
+            # Check if this is a reciprocal feittype
+            is_reciprocal = False
+            if matching_feittype in self.context.domain_model.feittypen:
+                is_reciprocal = self.context.domain_model.feittypen[matching_feittype].wederkerig
+            
+            # Create new relationships for each target object
+            created_count = 0
+            for target_obj in target_objects:
+                # For conditional FeitCreatie, evaluate condition with target as current instance
+                if self._current_rule and self._current_rule.voorwaarde:
+                    # The condition should be evaluated with the navigated object (target_obj) as context
+                    # because it refers to properties of the navigated objects (e.g., "de koper")
+                    original_instance = self.context.current_instance
+                    self.context.set_current_instance(target_obj)
+                    
+                    try:
+                        condition_value = self.evaluate_expression(self._current_rule.voorwaarde.expressie)
+                        if condition_value.datatype != "Boolean" or not condition_value.value:
+                            # Condition not met, skip this target
+                            continue
+                    finally:
+                        # Restore original instance
+                        self.context.set_current_instance(original_instance)
+                
+                # Check if relationship already exists
+                existing_rels = self.context.find_relationships(
+                    subject=subject1_obj,
+                    object=target_obj,
+                    feittype_naam=matching_feittype
+                )
+                if existing_rels:
+                    continue
+                
+                # Create the relationship where target_obj has role1 in relation to subject1
+                relationship = self.context.add_relationship(
+                    feittype_naam=matching_feittype,
+                    subject=subject1_obj,
+                    object=target_obj,
+                    preposition="VAN"
+                )
+                created_count += 1
+                logger.info(f"FeitCreatie: Created relationship - {target_obj.object_type_naam} {target_obj.instance_id} is {res.role1} of {subject1_obj.object_type_naam} {subject1_obj.instance_id}")
+                
+                # For reciprocal relationships, also create the reverse
+                if is_reciprocal:
+                    reverse_relationship = self.context.add_relationship(
+                        feittype_naam=matching_feittype,
+                        subject=target_obj,
+                        object=subject1_obj,
+                        preposition="VAN"
+                    )
+                    logger.info(f"FeitCreatie: Created reciprocal relationship - {subject1_obj.object_type_naam} {subject1_obj.instance_id} is {res.role1} of {target_obj.object_type_naam} {target_obj.instance_id}")
+            
+            # Trace relationship creation
+            if self.context.trace_sink:
+                rule_name = None
+                if hasattr(self, '_current_rule') and self._current_rule:
+                    rule_name = self._current_rule.naam
+                
+                # Create a trace event for relationship creation
+                self.context.trace_sink.record(TraceEvent(
+                    type="FEIT_CREATIE",
+                    details={
+                        "feittype": matching_feittype,
+                        "role1": res.role1,
+                        "subject1_type": subject1_obj.object_type_naam,
+                        "subject1_id": subject1_obj.instance_id,
+                        "role2": res.role2,
+                        "relationships_created": created_count,
+                        "reciprocal": is_reciprocal,
+                        "target_object_ids": [obj.instance_id for obj in target_objects]
+                    },
+                    span=res.span,
+                    rule_name=rule_name,
+                    instance_id=self.context.current_instance.instance_id if self.context.current_instance else None
+                ))
+        
         else:
             # Use RegelspraakError instead of NotImplementedError with keyword args
             raise RegelspraakError(f"Applying result for type {type(res)} not implemented", span=res.span)
@@ -382,18 +575,25 @@ class Evaluator:
                 # If path is like ["leeftijd"], get from current_instance
                 if len(expr.path) == 1:
                     attr_name = expr.path[0]
-                    value = self.context.get_attribute(self.context.current_instance, attr_name)
                     
-                    # Trace attribute read
-                    if self.context.trace_sink:
-                        self.context.trace_sink.attribute_read(
-                            self.context.current_instance,
-                            attr_name,
-                            value.value if isinstance(value, Value) else value,
-                            expr=expr
-                        )
+                    # Special case: If the path element is a role name that the current instance fulfills,
+                    # return the current instance itself (for FeitCreatie conditions)
+                    if self._check_if_current_instance_has_role(attr_name):
+                        # Return the current instance as a reference
+                        result = Value(value=self.context.current_instance, datatype="ObjectReference")
+                    else:
+                        value = self.context.get_attribute(self.context.current_instance, attr_name)
                         
-                    result = value
+                        # Trace attribute read
+                        if self.context.trace_sink:
+                            self.context.trace_sink.attribute_read(
+                                self.context.current_instance,
+                                attr_name,
+                                value.value if isinstance(value, Value) else value,
+                                expr=expr
+                            )
+                            
+                        result = value
                 else:
                     # Handle paths like ['self', 'leeftijd']
                     if expr.path[0] == 'self': # Check if path starts with 'self'
@@ -707,6 +907,327 @@ class Evaluator:
                 )
                 
         return result
+
+    def _resolve_object_reference(self, ref: AttributeReference) -> Optional[RuntimeObject]:
+        """Resolve an object reference to an actual RuntimeObject.
+        
+        This handles references like:
+        - "de Persoon" -> current instance if it's a Persoon
+        - "het Contract" -> current instance if it's a Contract  
+        - "een Contract" -> find any Contract instance
+        - More complex paths would need additional logic
+        """
+        if not ref.path:
+            return None
+            
+        # Simple case - single element path
+        if len(ref.path) == 1:
+            path_elem = ref.path[0].lower()
+            
+            # Check if it's referring to the current instance by type
+            if self.context.current_instance:
+                current_type = self.context.current_instance.object_type_naam.lower()
+                # Remove articles
+                if path_elem.startswith("de "):
+                    path_elem = path_elem[3:]
+                elif path_elem.startswith("het "):
+                    path_elem = path_elem[4:]
+                elif path_elem.startswith("een "):
+                    path_elem = path_elem[4:]
+                    
+                if path_elem == current_type:
+                    return self.context.current_instance
+            
+            # Try to find an instance of the requested type
+            # First, try to match the path element to an object type
+            for obj_type in self.context.domain_model.objecttypes.keys():
+                if obj_type.lower() == path_elem:
+                    # Return the first instance of this type (simplified)
+                    instances = self.context.get_instances(obj_type)
+                    if instances:
+                        return instances[0]
+                        
+        # More complex paths would need additional logic
+        # For now, return None
+        return None
+    
+    def _navigate_feitcreatie_subject(self, subject_expr: Expression, role_name: str) -> List[RuntimeObject]:
+        """Navigate complex FeitCreatie subject patterns to find target objects.
+        
+        Handles patterns like:
+        - "een passagier van de reis" - simple one-hop navigation
+        - "een medewerker van een afdeling van de bonusgever van de toegekende bonus" - multi-hop
+        """
+        if not isinstance(subject_expr, AttributeReference) or not subject_expr.path:
+            return []
+        
+        # The path contains the entire navigation pattern as a single string
+        # e.g., "een medewerker van een afdeling van de bonusgever van de toegekende bonus"
+        pattern = subject_expr.path[0]
+        logger.info(f"FeitCreatie navigation pattern: {pattern}")
+        
+        # Parse the navigation pattern by splitting on "van"
+        # This gives us navigation segments in reverse order
+        segments = [s.strip() for s in pattern.split(" van ")]
+        logger.info(f"Navigation segments: {segments}")
+        
+        if len(segments) < 2:
+            # Simple pattern without navigation
+            # Check if the single segment is a feittype name
+            clean_segment = pattern.lower().replace("de ", "").replace("het ", "").replace("een ", "")
+            if clean_segment in [ft.lower() for ft in self.context.domain_model.feittypen.keys()]:
+                # Pattern like "het huwelijk" - find objects with role2 in that feittype with current instance
+                return self._find_objects_by_role_in_relationships_with_current(role_name, clean_segment)
+            else:
+                # Pattern like "een medewerker" - find all objects that can fulfill the role
+                return self._find_objects_by_role(role_name)
+        
+        # Start navigation from the end (current instance or specified object)
+        # For "een medewerker van een afdeling van de bonusgever van de toegekende bonus":
+        # segments = ["een medewerker", "een afdeling", "de bonusgever", "de toegekende bonus"]
+        
+        # Start with the last segment - often refers to current instance
+        last_segment = segments[-1].lower()
+        start_obj = None
+        
+        # Check if it refers to current instance
+        if self.context.current_instance:
+            current_type = self.context.current_instance.object_type_naam.lower()
+            # Remove articles and check
+            clean_segment = last_segment.replace("de ", "").replace("het ", "").replace("een ", "")
+            logger.info(f"Checking if '{clean_segment}' matches current instance type '{current_type}'")
+            if current_type in clean_segment or clean_segment in current_type:
+                start_obj = self.context.current_instance
+                logger.info(f"Starting navigation from current instance: {start_obj.object_type_naam} {start_obj.instance_id}")
+            else:
+                # Check if it's a feittype name - if so, need to find relationships
+                feittype_names_lower = [ft.lower() for ft in self.context.domain_model.feittypen.keys()]
+                if clean_segment in feittype_names_lower:
+                    # For patterns like "een echtgenote van het huwelijk"
+                    # We need to find objects involved in the huwelijk relationship
+                    # Since we have just one segment, return all objects of the role2 type
+                    if len(segments) == 1:
+                        # Find objects that can fulfill role2
+                        return self._find_objects_by_role_in_relationships_with_current(role_name, clean_segment)
+        
+        if not start_obj:
+            # Try to find an object matching the description
+            # This is simplified - in reality would need better matching
+            logger.warning(f"Could not find starting object for navigation")
+            return []
+        
+        # Navigate backwards through the segments
+        current_objects = [start_obj]
+        
+        # Process segments in reverse order (excluding last which is the starting point)
+        # Include the first segment as it's part of the navigation path
+        for i in range(len(segments) - 2, -1, -1):
+            segment = segments[i]
+            next_objects = []
+            logger.info(f"Navigating segment: '{segment}'")
+            
+            # For each current object, find related objects
+            for obj in current_objects:
+                # Find relationships where obj is involved
+                # The segment describes what we're looking for
+                clean_segment = segment.lower().replace("de ", "").replace("het ", "").replace("een ", "")
+                logger.info(f"  Looking for objects matching segment '{clean_segment}' from {obj.object_type_naam}")
+                
+                # Look for objects related to current object
+                # The segment might be a role name rather than an object type
+                relationships = self.context.find_relationships(subject=obj)
+                logger.info(f"  Found {len(relationships)} relationships from {obj.object_type_naam}")
+                for rel in relationships:
+                    if rel.object:
+                        # Check if segment matches object type or role name
+                        matches_desc = self._matches_description(rel.object, clean_segment)
+                        matches_role = self._matches_role_in_feittype(rel.feittype_naam, clean_segment)
+                        logger.info(f"    Checking {rel.object.object_type_naam} via {rel.feittype_naam}: desc={matches_desc}, role={matches_role}")
+                        if matches_desc or matches_role:
+                            next_objects.append(rel.object)
+                            logger.info(f"    -> Match found: {rel.object.object_type_naam} via {rel.feittype_naam}")
+                
+                # Also check reverse relationships
+                reverse_rels = self.context.find_relationships(object=obj)
+                logger.info(f"  Found {len(reverse_rels)} reverse relationships to {obj.object_type_naam}")
+                for rel in reverse_rels:
+                    if rel.subject:
+                        # Check if segment matches subject type or role name
+                        matches_desc = self._matches_description(rel.subject, clean_segment)
+                        matches_role = self._matches_role_in_feittype(rel.feittype_naam, clean_segment)
+                        logger.info(f"    Checking reverse {rel.subject.object_type_naam} via {rel.feittype_naam}: desc={matches_desc}, role={matches_role}")
+                        if matches_desc or matches_role:
+                            next_objects.append(rel.subject)
+                            logger.info(f"    -> Reverse match found: {rel.subject.object_type_naam} via {rel.feittype_naam}")
+            
+            if next_objects:
+                current_objects = next_objects
+            else:
+                logger.warning(f"No objects found at segment '{segment}'")
+                # Don't return empty - continue with current objects
+                # return []
+        
+        # After processing all segments, current_objects should contain objects
+        # that are either the target objects or related to the target objects
+        logger.info(f"Final objects after navigation: {[obj.object_type_naam for obj in current_objects]}")
+        
+        # Check if current objects match the expected role
+        matching_objects = []
+        for obj in current_objects:
+            if self._check_role_matches_object_type(role_name, obj):
+                matching_objects.append(obj)
+                logger.info(f"  Object {obj.object_type_naam} {obj.instance_id} matches role '{role_name}'")
+        
+        # If we found matching objects, return them
+        if matching_objects:
+            logger.info(f"Navigation complete, found {len(matching_objects)} objects with role '{role_name}'")
+            return matching_objects
+        
+        # Otherwise, look for objects with the role that are related to current_objects
+        final_objects = []
+        
+        for obj in current_objects:
+            # Find relationships where obj is involved
+            relationships = self.context.find_relationships(subject=obj)
+            for rel in relationships:
+                if rel.object and self._check_role_matches_object_type(role_name, rel.object):
+                    final_objects.append(rel.object)
+                    logger.info(f"  Found related object with role '{role_name}': {rel.object.object_type_naam} {rel.object.instance_id}")
+            
+            # Check reverse relationships
+            reverse_rels = self.context.find_relationships(object=obj)
+            for rel in reverse_rels:
+                if rel.subject and self._check_role_matches_object_type(role_name, rel.subject):
+                    final_objects.append(rel.subject)
+                    logger.info(f"  Found related object with role '{role_name}' (reverse): {rel.subject.object_type_naam} {rel.subject.instance_id}")
+        
+        logger.info(f"Navigation complete, found {len(final_objects)} objects with role '{role_name}'")
+        return final_objects
+    
+    def _matches_description(self, obj: RuntimeObject, description: str) -> bool:
+        """Check if an object matches a description (simplified)."""
+        obj_type = obj.object_type_naam.lower()
+        # Check if object type matches the description
+        return obj_type in description or description in obj_type
+    
+    def _matches_role_in_feittype(self, feittype_naam: str, role_description: str) -> bool:
+        """Check if a role description matches any role in the given feittype."""
+        if feittype_naam not in self.context.domain_model.feittypen:
+            return False
+        
+        feittype = self.context.domain_model.feittypen[feittype_naam]
+        for rol in feittype.rollen:
+            if rol.naam and role_description in rol.naam.lower():
+                return True
+        return False
+    
+    def _find_objects_by_role(self, role_name: str) -> List[RuntimeObject]:
+        """Find all objects that can fulfill a given role."""
+        # Look through feittypes to find which object types can have this role
+        for feittype_naam, feittype in self.context.domain_model.feittypen.items():
+            for rol in feittype.rollen:
+                if rol.naam == role_name:
+                    # Found a matching role, get objects of that type
+                    return self.context.find_objects_by_type(rol.object_type)
+        return []
+    
+    def _check_role_matches_object_type(self, role_name: str, obj: RuntimeObject) -> bool:
+        """Check if an object can fulfill a given role based on its type."""
+        # Look through feittypes to find if this object type can have this role
+        for feittype_naam, feittype in self.context.domain_model.feittypen.items():
+            for rol in feittype.rollen:
+                if rol.naam and role_name.lower() in rol.naam.lower() and rol.object_type == obj.object_type_naam:
+                    return True
+        return False
+    
+    def _resolve_feitcreatie_subject1(self, subject1_expr: Expression) -> Optional[RuntimeObject]:
+        """Resolve the subject1 expression in FeitCreatie to a RuntimeObject."""
+        if not isinstance(subject1_expr, AttributeReference) or not subject1_expr.path:
+            return None
+        
+        pattern = subject1_expr.path[0].lower()
+        
+        # Often refers to current instance
+        if self.context.current_instance:
+            current_type = self.context.current_instance.object_type_naam.lower()
+            clean_pattern = pattern.replace("de ", "").replace("het ", "").replace("een ", "")
+            
+            # Check if it matches object type
+            if current_type in clean_pattern or clean_pattern in current_type:
+                return self.context.current_instance
+            
+            # Check if current instance can fulfill the role
+            # "een echtgenoot" -> check if current instance can be an "echtgenoot"
+            for feittype_naam, feittype in self.context.domain_model.feittypen.items():
+                for rol in feittype.rollen:
+                    if rol.naam and clean_pattern in rol.naam.lower() and rol.object_type == self.context.current_instance.object_type_naam:
+                        return self.context.current_instance
+        
+        # Try to evaluate as expression
+        try:
+            val = self.evaluate_expression(subject1_expr)
+            if isinstance(val.value, RuntimeObject):
+                return val.value
+        except:
+            pass
+        
+        return None
+    
+    def _find_objects_by_role_in_relationships_with_current(self, role_name: str, feittype_name: str) -> List[RuntimeObject]:
+        """Find objects that fulfill a role in relationships with current instance."""
+        if not self.context.current_instance:
+            return []
+        
+        result = []
+        # Look for relationships of the given feittype where current instance is involved
+        rels_as_subject = self.context.find_relationships(
+            subject=self.context.current_instance, 
+            feittype_naam=feittype_name
+        )
+        rels_as_object = self.context.find_relationships(
+            object=self.context.current_instance,
+            feittype_naam=feittype_name  
+        )
+        
+        # Find the feittype definition to understand roles
+        if feittype_name in self.context.domain_model.feittypen:
+            feittype = self.context.domain_model.feittypen[feittype_name]
+            
+            # Check relationships where current instance is subject
+            for rel in rels_as_subject:
+                # The object in the relationship might fulfill the target role
+                if rel.object and self._check_role_matches_object_type(role_name, rel.object):
+                    result.append(rel.object)
+            
+            # Check relationships where current instance is object
+            for rel in rels_as_object:
+                # The subject in the relationship might fulfill the target role
+                if rel.subject and self._check_role_matches_object_type(role_name, rel.subject):
+                    result.append(rel.subject)
+        
+        return result
+    
+    def _check_if_current_instance_has_role(self, role_name: str) -> bool:
+        """Check if the current instance can fulfill the given role."""
+        if not self.context.current_instance:
+            return False
+        
+        # Remove articles
+        clean_role = role_name.lower().replace("de ", "").replace("het ", "").replace("een ", "")
+        
+        # Check if current instance's type can fulfill this role
+        return self._check_role_matches_object_type(clean_role, self.context.current_instance)
+    
+    def _find_matching_feittype(self, role_name: str) -> str:
+        """Find a feittype that has the given role."""
+        for feittype_naam, feittype in self.context.domain_model.feittypen.items():
+            role_names = [rol.naam for rol in feittype.rollen]
+            if role_name in role_names:
+                return feittype_naam
+        
+        # If no exact match, use the role name as feittype name
+        # This handles cases where feittype name includes the role
+        return role_name
 
 # --- Tracing --- (Keep TraceSink definitions as they are useful)
 

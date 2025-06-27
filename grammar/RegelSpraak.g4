@@ -37,6 +37,8 @@ identifierOrKeyword
     | PERIODE    // "periode" - can be an attribute name
     | REGEL      // "regel" - can be referenced
     | VOORWAARDE // "voorwaarde" - can be part of rule names
+    | HEEFT      // "heeft" - can appear in feittype names
+    | ALLE       // "alle" - can appear in rule names
     ;
 
 naamPhrase // Used within naamwoord
@@ -53,7 +55,7 @@ naamwoord // Modified to handle structure like 'phrase (preposition phrase)*'
     ;
 
 voorzetsel // Used by naamwoord and onderwerpReferentie
-    : VAN | IN | VOOR | OVER | OP | BIJ | UIT | TOT
+    : VAN | IN | VOOR | OVER | OP | BIJ | UIT | TOT | EN | MET
     ;
 
 datumLiteral : DATE_TIME_LITERAL ;
@@ -215,16 +217,39 @@ parameterMetLidwoord // Used within expression, but defined with parameter def
     : naamwoord
     ;
 
-// §13.3.9 FeitType Definition (Added based on Spec - simplified)
+// §13.3.9 FeitType Definition (Based on spec §3.11)
 feitTypeDefinition
-    : (WEDERKERIG_FEITTYPE | FEITTYPE)
-      subject=naamwoord
-      ( HEEFT object=naamwoord | IS description=naamwoord ) // Explicitly handle predicate part of the name
-      rolSpecificatie rolSpecificatie+ // Requires at least two roles
+    : FEITTYPE feittypenaam=naamwoord
+      rolDefinition rolDefinition+
+      cardinalityLine
+    | WEDERKERIG_FEITTYPE feittypenaam=naamwoord  
+      rolDefinition
+      cardinalityLine
     ;
 
-rolSpecificatie
-    : voorzetselSpecificatie identifier
+// Role definition - parse all content after article and split in builder
+rolDefinition
+    : article=(DE | HET) content=rolContentWords (MV_START meervoud=naamwoord RPAREN)? objecttype=rolObjectType?
+    ;
+
+// Object type that comes after optional plural - just identifiers
+rolObjectType
+    : identifierOrKeyword+
+    ;
+
+// All words in role definition after the article
+rolContentWords
+    : ( identifierOrKeyword | voorzetsel )+
+    ;
+
+// Cardinality description is a sentence describing the relationship
+// It should contain relationship words but not start a new definition
+cardinalityLine
+    : cardinalityWord+
+    ;
+
+cardinalityWord
+    : ~(OBJECTTYPE | PARAMETER | REGEL | FEITTYPE | WEDERKERIG_FEITTYPE | DIMENSIE | DOMEIN | BESLISTABEL | CONSISTENTIEREGEL | EENHEIDSYSTEEM | DAGSOORT | SEMICOLON)
     ;
 
 // --- RegelSpraak Rule Structure (§13.4.2) ---
@@ -237,14 +262,14 @@ regel
 
 // Allow flexible rule naming for our tests
 regelName
-    : IDENTIFIER+ // Simple rule name
-    | naamwoord // General case using the naamwoord pattern for other rule names
+    : naamwoord // General case using the naamwoord pattern for rule names
     | IDENTIFIER+ KENMERK // Handle "check kenmerk" pattern
     | IDENTIFIER+ ROL // Handle "check rol" pattern
     | IDENTIFIER+ NIET KENMERK // Handle "check niet kenmerk" pattern
     | IDENTIFIER+ NIET ROL // Handle "check niet rol" pattern 
     | IDENTIFIER+ KENMERKEN IDENTIFIER+ // Handle "check kenmerken meervoud" pattern
     | IDENTIFIER+ ROLLEN IDENTIFIER+ // Handle "check rollen meervoud" pattern
+    | IDENTIFIER+ // Simple rule name (fallback)
     ;
 
 regelVersie
@@ -259,12 +284,46 @@ versieGeldigheid
 // §13.4.3 Resultaat Deel
 resultaatDeel
     : (naamwoord | attribuutReferentie) ( WORDT_BEREKEND_ALS expressie | WORDT_GESTELD_OP expressie | WORDT_GEINITIALISEERD_OP expressie ) # GelijkstellingResultaat
+    | feitCreatiePattern # FeitCreatieResultaat
     | onderwerpReferentie (IS | HEEFT) kenmerkNaam                                                # KenmerkFeitResultaat
-    | onderwerpReferentie HEEFT naamwoord (MET | TOT) onderwerpReferentie                       # FeitCreatieResultaat
     | identifier+ ( WORDT_BEREKEND_ALS expressie | WORDT_GESTELD_OP expressie | WORDT_GEINITIALISEERD_OP expressie )                   # CapitalizedGelijkstellingResultaat // For capitalized cases
     | (HET_KWARTAAL | HET_DEEL_PER_MAAND | HET_DEEL_PER_JAAR) identifier* ( WORDT_BEREKEND_ALS expressie | WORDT_GESTELD_OP expressie | WORDT_GEINITIALISEERD_OP expressie ) ( (VANAF | VAN) datumLiteral (TOT | TOT_EN_MET) datumLiteral )? DOT? # SpecialPhraseResultaat
     | HET_AANTAL_DAGEN_IN (MAAND | JAAR) ( WORDT_BEREKEND_ALS expressie | WORDT_GESTELD_OP expressie | WORDT_GEINITIALISEERD_OP expressie ) # AantalDagenInResultaat
     | objectCreatie                                                                    # ObjectCreatieResultaat
+    ;
+
+// FeitCreatie pattern - parse the whole pattern as one unit
+// Looking for: Een X van Y is een Z van W
+feitCreatiePattern
+    : EEN role1=feitCreatieRolPhrase VAN article1=(EEN|DE|HET) subject1=feitCreatieSubjectPhrase
+      IS EEN role2=feitCreatieRolPhrase VAN article2=(EEN|DE|HET) subject2=feitCreatieSubjectPhrase
+    ;
+
+// Role phrase in FeitCreatie - everything up to "van"
+feitCreatieRolPhrase
+    : feitCreatieWord+
+    ;
+
+// Subject phrase in FeitCreatie - all words until end of FeitCreatie or period
+feitCreatieSubjectPhrase
+    : feitCreatieSubjectWord+
+    ;
+
+// Words that can appear in subject - anything except IS (which starts the right side)
+feitCreatieSubjectWord
+    : identifierOrKeyword
+    | voorzetsel
+    | DE | HET | EEN
+    ;
+
+// Words that can appear in role/subject names
+feitCreatieWord
+    : identifierOrKeyword
+    | voorzetselNietVan
+    ;
+
+voorzetselNietVan
+    : IN | VOOR | OVER | OP | BIJ | UIT | TOT | EN | MET
     ;
 
 // Object creation rule based on 13.4.6 in reference

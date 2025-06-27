@@ -10,22 +10,19 @@ class FeitTypeTests(RegelSpraakTestCase):
 
     def test_simple_feittype(self):
         """Test parsing a simple FeitType definition within a document."""
-        # Re-typed input just in case of hidden characters
-        input_text = 'FeitType Persoon heeft Voertuig\n'
-        input_text += '  (na het attribuut met voorzetsel van) Persoon\n'
-        input_text += '  (voor het attribuut zonder voorzetsel): Voertuig'
+        input_text = """Feittype eigenaarschap tussen persoon en voertuig
+    de eigenaar Persoon
+    het voertuig Voertuig
+Een eigenaar heeft een voertuig"""
 
-        # Note: The colon placement in 'voor het attribuut' might differ slightly
-        # from dimensie, depending on strict spec interpretation vs common usage.
-        # Current grammar uses VOOR_HET_ATTRIBUUT_ZONDER_VOORZETSEL token which includes the colon.
         tree = self.parse_text(input_text)
         self.assertNoParseErrors()
 
     def test_wederkerig_feittype(self):
         """Test parsing a Wederkerig FeitType definition."""
-        input_text = """Wederkerig feittype Persoon is partner van Persoon
-            (na het attribuut met voorzetsel van) PartnerA
-            (voor het attribuut zonder voorzetsel): PartnerB
+        input_text = """Wederkerig feittype partnerrelatie
+    de partner Persoon
+Een partner heeft een partner
         """
         tree = self.parse_text(input_text)
         self.assertNoParseErrors()

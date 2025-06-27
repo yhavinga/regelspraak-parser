@@ -187,6 +187,18 @@ class ObjectCreatie(ResultaatDeel):
     attribute_inits: List[Tuple[str, Expression]]  # [(attr_name, value_expr), ...]
 
 @dataclass
+class FeitCreatie(ResultaatDeel):
+    """Creates new fact instances (relationships) by navigation (§9.4).
+    Pattern: Een [role1] van een [subject1] is een [role2] van een [subject2]
+    This creates new relationships where objects found via the right side navigation
+    are given the role specified on the left side.
+    """
+    role1: str  # First role name (e.g., "klant")
+    subject1: Expression  # First subject (e.g., "een contract")
+    role2: str  # Second role name (e.g., "persoon")  
+    subject2: Expression  # Second subject (e.g., "de persoon")
+
+@dataclass
 class Regel:
     """Represents a RegelSpraak rule definition."""
     naam: str
@@ -205,18 +217,18 @@ class Regel:
 class Rol:
     """Represents a role in a feittype relationship."""
     naam: str # Role name (e.g., "passagier", "reis")
-    object_type: str # Object type that fulfills this role (e.g., "Natuurlijk persoon", "Vlucht")
-    meervoudig: bool # Whether multiple instances allowed (e.g., multiple passengers per flight)
-    span: SourceSpan
+    meervoud: Optional[str] = None # Plural form of role name (e.g., "passagiers")
+    object_type: str = None # Object type that fulfills this role (e.g., "Natuurlijk persoon", "Vlucht")
+    span: Optional[SourceSpan] = None
 
 @dataclass
 class FeitType:
     """Represents a feittype (relationship type) between object types."""
     naam: str # Feittype name (e.g., "vlucht van natuurlijke personen")
     wederkerig: bool # Whether reciprocal (e.g., partner relationship)
-    rollen: List[Rol] # Roles in the relationship (minimum 2)
-    span: SourceSpan
-    # relatie_beschrijving: Optional[str] = None # e.g., "betreft de verplaatsing van"
+    rollen: List[Rol] # Roles in the relationship (1 for reciprocal, 2+ for regular)
+    cardinality_description: Optional[str] = None # e.g., "Eén reis betreft de verplaatsing van meerdere passagiers"
+    span: Optional[SourceSpan] = None
 
 
 # --- Top-Level Container ---

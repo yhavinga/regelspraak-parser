@@ -20,20 +20,21 @@ class TestFeitTypeComplete(RegelSpraakTestCase):
             de leeftijd Numeriek (geheel getal) met eenheid jr;
             de naam Tekst;
         
-        FeitType Vlucht heeft passagiers
-            (na het attribuut met voorzetsel van) Vlucht
-            (voor het attribuut zonder voorzetsel): Passagier
+        Feittype vlucht van passagiers
+            de vlucht Vlucht
+            de passagier (mv: passagiers) Passagier
+        Een vlucht vervoert meerdere passagiers
         """
         
         model = parse_text(regelspraak_code)
         self.assertIsInstance(model, DomainModel)
         
         # Check that feittype is in the model
-        self.assertIn("Vlucht heeft passagiers", model.feittypen)
+        self.assertIn("vlucht van passagiers", model.feittypen)
         
-        feittype = model.feittypen["Vlucht heeft passagiers"]
+        feittype = model.feittypen["vlucht van passagiers"]
         self.assertIsInstance(feittype, FeitType)
-        self.assertEqual(feittype.naam, "Vlucht heeft passagiers")
+        self.assertEqual(feittype.naam, "vlucht van passagiers")
         self.assertFalse(feittype.wederkerig)
         self.assertEqual(len(feittype.rollen), 2)
         
@@ -47,16 +48,21 @@ class TestFeitTypeComplete(RegelSpraakTestCase):
         Objecttype Persoon (bezield)
             de naam Tekst;
         
-        Wederkerig feittype Persoon is partner van Persoon
-            (na het attribuut met voorzetsel van) Persoon  
-            (voor het attribuut zonder voorzetsel): Persoon
+        Wederkerig feittype partnerrelatie
+            de partner Persoon
+        Een partner heeft een partner
         """
         
         model = parse_text(regelspraak_code)
-        self.assertIn("Persoon is partner van Persoon", model.feittypen)
+        self.assertIn("partnerrelatie", model.feittypen)
         
-        feittype = model.feittypen["Persoon is partner van Persoon"]
+        feittype = model.feittypen["partnerrelatie"]
         self.assertTrue(feittype.wederkerig)
+        self.assertEqual(len(feittype.rollen), 1)
+        
+        role = feittype.rollen[0]
+        self.assertEqual(role.naam, "partner")
+        self.assertEqual(role.object_type, "Persoon")
     
     def test_semantic_analysis_with_feittype(self):
         """Test that semantic analyzer handles feittype definitions."""
@@ -67,9 +73,10 @@ class TestFeitTypeComplete(RegelSpraakTestCase):
         Objecttype Voertuig
             het kenteken Tekst;
             
-        FeitType Persoon heeft Voertuig
-            (na het attribuut met voorzetsel van) Persoon
-            (voor het attribuut zonder voorzetsel): Voertuig
+        Feittype eigenaarschap tussen persoon en voertuig
+            de eigenaar Persoon
+            het voertuig Voertuig
+        Een eigenaar heeft een voertuig
         """
         
         model = parse_text(regelspraak_code)
@@ -80,9 +87,9 @@ class TestFeitTypeComplete(RegelSpraakTestCase):
         self.assertEqual(len(errors), 0)
         
         # Check that feittype is in symbol table
-        symbol = analyzer.symbol_table.lookup("Persoon heeft Voertuig")
+        symbol = analyzer.symbol_table.lookup("eigenaarschap tussen persoon en voertuig")
         self.assertIsNotNone(symbol)
-        self.assertEqual(symbol.name, "Persoon heeft Voertuig")
+        self.assertEqual(symbol.name, "eigenaarschap tussen persoon en voertuig")
     
     def test_object_reference_attribute(self):
         """Test that attributes with object type as datatype are marked as object references."""

@@ -396,6 +396,18 @@ The ANTLR grammar (`RegelSpraak.g4` and `RegelSpraakLexer.g4`) incorporates spec
     *   Significantly simplifies the grammar by removing the need for explicit `NEWLINE*` sequences throughout the rules
     *   Allows for flexible document formatting without changing semantic meaning
     *   Enables termination of statements with either periods, semicolons, or simple newlines
+*   **FeitCreatie Pattern Parsing:** FeitCreatie rules create new relationships by navigating existing ones. The grammar handles complex patterns like "Een passagier van de reis met treinmiles van het vastgestelde contingent treinmiles" by:
+    *   Parsing the entire navigation pattern as a single subject phrase in `feitCreatieSubjectPhrase`
+    *   Including articles in the captured text to preserve object identity
+    *   The builder then splits these patterns on "van" to create navigation chains
+    *   The engine navigates these chains through the relationship graph at runtime
+*   **Rule Name Extraction:** Rule names can contain prepositions and multi-word phrases (e.g., "passagier met recht op treinmiles"). The grammar prioritizes the `naamwoord` pattern over `IDENTIFIER+` in `regelName` to capture the complete name. The builder's `_extract_canonical_name` uses `get_text_with_spaces` to preserve the full text including prepositions.
+*   **Kenmerk Expression Handling:** The "is kenmerk" pattern (e.g., "de koper is actief") initially created a `VariableReference` for the kenmerk name, causing runtime errors when the engine tried to look up "actief" as a variable. The fix was to create a `Literal` expression instead, allowing the IS operator handler to receive the kenmerk name as a string value.
+*   **Target Type Deduction for FeitCreatie:** FeitCreatie rules iterate over instances of a specific object type. When deducing this type from phrases like "een product aanbieding", the engine now:
+    *   Removes articles first ("een", "de", "het")
+    *   Prioritizes matching the last word (most specific) to avoid "product" matching before "aanbieding"
+    *   Falls back to trying longer word combinations
+    *   This ensures "product aanbieding" correctly matches the "Aanbieding" object type
 
 ## Testing
 

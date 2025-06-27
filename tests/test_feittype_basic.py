@@ -20,9 +20,10 @@ class TestFeitTypeBasic(RegelSpraakTestCase):
             het vluchtnummer Tekst;
             de bestemming Tekst;
         
-        FeitType Vlucht heeft passagiers
-            (na het attribuut met voorzetsel van) Vlucht
-            (voor het attribuut zonder voorzetsel): Passagier
+        Feittype vlucht van passagiers
+            de vlucht Vlucht
+            de passagier Passagier
+        Een vlucht vervoert passagiers
         
         Parameter de volwassenleeftijd : Numeriek (geheel getal) met eenheid jr;
         """
@@ -32,8 +33,8 @@ class TestFeitTypeBasic(RegelSpraakTestCase):
         self.assertIsInstance(model, DomainModel)
         
         # Check feittype
-        self.assertIn("Vlucht heeft passagiers", model.feittypen)
-        feittype = model.feittypen["Vlucht heeft passagiers"]
+        self.assertIn("vlucht van passagiers", model.feittypen)
+        feittype = model.feittypen["vlucht van passagiers"]
         self.assertEqual(len(feittype.rollen), 2)
         
         # Semantic analysis
@@ -54,9 +55,10 @@ class TestFeitTypeBasic(RegelSpraakTestCase):
             het vluchtnummer Tekst;
             de totale omzet Bedrag;
         
-        FeitType Vlucht heeft passagiers
-            (na het attribuut met voorzetsel van) Vlucht
-            (voor het attribuut zonder voorzetsel): Passagier
+        Feittype vlucht van passagiers
+            de vlucht Vlucht
+            de passagier Passagier
+        Een vlucht vervoert passagiers
         """
         
         model = parse_text(regelspraak_code)
@@ -65,7 +67,7 @@ class TestFeitTypeBasic(RegelSpraakTestCase):
         self.assertIn("Bedrag", model.domeinen)
         
         # Verify feittype
-        self.assertIn("Vlucht heeft passagiers", model.feittypen)
+        self.assertIn("vlucht van passagiers", model.feittypen)
     
     def test_feittype_with_rule(self):
         """Test that rules work with feittype context.

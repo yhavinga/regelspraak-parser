@@ -8,7 +8,7 @@ from .ast import (
     DomainModel, ObjectType, Parameter, Regel, Expression, Literal,
     AttributeReference, VariableReference, ParameterReference,
     BinaryExpression, UnaryExpression, FunctionCall, Operator,
-    Gelijkstelling, KenmerkToekenning, ObjectCreatie, Attribuut, Kenmerk,
+    Gelijkstelling, KenmerkToekenning, ObjectCreatie, FeitCreatie, Attribuut, Kenmerk,
     SourceSpan
 )
 from .errors import RegelspraakError
@@ -288,7 +288,7 @@ class SemanticAnalyzer:
                     resultaat.span
                 ))
             else:
-                obj_type_def = self.domain_model.objecttypes[resultaat.object_type]
+                obj_type_def = self.symbol_table.object_types[resultaat.object_type]
                 # Validate attribute initializations
                 for attr_name, expr in resultaat.attribute_inits:
                     if attr_name not in obj_type_def.attributen:
@@ -298,6 +298,19 @@ class SemanticAnalyzer:
                         ))
                     # Analyze the expression
                     self._analyze_expression(expr)
+        
+        elif isinstance(resultaat, FeitCreatie):
+            # Validate FeitCreatie: Een [role1] van een [subject1] is de [role2] van de [subject2]
+            # 1. Analyze both subject expressions to ensure they're valid
+            subject1_type = self._analyze_expression(resultaat.subject1)
+            subject2_type = self._analyze_expression(resultaat.subject2)
+            
+            # 2. TODO: Validate that the roles exist in a feittype
+            # This would require:
+            # - Finding a feittype that has both role1 and role2
+            # - Checking that subject1/subject2 types match the expected object types for those roles
+            # For now, we just check that the expressions are valid
+            pass
     
     def _analyze_expression(self, expr: Expression) -> Optional[str]:
         """Analyze an expression and return its type (if known)."""

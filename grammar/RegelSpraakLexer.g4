@@ -120,7 +120,7 @@ LIJST: 'Lijst';
 DIMENSIE: 'Dimensie';
 EENHEIDSYSTEEM: 'Eenheidsysteem';
 PARAMETER: 'Parameter';
-FEITTYPE: 'FeitType';
+FEITTYPE: 'Feittype';
 DAGSOORT: 'Dagsoort';
 
 // Rule Structure & Result Keywords
@@ -237,9 +237,10 @@ DAT: 'dat';
 DE: 'de';
 DD_PUNT: 'dd.';
 DIE: 'die';
-EEN: 'een';
+EEN: [Ee] 'en';
 EN: 'en';
 HET: 'het';
+MEERDERE: 'meerdere';
 HIJ: 'hij';
 IN: 'in';
 JAAR: 'jaar';

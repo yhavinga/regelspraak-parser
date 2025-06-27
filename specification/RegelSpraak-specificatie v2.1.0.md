@@ -1048,10 +1048,10 @@ Figuur 7: feittype Vlucht van natuurlijke personen dat een instantie van objectt
 In RegelSpraak wordt een feittype gespecificeerd met het woord Feittype, gevolgd door de naam van het feittype. Vervolgens worden de rollen gespecificeerd:
 
 ```
-Feittype vlucht van natuurlijke personen
+`Feittype vlucht van natuurlijke personen
     de reis Vlucht
     de passagier Natuurlijk persoon
-Eén reis betreft de verplaatsing van meerdere passagiers
+Eén reis betreft de verplaatsing van meerdere passagiers`
 ```
 
 ![](https://cdn.mathpix.com/cropped/2025_04_10_a97b267819259447320dg-035.jpg?height=278&width=1603&top_left_y=1660&top_left_x=232)

@@ -12,7 +12,7 @@ from antlr4.tree.Tree import TerminalNode
 from .ast import (
     DomainModel, ObjectType, Attribuut, Kenmerk, Regel, Parameter, Domein,
     FeitType, Rol, Voorwaarde, ResultaatDeel, Gelijkstelling, KenmerkToekenning,
-    ObjectCreatie, Expression, Literal, AttributeReference, VariableReference,
+    ObjectCreatie, FeitCreatie, Expression, Literal, AttributeReference, VariableReference,
     BinaryExpression, UnaryExpression, FunctionCall, Operator,
     ParameterReference, SourceSpan
 )
@@ -24,6 +24,29 @@ logger = logging.getLogger(__name__)
 def safe_get_text(ctx):
     """Helper function to get text safely from ANTLR context."""
     return ctx.getText() if ctx else None
+
+def get_text_with_spaces(ctx):
+    """Helper function to get text from ANTLR context with spaces preserved between tokens."""
+    if not ctx:
+        return None
+    
+    # If it's a terminal node, just return its text
+    if isinstance(ctx, TerminalNode):
+        return ctx.getText()
+    
+    # For parser rule contexts, reconstruct with spaces
+    parts = []
+    for i in range(ctx.getChildCount()):
+        child = ctx.getChild(i)
+        if isinstance(child, TerminalNode):
+            parts.append(child.getText())
+        else:
+            # Recursively get text from child contexts
+            child_text = get_text_with_spaces(child)
+            if child_text:
+                parts.append(child_text)
+    
+    return " ".join(parts)
 
 def get_span_from_ctx(ctx: Optional[ParserRuleContext]) -> SourceSpan:
     """Helper to get SourceSpan from ANTLR context."""
@@ -142,7 +165,17 @@ class RegelSpraakModelBuilder(RegelSpraakVisitor):
 
         # --- Identify the terminal nodes containing the actual name tokens ---
         if isinstance(name_ctx, AntlrParser.NaamwoordContext):
-            # For Naamwoord, process the children of the first NaamPhrase
+            # For Naamwoord, use get_text_with_spaces to get the full text
+            full_text = get_text_with_spaces(name_ctx)
+            if full_text:
+                # Remove leading articles
+                for article in ['de ', 'het ', 'een ']:
+                    if full_text.lower().startswith(article):
+                        full_text = full_text[len(article):]
+                        break
+                return full_text
+            
+            # Fallback: process the children of the first NaamPhrase
             if hasattr(name_ctx, 'naamPhrase'):
                 potential_naam_phrase = name_ctx.naamPhrase()
                 if potential_naam_phrase:
@@ -402,71 +435,48 @@ class RegelSpraakModelBuilder(RegelSpraakVisitor):
 
     # 4. Atomic Name and Leaf-Node Processing Methods
     def visitNaamwoord(self, ctx: AntlrParser.NaamwoordContext) -> Optional[str]:
-        """Visit a naamwoord context and extract the core noun, handling lists and terminal nodes."""
+        """Visit a naamwoord context and extract the complete noun phrase including prepositions."""
         logger.debug(f"    Visiting Naamwoord: Text='{safe_get_text(ctx)}', Type={type(ctx).__name__}, ChildCount={ctx.getChildCount()}")
-        core_noun_parts = []
-
-        # --- Logic to find the core noun based on grammar ---
-        # Option 1: Check for a direct identifier child? (Less likely now)
-        # ... (keep existing logic if needed, but Option 2 seems primary) ...
-
-        # Option 2: Check for a naamPhrase child?
-        if hasattr(ctx, 'naamPhrase'):
-            potential_naam_phrase = ctx.naamPhrase()
-            if potential_naam_phrase: # Ensure it's not None or empty list
-                naam_phrase_ctx = None
-                # Handle list possibility
-                if isinstance(potential_naam_phrase, list):
-                    if len(potential_naam_phrase) > 0:
-                         naam_phrase_ctx = potential_naam_phrase[0] # Use the first phrase
-                         # ... (warning log for multiple phrases) ...
-                    # ... (warning log for empty list) ...
-                else:
-                     naam_phrase_ctx = potential_naam_phrase # Assume single context
-
-                if naam_phrase_ctx: # Proceed only if we have a context to process
-                    logger.debug(f"      Processing naamPhrase child: Text='{safe_get_text(naam_phrase_ctx)}', Type={type(naam_phrase_ctx).__name__}, ChildCount={naam_phrase_ctx.getChildCount()}")
-                    # --- Iterate children (TerminalNodes and identifierOrKeyword) of naamPhrase ---
-                    for child in naam_phrase_ctx.children:
-                         if isinstance(child, TerminalNode):
-                              token_type = child.getSymbol().type
-                              token_text = safe_get_text(child)
-                              logger.debug(f"        naamPhrase Child: Type=TerminalNode, Text='{token_text}', TokenType={token_type}, SymName='{AntlrParser.symbolicNames[token_type] if token_type >= 0 else 'N/A'}'")
-                              # --- Filter out articles (adjust types as needed) ---
-                              if token_type not in [AntlrParser.DE, AntlrParser.HET, AntlrParser.EEN]: # Add other non-noun tokens if necessary
-                                  core_noun_parts.append(token_text)
-                                  logger.debug(f"          Appending token text: '{token_text}'")
-                              else:
-                                   logger.debug(f"          Ignoring article/non-noun token: '{token_text}'")
-                         elif type(child).__name__ == 'IdentifierOrKeywordContext':
-                              # Handle identifierOrKeyword context
-                              token_text = safe_get_text(child)
-                              core_noun_parts.append(token_text)
-                              logger.debug(f"          Appending identifierOrKeyword text: '{token_text}'")
-                         else:
-                              logger.warning(f"        Unexpected child type in naamPhrase: Type={type(child).__name__}")
-                # ... (else block for no valid context) ...
-            # ... (else block for call returning None/empty) ...
-
-        # Option 3: Fallback if ctx is just an identifier?
-        # ... (keep existing logic) ...
-
-        # --- Combine parts or use fallback ---
-        final_core_noun = None
-        if core_noun_parts:
-            final_core_noun = " ".join(core_noun_parts) # Join parts with space
-        elif not core_noun_parts: # Check if Option 3 might have found something (if it exists)
-             # ... (check if Option 1 or 3 yielded a result) ...
-             # if core_noun_from_option1_or_3: final_core_noun = ...
-            pass # For now, stick to naamPhrase logic result
-
-        # Fallback if still no noun found
-        if final_core_noun is None:
-            logger.warning(f"      Could not determine specific noun structure in visitNaamwoord for '{safe_get_text(ctx)}'. Falling back to full text.")
-            final_core_noun = safe_get_text(ctx) # Keep existing behavior as fallback
-
-        logger.debug(f"    visitNaamwoord returning: '{final_core_noun}'")
-        return final_core_noun
+        
+        # Process all parts of the naamwoord according to grammar:
+        # naamwoord : naamPhrase ( voorzetsel naamPhrase )*
+        all_parts = []
+        
+        # Get all naamPhrase contexts
+        naam_phrases = ctx.naamPhrase()
+        if not isinstance(naam_phrases, list):
+            naam_phrases = [naam_phrases] if naam_phrases else []
+        
+        # Process the complete structure
+        for i in range(ctx.getChildCount()):
+            child = ctx.getChild(i)
+            
+            if type(child).__name__ == 'NaamPhraseContext':
+                # Process naam phrase - extract text without articles
+                phrase_parts = []
+                for subchild in child.children:
+                    if isinstance(subchild, TerminalNode):
+                        token_type = subchild.getSymbol().type
+                        token_text = safe_get_text(subchild)
+                        # Skip articles
+                        if token_type not in [AntlrParser.DE, AntlrParser.HET, AntlrParser.EEN]:
+                            phrase_parts.append(token_text)
+                    elif type(subchild).__name__ == 'IdentifierOrKeywordContext':
+                        phrase_parts.append(safe_get_text(subchild))
+                
+                if phrase_parts:
+                    all_parts.append(" ".join(phrase_parts))
+                    
+            elif type(child).__name__ == 'VoorzetselContext':
+                # Add the preposition
+                all_parts.append(safe_get_text(child))
+        
+        # Join all parts with spaces
+        final_noun = " ".join(all_parts) if all_parts else safe_get_text(ctx)
+        
+        logger.debug(f"    visitNaamwoord returning: '{final_noun}'")
+        return final_noun
+    
 
     def visitKenmerkNaam(self, ctx: AntlrParser.KenmerkNaamContext) -> str:
         """Extract the name string from a kenmerkNaam context."""
@@ -671,7 +681,8 @@ class RegelSpraakModelBuilder(RegelSpraakVisitor):
         elif isinstance(ctx, AntlrParser.IsKenmerkExprContext):
             left_expr = self.visitAdditiveExpression(ctx.left)
             kenmerk_name = ctx.identifier().getText()
-            right_expr = VariableReference(variable_name=kenmerk_name, span=self.get_span(ctx.identifier()))
+            # Create a Literal with the kenmerk name, not a VariableReference
+            right_expr = Literal(value=kenmerk_name, datatype="Tekst", span=self.get_span(ctx.identifier()))
             if left_expr is None: return None
             # For now, just use IS operator. Negation should be handled at a different level
             op = Operator.IS
@@ -679,7 +690,8 @@ class RegelSpraakModelBuilder(RegelSpraakVisitor):
         elif isinstance(ctx, AntlrParser.HeeftKenmerkExprContext):
             left_expr = self.visitAdditiveExpression(ctx.left)
             kenmerk_name = ctx.identifier().getText()
-            right_expr = VariableReference(variable_name=kenmerk_name, span=self.get_span(ctx.identifier()))
+            # Create a Literal with the kenmerk name, not a VariableReference
+            right_expr = Literal(value=kenmerk_name, datatype="Tekst", span=self.get_span(ctx.identifier()))
             if left_expr is None: return None
             # For now, just use HEEFT operator. Negation should be handled at a different level
             op = Operator.HEEFT
@@ -1065,81 +1077,206 @@ class RegelSpraakModelBuilder(RegelSpraakVisitor):
         # Check if it's wederkerig (reciprocal)
         wederkerig = bool(ctx.WEDERKERIG_FEITTYPE())
         
-        # Extract the feittype name from the subject and optional predicate
-        naam_parts = []
-        if ctx.subject:
-            naam_parts.append(self.visitNaamwoord(ctx.subject))
-        if ctx.HEEFT() and ctx.object_:
-            naam_parts.extend(["heeft", self.visitNaamwoord(ctx.object_)])
-        elif ctx.IS() and ctx.description:
-            # For descriptions, we want the full text including prepositions like "van"  
-            # Use the interval to get text with proper spacing
-            interval = ctx.description.getSourceInterval()
-            tokens = ctx.parser.getTokenStream()
-            description_text = tokens.getText(interval[0], interval[1])
-            naam_parts.extend(["is", description_text])
-        
-        naam = " ".join(naam_parts)
+        # Extract the feittype name
+        naam = self.visitNaamwoord(ctx.feittypenaam)
         logger.debug(f"Processing FeitType: naam='{naam}', wederkerig={wederkerig}")
         
-        # Extract roles from rolSpecificatie elements
+        # Extract roles from rolDefinition elements
+        # Note: Due to grammar ambiguity, the cardinality line might be parsed as a role
+        # We need to filter out invalid roles and track the cardinality prefix
         rollen = []
-        for rol_ctx in ctx.rolSpecificatie():
-            rol = self.visitRolSpecificatie(rol_ctx)
+        cardinality_prefix = None
+        for rol_ctx in ctx.rolDefinition():
+            rol = self.visitRolDefinition(rol_ctx)
             if rol:
-                rollen.append(rol)
+                # Check if this looks like a valid role definition
+                # A valid role should have the object_type as a single identifier
+                # and typically starts with "de" or "het" (though grammar allows optional)
+                # The cardinality line will have multiple words after the first identifier
+                if self._is_valid_role_definition(rol_ctx):
+                    rollen.append(rol)
+                else:
+                    logger.debug(f"Found cardinality prefix parsed as role: {rol}")
+                    # This is likely the start of the cardinality line
+                    # Extract the full text of this context with spaces preserved
+                    cardinality_prefix = get_text_with_spaces(rol_ctx)
         
-        if len(rollen) < 2:
+        # Validate role count
+        if wederkerig and len(rollen) != 1:
+            logger.error(f"Wederkerig FeitType '{naam}' must have exactly 1 role, found {len(rollen)}")
+            return None
+        elif not wederkerig and len(rollen) < 2:
             logger.error(f"FeitType '{naam}' must have at least 2 roles, found {len(rollen)}")
             return None
+        
+        # Extract cardinality description from the cardinalityLine
+        # If we have a cardinality prefix (from misparse role), combine it with the cardinalityLine
+        cardinality_description = None
+        if ctx.cardinalityLine():
+            cardinality_line_text = self._extract_cardinality_line(ctx.cardinalityLine())
+            if cardinality_prefix and cardinality_line_text:
+                # Combine the prefix with the rest of the line
+                cardinality_description = f"{cardinality_prefix} {cardinality_line_text}"
+            else:
+                cardinality_description = cardinality_line_text
         
         return FeitType(
             naam=naam,
             wederkerig=wederkerig,
             rollen=rollen,
+            cardinality_description=cardinality_description,
             span=self.get_span(ctx)
         )
     
-    def visitRolSpecificatie(self, ctx: AntlrParser.RolSpecificatieContext) -> Optional[Rol]:
-        """Visit a role specification and build a Rol object."""
-        # Extract role name from identifier
-        rol_naam = ctx.identifier().getText()
+    def _is_valid_role_definition(self, ctx) -> bool:
+        """Check if a rolDefinition context represents a valid role definition.
         
-        # Extract object type - role spec has voorzetselSpecificatie followed by identifier
-        # The identifier after voorzetselSpecificatie is the object type
-        # Grammar: rolSpecificatie : voorzetselSpecificatie identifier
-        # We need to get the object type which should be the second identifier
+        Valid role definitions typically:
+        - Start with "de" or "het" (or no article)
+        - Have a role name that's a single identifier (not "Een")
+        - Have an object type that's a single identifier
+        - Don't have additional text after the object type
+        """
+        # If the role name is "Een", it's likely the cardinality line
+        if hasattr(ctx, 'rolnaam') and ctx.rolnaam and ctx.rolnaam.getText() == "Een":
+            return False
         
-        # Since the grammar shows rolSpecificatie has voorzetselSpecificatie and identifier,
-        # we need to understand the structure better. Looking at the grammar:
-        # rolSpecificatie : voorzetselSpecificatie identifier
-        # This suggests the identifier IS the object type, and the role name must come from elsewhere
+        # Check that we have expected number of children
+        # A valid role definition should have limited tokens
+        # Allow up to 7 for: article + rolnaam + (mv: + meervoud + ) + objecttype
+        if ctx.getChildCount() > 7:
+            return False
+            
+        return True
+    
+    def visitRolDefinition(self, ctx: AntlrParser.RolDefinitionContext) -> Optional[Rol]:
+        """Visit a role definition and build a Rol object."""
+        # Extract all content words
+        if not ctx.content:
+            logger.error("No content found in role definition")
+            return None
+            
+        # Get all words from the content
+        words = []
+        for child in ctx.content.children:
+            if hasattr(child, 'getText'):
+                words.append(child.getText())
         
-        # Actually, based on the test examples and spec, the structure is:
-        # "(na het attribuut met voorzetsel van) Persoon" where Persoon is the object type
-        # The role name comes from the feittype definition context
+        # Check if there's an explicit object type after plural form
+        if ctx.objecttype:
+            # Object type is explicitly specified after plural
+            object_type_words = []
+            for child in ctx.objecttype.children:
+                if hasattr(child, 'getText'):
+                    object_type_words.append(child.getText())
+            
+            if object_type_words:
+                # All content words are the role name
+                rol_naam = " ".join(words)
+                object_type = " ".join(object_type_words)
+                
+                # Extract plural form if present
+                meervoud = None
+                if ctx.meervoud:
+                    meervoud = self.visitNaamwoord(ctx.meervoud)
+                
+                logger.debug(f"Parsed role with explicit object type: name='{rol_naam}', type='{object_type}'")
+                
+                return Rol(
+                    naam=rol_naam,
+                    meervoud=meervoud,
+                    object_type=object_type,
+                    span=self.get_span(ctx)
+                )
         
-        # Let me reconsider based on the spec example:
-        # de reis Vlucht
-        # de passagier Natuurlijk persoon
-        # So the rolSpecificatie should have the role name AND object type
+        # Original logic for when object type is part of content
+        if len(words) < 2:
+            logger.error(f"Role definition must have at least 2 words, got: {words}")
+            return None
         
-        # But our grammar shows: rolSpecificatie : voorzetselSpecificatie identifier
-        # This doesn't match the spec. Let me assume identifier is the object type for now
-        object_type = rol_naam # This is likely wrong, but let's proceed
+        # Split into role name and object type
+        # Strategy: Find the last contiguous sequence of capitalized words - that's the object type
+        # Everything before is the role name
         
-        # For now, assume single-valued roles (meervoudig=False)
-        # This would need to be determined from the feittype relationship description
-        meervoudig = False
+        # Find where the last capitalized sequence starts
+        object_type_start = -1
+        in_capitalized_sequence = False
         
-        logger.warning(f"RolSpecificatie parsing incomplete - role name extraction needs grammar fix. Object type: {object_type}")
+        for i in range(len(words) - 1, -1, -1):
+            word = words[i]
+            # Skip prepositions in our check
+            if word in ['van', 'met', 'op', 'in', 'voor', 'over', 'bij', 'uit', 'tot', 'en']:
+                if in_capitalized_sequence:
+                    # We hit a preposition after finding capitalized words, so we're done
+                    break
+                continue
+            
+            if word and word[0].isupper():
+                # This is a capitalized word
+                object_type_start = i
+                in_capitalized_sequence = True
+            else:
+                # Non-capitalized word
+                if in_capitalized_sequence:
+                    # We were in a capitalized sequence but hit a non-cap word, so we're done
+                    break
+        
+        # If we didn't find any capitalized words, take the last word as object type
+        if object_type_start == -1:
+            object_type_start = len(words) - 1
+        
+        # Split the words
+        role_words = words[:object_type_start]
+        object_type_words = words[object_type_start:]
+        
+        # Validate
+        if not role_words:
+            # If no role words, maybe the entire thing is the object type
+            # This happens with simple roles like "reis Vlucht"
+            if len(words) == 2 and words[1][0].isupper():
+                role_words = [words[0]]
+                object_type_words = [words[1]]
+            else:
+                logger.error(f"Could not determine role name from: {words}")
+                return None
+        
+        if not object_type_words:
+            logger.error(f"Could not determine object type from: {words}")
+            return None
+        
+        rol_naam = " ".join(role_words)
+        object_type = " ".join(object_type_words)
+        
+        # Extract plural form if present
+        meervoud = None
+        if ctx.meervoud:
+            meervoud = self.visitNaamwoord(ctx.meervoud)
+        
+        logger.debug(f"Parsed role: name='{rol_naam}', type='{object_type}' from words: {words}")
         
         return Rol(
-            naam="unknown_role", # This needs to be fixed based on grammar
+            naam=rol_naam,
+            meervoud=meervoud,
             object_type=object_type,
-            meervoudig=meervoudig,
             span=self.get_span(ctx)
         )
+    
+    def _extract_cardinality_line(self, ctx) -> str:
+        """Extract cardinality description from the cardinalityLine context."""
+        # The cardinalityLine rule is just a sequence of cardinalityWord tokens
+        # We need to collect all the text from these tokens
+        parts = []
+        
+        # Iterate through all children which should be cardinalityWord contexts
+        for word_ctx in ctx.cardinalityWord():
+            # Each cardinalityWord is a single token (not a keyword/semicolon)
+            if word_ctx.getChildCount() > 0:
+                token = word_ctx.getChild(0)
+                if isinstance(token, TerminalNode):
+                    parts.append(token.getText())
+        
+        # Join all words with spaces to form the complete cardinality description
+        return " ".join(parts) if parts else None
 
     def visitParameterDefinition(self, ctx: AntlrParser.ParameterDefinitionContext) -> Optional[Parameter]:
         """Visit a parameter definition and build a Parameter object."""
@@ -1310,8 +1447,62 @@ class RegelSpraakModelBuilder(RegelSpraakVisitor):
                 span=self.get_span(ctx)
             )
         # Add elif blocks for FeitCreatieResultaatContext, etc. as needed
-        # elif isinstance(ctx, AntlrParser.FeitCreatieResultaatContext):
-        #     ...
+        elif isinstance(ctx, AntlrParser.FeitCreatieResultaatContext):
+            # Handle FeitCreatieResultaat
+            # Grammar: feitCreatiePattern
+            
+            pattern_ctx = ctx.feitCreatiePattern()
+            if not pattern_ctx:
+                logger.error(f"Failed to parse FeitCreatie pattern")
+                return None
+            
+            # Extract first role
+            role1 = get_text_with_spaces(pattern_ctx.role1)
+            if not role1:
+                logger.error(f"Failed to parse first role name in {safe_get_text(ctx)}")
+                return None
+            
+            # Extract first subject
+            subject1_text = get_text_with_spaces(pattern_ctx.subject1)
+            if not subject1_text:
+                logger.error(f"Failed to parse first subject in {safe_get_text(ctx)}")
+                return None
+            
+            # Include the article in the subject text if present
+            if pattern_ctx.article1:
+                article1_text = pattern_ctx.article1.text
+                subject1_text = f"{article1_text} {subject1_text}"
+            
+            # For FeitCreatie, subjects are treated as single references
+            subject1_ref = AttributeReference(path=[subject1_text], span=self.get_span(pattern_ctx.subject1))
+            
+            # Extract second role name
+            role2 = get_text_with_spaces(pattern_ctx.role2)
+            if not role2:
+                logger.error(f"Failed to parse second role name in {safe_get_text(ctx)}")
+                return None
+            
+            # Extract second subject
+            subject2_text = get_text_with_spaces(pattern_ctx.subject2)
+            if not subject2_text:
+                logger.error(f"Failed to parse second subject in {safe_get_text(ctx)}")
+                return None
+            
+            # Include the article in the subject text if present
+            if pattern_ctx.article2:
+                article2_text = pattern_ctx.article2.text
+                subject2_text = f"{article2_text} {subject2_text}"
+            
+            # For FeitCreatie, subjects are treated as single references
+            subject2_ref = AttributeReference(path=[subject2_text], span=self.get_span(pattern_ctx.subject2))
+            
+            return FeitCreatie(
+                role1=role1,
+                subject1=subject1_ref,
+                role2=role2,
+                subject2=subject2_ref,
+                span=self.get_span(ctx)
+            )
         else:
             logger.warning(f"Unknown or unhandled resultaat deel type: {type(ctx).__name__} in {safe_get_text(ctx)}")
             return None

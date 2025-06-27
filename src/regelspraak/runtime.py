@@ -60,6 +60,15 @@ class RuntimeObject:
     instance_id: Optional[str] = None # Could be auto-generated or assigned
 
 @dataclass
+class Relationship:
+    """Represents a relationship instance between two objects."""
+    feittype_naam: str  # The type of relationship
+    subject: RuntimeObject  # The subject of the relationship
+    object: RuntimeObject  # The object of the relationship
+    preposition: str  # "MET" or "TOT"
+    # Additional metadata could be added here
+
+@dataclass
 class RuntimeContext:
     """Container for the runtime state during execution."""
     domain_model: ast.DomainModel # Link to the parsed model for definitions
@@ -74,6 +83,8 @@ class RuntimeContext:
     variables: Dict[str, Value] = field(default_factory=dict) # Store Values, not raw values
     # Tracks the object instance currently being evaluated (e.g., by a rule)
     current_instance: Optional[RuntimeObject] = None
+    # Stores relationships between objects
+    relationships: List[Relationship] = field(default_factory=list)
 
     # --- Parameter Handling ---
 
@@ -263,6 +274,60 @@ class RuntimeContext:
         if self.trace_sink and old_value != value: # Only trace change
             # TODO: Refine trace event for kenmerken
             self.trace_sink.assignment(instance, f"kenmerk:{kenmerk_name}", old_value, value, span)
+
+    # --- Relationship Handling ---
+
+    def add_relationship(self, feittype_naam: str, subject: RuntimeObject, 
+                        object: RuntimeObject, preposition: str = "MET") -> Relationship:
+        """Creates and stores a relationship between two objects."""
+        relationship = Relationship(
+            feittype_naam=feittype_naam,
+            subject=subject,
+            object=object,
+            preposition=preposition
+        )
+        self.relationships.append(relationship)
+        
+        # Trace relationship creation if trace sink is available
+        if self.trace_sink and hasattr(self.trace_sink, 'relationship_created'):
+            self.trace_sink.relationship_created(relationship)
+            
+        return relationship
+    
+    def find_relationships(self, subject: Optional[RuntimeObject] = None,
+                          object: Optional[RuntimeObject] = None,
+                          feittype_naam: Optional[str] = None) -> List[Relationship]:
+        """Find relationships matching the given criteria."""
+        results = []
+        for rel in self.relationships:
+            if subject and rel.subject != subject:
+                continue
+            if object and rel.object != object:
+                continue
+            if feittype_naam and rel.feittype_naam != feittype_naam:
+                continue
+            results.append(rel)
+        return results
+    
+    def get_related_objects(self, subject: RuntimeObject, feittype_naam: str,
+                           as_subject: bool = True) -> List[RuntimeObject]:
+        """Get objects related to the given subject via the specified feittype.
+        
+        Args:
+            subject: The object to find relationships for
+            feittype_naam: The type of relationship
+            as_subject: If True, find relationships where subject is the subject.
+                       If False, find relationships where subject is the object.
+        """
+        related = []
+        for rel in self.relationships:
+            if rel.feittype_naam != feittype_naam:
+                continue
+            if as_subject and rel.subject == subject:
+                related.append(rel.object)
+            elif not as_subject and rel.object == subject:
+                related.append(rel.subject)
+        return related
 
     # --- Evaluation Helpers ('IS', 'IN') ---
 

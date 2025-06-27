@@ -260,7 +260,7 @@ class RegelTests(RegelSpraakTestCase):
         rule_text = """
         Regel Bereken Totaal Inkomen Periode
         geldig altijd
-            Het totaal inkomen moet berekend worden als het totaal van het inkomen
+            het totaal inkomen moet berekend worden als het totaal van het inkomen
             gedurende de tijd dat de status gelijk is aan 'Actief'.
         """
         # Note: Assumes `toplevelElementaireVoorwaarde` or `toplevelSamengesteldeVoorwaarde` can parse "de status gelijk is aan 'Actief'"
