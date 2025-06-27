@@ -10,7 +10,7 @@ from . import ast
 from .ast import (
     Expression, Literal, VariableReference, AttributeReference, ParameterReference, # Added ParameterReference
     BinaryExpression, UnaryExpression, FunctionCall, Operator, DomainModel, Regel,
-    Gelijkstelling, KenmerkToekenning # Added ResultaatDeel types
+    Gelijkstelling, KenmerkToekenning, ObjectCreatie # Added ResultaatDeel types
 )
 # Import Runtime components
 from .runtime import RuntimeContext, RuntimeObject, Value # Import Value directly
@@ -37,6 +37,7 @@ class Evaluator:
         """Initialize the Evaluator with a runtime context."""
         self.context = context
         self.arithmetic = UnitArithmetic(context.unit_registry)
+        self._current_rule = None  # Track current rule for tracing
 
     def execute_model(self, domain_model: DomainModel):
         """Executes all rules in the domain model against the context."""
@@ -44,8 +45,36 @@ class Evaluator:
         # all relevant object instances found in the context.
         # TODO: Need a more sophisticated strategy for rule ordering and scoping.
         results = {}
+        # Track how many objects we started with to prevent infinite loops
+        initial_object_counts = {obj_type: len(self.context.find_objects_by_type(obj_type)) 
+                                for obj_type in domain_model.objecttypes.keys()}
+        
         for rule in domain_model.regels:
-            # Determine the target ObjectType for the rule (simplistic deduction)
+            # Special handling for ObjectCreatie rules
+            if isinstance(rule.resultaat, ObjectCreatie):
+                # Execute object creation rules only once, not per instance
+                original_instance = self.context.current_instance
+                # Create a dummy context if needed
+                if not self.context.current_instance:
+                    # Need some context to evaluate expressions
+                    # Use first available object or create minimal context
+                    if domain_model.objecttypes:
+                        obj_type_name = next(iter(domain_model.objecttypes.keys()))
+                        instances = self.context.find_objects_by_type(obj_type_name)
+                        if instances:
+                            self.context.set_current_instance(instances[0])
+                
+                try:
+                    self.evaluate_rule(rule)
+                    results.setdefault(rule.naam, []).append({"status": "object_created"})
+                except Exception as e:
+                    print(f"Error executing object creation rule '{rule.naam}': {e}")
+                    results.setdefault(rule.naam, []).append({"status": "error", "message": str(e)})
+                finally:
+                    self.context.set_current_instance(original_instance)
+                continue
+            
+            # Regular rules - determine the target ObjectType for the rule
             target_type_name = self._deduce_rule_target_type(rule)
             if not target_type_name:
                 # Rule doesn't seem to target a specific object type (e.g., global calculation?)
@@ -132,6 +161,9 @@ class Evaluator:
         error_msg = None
         
         try:
+            # Store current rule for tracing
+            self._current_rule = rule
+            
             # Evaluate expressions in rule.variabelen and store in context.variables
             for var_name, expr in rule.variabelen.items():
                 var_value = self.evaluate_expression(expr)
@@ -192,6 +224,9 @@ class Evaluator:
             # Restore outer variable scope
             self.context.variables = original_vars
             
+            # Clear current rule reference
+            self._current_rule = None
+            
             # Trace the end of rule evaluation
             if self.context.trace_sink:
                 self.context.trace_sink.rule_eval_end(rule, instance, success, error_msg)
@@ -222,6 +257,50 @@ class Evaluator:
             # For now, assume it applies to the current instance
             # TODO: Evaluate res.target if it's more complex than just the instance?
             self.context.set_kenmerk(instance, kenmerk_name, kenmerk_value, span=res.span)
+        
+        elif isinstance(res, ObjectCreatie):
+            # Look up object type definition
+            obj_type_def = self.context.domain_model.objecttypes.get(res.object_type)
+            if not obj_type_def:
+                raise RegelspraakError(f"Unknown object type: {res.object_type}", span=res.span)
+            
+            # Create new instance
+            import uuid
+            new_instance = RuntimeObject(
+                object_type_naam=res.object_type,
+                instance_id=str(uuid.uuid4())
+            )
+            
+            # Initialize attributes
+            for attr_name, value_expr in res.attribute_inits:
+                # Check attribute exists
+                if attr_name not in obj_type_def.attributen:
+                    raise RegelspraakError(
+                        f"Attribute '{attr_name}' not defined for type '{res.object_type}'", 
+                        span=res.span
+                    )
+                
+                # Evaluate and set value
+                value = self.evaluate_expression(value_expr)
+                new_instance.attributen[attr_name] = value
+            
+            # Add to context
+            self.context.add_object(new_instance)
+            
+            # Trace object creation
+            if self.context.trace_sink:
+                # Get rule name from context if available
+                rule_name = None
+                if hasattr(self, '_current_rule') and self._current_rule:
+                    rule_name = self._current_rule.naam
+                    
+                self.context.trace_sink.object_created(
+                    object_type=res.object_type,
+                    instance_id=new_instance.instance_id,
+                    attributes=new_instance.attributen,
+                    span=res.span,
+                    rule_name=rule_name
+                )
         
         else:
             # Use RegelspraakError instead of NotImplementedError with keyword args
@@ -644,6 +723,7 @@ TRACE_EVENT_FUNCTION_CALL_END = "FUNCTION_CALL_END"
 TRACE_EVENT_RULE_FIRED = "RULE_FIRED"
 TRACE_EVENT_RULE_SKIPPED = "RULE_SKIPPED"
 TRACE_EVENT_ASSIGNMENT = "ASSIGNMENT"
+TRACE_EVENT_OBJECT_CREATED = "OBJECT_CREATED"
 
 @dataclass
 class TraceEvent:
@@ -883,6 +963,19 @@ class TraceSink:
             span=expr.span if expr else None,
             rule_name=rule_name,
             instance_id=instance.instance_id
+        ))
+    
+    def object_created(self, object_type: str, instance_id: str, attributes: Dict[str, Any], span: Optional[ast.SourceSpan] = None, rule_name: Optional[str] = None):
+        """Records the creation of a new object instance."""
+        self.record(TraceEvent(
+            type=TRACE_EVENT_OBJECT_CREATED,
+            details={
+                "object_type": object_type,
+                "attributes": {k: repr(v) for k, v in attributes.items()}
+            },
+            span=span,
+            rule_name=rule_name,
+            instance_id=instance_id
         ))
 
 class PrintTraceSink(TraceSink):

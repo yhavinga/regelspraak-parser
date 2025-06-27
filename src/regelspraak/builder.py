@@ -12,7 +12,7 @@ from antlr4.tree.Tree import TerminalNode
 from .ast import (
     DomainModel, ObjectType, Attribuut, Kenmerk, Regel, Parameter, Domein,
     FeitType, Rol, Voorwaarde, ResultaatDeel, Gelijkstelling, KenmerkToekenning,
-    Expression, Literal, AttributeReference, VariableReference,
+    ObjectCreatie, Expression, Literal, AttributeReference, VariableReference,
     BinaryExpression, UnaryExpression, FunctionCall, Operator,
     ParameterReference, SourceSpan
 )
@@ -804,7 +804,13 @@ class RegelSpraakModelBuilder(RegelSpraakVisitor):
                  logger.error(f"Invalid numeric literal: {ctx.NUMBER().getText()} in {safe_get_text(ctx)}")
                  return None
         elif isinstance(ctx, AntlrParser.StringLiteralExprContext):
-            return Literal(value=ctx.STRING_LITERAL().getText().strip("\'"), datatype="Tekst", span=self.get_span(ctx))
+            # Strip both single and double quotes
+            text = ctx.STRING_LITERAL().getText()
+            if text.startswith('"') and text.endswith('"'):
+                text = text[1:-1]
+            elif text.startswith("'") and text.endswith("'"):
+                text = text[1:-1]
+            return Literal(value=text, datatype="Tekst", span=self.get_span(ctx))
         elif isinstance(ctx, AntlrParser.EnumLiteralExprContext):
              return Literal(value=ctx.ENUM_LITERAL().getText(), datatype="Enumeratie", span=self.get_span(ctx))
         elif isinstance(ctx, AntlrParser.DatumLiteralExprContext):
@@ -1241,6 +1247,31 @@ class RegelSpraakModelBuilder(RegelSpraakVisitor):
                 target=target_ref,
                 kenmerk_naam=kenmerk_naam,
                 is_negated=is_negated,
+                span=self.get_span(ctx)
+            )
+        elif isinstance(ctx, AntlrParser.ObjectCreatieResultaatContext):
+            # Handle object creation
+            object_ctx = ctx.objectCreatie()
+            object_type = self.visit(object_ctx.objectType)
+            
+            # Parse attribute initializations if present
+            attribute_inits = []
+            if object_ctx.objectAttributeInit():
+                # Parse initial attribute and its value
+                init_ctx = object_ctx.objectAttributeInit()
+                attr_name = self.visit(init_ctx.attribuut)
+                value_expr = self.visit(init_ctx.waarde)
+                attribute_inits.append((attr_name, value_expr))
+                
+                # Parse additional attributes using EN connector
+                for vervolg in init_ctx.attributeInitVervolg():
+                    attr = self.visit(vervolg.attribuut)
+                    val = self.visit(vervolg.waarde)
+                    attribute_inits.append((attr, val))
+            
+            return ObjectCreatie(
+                object_type=object_type,
+                attribute_inits=attribute_inits,
                 span=self.get_span(ctx)
             )
         # Add elif blocks for FeitCreatieResultaatContext, etc. as needed

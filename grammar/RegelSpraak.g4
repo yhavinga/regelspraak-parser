@@ -264,7 +264,7 @@ resultaatDeel
     | identifier+ ( WORDT_BEREKEND_ALS expressie | WORDT_GESTELD_OP expressie | WORDT_GEINITIALISEERD_OP expressie )                   # CapitalizedGelijkstellingResultaat // For capitalized cases
     | (HET_KWARTAAL | HET_DEEL_PER_MAAND | HET_DEEL_PER_JAAR) identifier* ( WORDT_BEREKEND_ALS expressie | WORDT_GESTELD_OP expressie | WORDT_GEINITIALISEERD_OP expressie ) ( (VANAF | VAN) datumLiteral (TOT | TOT_EN_MET) datumLiteral )? DOT? # SpecialPhraseResultaat
     | HET_AANTAL_DAGEN_IN (MAAND | JAAR) ( WORDT_BEREKEND_ALS expressie | WORDT_GESTELD_OP expressie | WORDT_GEINITIALISEERD_OP expressie ) # AantalDagenInResultaat
-    | objectCreatie                                                                    # ObjectCreatieActie
+    | objectCreatie                                                                    # ObjectCreatieResultaat
     ;
 
 // Object creation rule based on 13.4.6 in reference

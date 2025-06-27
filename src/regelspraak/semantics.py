@@ -8,7 +8,7 @@ from .ast import (
     DomainModel, ObjectType, Parameter, Regel, Expression, Literal,
     AttributeReference, VariableReference, ParameterReference,
     BinaryExpression, UnaryExpression, FunctionCall, Operator,
-    Gelijkstelling, KenmerkToekenning, Attribuut, Kenmerk,
+    Gelijkstelling, KenmerkToekenning, ObjectCreatie, Attribuut, Kenmerk,
     SourceSpan
 )
 from .errors import RegelspraakError
@@ -279,6 +279,25 @@ class SemanticAnalyzer:
             
             # Otherwise validate as normal attribute reference
             self._analyze_attribute_reference(resultaat.target)
+        
+        elif isinstance(resultaat, ObjectCreatie):
+            # Validate object type exists
+            if resultaat.object_type not in self.symbol_table.object_types:
+                self.errors.append(SemanticError(
+                    f"Unknown object type: {resultaat.object_type}",
+                    resultaat.span
+                ))
+            else:
+                obj_type_def = self.domain_model.objecttypes[resultaat.object_type]
+                # Validate attribute initializations
+                for attr_name, expr in resultaat.attribute_inits:
+                    if attr_name not in obj_type_def.attributen:
+                        self.errors.append(SemanticError(
+                            f"Attribute '{attr_name}' not defined for type '{resultaat.object_type}'",
+                            resultaat.span
+                        ))
+                    # Analyze the expression
+                    self._analyze_expression(expr)
     
     def _analyze_expression(self, expr: Expression) -> Optional[str]:
         """Analyze an expression and return its type (if known)."""

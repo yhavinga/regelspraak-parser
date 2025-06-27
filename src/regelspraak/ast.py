@@ -180,6 +180,12 @@ class KenmerkToekenning(ResultaatDeel):
 # Potentially add other ResultaatDeel types: Verdeling, Actie, etc.
 
 @dataclass
+class ObjectCreatie(ResultaatDeel):
+    """Creates a new instance of an object type (§13.4.6)."""
+    object_type: str  # Name of the object type to create
+    attribute_inits: List[Tuple[str, Expression]]  # [(attr_name, value_expr), ...]
+
+@dataclass
 class Regel:
     """Represents a RegelSpraak rule definition."""
     naam: str
