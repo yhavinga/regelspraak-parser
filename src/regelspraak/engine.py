@@ -122,14 +122,18 @@ class Evaluator:
             pass # TODO: Implement more robust deduction if needed
         
         if target_ref and target_ref.path: 
-            # Assume the first part of the path *might* be the type name
-            # e.g., "Natuurlijk persoon".leeftijd -> "Natuurlijk persoon"
-            # This is fragile and depends on grammar/parsing conventions.
-            # It might only contain the attribute like "leeftijd" if context is implicit
+            # Path structure from visitAttribuutReferentie: ["attribute", "object_type", ...]
+            # e.g., ["resultaat", "Bedrag"] for "De resultaat van een Bedrag"
+            # e.g., ["leeftijd", "Natuurlijk persoon"] for "De leeftijd van een Natuurlijk persoon"
             if len(target_ref.path) > 1: 
-                 # Check if first part matches a known object type? Needs refinement.
-                 # return target_ref.path[0] # Example: Assume first element is type
-                 pass
+                # The second element is typically the object type
+                potential_type = target_ref.path[1]
+                # Check if it matches a known object type
+                if hasattr(self.context, 'domain_model') and self.context.domain_model:
+                    if potential_type in self.context.domain_model.objecttypes:
+                        return potential_type
+                # Return it anyway - let the caller validate
+                return potential_type
             # If path is just ["leeftijd"], we need another way (e.g. Regel header)
             # For steel thread: assume rule applies to Natuurlijk persoon based on name/structure
             if "persoon" in rule.naam.lower(): # Very basic heuristic for steel thread
@@ -242,11 +246,12 @@ class Evaluator:
 
         if isinstance(res, Gelijkstelling):
             value = self.evaluate_expression(res.expressie)
-            # Assume target path is just the attribute name for simplicity for now
-            # TODO: Handle nested paths correctly (e.g., contactpersoon.adres.straatnaam)
+            # Path structure from builder: ["attribute", "object_type", ...]
+            # For "De resultaat van een Bedrag": ["resultaat", "Bedrag"]
+            # The first element is the attribute name
             if not res.target.path:
                 raise RegelspraakError("Gelijkstelling target path is empty.", span=res.target.span)
-            attr_name = res.target.path[-1]
+            attr_name = res.target.path[0]
             # Pass the Value object directly
             self.context.set_attribute(instance, attr_name, value, span=res.span)
 
@@ -530,6 +535,8 @@ class Evaluator:
             return self.arithmetic.add(left_val, right_val)
         elif op == Operator.MIN:
             return self.arithmetic.subtract(left_val, right_val)
+        elif op == Operator.VERMINDERD_MET:
+            return self.arithmetic.subtract_verminderd_met(left_val, right_val)
         elif op == Operator.MAAL:
             return self.arithmetic.multiply(left_val, right_val)
         elif op == Operator.GEDEELD_DOOR:

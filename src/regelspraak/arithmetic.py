@@ -133,6 +133,50 @@ class UnitArithmetic:
         
         return Value(value=result_dec, datatype=left.datatype, unit=left.unit)
     
+    def subtract_verminderd_met(self, left: Value, right: Value) -> Value:
+        """Subtract using 'verminderd met' semantics.
+        
+        Per spec 6.3: If left is empty, result is always empty.
+        Otherwise, empty values are treated as 0.
+        """
+        # Type checking
+        if left.datatype not in ["Numeriek", "Percentage", "Bedrag"]:
+            raise RuntimeError(f"Cannot subtract {left.datatype} values")
+        if right.datatype not in ["Numeriek", "Percentage", "Bedrag"]:
+            raise RuntimeError(f"Cannot subtract {right.datatype} values")
+        
+        # Special handling: if left is empty, result is empty
+        if left.value is None:
+            return Value(value=None, datatype=left.datatype, unit=left.unit)
+        
+        # Left has value, continue with normal subtraction (empty right = 0)
+        left_dec = self._ensure_decimal(left)
+        right_dec = self._ensure_decimal(right) if right.value is not None else Decimal('0')
+        
+        # Unit checking and conversion
+        if not self._check_units_compatible(left, right, "subtraction"):
+            raise RuntimeError(f"Cannot subtract values with incompatible units: '{left.unit}' and '{right.unit}'")
+        
+        # Convert right to left's unit if needed
+        if left.unit != right.unit and left.unit and right.unit:
+            right_converted = self._convert_to_unit(right, left.unit)
+            right_dec = right_converted.to_decimal()
+        
+        # Perform subtraction
+        result_dec = left_dec - right_dec
+        
+        # Result has the highest number of decimal places
+        left_places = self._get_decimal_places(left_dec)
+        right_places = self._get_decimal_places(right_dec)
+        max_places = max(left_places, right_places)
+        
+        # Quantize to maintain decimal places
+        if max_places > 0:
+            quantizer = Decimal('0.1') ** max_places
+            result_dec = result_dec.quantize(quantizer)
+        
+        return Value(value=result_dec, datatype=left.datatype, unit=left.unit)
+    
     def multiply(self, left: Value, right: Value) -> Value:
         """Multiply two values, creating composite units."""
         # Type checking

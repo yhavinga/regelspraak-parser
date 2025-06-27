@@ -22,6 +22,7 @@ class Operator(Enum):
     # Arithmetic
     PLUS = "+"
     MIN = "-"
+    VERMINDERD_MET = "-v" # Subtraction with special empty value handling
     MAAL = "*"
     GEDEELD_DOOR = "/"
     GEDEELD_DOOR_ABS = "/ABS" # Division with ABS-style rounding (5 decimals)

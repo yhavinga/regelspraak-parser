@@ -47,7 +47,7 @@ OPERATOR_MAP = {
     # --- Arithmetic ---
     AntlrParser.PLUS: Operator.PLUS,
     AntlrParser.MIN: Operator.MIN,
-    AntlrParser.VERMINDERD_MET: Operator.MIN, # Phrase mapping
+    AntlrParser.VERMINDERD_MET: Operator.VERMINDERD_MET, # Different empty value handling than MIN
     AntlrParser.MAAL: Operator.MAAL,
     AntlrParser.GEDEELD_DOOR: Operator.GEDEELD_DOOR,
     AntlrParser.TOT_DE_MACHT: Operator.MACHT,
@@ -499,11 +499,31 @@ class RegelSpraakModelBuilder(RegelSpraakVisitor):
     
     def visitAttribuutMetLidwoord(self, ctx: AntlrParser.AttribuutMetLidwoordContext) -> str:
         """Extract the attribute name from attribuutMetLidwoord context."""
-        # Skip the article (DE/HET) and join the identifierOrKeyword tokens
+        logger.debug(f"visitAttribuutMetLidwoord called with: {safe_get_text(ctx)}")
+        # Get the full text first
+        full_text = safe_get_text(ctx)
+        # Strip leading articles - handle both with and without spaces
+        if full_text.startswith("De"):
+            if len(full_text) > 2 and full_text[2] == ' ':
+                return full_text[3:]  # "De " with space
+            elif len(full_text) > 2:
+                # "De" without space - need to lowercase the next char
+                return full_text[2].lower() + full_text[3:]
+        elif full_text.startswith("Het"):
+            if len(full_text) > 3 and full_text[3] == ' ':
+                return full_text[4:]  # "Het " with space
+            elif len(full_text) > 3:
+                # "Het" without space - need to lowercase the next char
+                return full_text[3].lower() + full_text[4:]
+        elif full_text.startswith("de "):
+            return full_text[3:]
+        elif full_text.startswith("het "):
+            return full_text[4:]
+        # If no article or already processed, join identifierOrKeyword tokens
         tokens = []
         for child in ctx.identifierOrKeyword():
             tokens.append(child.getText())
-        return " ".join(tokens)
+        return " ".join(tokens) if tokens else full_text
 
     def visitBezieldeReferentie(self, ctx: AntlrParser.BezieldeReferentieContext) -> Optional[AttributeReference]:
         """Visit bezielde referentie (e.g., 'zijn leeftijd') and create an AttributeReference,
@@ -1213,6 +1233,21 @@ class RegelSpraakModelBuilder(RegelSpraakVisitor):
                 # Handle cases where target is a simple naamwoord (e.g., variable?)
                 # This might need refinement depending on semantic context
                 target_name = self.visitNaamwoord(ctx.naamwoord())
+                # Strip leading articles if present - handle both with and without spaces
+                if target_name.startswith("De"):
+                    if len(target_name) > 2 and target_name[2] == ' ':
+                        target_name = target_name[3:]  # "De " with space
+                    elif len(target_name) > 2:
+                        # "De" without space - need to lowercase the next char
+                        target_name = target_name[2].lower() + target_name[3:]
+                elif target_name.startswith("Het"):
+                    if len(target_name) > 3 and target_name[3] == ' ':
+                        target_name = target_name[4:]  # "Het " with space
+                    elif len(target_name) > 3:
+                        # "Het" without space - need to lowercase the next char
+                        target_name = target_name[3].lower() + target_name[4:]
+                elif target_name.startswith("Een "):
+                    target_name = target_name[4:]
                 target_ref = AttributeReference(path=[target_name], span=self.get_span(ctx.naamwoord()))
             elif ctx.attribuutReferentie():
                 target_ref = self.visitAttribuutReferentie(ctx.attribuutReferentie())
