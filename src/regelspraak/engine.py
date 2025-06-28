@@ -10,7 +10,7 @@ from . import ast
 from .ast import (
     Expression, Literal, VariableReference, AttributeReference, ParameterReference, # Added ParameterReference
     BinaryExpression, UnaryExpression, FunctionCall, Operator, DomainModel, Regel,
-    Gelijkstelling, KenmerkToekenning, ObjectCreatie, FeitCreatie # Added ResultaatDeel types
+    Gelijkstelling, KenmerkToekenning, ObjectCreatie, FeitCreatie, Consistentieregel # Added ResultaatDeel types
 )
 # Import Runtime components
 from .runtime import RuntimeContext, RuntimeObject, Value # Import Value directly
@@ -117,6 +117,29 @@ class Evaluator:
         target_ref: Optional[ast.AttributeReference] = None
         if isinstance(rule.resultaat, (Gelijkstelling, KenmerkToekenning)):
             target_ref = rule.resultaat.target
+        elif isinstance(rule.resultaat, Consistentieregel):
+            # For consistency rules, determine the target based on the criterium type
+            if rule.resultaat.criterium_type == "uniek" and rule.resultaat.target:
+                # For uniqueness checks, the target has pattern: [attribute, "alle", object_type]
+                if isinstance(rule.resultaat.target, AttributeReference) and len(rule.resultaat.target.path) >= 3:
+                    # The object type is the last element in the path
+                    obj_type = rule.resultaat.target.path[2]
+                    # Clean the object type name
+                    obj_type_clean = obj_type.replace("Natuurlijke personen", "Natuurlijk persoon")
+                    if obj_type_clean in self.context.domain_model.objecttypes:
+                        return obj_type_clean
+                    # Try to find a matching object type
+                    for defined_type in self.context.domain_model.objecttypes:
+                        if defined_type.lower() in obj_type.lower() or obj_type.lower() in defined_type.lower():
+                            return defined_type
+            elif rule.resultaat.criterium_type == "inconsistent":
+                # For inconsistency rules with conditions, examine the condition
+                if rule.voorwaarde and hasattr(rule.voorwaarde, 'expressie'):
+                    # Try to infer from the condition's subject
+                    # This is a simplified approach - may need refinement
+                    for obj_type in self.context.domain_model.objecttypes:
+                        return obj_type  # Return first object type for now
+            return None
         elif isinstance(rule.resultaat, FeitCreatie):
             # For FeitCreatie, we need to determine which object type the rule iterates over
             # This is complex - for now, try to deduce from subject1
@@ -500,6 +523,30 @@ class Evaluator:
                     instance_id=self.context.current_instance.instance_id if self.context.current_instance else None
                 ))
         
+        elif isinstance(res, Consistentieregel):
+            # Handle Consistentieregel - validate data consistency
+            # These rules return a boolean result (true=consistent, false=inconsistent)
+            result = self._apply_consistentieregel(res)
+            
+            # Store the result for use in other rules
+            # For now, we log it and trace it
+            if self.context.trace_sink:
+                rule_name = None
+                if hasattr(self, '_current_rule') and self._current_rule:
+                    rule_name = self._current_rule.naam
+                
+                self.context.trace_sink.record(TraceEvent(
+                    type="CONSISTENCY_CHECK",
+                    details={
+                        "criterium_type": res.criterium_type,
+                        "result": "consistent" if result else "inconsistent",
+                        "target": str(res.target) if res.target else None
+                    },
+                    span=res.span,
+                    rule_name=rule_name,
+                    instance_id=self.context.current_instance.instance_id if self.context.current_instance else None
+                ))
+        
         else:
             # Use RegelspraakError instead of NotImplementedError with keyword args
             raise RegelspraakError(f"Applying result for type {type(res)} not implemented", span=res.span)
@@ -696,6 +743,33 @@ class Evaluator:
                 )
                 
         return result
+
+    def _apply_consistentieregel(self, res: Consistentieregel) -> bool:
+        """Apply a consistency rule and return true if consistent, false if inconsistent."""
+        if res.criterium_type == "uniek":
+            # Handle uniqueness check
+            if not res.target:
+                raise RegelspraakError("Uniqueness check requires a target expression", span=res.span)
+            
+            # For uniqueness, we need to check all instances of the same type
+            # The target expression should reference a collection like "alle Natuurlijke personen"
+            # For now, implement a simple check
+            logger.warning("Uniqueness checks not fully implemented yet")
+            return True  # Assume consistent for now
+            
+        elif res.criterium_type == "inconsistent":
+            # For inconsistency rules, the condition determines if data is inconsistent
+            # If the condition (handled at rule level) is true, then data IS inconsistent
+            # So we return false (inconsistent) when condition is met
+            # The actual condition evaluation happens at the rule level
+            # Here we just return that the check was performed
+            return True  # The actual result is determined by the rule's condition
+            
+        else:
+            raise RegelspraakError(
+                f"Unknown consistency criterion type: {res.criterium_type}",
+                span=res.span
+            )
 
     def _handle_binary(self, expr: BinaryExpression) -> Value:
         """Handle binary operations, returning Value objects."""

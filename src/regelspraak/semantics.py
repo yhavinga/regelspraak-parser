@@ -8,7 +8,7 @@ from .ast import (
     DomainModel, ObjectType, Parameter, Regel, Expression, Literal,
     AttributeReference, VariableReference, ParameterReference,
     BinaryExpression, UnaryExpression, FunctionCall, Operator,
-    Gelijkstelling, KenmerkToekenning, ObjectCreatie, FeitCreatie, Attribuut, Kenmerk,
+    Gelijkstelling, KenmerkToekenning, ObjectCreatie, FeitCreatie, Consistentieregel, Attribuut, Kenmerk,
     SourceSpan
 )
 from .errors import RegelspraakError
@@ -311,6 +311,17 @@ class SemanticAnalyzer:
             # - Checking that subject1/subject2 types match the expected object types for those roles
             # For now, we just check that the expressions are valid
             pass
+        
+        elif isinstance(resultaat, Consistentieregel):
+            # Validate Consistentieregel
+            if resultaat.criterium_type == "uniek":
+                # For uniqueness checks, validate the target expression
+                if resultaat.target:
+                    self._analyze_expression(resultaat.target)
+            elif resultaat.criterium_type == "inconsistent":
+                # For inconsistency checks, the condition is at rule level
+                # No specific validation needed here
+                pass
     
     def _analyze_expression(self, expr: Expression) -> Optional[str]:
         """Analyze an expression and return its type (if known)."""

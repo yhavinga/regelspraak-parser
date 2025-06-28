@@ -39,6 +39,7 @@ identifierOrKeyword
     | VOORWAARDE // "voorwaarde" - can be part of rule names
     | HEEFT      // "heeft" - can appear in feittype names
     | ALLE       // "alle" - can appear in rule names
+    | INCONSISTENT // "inconsistent" - can appear in consistency rule names
     ;
 
 naamPhrase // Used within naamwoord
@@ -351,7 +352,12 @@ consistentieregel
 
 // Specific result types for consistentieregel
 uniekzijnResultaat
-    : onderwerpReferentie MOETEN_UNIEK_ZIJN DOT?
+    : alleAttributenVanObjecttype MOETEN_UNIEK_ZIJN DOT?
+    ;
+
+// Pattern for "de attributen van alle ObjectType"
+alleAttributenVanObjecttype
+    : DE naamwoord VAN ALLE naamwoord
     ;
 
 inconsistentResultaat

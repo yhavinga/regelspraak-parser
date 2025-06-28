@@ -199,6 +199,15 @@ class FeitCreatie(ResultaatDeel):
     subject2: Expression  # Second subject (e.g., "de persoon")
 
 @dataclass
+class Consistentieregel(ResultaatDeel):
+    """Consistency rule that validates data integrity (§9.5).
+    Returns false (inconsistent) if criteria are not met.
+    Two types: uniqueness checks and conditional inconsistency."""
+    criterium_type: str  # "uniek" or "inconsistent"
+    target: Optional[Expression] = None  # For uniqueness checks (e.g., "de BSN")
+    condition: Optional[Expression] = None  # For conditional inconsistency
+
+@dataclass
 class Regel:
     """Represents a RegelSpraak rule definition."""
     naam: str

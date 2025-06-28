@@ -12,7 +12,7 @@ from antlr4.tree.Tree import TerminalNode
 from .ast import (
     DomainModel, ObjectType, Attribuut, Kenmerk, Regel, Parameter, Domein,
     FeitType, Rol, Voorwaarde, ResultaatDeel, Gelijkstelling, KenmerkToekenning,
-    ObjectCreatie, FeitCreatie, Expression, Literal, AttributeReference, VariableReference,
+    ObjectCreatie, FeitCreatie, Consistentieregel, Expression, Literal, AttributeReference, VariableReference,
     BinaryExpression, UnaryExpression, FunctionCall, Operator,
     ParameterReference, SourceSpan
 )
@@ -404,6 +404,11 @@ class RegelSpraakModelBuilder(RegelSpraakVisitor):
                 rule = self.visitRegel(child)
                 if rule:
                     domain_model.regels.append(rule)
+            elif isinstance(child, AntlrParser.ConsistentieregelContext):
+                consistentieregel = self.visitConsistentieregel(child)
+                if consistentieregel:
+                    # Consistentieregels are special types of rules, add to regels list
+                    domain_model.regels.append(consistentieregel)
         return domain_model
 
     def visitChildren(self, node):
@@ -1360,6 +1365,89 @@ class RegelSpraakModelBuilder(RegelSpraakVisitor):
             span=self.get_span(ctx)
         )
 
+    def visitConsistentieregel(self, ctx: AntlrParser.ConsistentieregelContext) -> Optional[Regel]:
+        """Visit a consistency rule and build a Regel object with Consistentieregel result."""
+        # Get the rule name
+        naam = self.visitNaamwoord(ctx.naamwoord()) if ctx.naamwoord() else "<unknown_consistentieregel>"
+        
+        # Determine which type of consistency result we have
+        resultaat = None
+        voorwaarde = None
+        
+        if ctx.uniekzijnResultaat():
+            # Handle uniqueness check
+            resultaat = self.visitUniekzijnResultaat(ctx.uniekzijnResultaat())
+        elif ctx.inconsistentResultaat():
+            # Handle inconsistency check
+            resultaat = self.visitInconsistentResultaat(ctx.inconsistentResultaat())
+            # Check if there's a condition
+            if ctx.voorwaardeDeel():
+                voorwaarde = self.visitVoorwaardeDeel(ctx.voorwaardeDeel())
+        
+        if not resultaat:
+            logger.error(f"Could not parse consistency rule result for '{naam}'")
+            return None
+        
+        # Return as a Regel with Consistentieregel as the result
+        return Regel(
+            naam=naam,
+            resultaat=resultaat,
+            voorwaarde=voorwaarde,
+            variabelen={},  # Consistency rules don't have variables
+            span=self.get_span(ctx)
+        )
+    
+    def visitUniekzijnResultaat(self, ctx: AntlrParser.UniekzijnResultaatContext) -> Optional[Consistentieregel]:
+        """Visit a uniqueness check result."""
+        # Get the target expression (what must be unique)
+        alle_attr_ctx = ctx.alleAttributenVanObjecttype()
+        if alle_attr_ctx:
+            target = self.visitAlleAttributenVanObjecttype(alle_attr_ctx)
+        else:
+            logger.error(f"Failed to parse uniqueness target in {safe_get_text(ctx)}")
+            return None
+        
+        if not target:
+            logger.error(f"Failed to parse uniqueness target in {safe_get_text(ctx)}")
+            return None
+        
+        return Consistentieregel(
+            criterium_type="uniek",
+            target=target,
+            condition=None,  # Uniqueness checks don't have conditions
+            span=self.get_span(ctx)
+        )
+    
+    def visitAlleAttributenVanObjecttype(self, ctx: AntlrParser.AlleAttributenVanObjecttypeContext) -> Optional[Expression]:
+        """Visit pattern: de attributen van alle ObjectType."""
+        # Extract the attribute name (plural form)
+        attr_plural = self.visitNaamwoord(ctx.naamwoord(0)) if ctx.naamwoord(0) else None
+        # Extract the object type name
+        obj_type = self.visitNaamwoord(ctx.naamwoord(1)) if ctx.naamwoord(1) else None
+        
+        if not attr_plural or not obj_type:
+            logger.error(f"Failed to parse alle attributen pattern in {safe_get_text(ctx)}")
+            return None
+        
+        # Create an AttributeReference that represents "attribute of all ObjectType"
+        # The path structure represents the navigation: [attribute, "alle", object_type]
+        return AttributeReference(
+            path=[attr_plural, "alle", obj_type],
+            span=self.get_span(ctx)
+        )
+    
+    def visitInconsistentResultaat(self, ctx: AntlrParser.InconsistentResultaatContext) -> Optional[Consistentieregel]:
+        """Visit an inconsistency result."""
+        # The naamwoord here is descriptive (e.g., "de data")
+        # For now we don't use it, but it could be stored for error messages
+        
+        return Consistentieregel(
+            criterium_type="inconsistent",
+            target=None,  # Inconsistency checks don't have a specific target
+            condition=None,  # Condition is handled at the consistentieregel level
+            span=self.get_span(ctx)
+        )
+
     def visitResultaatDeel(self, ctx: AntlrParser.ResultaatDeelContext) -> Optional[ResultaatDeel]:
         """Visit a result part (gelijkstelling, kenmerk toekenning, etc.)."""
         # Determine the type of result based on the matched alternative
@@ -1533,13 +1621,13 @@ class RegelSpraakModelBuilder(RegelSpraakVisitor):
         if ctx.onderwerpReferentie():
             subject = self.visitOnderwerpReferentie(ctx.onderwerpReferentie())
         elif ctx.HIJ():
-            subject = VariableReference(name="hij", span=self.get_span(ctx.HIJ()))
+            subject = VariableReference(variable_name="hij", span=self.get_span(ctx.HIJ()))
         elif ctx.HET():
-            subject = VariableReference(name="het", span=self.get_span(ctx.HET()))
+            subject = VariableReference(variable_name="het", span=self.get_span(ctx.HET()))
         elif ctx.ER():
-            subject = VariableReference(name="er", span=self.get_span(ctx.ER()))
+            subject = VariableReference(variable_name="er", span=self.get_span(ctx.ER()))
         elif ctx.ER_AAN():
-            subject = VariableReference(name="er", span=self.get_span(ctx.ER_AAN()))
+            subject = VariableReference(variable_name="er", span=self.get_span(ctx.ER_AAN()))
         
         # Extract the quantification (alle, geen van de, ten minste één van de, etc.)
         quantifier = self.visitVoorwaardeKwantificatie(ctx.voorwaardeKwantificatie())
@@ -1562,7 +1650,7 @@ class RegelSpraakModelBuilder(RegelSpraakVisitor):
             for condition in conditions[1:]:
                 result = BinaryExpression(
                     left=result,
-                    operator=Operator.AND,
+                    operator=Operator.EN,
                     right=condition,
                     span=self.get_span(ctx)
                 )
@@ -1690,7 +1778,7 @@ class RegelSpraakModelBuilder(RegelSpraakVisitor):
             for condition in conditions[1:]:
                 result = BinaryExpression(
                     left=result,
-                    operator=Operator.AND,
+                    operator=Operator.EN,
                     right=condition,
                     span=self.get_span(ctx)
                 )
