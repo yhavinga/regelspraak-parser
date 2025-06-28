@@ -12,7 +12,7 @@ from antlr4.tree.Tree import TerminalNode
 from .ast import (
     DomainModel, ObjectType, Attribuut, Kenmerk, Regel, Parameter, Domein,
     FeitType, Rol, Voorwaarde, ResultaatDeel, Gelijkstelling, KenmerkToekenning,
-    ObjectCreatie, FeitCreatie, Consistentieregel, Expression, Literal, AttributeReference, VariableReference,
+    ObjectCreatie, FeitCreatie, Consistentieregel, Initialisatie, Expression, Literal, AttributeReference, VariableReference,
     BinaryExpression, UnaryExpression, FunctionCall, Operator,
     ParameterReference, SourceSpan
 )
@@ -1481,11 +1481,27 @@ class RegelSpraakModelBuilder(RegelSpraakVisitor):
             if not target_ref or not expr:
                 logger.error(f"Failed to parse gelijkstelling target or expression in {safe_get_text(ctx)}")
                 return None
-            return Gelijkstelling(
-                target=target_ref,
-                expressie=expr,
-                span=self.get_span(ctx)
-            )
+            
+            # Check if this is an initialization (WORDT_GEINITIALISEERD_OP) or regular assignment
+            # Look for the WORDT_GEINITIALISEERD_OP token in the context
+            is_initialization = False
+            for child in ctx.children:
+                if isinstance(child, TerminalNode) and child.getSymbol().type == AntlrParser.WORDT_GEINITIALISEERD_OP:
+                    is_initialization = True
+                    break
+            
+            if is_initialization:
+                return Initialisatie(
+                    target=target_ref,
+                    expressie=expr,
+                    span=self.get_span(ctx)
+                )
+            else:
+                return Gelijkstelling(
+                    target=target_ref,
+                    expressie=expr,
+                    span=self.get_span(ctx)
+                )
         elif isinstance(ctx, AntlrParser.KenmerkFeitResultaatContext):
             # Handle KenmerkFeitResultaat (onderwerp IS/HEEFT kenmerk)
             # Convert onderwerpReferentie to path, then to AttributeReference

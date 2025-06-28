@@ -10,7 +10,7 @@ from . import ast
 from .ast import (
     Expression, Literal, VariableReference, AttributeReference, ParameterReference, # Added ParameterReference
     BinaryExpression, UnaryExpression, FunctionCall, Operator, DomainModel, Regel,
-    Gelijkstelling, KenmerkToekenning, ObjectCreatie, FeitCreatie, Consistentieregel # Added ResultaatDeel types
+    Gelijkstelling, KenmerkToekenning, ObjectCreatie, FeitCreatie, Consistentieregel, Initialisatie # Added ResultaatDeel types
 )
 # Import Runtime components
 from .runtime import RuntimeContext, RuntimeObject, Value # Import Value directly
@@ -115,7 +115,7 @@ class Evaluator:
         """Tries to deduce the primary ObjectType a rule applies to."""
         # Simplistic: Look at the target of the resultaat
         target_ref: Optional[ast.AttributeReference] = None
-        if isinstance(rule.resultaat, (Gelijkstelling, KenmerkToekenning)):
+        if isinstance(rule.resultaat, (Gelijkstelling, KenmerkToekenning, Initialisatie)):
             target_ref = rule.resultaat.target
         elif isinstance(rule.resultaat, Consistentieregel):
             # For consistency rules, determine the target based on the criterium type
@@ -348,7 +348,7 @@ class Evaluator:
                 self.context.trace_sink.rule_eval_end(rule, instance, success, error_msg)
 
     def _apply_resultaat(self, res: ast.ResultaatDeel):
-        """Applies the result of a rule (Gelijkstelling or KenmerkToekenning) 
+        """Applies the result of a rule (Gelijkstelling, Initialisatie, or KenmerkToekenning) 
            to the current instance in the context.
         """
         instance = self.context.current_instance
@@ -366,6 +366,21 @@ class Evaluator:
             attr_name = res.target.path[0]
             # Pass the Value object directly
             self.context.set_attribute(instance, attr_name, value, span=res.span)
+        
+        elif isinstance(res, Initialisatie):
+            # First check if the attribute is empty (None or not set)
+            if not res.target.path:
+                raise RegelspraakError("Initialisatie target path is empty.", span=res.target.span)
+            attr_name = res.target.path[0]
+            
+            # Check if attribute already has a value
+            try:
+                current_value = self.context.get_attribute(instance, attr_name)
+                # If we got here, attribute exists and has a value, do nothing (per spec)
+            except RuntimeError:
+                # Attribute doesn't exist or is empty, so initialize it
+                value = self.evaluate_expression(res.expressie)
+                self.context.set_attribute(instance, attr_name, value, span=res.span)
 
         elif isinstance(res, KenmerkToekenning):
             kenmerk_value = not res.is_negated
@@ -664,6 +679,22 @@ class Evaluator:
                         if len(expr.path) != 2: # Ensure path is exactly ['Type', 'attr']
                             raise RegelspraakError(f"Unsupported type-qualified path structure: {expr.path}", span=expr.span)
                         attr_name = expr.path[1]
+                        value = self.context.get_attribute(self.context.current_instance, attr_name)
+                        
+                        # Trace attribute read
+                        if self.context.trace_sink:
+                            self.context.trace_sink.attribute_read(
+                                self.context.current_instance,
+                                attr_name,
+                                value,
+                                expr=expr
+                            )
+                            
+                        result = value
+                    # Handle paths like ["leeftijd", "Persoon"] where the last element is the object type
+                    elif len(expr.path) == 2 and expr.path[1] == self.context.current_instance.object_type_naam:
+                        # This is "de leeftijd van de Persoon" pattern where Persoon refers to current instance
+                        attr_name = expr.path[0]
                         value = self.context.get_attribute(self.context.current_instance, attr_name)
                         
                         # Trace attribute read

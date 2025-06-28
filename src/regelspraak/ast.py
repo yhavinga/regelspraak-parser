@@ -208,6 +208,13 @@ class Consistentieregel(ResultaatDeel):
     condition: Optional[Expression] = None  # For conditional inconsistency
 
 @dataclass
+class Initialisatie(ResultaatDeel):
+    """Represents an initialization (initialisatie: 'wordt geïnitialiseerd op').
+    Only sets the value if the attribute is currently empty (§9.6)."""
+    target: AttributeReference  # The attribute being initialized
+    expressie: Expression
+
+@dataclass
 class Regel:
     """Represents a RegelSpraak rule definition."""
     naam: str

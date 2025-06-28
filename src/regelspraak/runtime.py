@@ -119,11 +119,18 @@ class RuntimeContext:
          if not param_def:
              raise RuntimeError(f"Cannot set parameter '{name}': Definition not found in domain model.")
          
-         # Use the provided unit if given, otherwise fallback to definition's unit
-         unit_to_use = unit if unit is not None else param_def.eenheid
+         # Check if raw_value is already a Value object
+         if isinstance(raw_value, Value):
+             # Use the existing Value object, but validate/override datatype and unit
+             value_obj = raw_value
+             # TODO: Validate that value_obj.datatype matches param_def.datatype?
+         else:
+             # Use the provided unit if given, otherwise fallback to definition's unit
+             unit_to_use = unit if unit is not None else param_def.eenheid
+             
+             # TODO: Type check raw_value against param_def.datatype? Conversion?
+             value_obj = Value(value=raw_value, datatype=param_def.datatype, unit=unit_to_use)
          
-         # TODO: Type check raw_value against param_def.datatype? Conversion?
-         value_obj = Value(value=raw_value, datatype=param_def.datatype, unit=unit_to_use)
          self.parameters[name] = value_obj
          # TODO: Trace assignment?
 

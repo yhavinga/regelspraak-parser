@@ -8,7 +8,7 @@ from .ast import (
     DomainModel, ObjectType, Parameter, Regel, Expression, Literal,
     AttributeReference, VariableReference, ParameterReference,
     BinaryExpression, UnaryExpression, FunctionCall, Operator,
-    Gelijkstelling, KenmerkToekenning, ObjectCreatie, FeitCreatie, Consistentieregel, Attribuut, Kenmerk,
+    Gelijkstelling, KenmerkToekenning, ObjectCreatie, FeitCreatie, Consistentieregel, Initialisatie, Attribuut, Kenmerk,
     SourceSpan
 )
 from .errors import RegelspraakError
@@ -236,8 +236,8 @@ class SemanticAnalyzer:
             self.symbol_table.exit_scope()
     
     def _analyze_resultaat(self, resultaat: Any) -> None:
-        """Analyze rule result (Gelijkstelling or KenmerkToekenning)."""
-        if isinstance(resultaat, Gelijkstelling):
+        """Analyze rule result (Gelijkstelling, Initialisatie, or KenmerkToekenning)."""
+        if isinstance(resultaat, (Gelijkstelling, Initialisatie)):
             # Validate target exists and get its type
             target_type = self._analyze_attribute_reference(resultaat.target)
             
