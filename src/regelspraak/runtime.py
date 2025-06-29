@@ -282,6 +282,79 @@ class RuntimeContext:
             # TODO: Refine trace event for kenmerken
             self.trace_sink.assignment(instance, f"kenmerk:{kenmerk_name}", old_value, value, span)
 
+    # --- Data Loading ---
+    
+    def load_from_dict(self, data: Dict[str, Any]) -> None:
+        """Load parameters, instances, and relationships from a dictionary.
+        
+        This centralizes all data loading logic that was previously spread
+        across the CLI and other modules.
+        """
+        # Load Parameters
+        if "parameters" in data and isinstance(data["parameters"], dict):
+            for param_name, raw_value in data["parameters"].items():
+                param_def = self.domain_model.parameters.get(param_name)
+                if param_def:
+                    param_value = Value(value=raw_value, datatype=param_def.datatype, unit=param_def.eenheid)
+                    self.add_parameter(param_name, param_value)
+                # Silently skip unknown parameters
+        
+        # Load Instances
+        if "instances" in data and isinstance(data["instances"], list):
+            for instance_data in data["instances"]:
+                if not isinstance(instance_data, dict):
+                    raise RuntimeError(f"Invalid instance data format: Expected dictionary, got {type(instance_data).__name__}")
+                if "object_type_naam" not in instance_data:
+                    raise RuntimeError(f"Invalid instance data: Missing 'object_type_naam' field")
+                
+                obj_type_name = instance_data["object_type_naam"]
+                obj_type_def = self.domain_model.objecttypes.get(obj_type_name)
+                if not obj_type_def:
+                    raise RuntimeError(f"Unknown object type: {obj_type_name}")
+                
+                # Create instance
+                instance_id = instance_data.get("instance_id", None)
+                new_instance = RuntimeObject(object_type_naam=obj_type_name, instance_id=instance_id)
+                self.add_object(new_instance)
+                
+                # Set attributes
+                if "attributen" in instance_data and isinstance(instance_data["attributen"], dict):
+                    for attr_name, raw_value in instance_data["attributen"].items():
+                        attr_def = obj_type_def.attributen.get(attr_name)
+                        if attr_def:
+                            self.set_attribute(new_instance, attr_name, raw_value)
+                        # Silently skip unknown attributes
+        
+        # Load Relationships
+        if "relationships" in data and isinstance(data["relationships"], list):
+            # First, we need to build a map of instance_id -> RuntimeObject
+            instance_map = {}
+            for obj_type, instances in self.instances.items():
+                for instance in instances:
+                    instance_map[instance.instance_id] = instance
+            
+            for rel_data in data["relationships"]:
+                if not isinstance(rel_data, dict):
+                    continue
+                
+                feittype = rel_data.get("feittype")
+                subject_id = rel_data.get("subject")
+                object_id = rel_data.get("object")
+                
+                if not all([feittype, subject_id, object_id]):
+                    continue  # Skip incomplete relationships
+                
+                # Check if feittype exists
+                if feittype not in self.domain_model.feittypen:
+                    continue
+                
+                # Find instances
+                subject_obj = instance_map.get(subject_id)
+                object_obj = instance_map.get(object_id)
+                
+                if subject_obj and object_obj:
+                    self.add_relationship(feittype, subject_obj, object_obj)
+    
     # --- Relationship Handling ---
 
     def add_relationship(self, feittype_naam: str, subject: RuntimeObject, 

@@ -74,9 +74,8 @@ class CliTests(unittest.TestCase):
         self.assertEqual(result.exit_code, 0, f"CLI exited with code {result.exit_code}\nOutput:\n{result.output}")
         self.assertIn("Parsing successful.", result.output)
         self.assertIn("Loading data", result.output)
-        self.assertIn("Loaded parameter 'volwassenleeftijd'", result.output)
-        self.assertIn("Created and added instance: person_15", result.output)
-        self.assertIn("Set attribute 'leeftijd' = 15", result.output)
+        self.assertIn("Loaded 1 parameters", result.output)
+        self.assertIn("Loaded 2 instances", result.output)
         self.assertIn("Executing model...", result.output)
         # Check for trace output indicating rule execution
         self.assertIn("RULE_FIRED", result.output)

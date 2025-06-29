@@ -108,61 +108,20 @@ def run(file: pathlib.Path, data: Optional[pathlib.Path]):
                 # Re-raise as RuntimeError to be caught by the outer handler
                  raise RuntimeError(f"Error reading data file '{data.name}': {e}")
 
-            # Load Parameters
-            if "parameters" in input_data and isinstance(input_data["parameters"], dict):
-                click.echo("Loading parameters...")
-                for param_name, raw_value in input_data["parameters"].items():
-                    # Access definition via dictionary lookup
-                    param_def = domain_model.parameters.get(param_name)
-                    if param_def:
-                        # TODO: Add type checking/conversion raw_value vs param_def.datatype?
-                        # Use param_def.eenheid from Parameter definition
-                        param_value = Value(value=raw_value, datatype=param_def.datatype, unit=param_def.eenheid)
-                        context.add_parameter(param_name, param_value)
-                        click.echo(f"  Loaded parameter '{param_name}' = {raw_value}")
-                    else:
-                        click.secho(f"  Warning: Parameter '{param_name}' defined in data but not found in model. Skipping.", fg='yellow')
+            # Use the centralized load_from_dict method
+            context.load_from_dict(input_data)
             
-            # Load Instances
-            if "instances" in input_data and isinstance(input_data["instances"], list):
-                click.echo("Loading instances...")
-                for instance_data in input_data["instances"]:
-                    if not isinstance(instance_data, dict) or "object_type_naam" not in instance_data:
-                        # Raise RuntimeError instead of just warning and continuing
-                        raise RuntimeError(f"Invalid instance data format found in '{data.name}': Expected dictionary with 'object_type_naam', got {type(instance_data)}. Data: {instance_data!r}")
-                        # click.secho("  Warning: Invalid instance data format found. Skipping.", fg='yellow')
-                        # continue
-                    
-                    obj_type_name = instance_data["object_type_naam"]
-                    instance_id = instance_data.get("instance_id") # Optional
-                    
-                    # Ensure object type exists in the model via dictionary lookup
-                    obj_type_def = domain_model.objecttypes.get(obj_type_name)
-                    if not obj_type_def:
-                        # Raise error if object type not found but defined in data
-                        raise RuntimeError(f"ObjectType '{obj_type_name}' defined in data file '{data.name}' but not found in model.")
-                        # click.secho(f"  Warning: ObjectType '{obj_type_name}' defined in data but not found in model. Skipping instance.", fg='yellow')
-                        # continue
-
-                    # Create RuntimeObject instance directly
-                    new_instance = RuntimeObject(object_type_naam=obj_type_name, instance_id=instance_id)
-                    # Add the created instance to the context
-                    context.add_object(new_instance)
-                    click.echo(f"  Created and added instance: {new_instance.instance_id} (Type: {obj_type_name})")
-
-                    # Set attributes using context.set_attribute
-                    if "attributen" in instance_data and isinstance(instance_data["attributen"], dict):
-                        for attr_name, raw_value in instance_data["attributen"].items():
-                            # Get attribute definition via dictionary lookup
-                            attr_def = obj_type_def.attributen.get(attr_name)
-                            if attr_def:
-                                # TODO: Add type checking/conversion raw_value vs attr_def.datatype?
-                                # Use context.set_attribute to handle value creation and tracing
-                                context.set_attribute(new_instance, attr_name, raw_value) # Pass raw value
-                                click.echo(f"    Set attribute '{attr_name}' = {raw_value}")
-                            else:
-                                click.secho(f"    Warning: Attribute '{attr_name}' defined in data for '{obj_type_name}' but not found in model. Skipping.", fg='yellow')
-                    # TODO: Add loading for kenmerken if needed?
+            # Report what was loaded
+            param_count = len(input_data.get("parameters", {}))
+            instance_count = len(input_data.get("instances", []))
+            relationship_count = len(input_data.get("relationships", []))
+            
+            if param_count > 0:
+                click.echo(f"Loaded {param_count} parameters")
+            if instance_count > 0:
+                click.echo(f"Loaded {instance_count} instances")
+            if relationship_count > 0:
+                click.echo(f"Loaded {relationship_count} relationships")
         
         # Execute
         evaluator = Evaluator(context)

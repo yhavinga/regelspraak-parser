@@ -975,10 +975,71 @@ class RegelSpraakModelBuilder(RegelSpraakVisitor):
              isinstance(ctx, AntlrParser.TotaalVanExprContext) or \
              isinstance(ctx, AntlrParser.HetAantalDagenInExprContext) or \
              isinstance(ctx, AntlrParser.DimensieAggExprContext):
-             # TODO: Implement specific function visitors or a more robust visitFunctionCall
-             # return self.visitFunctionCall(ctx) # Generic call needs implementation
-             logger.warning(f"Unhandled function call type via label: {type(ctx).__name__} in {safe_get_text(ctx)}")
-             return None
+            # Handle aggregation functions like "de som van X van alle Y"
+            # Get the aggregation function type
+            if ctx.getalAggregatieFunctie():
+                func_ctx = ctx.getalAggregatieFunctie()
+                if func_ctx.SOM_VAN():
+                    func_name = "som_van"
+                elif func_ctx.AANTAL():
+                    func_name = "het_aantal"
+                elif func_ctx.DE_MAXIMALE_WAARDE_VAN():
+                    func_name = "maximale_waarde_van"
+                elif func_ctx.DE_MINIMALE_WAARDE_VAN():
+                    func_name = "minimale_waarde_van"
+                else:
+                    logger.warning(f"Unknown getal aggregation function: {safe_get_text(func_ctx)}")
+                    return None
+            elif ctx.datumAggregatieFunctie():
+                func_ctx = ctx.datumAggregatieFunctie()
+                if func_ctx.EERSTE_VAN():
+                    func_name = "eerste_van"
+                elif func_ctx.LAATSTE_VAN():
+                    func_name = "laatste_van"
+                else:
+                    logger.warning(f"Unknown datum aggregation function: {safe_get_text(func_ctx)}")
+                    return None
+            else:
+                logger.warning(f"No aggregation function found in DimensieAggExpr: {safe_get_text(ctx)}")
+                return None
+            
+            # Get the attribute reference (what to aggregate)
+            attr_ref = self.visitAttribuutReferentie(ctx.attribuutReferentie()) if ctx.attribuutReferentie() else None
+            if attr_ref is None:
+                logger.warning(f"No attribute reference found in aggregation: {safe_get_text(ctx)}")
+                return None
+            
+            # Get the dimension selection (what to aggregate over)
+            dim_select_ctx = ctx.dimensieSelectie()
+            if not dim_select_ctx:
+                logger.warning(f"No dimension selection found in aggregation: {safe_get_text(ctx)}")
+                return None
+            
+            # Parse the dimension selection to get the collection reference
+            # For now, we'll focus on the common case: "van alle X"
+            collection_ref = None
+            if dim_select_ctx.aggregerenOverAlleDimensies():
+                # "alle X" pattern
+                alle_dim_ctx = dim_select_ctx.aggregerenOverAlleDimensies()
+                if alle_dim_ctx.naamwoord():
+                    # Build an AttributeReference for the collection
+                    collection_path = self._extract_naamwoord_parts(alle_dim_ctx.naamwoord())
+                    collection_ref = AttributeReference(
+                        path=collection_path,
+                        span=self.get_span(alle_dim_ctx)
+                    )
+            
+            if collection_ref is None:
+                logger.warning(f"Could not parse dimension selection: {safe_get_text(dim_select_ctx)}")
+                return None
+            
+            # Create a FunctionCall with both the attribute and collection as arguments
+            func_call = FunctionCall(
+                function_name=func_name,
+                arguments=[attr_ref, collection_ref],
+                span=self.get_span(ctx)
+            )
+            return func_call
         # --- Handle Other Labeled Expressions --- 
         elif isinstance(ctx, AntlrParser.AfrondingExprContext): # Example
             # TODO: Implement visitAfronding

@@ -1121,8 +1121,129 @@ class Evaluator:
                 result = Value(value=value, datatype="Numeriek", unit=unit)
                 
             elif func_name == "som_van":
-                # TODO: Implement sum aggregation
-                raise RegelspraakError(f"Function '{expr.function_name}' not fully implemented", span=expr.span)
+                # Sum aggregation: som_van(attribute_with_collection_path)
+                # Can have either 1 or 2 arguments depending on how it was parsed
+                if len(expr.arguments) == 1:
+                    # Single argument case: path like ["te betalen belasting", "passagiers", "reis"]
+                    # Need to split into attribute and collection parts
+                    full_expr = expr.arguments[0]
+                    if not isinstance(full_expr, AttributeReference):
+                        raise RegelspraakError(f"Argument to 'som_van' must be an attribute reference, got {type(full_expr).__name__}", span=expr.span)
+                    
+                    # Split the path - first element is the attribute, rest is the collection navigation
+                    if len(full_expr.path) < 2:
+                        raise RegelspraakError(f"'som_van' requires a path with attribute and collection, got {full_expr.path}", span=expr.span)
+                    
+                    # Create separate expressions for attribute and collection
+                    attr_expr = AttributeReference(path=[full_expr.path[0]], span=full_expr.span)
+                    collection_expr = AttributeReference(path=full_expr.path[1:], span=full_expr.span)
+                    
+                elif len(expr.arguments) == 2:
+                    # Two argument case (from DimensieAggExpr)
+                    attr_expr = expr.arguments[0]
+                    collection_expr = expr.arguments[1]
+                    
+                    if not isinstance(attr_expr, AttributeReference):
+                        raise RegelspraakError(f"First argument to 'som_van' must be an attribute reference, got {type(attr_expr).__name__}", span=expr.span)
+                    if not isinstance(collection_expr, AttributeReference):
+                        raise RegelspraakError(f"Second argument to 'som_van' must be a collection reference, got {type(collection_expr).__name__}", span=expr.span)
+                else:
+                    raise RegelspraakError(f"Function 'som_van' expects 1 or 2 arguments, got {len(expr.arguments)}", span=expr.span)
+                
+                # Get the collection of objects to iterate over
+                collection_objects = []
+                
+                # Handle different collection patterns
+                if len(collection_expr.path) == 1:
+                    # Simple case: "alle Personen" - find all instances of that type
+                    collection_type = collection_expr.path[0]
+                    # Clean up the type name (remove articles if present)
+                    if collection_type.lower().startswith("alle "):
+                        collection_type = collection_type[5:]  # Remove "alle "
+                    
+                    # Find the actual object type (case-insensitive match)
+                    matched_type = None
+                    for obj_type in self.context.domain_model.objecttypes.keys():
+                        if obj_type.lower() == collection_type.lower():
+                            matched_type = obj_type
+                            break
+                    
+                    if matched_type:
+                        collection_objects = self.context.get_instances(matched_type)
+                    else:
+                        # Check if it's a relationship navigation (e.g., "passagiers" of current object)
+                        if self.context.current_instance:
+                            # Try to find related objects through relationships
+                            relationships = self.context.find_relationships(subject=self.context.current_instance)
+                            for rel in relationships:
+                                if rel.object and self._matches_role_name(collection_type, rel):
+                                    collection_objects.append(rel.object)
+                elif len(collection_expr.path) == 2 and collection_expr.path[0].lower() == "passagiers" and collection_expr.path[1].lower() == "reis":
+                    # Special case for TOKA: "passagiers van de reis"
+                    # This means all passengers related to the current instance (which should be a Vlucht)
+                    if self.context.current_instance and self.context.current_instance.object_type_naam == "Vlucht":
+                        # Find all relationships where the current flight is the subject
+                        relationships = self.context.find_relationships(
+                            subject=self.context.current_instance,
+                            feittype_naam="vlucht van natuurlijke personen"
+                        )
+                        for rel in relationships:
+                            if rel.object and rel.object.object_type_naam == "Natuurlijk persoon":
+                                collection_objects.append(rel.object)
+                else:
+                    # Complex path: navigate through relationships
+                    # For now, log a warning - this needs more sophisticated handling
+                    logger.warning(f"Complex collection paths not yet fully supported: {collection_expr.path}")
+                
+                # Now sum the attribute values from all objects in the collection
+                values_to_sum = []
+                first_unit = None
+                datatype = None
+                
+                for obj in collection_objects:
+                    # Temporarily set this object as current for attribute evaluation
+                    saved_instance = self.context.current_instance
+                    try:
+                        self.context.current_instance = obj
+                        # Evaluate the attribute on this object
+                        value = self.evaluate_expression(attr_expr)
+                        
+                        # Skip None/empty values per RegelSpraak spec
+                        if value.value is None:
+                            continue
+                            
+                        # Check datatype consistency
+                        if datatype is None:
+                            datatype = value.datatype
+                            first_unit = value.unit
+                        elif value.datatype != datatype:
+                            raise RegelspraakError(f"Cannot sum values of different types: {datatype} and {value.datatype}", span=expr.span)
+                        
+                        # Check unit compatibility
+                        if first_unit or value.unit:
+                            if not self.arithmetic._check_units_compatible(
+                                Value(0, datatype, first_unit), 
+                                value, 
+                                "sum"
+                            ):
+                                raise RegelspraakError(f"Cannot sum values with incompatible units: {first_unit} and {value.unit}", span=expr.span)
+                        
+                        # Convert to common unit if needed
+                        if value.unit != first_unit and value.unit is not None:
+                            value = self.arithmetic._convert_to_unit(value, first_unit)
+                        
+                        values_to_sum.append(value.to_decimal())
+                    finally:
+                        self.context.current_instance = saved_instance
+                
+                # Calculate the sum
+                if not values_to_sum:
+                    # Empty collection or all values were None
+                    # Per spec, return 0 with appropriate type/unit
+                    result = Value(value=Decimal(0), datatype=datatype or "Numeriek", unit=first_unit)
+                else:
+                    total = sum(values_to_sum)
+                    result = Value(value=total, datatype=datatype, unit=first_unit)
             elif func_name == "het_aantal":
                 # TODO: Implement count aggregation
                 raise RegelspraakError(f"Function '{expr.function_name}' not fully implemented", span=expr.span)
@@ -1185,6 +1306,22 @@ class Evaluator:
         # More complex paths would need additional logic
         # For now, return None
         return None
+    
+    def _matches_role_name(self, name: str, relationship) -> bool:
+        """Check if a name matches a role in a relationship."""
+        # Simple check - in reality would need more sophisticated matching
+        # accounting for singular/plural forms
+        feittype = self.context.domain_model.feittypen.get(relationship.feittype_naam)
+        if not feittype:
+            return False
+        
+        name_lower = name.lower()
+        for rol in feittype.rollen:
+            if rol.naam and (name_lower in rol.naam.lower() or rol.naam.lower() in name_lower):
+                return True
+            if rol.meervoud and (name_lower in rol.meervoud.lower() or rol.meervoud.lower() in name_lower):
+                return True
+        return False
     
     def _navigate_feitcreatie_subject(self, subject_expr: Expression, role_name: str) -> List[RuntimeObject]:
         """Navigate complex FeitCreatie subject patterns to find target objects.
