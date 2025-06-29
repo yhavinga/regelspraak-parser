@@ -196,14 +196,23 @@ def create_instance_helper(context, type_name, instance_id=None):
     return obj
 
 def handle_evaluate(expr: str, state: ReplState) -> None:
-    """Evaluate an expression like 'p1 is minderjarig'."""
+    """Evaluate expressions involving instances.
+    
+    Currently supports:
+        - Instance kenmerk checks: "p1 is minderjarig"
+        - Instance attribute access: "p1.leeftijd"
+    
+    For more complex expressions, use the full rule syntax.
+    """
     try:
-        # Parse into tokens (simplified approach - would need real parsing)
-        # Example: "p1 is minderjarig" -> (instance_id="p1", kenmerk="minderjarig")
-        parts = expr.split()
-        if 'is' in parts and len(parts) >= 3:
+        # Simple pattern matching for common cases
+        parts = expr.strip().split()
+        
+        # Pattern 1: "instance is kenmerk" or "instance is niet kenmerk"
+        if len(parts) >= 3 and parts[1] == "is":
             instance_id = parts[0]
-            kenmerk = parts[-1]
+            is_negated = parts[2] == "niet" and len(parts) >= 4
+            kenmerk = parts[3] if is_negated else parts[2]
             
             # Find the instance
             instance = None
@@ -219,12 +228,48 @@ def handle_evaluate(expr: str, state: ReplState) -> None:
                 print(f"Instance '{instance_id}' not found")
                 return
             
-            # Check for kenmerk
+            # Check kenmerk
             result = state.context.get_kenmerk(instance, kenmerk)
+            if is_negated:
+                result = not result
             print(f"{'waar' if result else 'onwaar'}")
             
+        # Pattern 2: "instance.attribute" 
+        elif len(parts) == 1 and '.' in parts[0]:
+            instance_attr = parts[0].split('.', 1)
+            if len(instance_attr) == 2:
+                instance_id, attr_name = instance_attr
+                
+                # Find the instance
+                instance = None
+                for type_instances in state.context.instances.values():
+                    for obj in type_instances:
+                        if obj.instance_id == instance_id:
+                            instance = obj
+                            break
+                    if instance:
+                        break
+                
+                if not instance:
+                    print(f"Instance '{instance_id}' not found")
+                    return
+                
+                # Get attribute value
+                try:
+                    value = state.context.get_attribute(instance, attr_name)
+                    if value.unit:
+                        print(f"{value.value} {value.unit}")
+                    else:
+                        print(value.value)
+                except Exception as e:
+                    print(f"Error getting attribute '{attr_name}': {e}")
+        
         else:
-            print("Invalid evaluate expression. Format: 'Evaluate <instance> is <kenmerk>'")
+            print("Supported patterns:")
+            print("  - Instance kenmerk check: 'p1 is minderjarig'")
+            print("  - Instance attribute access: 'p1.leeftijd'")
+            print("For complex expressions, use full rule syntax.")
+            
     except Exception as e:
         print(f"Evaluation error: {e}")
 
