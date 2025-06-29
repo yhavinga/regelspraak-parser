@@ -4,6 +4,7 @@ from typing import Any, Dict, Optional, List, TYPE_CHECKING, Union
 from dataclasses import dataclass, field
 import logging
 from decimal import Decimal
+from datetime import date
 
 # Import AST nodes
 from . import ast
@@ -719,23 +720,54 @@ class Evaluator:
                         
                         # Navigate through all but the last element
                         for i, segment in enumerate(nav_path[:-1]):
-                            # Get the attribute value which should be an object reference
-                            ref_value = self.context.get_attribute(current_obj, segment)
+                            # First, check if segment is a role name in a feittype
+                            role_found = False
+                            for feittype_name, feittype in self.context.domain_model.feittypen.items():
+                                # Check if segment matches a role name in this feittype
+                                for rol in feittype.rollen:
+                                    if rol.naam.lower() == segment.lower():
+                                        # Find related objects through this feittype
+                                        # Determine which role index this is (0 or 1)
+                                        role_index = feittype.rollen.index(rol)
+                                        # If we matched role 0, we want objects fulfilling role 1, and vice versa
+                                        as_subject = (role_index == 1)  # If we matched the second role, look for subjects
+                                        
+                                        related_objects = self.context.get_related_objects(
+                                            current_obj, feittype_name, as_subject=as_subject
+                                        )
+                                        if not related_objects:
+                                            raise RegelspraakError(
+                                                f"No related object found for role '{segment}' from {current_obj.object_type_naam}",
+                                                span=expr.span
+                                            )
+                                        # Take the first related object (simplified for now)
+                                        current_obj = related_objects[0]
+                                        role_found = True
+                                        break
                             
-                            # Check if it's an object reference
-                            if ref_value.datatype != "ObjectReference":
-                                raise RegelspraakError(
-                                    f"Expected ObjectReference for '{segment}' but got {ref_value.datatype}",
-                                    span=expr.span
-                                )
-                            
-                            # Move to the referenced object
-                            current_obj = ref_value.value
-                            if not isinstance(current_obj, RuntimeObject):
-                                raise RegelspraakError(
-                                    f"Invalid object reference in path at '{segment}'",
-                                    span=expr.span
-                                )
+                            if not role_found:
+                                # Try as an attribute with ObjectReference
+                                try:
+                                    ref_value = self.context.get_attribute(current_obj, segment)
+                                    # Check if it's an object reference
+                                    if ref_value.datatype != "ObjectReference":
+                                        raise RegelspraakError(
+                                            f"Expected ObjectReference or role name for '{segment}' but got {ref_value.datatype}",
+                                            span=expr.span
+                                        )
+                                    # Move to the referenced object
+                                    current_obj = ref_value.value
+                                    if not isinstance(current_obj, RuntimeObject):
+                                        raise RegelspraakError(
+                                            f"Invalid object reference in path at '{segment}'",
+                                            span=expr.span
+                                        )
+                                except RuntimeError as e:
+                                    # Attribute not found, raise more informative error
+                                    raise RegelspraakError(
+                                        f"'{segment}' is neither a role name nor an attribute on {current_obj.object_type_naam}",
+                                        span=expr.span
+                                    )
                         
                         # Get the final attribute from the last object
                         final_attr = nav_path[-1]
@@ -991,12 +1023,110 @@ class Evaluator:
                 length = len(arg.value)
                 result = Value(value=length, datatype="Numeriek", unit=None)
                 
-            # --- RegelSpraak specific (Placeholders) ---
-            elif func_name == "tijdsduur van":
+            # --- RegelSpraak specific functions ---
+            elif func_name == "tijdsduur_van" or func_name == "absolute_tijdsduur_van":
+                if len(args) != 2:
+                    raise RegelspraakError(f"Function '{func_name}' expects 2 arguments (from date, to date), got {len(args)}", span=expr.span)
+                
+                date1 = args[0]
+                date2 = args[1]
+                
+                # Check that both arguments are dates
+                if date1.datatype not in ["Datum", "Datum-tijd"]:
+                    raise RegelspraakError(f"Function '{func_name}' requires date arguments, first argument has type {date1.datatype}", span=expr.span)
+                if date2.datatype not in ["Datum", "Datum-tijd"]:
+                    raise RegelspraakError(f"Function '{func_name}' requires date arguments, second argument has type {date2.datatype}", span=expr.span)
+                
+                # Handle empty values - if either date is empty, result is empty
+                if date1.value is None or date2.value is None:
+                    return Value(value=None, datatype="Numeriek", unit=expr.unit_conversion)
+                
+                # Import datetime handling
+                from datetime import datetime, timedelta
+                import dateutil.parser
+                
+                # Parse dates
+                try:
+                    # Handle different date formats
+                    if isinstance(date1.value, str):
+                        d1 = dateutil.parser.parse(date1.value)
+                    elif isinstance(date1.value, (datetime, date)):
+                        d1 = date1.value if isinstance(date1.value, datetime) else datetime.combine(date1.value, datetime.min.time())
+                    else:
+                        raise ValueError(f"Unexpected date type: {type(date1.value)}")
+                        
+                    if isinstance(date2.value, str):
+                        d2 = dateutil.parser.parse(date2.value)
+                    elif isinstance(date2.value, (datetime, date)):
+                        d2 = date2.value if isinstance(date2.value, datetime) else datetime.combine(date2.value, datetime.min.time())
+                    else:
+                        raise ValueError(f"Unexpected date type: {type(date2.value)}")
+                        
+                except Exception as e:
+                    raise RegelspraakError(f"Error parsing dates in {func_name}: {str(e)}", span=expr.span)
+                
+                # Calculate difference
+                diff = d2 - d1  # This gives a timedelta
+                
+                # Get the unit conversion if specified
+                unit = expr.unit_conversion if hasattr(expr, 'unit_conversion') and expr.unit_conversion else "dagen"
+                
+                # Convert to requested unit
+                if unit == "milliseconden" or unit == "millisecondes" or unit == "ms":
+                    # Milliseconds - no rounding
+                    total_seconds = diff.total_seconds()
+                    value = int(total_seconds * 1000)
+                elif unit == "seconden" or unit == "seconde" or unit == "s":
+                    # Seconds - round down
+                    value = int(diff.total_seconds())
+                elif unit == "minuten" or unit == "minuut":
+                    # Minutes - round down
+                    value = int(diff.total_seconds() // 60)
+                elif unit == "uren" or unit == "uur" or unit == "u":
+                    # Hours - round down  
+                    value = int(diff.total_seconds() // 3600)
+                elif unit == "dagen" or unit == "dag" or unit == "dg":
+                    # Days - round down
+                    value = diff.days
+                elif unit == "weken" or unit == "week" or unit == "wk":
+                    # Weeks - round down
+                    value = diff.days // 7
+                elif unit == "maanden" or unit == "maand" or unit == "mnd":
+                    # Months - approximate (30.44 days per month average)
+                    # But according to spec, we need calendar-aware month calculation
+                    # For now, use a simple approximation
+                    months = 0
+                    y1, m1 = d1.year, d1.month
+                    y2, m2 = d2.year, d2.month
+                    months = (y2 - y1) * 12 + (m2 - m1)
+                    # Adjust for day of month
+                    if d2.day < d1.day:
+                        months -= 1
+                    value = months
+                elif unit == "jaren" or unit == "jaar" or unit == "jr":
+                    # Years - round down (whole years)
+                    years = d2.year - d1.year
+                    # Adjust if we haven't reached the anniversary date
+                    if (d2.month, d2.day) < (d1.month, d1.day):
+                        years -= 1
+                    value = years
+                else:
+                    raise RegelspraakError(f"Unknown time unit for {func_name}: {unit}", span=expr.span)
+                
+                # For absolute version, take absolute value
+                if func_name == "absolute_tijdsduur_van":
+                    value = abs(value)
+                
+                # Return with appropriate unit
+                result = Value(value=value, datatype="Numeriek", unit=unit)
+                
+            elif func_name == "som_van":
+                # TODO: Implement sum aggregation
                 raise RegelspraakError(f"Function '{expr.function_name}' not fully implemented", span=expr.span)
-            elif func_name == "som van":
+            elif func_name == "het_aantal":
+                # TODO: Implement count aggregation
                 raise RegelspraakError(f"Function '{expr.function_name}' not fully implemented", span=expr.span)
-            # ... other functions like 'gemiddelde van', 'aantal' ...
+            # ... other functions like 'gemiddelde van', etc.
             else:
                 # Check context for user-defined functions? TBD
                 raise RegelspraakError(f"Unknown function: {expr.function_name}", span=expr.span)

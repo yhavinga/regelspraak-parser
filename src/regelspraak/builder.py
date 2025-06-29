@@ -908,10 +908,60 @@ class RegelSpraakModelBuilder(RegelSpraakVisitor):
                 arguments=args,
                 span=self.get_span(ctx)
             )
-        elif isinstance(ctx, AntlrParser.AbsTijdsduurFuncExprContext) or \
-             isinstance(ctx, AntlrParser.TijdsduurFuncExprContext) or \
-             isinstance(ctx, AntlrParser.AantalFuncExprContext) or \
-             isinstance(ctx, AntlrParser.PercentageFuncExprContext) or \
+        elif isinstance(ctx, AntlrParser.TijdsduurFuncExprContext):
+            # TIJDSDUUR_VAN primaryExpression TOT primaryExpression (IN_HELE unitName=IDENTIFIER)?
+            from_expr = self.visitPrimaryExpression(ctx.primaryExpression(0))
+            to_expr = self.visitPrimaryExpression(ctx.primaryExpression(1))
+            if from_expr is None or to_expr is None:
+                return None
+            
+            # Check for unit specification
+            unit = ctx.unitName.text if hasattr(ctx, 'unitName') and ctx.unitName else None
+            
+            func_call = FunctionCall(
+                function_name="tijdsduur_van",
+                arguments=[from_expr, to_expr],
+                unit_conversion=unit,
+                span=self.get_span(ctx)
+            )
+            return func_call
+            
+        elif isinstance(ctx, AntlrParser.AbsTijdsduurFuncExprContext):
+            # DE_ABSOLUTE_TIJDSDUUR_VAN primaryExpression TOT primaryExpression (IN_HELE unitName=IDENTIFIER)?
+            from_expr = self.visitPrimaryExpression(ctx.primaryExpression(0))
+            to_expr = self.visitPrimaryExpression(ctx.primaryExpression(1))
+            if from_expr is None or to_expr is None:
+                return None
+            
+            # Check for unit specification
+            unit = ctx.unitName.text if hasattr(ctx, 'unitName') and ctx.unitName else None
+            
+            func_call = FunctionCall(
+                function_name="absolute_tijdsduur_van",
+                arguments=[from_expr, to_expr],
+                unit_conversion=unit,
+                span=self.get_span(ctx)
+            )
+            return func_call
+            
+        elif isinstance(ctx, AntlrParser.AantalFuncExprContext):
+            # HET? AANTAL (ALLE? onderwerpReferentie)
+            # Get the subject reference
+            subject_ref = None
+            if ctx.onderwerpReferentie():
+                subject_ref = self.visitOnderwerpReferentie(ctx.onderwerpReferentie())
+            
+            if subject_ref is None:
+                logger.warning(f"No subject reference found in aantal function: {safe_get_text(ctx)}")
+                return None
+                
+            return FunctionCall(
+                function_name="het_aantal",
+                arguments=[subject_ref],
+                span=self.get_span(ctx)
+            )
+            
+        elif isinstance(ctx, AntlrParser.PercentageFuncExprContext) or \
              isinstance(ctx, AntlrParser.WortelFuncExprContext) or \
              isinstance(ctx, AntlrParser.MinValFuncExprContext) or \
              isinstance(ctx, AntlrParser.MaxValFuncExprContext) or \
