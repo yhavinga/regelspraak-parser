@@ -997,38 +997,104 @@ class RegelSpraakModelBuilder(RegelSpraakVisitor):
              isinstance(ctx, AntlrParser.TotaalVanExprContext) or \
              isinstance(ctx, AntlrParser.HetAantalDagenInExprContext) or \
              isinstance(ctx, AntlrParser.DimensieAggExprContext):
-            # Handle aggregation functions like "de som van X van alle Y"
-            # Get the aggregation function type
-            if ctx.getalAggregatieFunctie():
-                func_ctx = ctx.getalAggregatieFunctie()
-                if func_ctx.SOM_VAN():
-                    func_name = "som_van"
-                elif func_ctx.AANTAL():
-                    func_name = "het_aantal"
-                elif func_ctx.DE_MAXIMALE_WAARDE_VAN():
-                    func_name = "maximale_waarde_van"
-                elif func_ctx.DE_MINIMALE_WAARDE_VAN():
-                    func_name = "minimale_waarde_van"
+            
+            # Handle different aggregation context types
+            func_name = None
+            
+            # Handle specific date function contexts
+            if isinstance(ctx, AntlrParser.EersteDatumFuncExprContext):
+                func_name = "eerste_van"
+                # Parse arguments - grammar: EERSTE_VAN primaryExpression (COMMA primaryExpression)* EN primaryExpression
+                args = []
+                # Visit all children to collect primary expressions
+                for i in range(ctx.getChildCount()):
+                    child = ctx.getChild(i)
+                    # Skip terminals like EERSTE_VAN, COMMA, EN
+                    if isinstance(child, AntlrParser.PrimaryExpressionContext):
+                        expr = self.visitPrimaryExpression(child)
+                        if expr:
+                            args.append(expr)
+                
+                return FunctionCall(
+                    function_name=func_name,
+                    arguments=args,
+                    span=self.get_span(ctx)
+                )
+            elif isinstance(ctx, AntlrParser.LaatsteDatumFuncExprContext):
+                func_name = "laatste_van"
+                # Parse arguments - grammar: LAATSTE_VAN primaryExpression (COMMA primaryExpression)* EN primaryExpression
+                args = []
+                # Visit all children to collect primary expressions
+                for i in range(ctx.getChildCount()):
+                    child = ctx.getChild(i)
+                    # Skip terminals like LAATSTE_VAN, COMMA, EN
+                    if isinstance(child, AntlrParser.PrimaryExpressionContext):
+                        expr = self.visitPrimaryExpression(child)
+                        if expr:
+                            args.append(expr)
+                
+                return FunctionCall(
+                    function_name=func_name,
+                    arguments=args,
+                    span=self.get_span(ctx)
+                )
+            elif isinstance(ctx, AntlrParser.TotaalVanExprContext):
+                func_name = "totaal_van"
+                # TotaalVan typically has similar structure to som_van
+                # Handle it like other aggregation functions
+            elif isinstance(ctx, AntlrParser.HetAantalDagenInExprContext):
+                func_name = "aantal_dagen_in"
+                # This has specific handling for date periods
+                if hasattr(ctx, 'expressie') and ctx.expressie():
+                    arg = self.visitExpressie(ctx.expressie())
+                    return FunctionCall(
+                        function_name=func_name,
+                        arguments=[arg] if arg else [],
+                        span=self.get_span(ctx)
+                    )
+            
+            # Handle DimensieAggExpr which covers "som van", "gemiddelde van", etc.
+            elif isinstance(ctx, AntlrParser.DimensieAggExprContext):
+                # Get the aggregation function type
+                if hasattr(ctx, 'getalAggregatieFunctie') and ctx.getalAggregatieFunctie():
+                    func_ctx = ctx.getalAggregatieFunctie()
+                    if func_ctx.SOM_VAN():
+                        func_name = "som_van"
+                    elif func_ctx.AANTAL():
+                        func_name = "het_aantal"
+                    elif func_ctx.DE_MAXIMALE_WAARDE_VAN():
+                        func_name = "maximale_waarde_van"
+                    elif func_ctx.DE_MINIMALE_WAARDE_VAN():
+                        func_name = "minimale_waarde_van"
+                    elif hasattr(func_ctx, 'HET_GEMIDDELDE_VAN') and func_ctx.HET_GEMIDDELDE_VAN():
+                        func_name = "gemiddelde_van"
+                    elif hasattr(func_ctx, 'HET_TOTAAL_VAN') and func_ctx.HET_TOTAAL_VAN():
+                        func_name = "totaal_van"
+                    else:
+                        logger.warning(f"Unknown getal aggregation function: {safe_get_text(func_ctx)}")
+                        return None
+                elif hasattr(ctx, 'datumAggregatieFunctie') and ctx.datumAggregatieFunctie():
+                    func_ctx = ctx.datumAggregatieFunctie()
+                    if func_ctx.EERSTE_VAN():
+                        func_name = "eerste_van"
+                    elif func_ctx.LAATSTE_VAN():
+                        func_name = "laatste_van"
+                    else:
+                        logger.warning(f"Unknown datum aggregation function: {safe_get_text(func_ctx)}")
+                        return None
                 else:
-                    logger.warning(f"Unknown getal aggregation function: {safe_get_text(func_ctx)}")
+                    logger.warning(f"No aggregation function found in DimensieAggExpr: {safe_get_text(ctx)}")
                     return None
-            elif ctx.datumAggregatieFunctie():
-                func_ctx = ctx.datumAggregatieFunctie()
-                if func_ctx.EERSTE_VAN():
-                    func_name = "eerste_van"
-                elif func_ctx.LAATSTE_VAN():
-                    func_name = "laatste_van"
-                else:
-                    logger.warning(f"Unknown datum aggregation function: {safe_get_text(func_ctx)}")
-                    return None
-            else:
-                logger.warning(f"No aggregation function found in DimensieAggExpr: {safe_get_text(ctx)}")
+            
+            # If we still don't have a function name, we can't proceed
+            if not func_name:
+                logger.warning(f"Could not determine function name for context: {type(ctx).__name__}")
                 return None
             
             # Get the attribute (what to aggregate)
             # Grammar now uses attribuutMetLidwoord instead of full attribuutReferentie
             attr_ref = None
-            if ctx.attribuutMetLidwoord():
+            if hasattr(ctx, 'attribuutMetLidwoord') and ctx.attribuutMetLidwoord():
                 # Build a simple AttributeReference from the attribute name
                 attr_name = self.visitAttribuutMetLidwoord(ctx.attribuutMetLidwoord())
                 attr_ref = AttributeReference(
@@ -1039,7 +1105,7 @@ class RegelSpraakModelBuilder(RegelSpraakVisitor):
             # Special case: if no attribute specified but we have "van alle X",
             # then we're aggregating all instances that have attribute X (singular)
             # e.g., "de som van alle bedragen" means sum all "bedrag" attributes
-            if attr_ref is None and ctx.dimensieSelectie() and ctx.dimensieSelectie().aggregerenOverAlleDimensies():
+            if attr_ref is None and hasattr(ctx, 'dimensieSelectie') and ctx.dimensieSelectie() and ctx.dimensieSelectie().aggregerenOverAlleDimensies():
                 # This will be handled as a special case - return a FunctionCall
                 # with just the collection name, and let the engine handle it
                 alle_dim_ctx = ctx.dimensieSelectie().aggregerenOverAlleDimensies()
@@ -1056,37 +1122,43 @@ class RegelSpraakModelBuilder(RegelSpraakVisitor):
                 logger.warning(f"No attribute found in aggregation: {safe_get_text(ctx)}")
                 return None
             
-            # Get the dimension selection (what to aggregate over)
-            dim_select_ctx = ctx.dimensieSelectie()
-            if not dim_select_ctx:
-                logger.warning(f"No dimension selection found in aggregation: {safe_get_text(ctx)}")
-                return None
+            # Only process dimension selection for DimensieAggExpr contexts
+            if isinstance(ctx, AntlrParser.DimensieAggExprContext):
+                # Get the dimension selection (what to aggregate over)
+                dim_select_ctx = ctx.dimensieSelectie() if hasattr(ctx, 'dimensieSelectie') else None
+                if not dim_select_ctx:
+                    logger.warning(f"No dimension selection found in aggregation: {safe_get_text(ctx)}")
+                    return None
+                
+                # Parse the dimension selection to get the collection reference
+                # For now, we'll focus on the common case: "van alle X"
+                collection_ref = None
+                if dim_select_ctx.aggregerenOverAlleDimensies():
+                    # "alle X" pattern
+                    alle_dim_ctx = dim_select_ctx.aggregerenOverAlleDimensies()
+                    if alle_dim_ctx.naamwoord():
+                        # Build an AttributeReference for the collection
+                        collection_path = [self._extract_canonical_name(alle_dim_ctx.naamwoord())]
+                        collection_ref = AttributeReference(
+                            path=collection_path,
+                            span=self.get_span(alle_dim_ctx)
+                        )
+                
+                if collection_ref is None:
+                    logger.warning(f"Could not parse dimension selection: {safe_get_text(dim_select_ctx)}")
+                    return None
+                
+                # Create a FunctionCall with both the attribute and collection as arguments
+                func_call = FunctionCall(
+                    function_name=func_name,
+                    arguments=[attr_ref, collection_ref],
+                    span=self.get_span(ctx)
+                )
+                return func_call
             
-            # Parse the dimension selection to get the collection reference
-            # For now, we'll focus on the common case: "van alle X"
-            collection_ref = None
-            if dim_select_ctx.aggregerenOverAlleDimensies():
-                # "alle X" pattern
-                alle_dim_ctx = dim_select_ctx.aggregerenOverAlleDimensies()
-                if alle_dim_ctx.naamwoord():
-                    # Build an AttributeReference for the collection
-                    collection_path = [self._extract_canonical_name(alle_dim_ctx.naamwoord())]
-                    collection_ref = AttributeReference(
-                        path=collection_path,
-                        span=self.get_span(alle_dim_ctx)
-                    )
-            
-            if collection_ref is None:
-                logger.warning(f"Could not parse dimension selection: {safe_get_text(dim_select_ctx)}")
-                return None
-            
-            # Create a FunctionCall with both the attribute and collection as arguments
-            func_call = FunctionCall(
-                function_name=func_name,
-                arguments=[attr_ref, collection_ref],
-                span=self.get_span(ctx)
-            )
-            return func_call
+            # For other aggregation types, we already returned in the specific handlers above
+            logger.warning(f"Unhandled aggregation context type: {type(ctx).__name__}")
+            return None
         # --- Handle Other Labeled Expressions --- 
         elif isinstance(ctx, AntlrParser.AfrondingExprContext): # Example
             # TODO: Implement visitAfronding
@@ -1096,8 +1168,8 @@ class RegelSpraakModelBuilder(RegelSpraakVisitor):
             logger.warning(f"BegrenzingExpr needs specific visitor: {safe_get_text(ctx)}")
             return None # Placeholder
         elif isinstance(ctx, AntlrParser.ConcatenatieExprContext) or isinstance(ctx, AntlrParser.SimpleConcatenatieExprContext):
-            logger.warning(f"Concatenation Expr needs specific visitor: {safe_get_text(ctx)}")
-            return None # Placeholder
+            # Handle concatenation expressions (e.g., "X, Y en Z")
+            return self.visitConcatenatieExpressie(ctx)
         
         # --- Fallback / Deprecated Checks (Should ideally be covered by labels) ---
         # These might catch cases if grammar labels are incomplete or visitor is missing cases
@@ -1109,6 +1181,56 @@ class RegelSpraakModelBuilder(RegelSpraakVisitor):
             
             logger.warning(f"Unknown or unhandled primary expression type (no specific label matched): {type(ctx).__name__} -> {safe_get_text(ctx)}")
             return None
+
+    def visitConcatenatieExpressie(self, ctx) -> Optional[FunctionCall]:
+        """Visit concatenation expression (e.g., "X, Y en Z")."""
+        # This handles expressions like "het gemiddelde van X, Y en Z"
+        # which becomes a function call with multiple arguments
+        
+        # The parent context should tell us what function we're in
+        parent = ctx.parentCtx
+        if parent and hasattr(parent, 'function_name'):
+            func_name = parent.function_name
+        else:
+            # Try to infer from parent context
+            func_name = None
+            if parent:
+                parent_text = safe_get_text(parent)
+                if 'gemiddelde van' in parent_text:
+                    func_name = 'gemiddelde_van'
+                elif 'som van' in parent_text:
+                    func_name = 'som_van'
+                elif 'eerste van' in parent_text:
+                    func_name = 'eerste_van'
+                elif 'laatste van' in parent_text:
+                    func_name = 'laatste_van'
+                elif 'totaal van' in parent_text:
+                    func_name = 'totaal_van'
+        
+        # Collect all expressions in the concatenation
+        args = []
+        for i in range(ctx.getChildCount()):
+            child = ctx.getChild(i)
+            # Skip commas and "en"
+            if hasattr(child, 'accept'):  # It's a parse tree node
+                if hasattr(child, 'getText') and child.getText() in [',', 'en']:
+                    continue
+                expr = self.visit(child)
+                if expr:
+                    args.append(expr)
+        
+        # If we have a function name, return a FunctionCall
+        if func_name and args:
+            return FunctionCall(
+                function_name=func_name,
+                arguments=args,
+                span=self.get_span(ctx)
+            )
+        
+        # Otherwise, just return the arguments as a special marker
+        # This shouldn't happen in well-formed expressions
+        logger.warning(f"Concatenation expression without clear function context: {safe_get_text(ctx)}")
+        return None
 
     # 7. Definition Structure Visitors
     def visitDefinitie(self, ctx: AntlrParser.DefinitieContext) -> Any:

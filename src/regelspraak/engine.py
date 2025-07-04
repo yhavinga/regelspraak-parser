@@ -39,6 +39,26 @@ class Evaluator:
         self.context = context
         self.arithmetic = UnitArithmetic(context.unit_registry)
         self._current_rule = None  # Track current rule for tracing
+        
+        # Function registry for cleaner function handling
+        self._function_registry = {
+            "abs": self._func_abs,
+            "max": self._func_max,
+            "min": self._func_min,
+            "tijdsduur_van": self._func_tijdsduur_van,
+            "absolute_tijdsduur_van": self._func_absolute_tijdsduur_van,
+            "som_van": self._func_som_van,
+            "gemiddelde_van": self._func_gemiddelde_van,
+            "eerste_van": self._func_eerste_van,
+            "laatste_van": self._func_laatste_van,
+            "totaal_van": self._func_totaal_van,
+            "aantal_dagen_in": self._func_aantal_dagen_in,
+            "het_aantal_dagen_in": self._func_aantal_dagen_in,
+            "de_eerste_van": self._func_eerste_van,
+            "de_laatste_van": self._func_laatste_van,
+            "het_gemiddelde_van": self._func_gemiddelde_van,
+            "het_totaal_van": self._func_totaal_van,
+        }
 
     def execute_model(self, domain_model: DomainModel):
         """Executes all rules in the domain model against the context."""
@@ -1006,6 +1026,291 @@ class Evaluator:
         else:
             raise RegelspraakError(f"Unsupported unary operator: {op.name}", span=expr.span)
 
+    def _resolve_collection_from_feittype(self, collection_name: str, base_instance: RuntimeObject) -> List[RuntimeObject]:
+        """Resolve a collection name through feittype relationships.
+        
+        For example: "passagiers van de reis" where base_instance is a Vlucht
+        This looks for relationships where the base_instance plays a role
+        and returns objects in the matching role.
+        """
+        collection_objects = []
+        
+        # Try to find relationships where base_instance participates
+        # Look in both directions (as subject and as object)
+        relationships = self.context.find_relationships(subject=base_instance)
+        relationships.extend(self.context.find_relationships(object=base_instance))
+        
+        for rel in relationships:
+            # Get the feittype definition
+            feittype = self.context.domain_model.feittypen.get(rel.feittype_naam)
+            if not feittype:
+                continue
+                
+            # Check each role to see if it matches the collection name
+            for rol in feittype.rollen:
+                if not rol.naam:
+                    continue
+                    
+                # Match role name (handle singular/plural forms)
+                role_matches = False
+                if collection_name.lower() == rol.naam.lower():
+                    role_matches = True
+                elif collection_name.lower() == rol.meervoud.lower() if hasattr(rol, 'meervoud') and rol.meervoud else False:
+                    role_matches = True
+                elif collection_name.lower().endswith("en") and collection_name[:-2].lower() == rol.naam.lower():
+                    # Simple plural check: "passagiers" -> "passagier"
+                    role_matches = True
+                elif collection_name.lower().endswith("s") and collection_name[:-1].lower() == rol.naam.lower():
+                    # Alternative plural: "reis" -> "reizen"  
+                    role_matches = True
+                    
+                if role_matches:
+                    # Found matching role - get the object in that role
+                    if rel.subject == base_instance and rel.object:
+                        # Base instance is subject, return object
+                        if rel.object not in collection_objects:
+                            collection_objects.append(rel.object)
+                    elif rel.object == base_instance and rel.subject:
+                        # Base instance is object, return subject
+                        if rel.subject not in collection_objects:
+                            collection_objects.append(rel.subject)
+                    
+        return collection_objects
+    
+    def _resolve_collection_for_aggregation(self, collection_expr: Expression) -> List[RuntimeObject]:
+        """Resolve a collection expression to a list of RuntimeObject instances for aggregation.
+        
+        Handles patterns like:
+        - "alle bedragen" - all instances that have attribute 'bedrag'
+        - "alle passagiers van de reis" - all objects in a feittype relationship
+        """
+        collection_objects = []
+        
+        if isinstance(collection_expr, AttributeReference):
+            # Handle different path patterns
+            if len(collection_expr.path) == 1:
+                collection_path = collection_expr.path[0]
+                
+                # Check if it's a feittype navigation pattern
+                # Example: "passagiers" -> find through relationships
+                if self.context.current_instance:
+                    # First try as a role name via feittype
+                    collection_objects = self._resolve_collection_from_feittype(
+                        collection_path,
+                        self.context.current_instance
+                    )
+                
+                # If no results from feittype, check if it's "alle X" pattern
+                if not collection_objects and collection_path.lower().startswith("alle "):
+                    collection_type = collection_path[5:]  # Remove "alle "
+                    
+                    # Find the actual object type (case-insensitive match)
+                    matched_type = None
+                    for obj_type in self.context.domain_model.objecttypes.keys():
+                        if obj_type.lower() == collection_type.lower():
+                            matched_type = obj_type
+                            break
+                    
+                    if matched_type:
+                        collection_objects = self.context.find_objects_by_type(matched_type)
+                        
+                # If still no results and it's a plural attribute name, find all objects with that attribute
+                if not collection_objects and collection_path.endswith("en"):
+                    # Convert plural to singular: "bedragen" -> "bedrag"
+                    singular_name = collection_path[:-2] if collection_path.endswith("en") else collection_path
+                    
+                    # Find all objects that have this attribute
+                    for obj_type_name in self.context.domain_model.objecttypes:
+                        obj_type = self.context.domain_model.objecttypes[obj_type_name]
+                        # Check if this object type has the attribute
+                        if singular_name in obj_type.attributen:
+                            # Get all instances of this type
+                            instances = self.context.find_objects_by_type(obj_type_name)
+                            collection_objects.extend(instances)
+                            
+            elif len(collection_expr.path) == 2:
+                # Pattern like "passagiers van de reis"
+                collection_name = collection_expr.path[0]
+                if self.context.current_instance:
+                    collection_objects = self._resolve_collection_from_feittype(
+                        collection_name,
+                        self.context.current_instance
+                    )
+            else:
+                # Complex path: navigate through relationships
+                logger.warning(f"Complex collection paths not yet fully supported: {collection_expr.path}")
+                
+        return collection_objects
+    
+    def _handle_aggregation_alle_pattern(self, expr: FunctionCall, func_type: str, plural_name: str) -> Value:
+        """Handle 'functie van alle X' pattern where we aggregate attribute across all objects."""
+        # Convert plural to singular: "bedragen" -> "bedrag"
+        singular_name = plural_name[:-2] if plural_name.endswith("en") else plural_name
+        
+        # Find all objects that have this attribute
+        collection_objects = []
+        for obj_type_name in self.context.domain_model.objecttypes:
+            obj_type = self.context.domain_model.objecttypes[obj_type_name]
+            # Check if this object type has the attribute
+            if singular_name in obj_type.attributen:
+                # Get all instances of this type
+                instances = self.context.find_objects_by_type(obj_type_name)
+                collection_objects.extend(instances)
+        
+        # Collect values from all objects
+        values = []
+        first_unit = None
+        datatype = None
+        
+        for obj in collection_objects:
+            # Temporarily set this object as current for attribute evaluation
+            saved_instance = self.context.current_instance
+            try:
+                self.context.current_instance = obj
+                # Get the attribute value
+                value = self.context.get_attribute(obj, singular_name)
+                
+                # Skip None/empty values per RegelSpraak spec
+                if value.value is None:
+                    continue
+                    
+                # Check datatype consistency
+                if datatype is None:
+                    datatype = value.datatype
+                    first_unit = value.unit
+                elif value.datatype != datatype:
+                    raise RegelspraakError(f"Cannot aggregate values of different types: {datatype} and {value.datatype}", span=expr.span)
+                
+                # Check unit compatibility for numeric aggregations
+                if func_type in ["som_van", "gemiddelde_van", "totaal_van"]:
+                    if first_unit or value.unit:
+                        if not self.arithmetic._check_units_compatible(
+                            Value(0, datatype, first_unit), 
+                            value, 
+                            func_type
+                        ):
+                            raise RegelspraakError(f"Cannot aggregate values with incompatible units: {first_unit} and {value.unit}", span=expr.span)
+                    
+                    # Convert to common unit if needed
+                    if value.unit != first_unit and value.unit is not None:
+                        value = self.arithmetic._convert_to_unit(value, first_unit)
+                
+                values.append(value)
+            finally:
+                self.context.current_instance = saved_instance
+        
+        # Perform aggregation based on function type
+        return self._perform_aggregation(func_type, values, datatype, first_unit, expr.span)
+    
+    def _handle_aggregation_collection_pattern(self, expr: FunctionCall, func_type: str) -> Value:
+        """Handle 'functie van X van alle Y' pattern for collection aggregation."""
+        attr_expr = expr.arguments[0]
+        collection_expr = expr.arguments[1]
+        
+        # Resolve the collection
+        collection_objects = self._resolve_collection_for_aggregation(collection_expr)
+        
+        # Collect values from all objects in the collection
+        values = []
+        first_unit = None
+        datatype = None
+        
+        for obj in collection_objects:
+            # Temporarily set this object as current for attribute evaluation
+            saved_instance = self.context.current_instance
+            try:
+                self.context.current_instance = obj
+                # Evaluate the attribute expression on this object
+                value = self.evaluate_expression(attr_expr)
+                
+                # Skip None/empty values per RegelSpraak spec
+                if value.value is None:
+                    continue
+                    
+                # Check datatype consistency
+                if datatype is None:
+                    datatype = value.datatype
+                    first_unit = value.unit
+                elif value.datatype != datatype:
+                    raise RegelspraakError(f"Cannot aggregate values of different types: {datatype} and {value.datatype}", span=expr.span)
+                
+                # Check unit compatibility for numeric aggregations
+                if func_type in ["som_van", "gemiddelde_van", "totaal_van"]:
+                    if first_unit or value.unit:
+                        if not self.arithmetic._check_units_compatible(
+                            Value(0, datatype, first_unit), 
+                            value, 
+                            func_type
+                        ):
+                            raise RegelspraakError(f"Cannot aggregate values with incompatible units: {first_unit} and {value.unit}", span=expr.span)
+                    
+                    # Convert to common unit if needed
+                    if value.unit != first_unit and value.unit is not None:
+                        value = self.arithmetic._convert_to_unit(value, first_unit)
+                
+                values.append(value)
+            finally:
+                self.context.current_instance = saved_instance
+        
+        # Perform aggregation based on function type
+        return self._perform_aggregation(func_type, values, datatype, first_unit, expr.span)
+    
+    def _perform_aggregation(self, func_type: str, values: List[Value], datatype: str, unit: str, span) -> Value:
+        """Perform the actual aggregation based on function type."""
+        if not values:
+            # Empty collection - return appropriate empty/zero value
+            if func_type in ["som_van", "totaal_van"]:
+                return Value(value=Decimal(0), datatype=datatype or "Numeriek", unit=unit)
+            elif func_type == "gemiddelde_van":
+                return Value(value=None, datatype=datatype or "Numeriek", unit=unit)
+            elif func_type in ["eerste_van", "laatste_van"]:
+                return Value(value=None, datatype=datatype or "Datum", unit=None)
+            else:
+                return Value(value=None, datatype=datatype or "Numeriek", unit=unit)
+        
+        # Perform aggregation
+        if func_type in ["som_van", "totaal_van"]:
+            # Sum all values
+            result = values[0]
+            for val in values[1:]:
+                result = self.arithmetic.add(result, val)
+            return result
+            
+        elif func_type == "gemiddelde_van":
+            # Calculate average
+            if datatype not in ["Numeriek", "Bedrag", "Percentage"]:
+                raise RegelspraakError(f"Cannot calculate average of non-numeric type: {datatype}", span=span)
+            # Sum all values
+            total = values[0]
+            for val in values[1:]:
+                total = self.arithmetic.add(total, val)
+            # Divide by count
+            count_val = Value(value=Decimal(len(values)), datatype="Numeriek", unit=None)
+            return self.arithmetic.divide(total, count_val, use_abs_style=False)
+            
+        elif func_type == "eerste_van":
+            # Find earliest/first value
+            if datatype not in ["Datum", "Datum-tijd"]:
+                raise RegelspraakError(f"Function 'eerste_van' requires date values, got {datatype}", span=span)
+            earliest = values[0]
+            for val in values[1:]:
+                if self._compare_values(val, earliest) < 0:
+                    earliest = val
+            return earliest
+            
+        elif func_type == "laatste_van":
+            # Find latest/last value
+            if datatype not in ["Datum", "Datum-tijd"]:
+                raise RegelspraakError(f"Function 'laatste_van' requires date values, got {datatype}", span=span)
+            latest = values[0]
+            for val in values[1:]:
+                if self._compare_values(val, latest) > 0:
+                    latest = val
+            return latest
+            
+        else:
+            raise RegelspraakError(f"Unknown aggregation function: {func_type}", span=span)
+    
     def _handle_som_van_alle_pattern(self, expr: FunctionCall, plural_name: str) -> Value:
         """Handle 'som van alle bedragen' pattern where we sum attribute across all objects."""
         # Convert plural to singular: "bedragen" -> "bedrag"
@@ -1076,23 +1381,34 @@ class Evaluator:
         current_instance = self.context.current_instance
         instance_id = current_instance.instance_id if current_instance else None
         
-        func_name = expr.function_name.lower() # Normalize name
+        func_name = expr.function_name.lower().replace(' ', '_') # Normalize name
         
-        # Special case: Check for "som_van" patterns BEFORE evaluating args
+        # Special case: Check for aggregation patterns BEFORE evaluating args
         # This avoids errors when trying to evaluate attributes on wrong instances
-        if func_name == "som_van":
+        aggregation_functions = ["som_van", "gemiddelde_van", "totaal_van", "eerste_van", "laatste_van", 
+                                "het_gemiddelde_van", "het_totaal_van", "de_eerste_van", "de_laatste_van"]
+        
+        if func_name in aggregation_functions:
+            # Normalize function name (remove articles)
+            base_func_name = func_name
+            if func_name.startswith("het_"):
+                base_func_name = func_name[4:]
+            elif func_name.startswith("de_"):
+                base_func_name = func_name[3:]
+                
             # Single argument case: "som van alle bedragen"
             if len(expr.arguments) == 1:
                 arg = expr.arguments[0]
                 if isinstance(arg, AttributeReference) and len(arg.path) == 1 and arg.path[0].endswith("en"):
-                    # Handle the "som van alle bedragen" pattern specially
-                    return self._handle_som_van_alle_pattern(expr, arg.path[0])
+                    # Handle the "functie van alle X" pattern specially
+                    return self._handle_aggregation_alle_pattern(expr, base_func_name, arg.path[0])
             
             # Two argument case: "som van X van alle Y" (from DimensieAggExpr)
             elif len(expr.arguments) == 2:
-                # Don't evaluate arguments yet - let the som_van handler deal with them
-                # Jump directly to som_van handling below
-                pass
+                # Check if second argument is a collection expression
+                if isinstance(expr.arguments[1], AttributeReference):
+                    # Don't evaluate arguments yet - handle collection pattern
+                    return self._handle_aggregation_collection_pattern(expr, base_func_name)
             
             # Three+ argument case: concatenation pattern - evaluate normally
             else:
@@ -1115,49 +1431,10 @@ class Evaluator:
         
         result = None
         try:
-            # TODO: Implement more robust function handling (registry?)
-            # Basic built-ins:
-            if func_name == "abs":
-                if len(args) != 1: 
-                    raise RegelspraakError(f"Function 'abs' expects 1 argument, got {len(args)}", span=expr.span)
-                arg = args[0]
-                if arg.datatype not in ["Numeriek", "Bedrag"]:
-                    raise RegelspraakError(f"Function 'abs' requires numeric argument, got {arg.datatype}", span=expr.span)
-                abs_val = abs(arg.to_decimal())
-                result = Value(value=abs_val, datatype=arg.datatype, unit=arg.unit)
-                
-            elif func_name == "max":
-                if not args: 
-                    raise RegelspraakError("Function 'max' requires at least one argument", span=expr.span)
-                # Check all args have compatible types and units
-                first_type = args[0].datatype
-                first_unit = args[0].unit
-                for arg in args[1:]:
-                    if arg.datatype != first_type:
-                        raise RegelspraakError(f"Function 'max' requires all arguments to have same type", span=expr.span)
-                    if not self.arithmetic._check_units_compatible(args[0], arg, "max"):
-                        raise RegelspraakError(f"Function 'max' requires compatible units", span=expr.span)
-                # Convert all to first unit and find max
-                values = [self.arithmetic._convert_to_unit(arg, first_unit).to_decimal() if arg.unit != first_unit 
-                         else arg.to_decimal() for arg in args]
-                max_val = max(values)
-                result = Value(value=max_val, datatype=first_type, unit=first_unit)
-                
-            elif func_name == "min":
-                if not args: 
-                    raise RegelspraakError("Function 'min' requires at least one argument", span=expr.span)
-                # Similar to max
-                first_type = args[0].datatype
-                first_unit = args[0].unit
-                for arg in args[1:]:
-                    if arg.datatype != first_type:
-                        raise RegelspraakError(f"Function 'min' requires all arguments to have same type", span=expr.span)
-                    if not self.arithmetic._check_units_compatible(args[0], arg, "min"):
-                        raise RegelspraakError(f"Function 'min' requires compatible units", span=expr.span)
-                values = [self.arithmetic._convert_to_unit(arg, first_unit).to_decimal() if arg.unit != first_unit 
-                         else arg.to_decimal() for arg in args]
-                min_val = min(values)
-                result = Value(value=min_val, datatype=first_type, unit=first_unit)
+            # Use function registry for cleaner dispatch
+            if func_name in self._function_registry and func_name != "som_van":
+                # Special case: som_van has complex handling below, skip registry
+                result = self._function_registry[func_name](expr, args if 'args' in locals() else None)
                 
             elif func_name == "len": # Example: length of list/string
                 if len(args) != 1: 
@@ -1167,103 +1444,6 @@ class Evaluator:
                     raise RegelspraakError(f"Function 'len' requires text argument, got {arg.datatype}", span=expr.span)
                 length = len(arg.value)
                 result = Value(value=length, datatype="Numeriek", unit=None)
-                
-            # --- RegelSpraak specific functions ---
-            elif func_name == "tijdsduur_van" or func_name == "absolute_tijdsduur_van":
-                if len(args) != 2:
-                    raise RegelspraakError(f"Function '{func_name}' expects 2 arguments (from date, to date), got {len(args)}", span=expr.span)
-                
-                date1 = args[0]
-                date2 = args[1]
-                
-                # Check that both arguments are dates
-                if date1.datatype not in ["Datum", "Datum-tijd"]:
-                    raise RegelspraakError(f"Function '{func_name}' requires date arguments, first argument has type {date1.datatype}", span=expr.span)
-                if date2.datatype not in ["Datum", "Datum-tijd"]:
-                    raise RegelspraakError(f"Function '{func_name}' requires date arguments, second argument has type {date2.datatype}", span=expr.span)
-                
-                # Handle empty values - if either date is empty, result is empty
-                if date1.value is None or date2.value is None:
-                    return Value(value=None, datatype="Numeriek", unit=expr.unit_conversion)
-                
-                # Import datetime handling
-                from datetime import datetime, timedelta
-                import dateutil.parser
-                
-                # Parse dates
-                try:
-                    # Handle different date formats
-                    if isinstance(date1.value, str):
-                        d1 = dateutil.parser.parse(date1.value)
-                    elif isinstance(date1.value, (datetime, date)):
-                        d1 = date1.value if isinstance(date1.value, datetime) else datetime.combine(date1.value, datetime.min.time())
-                    else:
-                        raise ValueError(f"Unexpected date type: {type(date1.value)}")
-                        
-                    if isinstance(date2.value, str):
-                        d2 = dateutil.parser.parse(date2.value)
-                    elif isinstance(date2.value, (datetime, date)):
-                        d2 = date2.value if isinstance(date2.value, datetime) else datetime.combine(date2.value, datetime.min.time())
-                    else:
-                        raise ValueError(f"Unexpected date type: {type(date2.value)}")
-                        
-                except Exception as e:
-                    raise RegelspraakError(f"Error parsing dates in {func_name}: {str(e)}", span=expr.span)
-                
-                # Calculate difference
-                diff = d2 - d1  # This gives a timedelta
-                
-                # Get the unit conversion if specified
-                unit = expr.unit_conversion if hasattr(expr, 'unit_conversion') and expr.unit_conversion else "dagen"
-                
-                # Convert to requested unit
-                if unit == "milliseconden" or unit == "millisecondes" or unit == "ms":
-                    # Milliseconds - no rounding
-                    total_seconds = diff.total_seconds()
-                    value = int(total_seconds * 1000)
-                elif unit == "seconden" or unit == "seconde" or unit == "s":
-                    # Seconds - round down
-                    value = int(diff.total_seconds())
-                elif unit == "minuten" or unit == "minuut":
-                    # Minutes - round down
-                    value = int(diff.total_seconds() // 60)
-                elif unit == "uren" or unit == "uur" or unit == "u":
-                    # Hours - round down  
-                    value = int(diff.total_seconds() // 3600)
-                elif unit == "dagen" or unit == "dag" or unit == "dg":
-                    # Days - round down
-                    value = diff.days
-                elif unit == "weken" or unit == "week" or unit == "wk":
-                    # Weeks - round down
-                    value = diff.days // 7
-                elif unit == "maanden" or unit == "maand" or unit == "mnd":
-                    # Months - approximate (30.44 days per month average)
-                    # But according to spec, we need calendar-aware month calculation
-                    # For now, use a simple approximation
-                    months = 0
-                    y1, m1 = d1.year, d1.month
-                    y2, m2 = d2.year, d2.month
-                    months = (y2 - y1) * 12 + (m2 - m1)
-                    # Adjust for day of month
-                    if d2.day < d1.day:
-                        months -= 1
-                    value = months
-                elif unit == "jaren" or unit == "jaar" or unit == "jr":
-                    # Years - round down (whole years)
-                    years = d2.year - d1.year
-                    # Adjust if we haven't reached the anniversary date
-                    if (d2.month, d2.day) < (d1.month, d1.day):
-                        years -= 1
-                    value = years
-                else:
-                    raise RegelspraakError(f"Unknown time unit for {func_name}: {unit}", span=expr.span)
-                
-                # For absolute version, take absolute value
-                if func_name == "absolute_tijdsduur_van":
-                    value = abs(value)
-                
-                # Return with appropriate unit
-                result = Value(value=value, datatype="Numeriek", unit=unit)
                 
             elif func_name == "som_van":
                 # Sum aggregation - handles multiple patterns:
@@ -1438,18 +1618,15 @@ class Evaluator:
                                 for rel in relationships:
                                     if rel.object and self._matches_role_name(collection_type, rel):
                                         collection_objects.append(rel.object)
-                    elif len(collection_expr.path) == 2 and collection_expr.path[0].lower() == "passagiers" and collection_expr.path[1].lower() == "reis":
-                        # Special case for TOKA: "passagiers van de reis"
-                        # This means all passengers related to the current instance (which should be a Vlucht)
-                        if self.context.current_instance and self.context.current_instance.object_type_naam == "Vlucht":
-                            # Find all relationships where the current flight is the subject
-                            relationships = self.context.find_relationships(
-                                subject=self.context.current_instance,
-                                feittype_naam="vlucht van natuurlijke personen"
+                    elif len(collection_expr.path) == 2:
+                        # Pattern like "passagiers van de reis"
+                        # Use generic feittype resolution
+                        collection_name = collection_expr.path[0]
+                        if self.context.current_instance:
+                            collection_objects = self._resolve_collection_from_feittype(
+                                collection_name, 
+                                self.context.current_instance
                             )
-                            for rel in relationships:
-                                if rel.object and rel.object.object_type_naam == "Natuurlijk persoon":
-                                    collection_objects.append(rel.object)
                     else:
                         # Complex path: navigate through relationships
                         # For now, log a warning - this needs more sophisticated handling
@@ -1459,6 +1636,20 @@ class Evaluator:
                 values_to_sum = []
                 first_unit = None
                 datatype = None
+                
+                # Try to determine expected datatype from the attribute definition
+                # This is important for empty collections
+                expected_datatype = None
+                expected_unit = None
+                if attr_expr and len(attr_expr.path) == 1:
+                    attr_name = attr_expr.path[0]
+                    # Look through all object types to find one that has this attribute
+                    for obj_type_name, obj_type_def in self.context.domain_model.objecttypes.items():
+                        if attr_name in obj_type_def.attributen:
+                            attr_def = obj_type_def.attributen[attr_name]
+                            expected_datatype = attr_def.datatype
+                            expected_unit = attr_def.eenheid if hasattr(attr_def, 'eenheid') else None
+                            break
                 
                 for obj in collection_objects:
                     # Temporarily set this object as current for attribute evaluation
@@ -1500,7 +1691,8 @@ class Evaluator:
                 if not values_to_sum:
                     # Empty collection or all values were None
                     # Per spec, return 0 with appropriate type/unit
-                    result = Value(value=Decimal(0), datatype=datatype or "Numeriek", unit=first_unit)
+                    # Use expected datatype if we found it from the schema
+                    result = Value(value=Decimal(0), datatype=datatype or expected_datatype or "Numeriek", unit=first_unit or expected_unit)
                 else:
                     total = sum(values_to_sum)
                     result = Value(value=total, datatype=datatype, unit=first_unit)
@@ -1524,6 +1716,699 @@ class Evaluator:
                 
         return result
 
+    # Function implementations for the registry
+    def _func_abs(self, expr: FunctionCall, args: List[Value]) -> Value:
+        """Absolute value function."""
+        if len(args) != 1: 
+            raise RegelspraakError(f"Function 'abs' expects 1 argument, got {len(args)}", span=expr.span)
+        arg = args[0]
+        if arg.datatype not in ["Numeriek", "Bedrag"]:
+            raise RegelspraakError(f"Function 'abs' requires numeric argument, got {arg.datatype}", span=expr.span)
+        abs_val = abs(arg.to_decimal())
+        return Value(value=abs_val, datatype=arg.datatype, unit=arg.unit)
+    
+    def _func_max(self, expr: FunctionCall, args: List[Value]) -> Value:
+        """Maximum value function."""
+        if not args: 
+            raise RegelspraakError("Function 'max' requires at least one argument", span=expr.span)
+        
+        # Filter out None values
+        non_none_args = [arg for arg in args if arg.value is not None]
+        if not non_none_args:
+            # All values are None - return None with appropriate type
+            return Value(value=None, datatype=args[0].datatype if args else "Numeriek", unit=args[0].unit if args else None)
+        
+        # Check all same datatype
+        datatype = non_none_args[0].datatype
+        unit = non_none_args[0].unit
+        for arg in non_none_args[1:]:
+            if arg.datatype != datatype:
+                raise RegelspraakError(f"Function 'max' requires all arguments to have same type, got {datatype} and {arg.datatype}", span=expr.span)
+        
+        # Find max - need to convert to comparable form
+        max_val = non_none_args[0]
+        for arg in non_none_args[1:]:
+            if self._compare_values(arg, max_val) > 0:
+                max_val = arg
+        
+        return max_val
+    
+    def _func_min(self, expr: FunctionCall, args: List[Value]) -> Value:
+        """Minimum value function."""
+        if not args: 
+            raise RegelspraakError("Function 'min' requires at least one argument", span=expr.span)
+        
+        # Filter out None values
+        non_none_args = [arg for arg in args if arg.value is not None]
+        if not non_none_args:
+            # All values are None - return None with appropriate type
+            return Value(value=None, datatype=args[0].datatype if args else "Numeriek", unit=args[0].unit if args else None)
+        
+        # Check all same datatype
+        datatype = non_none_args[0].datatype
+        unit = non_none_args[0].unit
+        for arg in non_none_args[1:]:
+            if arg.datatype != datatype:
+                raise RegelspraakError(f"Function 'min' requires all arguments to have same type, got {datatype} and {arg.datatype}", span=expr.span)
+        
+        # Find min - need to convert to comparable form
+        min_val = non_none_args[0]
+        for arg in non_none_args[1:]:
+            if self._compare_values(arg, min_val) < 0:
+                min_val = arg
+        
+        return min_val
+    
+    def _func_tijdsduur_van(self, expr: FunctionCall, args: List[Value]) -> Value:
+        """Calculate duration between two dates."""
+        if len(args) != 2:
+            raise RegelspraakError(f"Function 'tijdsduur_van' expects 2 arguments (from date, to date), got {len(args)}", span=expr.span)
+        
+        date1 = args[0]
+        date2 = args[1]
+        
+        # Check that both arguments are dates
+        if date1.datatype not in ["Datum", "Datum-tijd"]:
+            raise RegelspraakError(f"Function 'tijdsduur_van' requires date arguments, first argument has type {date1.datatype}", span=expr.span)
+        if date2.datatype not in ["Datum", "Datum-tijd"]:
+            raise RegelspraakError(f"Function 'tijdsduur_van' requires date arguments, second argument has type {date2.datatype}", span=expr.span)
+        
+        # Handle empty values - if either date is empty, result is empty
+        if date1.value is None or date2.value is None:
+            return Value(value=None, datatype="Numeriek", unit=expr.unit_conversion)
+        
+        # Import datetime handling
+        from datetime import datetime, timedelta
+        import dateutil.parser
+        
+        # Parse dates - handle both date and datetime
+        try:
+            if isinstance(date1.value, str):
+                d1 = dateutil.parser.parse(date1.value)
+            else:
+                d1 = date1.value
+                
+            if isinstance(date2.value, str):
+                d2 = dateutil.parser.parse(date2.value)
+            else:
+                d2 = date2.value
+        except Exception as e:
+            raise RegelspraakError(f"Error parsing dates in tijdsduur_van: {e}", span=expr.span)
+        
+        # Calculate difference
+        delta = d2 - d1
+        
+        # Determine unit from function call or default to days
+        unit = expr.unit_conversion if hasattr(expr, 'unit_conversion') and expr.unit_conversion else "dagen"
+        
+        # Convert based on unit
+        if unit in ["dagen", "dag", "dg"]:
+            value = Decimal(delta.days)
+        elif unit in ["jaren", "jaar", "jr"]:
+            # Years - calculate whole years per spec "in hele jaren"
+            years = d2.year - d1.year
+            # Adjust if we haven't reached the anniversary date
+            if (d2.month, d2.day) < (d1.month, d1.day):
+                years -= 1
+            value = Decimal(years)
+        elif unit in ["maanden", "maand", "mnd"]:
+            # Months - calendar-aware calculation
+            months = 0
+            y1, m1 = d1.year, d1.month
+            y2, m2 = d2.year, d2.month
+            months = (y2 - y1) * 12 + (m2 - m1)
+            # Adjust for day of month
+            if d2.day < d1.day:
+                months -= 1
+            value = Decimal(months)
+        elif unit in ["weken", "week", "wk"]:
+            value = Decimal(delta.days // 7)  # Whole weeks
+        elif unit in ["uren", "uur", "u"]:
+            value = Decimal(int(delta.total_seconds() // 3600))  # Whole hours
+        elif unit in ["minuten", "minuut"]:
+            value = Decimal(int(delta.total_seconds() // 60))  # Whole minutes
+        elif unit in ["seconden", "seconde", "s"]:
+            value = Decimal(int(delta.total_seconds()))  # Whole seconds
+        elif unit in ["milliseconden", "millisecondes", "ms"]:
+            # Milliseconds - no rounding
+            value = Decimal(int(delta.total_seconds() * 1000))
+        else:
+            # Default to days if unit not recognized
+            value = Decimal(delta.days)
+            unit = "dagen"
+        
+        return Value(value=value, datatype="Numeriek", unit=unit)
+    
+    def _func_absolute_tijdsduur_van(self, expr: FunctionCall, args: List[Value]) -> Value:
+        """Calculate absolute duration between two dates."""
+        # Use tijdsduur_van and take absolute value
+        result = self._func_tijdsduur_van(expr, args)
+        if result.value is not None:
+            result = Value(value=abs(result.value), datatype=result.datatype, unit=result.unit)
+        return result
+    
+    def _func_som_van(self, expr: FunctionCall, args: List[Value]) -> Value:
+        """Sum aggregation function - handled specially in _handle_function_call."""
+        # This is a placeholder - the actual implementation is in _handle_function_call
+        # due to special argument evaluation requirements
+        # If we reach here, it means it's being called from the registry with already evaluated args
+        # This would be the simple concatenation case (3+ args)
+        if args is None:
+            # Special case: som_van with special patterns is handled in _handle_function_call
+            # This should not be reached
+            raise RegelspraakError("som_van special patterns should be handled in _handle_function_call", span=expr.span)
+            
+        if not args:
+            raise RegelspraakError("Function 'som_van' requires at least one argument", span=expr.span)
+        
+        # Filter out None values
+        non_none_values = []
+        datatype = None
+        unit = None
+        
+        for arg in args:
+            if arg.value is not None:
+                if datatype is None:
+                    datatype = arg.datatype
+                    unit = arg.unit
+                elif arg.datatype != datatype:
+                    raise RegelspraakError(f"Cannot sum values of different types: {datatype} and {arg.datatype}", span=expr.span)
+                
+                # Check unit compatibility
+                if unit != arg.unit:
+                    if not self.arithmetic._check_units_compatible(Value(0, datatype, unit), arg, "som_van"):
+                        raise RegelspraakError(f"Cannot sum values with incompatible units: {unit} and {arg.unit}", span=expr.span)
+                
+                non_none_values.append(arg)
+        
+        if not non_none_values:
+            # All values were None - return 0
+            return Value(value=Decimal(0), datatype=datatype or "Numeriek", unit=unit)
+        
+        # Sum all values using arithmetic operations
+        result = non_none_values[0]
+        for val in non_none_values[1:]:
+            result = self.arithmetic.add(result, val)
+        
+        return result
+    
+    def _func_gemiddelde_van(self, expr: FunctionCall, args: List[Value]) -> Value:
+        """Average aggregation function."""
+        # Similar patterns to som_van but calculates average
+        if not args:
+            raise RegelspraakError("Function 'gemiddelde_van' requires at least one argument", span=expr.span)
+        
+        # Filter out None values
+        non_none_values = []
+        datatype = None
+        unit = None
+        
+        for arg in args:
+            if arg.value is not None:
+                non_none_values.append(arg.to_decimal())
+                if datatype is None:
+                    datatype = arg.datatype
+                    unit = arg.unit
+                elif arg.datatype != datatype:
+                    raise RegelspraakError(f"Cannot average values of different types: {datatype} and {arg.datatype}", span=expr.span)
+        
+        if not non_none_values:
+            # All values were None - return None
+            return Value(value=None, datatype=datatype or "Numeriek", unit=unit)
+        
+        # Calculate average
+        avg_value = sum(non_none_values) / len(non_none_values)
+        return Value(value=Decimal(avg_value), datatype=datatype, unit=unit)
+    
+    def _func_eerste_van(self, expr: FunctionCall, args: List[Value]) -> Value:
+        """Return the earliest/first date from arguments."""
+        if args is None:
+            # Special case: arguments not evaluated yet
+            raise RegelspraakError("eerste_van requires evaluated arguments", span=expr.span)
+        
+        if not args:
+            raise RegelspraakError("Function 'eerste_van' requires at least one argument", span=expr.span)
+        
+        # Filter out None values and check all are dates
+        non_none_dates = []
+        for arg in args:
+            if arg.value is not None:
+                if arg.datatype not in ["Datum", "Datum-tijd"]:
+                    raise RegelspraakError(f"Function 'eerste_van' requires date arguments, got {arg.datatype}", span=expr.span)
+                non_none_dates.append(arg)
+        
+        if not non_none_dates:
+            # All values were None - return None
+            return Value(value=None, datatype="Datum", unit=None)
+        
+        # Find earliest date using comparison
+        earliest = non_none_dates[0]
+        for date_val in non_none_dates[1:]:
+            if self._compare_values(date_val, earliest) < 0:
+                earliest = date_val
+        
+        return earliest
+    
+    def _func_laatste_van(self, expr: FunctionCall, args: List[Value]) -> Value:
+        """Return the latest/last date from arguments."""
+        if args is None:
+            # Special case: arguments not evaluated yet
+            raise RegelspraakError("laatste_van requires evaluated arguments", span=expr.span)
+            
+        if not args:
+            raise RegelspraakError("Function 'laatste_van' requires at least one argument", span=expr.span)
+        
+        # Filter out None values and check all are dates
+        non_none_dates = []
+        for arg in args:
+            if arg.value is not None:
+                if arg.datatype not in ["Datum", "Datum-tijd"]:
+                    raise RegelspraakError(f"Function 'laatste_van' requires date arguments, got {arg.datatype}", span=expr.span)
+                non_none_dates.append(arg)
+        
+        if not non_none_dates:
+            # All values were None - return None
+            return Value(value=None, datatype="Datum", unit=None)
+        
+        # Find latest date using comparison
+        latest = non_none_dates[0]
+        for date_val in non_none_dates[1:]:
+            if self._compare_values(date_val, latest) > 0:
+                latest = date_val
+        
+        return latest
+    
+    def _func_totaal_van(self, expr: FunctionCall, args: List[Value]) -> Value:
+        """Total aggregation function - similar to som_van."""
+        # For now, implement same as gemiddelde_van but return sum instead of average
+        # This handles the simple concatenation case
+        if not args:
+            raise RegelspraakError("Function 'totaal_van' requires at least one argument", span=expr.span)
+        
+        # Filter out None values
+        non_none_values = []
+        datatype = None
+        unit = None
+        
+        for arg in args:
+            if arg.value is not None:
+                non_none_values.append(arg.to_decimal())
+                if datatype is None:
+                    datatype = arg.datatype
+                    unit = arg.unit
+                elif arg.datatype != datatype:
+                    raise RegelspraakError(f"Cannot total values of different types: {datatype} and {arg.datatype}", span=expr.span)
+        
+        if not non_none_values:
+            # All values were None - return 0
+            return Value(value=Decimal(0), datatype=datatype or "Numeriek", unit=unit)
+        
+        # Calculate total
+        total_value = sum(non_none_values)
+        return Value(value=Decimal(total_value), datatype=datatype, unit=unit)
+    
+    def _func_aantal_dagen_in(self, expr: FunctionCall, args: List[Value]) -> Value:
+        """Count number of days in a month or year."""
+        if len(args) != 1:
+            raise RegelspraakError(f"Function 'aantal_dagen_in' expects 1 argument (date), got {len(args)}", span=expr.span)
+        
+        date_arg = args[0]
+        if date_arg.datatype not in ["Datum", "Datum-tijd"]:
+            raise RegelspraakError(f"Function 'aantal_dagen_in' requires date argument, got {date_arg.datatype}", span=expr.span)
+        
+        # Handle empty value
+        if date_arg.value is None:
+            return Value(value=None, datatype="Numeriek", unit="dagen")
+        
+        # Import datetime handling
+        from datetime import datetime
+        import dateutil.parser
+        import calendar
+        
+        # Parse date
+        try:
+            if isinstance(date_arg.value, str):
+                date = dateutil.parser.parse(date_arg.value)
+            else:
+                date = date_arg.value
+        except Exception as e:
+            raise RegelspraakError(f"Error parsing date in aantal_dagen_in: {e}", span=expr.span)
+        
+        # Determine if we're counting days in month or year based on context
+        # This would need to be passed from the parser - for now assume month
+        # TODO: Get actual period type from expression context
+        
+        # Count days in the month
+        days_in_month = calendar.monthrange(date.year, date.month)[1]
+        
+        return Value(value=Decimal(days_in_month), datatype="Numeriek", unit="dagen")
+
+    def _compare_values(self, val1: Value, val2: Value) -> int:
+        """Compare two values, returning -1 if val1 < val2, 0 if equal, 1 if val1 > val2."""
+        # Ensure compatible types
+        if val1.datatype != val2.datatype:
+            raise RegelspraakError(f"Cannot compare values of different types: {val1.datatype} and {val2.datatype}")
+        
+        # Handle dates specially
+        if val1.datatype in ["Datum", "Datum-tijd"]:
+            from datetime import datetime
+            import dateutil.parser
+            
+            # Parse dates if they're strings
+            d1 = val1.value
+            if isinstance(d1, str):
+                d1 = dateutil.parser.parse(d1)
+            d2 = val2.value
+            if isinstance(d2, str):
+                d2 = dateutil.parser.parse(d2)
+            
+            if d1 < d2:
+                return -1
+            elif d1 > d2:
+                return 1
+            else:
+                return 0
+        
+        # For numeric values, check unit compatibility
+        if val1.unit != val2.unit and val1.unit and val2.unit:
+            # Convert val2 to val1's unit for comparison
+            val2 = self.arithmetic._convert_to_unit(val2, val1.unit)
+        
+        # Compare values
+        v1 = val1.to_decimal() if hasattr(val1, 'to_decimal') else val1.value
+        v2 = val2.to_decimal() if hasattr(val2, 'to_decimal') else val2.value
+        
+        if v1 < v2:
+            return -1
+        elif v1 > v2:
+            return 1
+        else:
+            return 0
+    
+    def _handle_aggregation_alle_pattern(self, expr: FunctionCall, base_func_name: str, plural_name: str) -> Value:
+        """Handle aggregation patterns like 'functie van alle X'.
+        
+        Args:
+            expr: The function call expression
+            base_func_name: The base function name (e.g., 'gemiddelde_van', 'eerste_van', 'laatste_van', 'totaal_van')
+            plural_name: The plural object name (e.g., 'personen', 'vluchten')
+        
+        Returns:
+            The aggregated value
+        """
+        # Convert plural to singular: "personen" -> "persoon", "vluchten" -> "vlucht"
+        singular_name = plural_name[:-2] if plural_name.endswith("en") else plural_name
+        
+        # Find all objects that have this attribute
+        collection_objects = []
+        for obj_type_name in self.context.domain_model.objecttypes:
+            obj_type = self.context.domain_model.objecttypes[obj_type_name]
+            # Check if this object type has the attribute
+            if singular_name in obj_type.attributen:
+                # Get all instances of this type
+                instances = self.context.find_objects_by_type(obj_type_name)
+                collection_objects.extend(instances)
+        
+        # Create attribute reference for the singular attribute
+        attr_expr = AttributeReference(path=[singular_name], span=expr.span)
+        
+        # Perform the aggregation
+        return self._perform_aggregation(base_func_name, attr_expr, collection_objects, expr)
+    
+    def _handle_aggregation_collection_pattern(self, expr: FunctionCall, base_func_name: str) -> Value:
+        """Handle aggregation patterns like 'functie van X van alle Y'.
+        
+        Args:
+            expr: The function call expression
+            base_func_name: The base function name (e.g., 'gemiddelde', 'eerste', 'laatste', 'totaal')
+        
+        Returns:
+            The aggregated value
+        """
+        # Two arguments: attribute and collection
+        attr_expr = expr.arguments[0]
+        collection_expr = expr.arguments[1]
+        
+        if not isinstance(attr_expr, AttributeReference):
+            raise RegelspraakError(f"First argument to '{base_func_name}_van' must be an attribute reference", span=expr.span)
+        if not isinstance(collection_expr, AttributeReference):
+            raise RegelspraakError(f"Second argument to '{base_func_name}_van' must be a collection reference", span=expr.span)
+        
+        # Resolve the collection
+        collection_objects = self._resolve_collection_for_aggregation(collection_expr)
+        
+        # Perform the aggregation
+        return self._perform_aggregation(base_func_name, attr_expr, collection_objects, expr)
+    
+    def _resolve_collection_for_aggregation(self, collection_expr: AttributeReference) -> List[RuntimeObject]:
+        """Resolve a collection expression to a list of RuntimeObjects.
+        
+        Handles patterns like:
+        - "alle Personen" - all instances of a type
+        - "passagiers van de reis" - related objects through feittype
+        """
+        collection_objects = []
+        
+        if len(collection_expr.path) == 1:
+            collection_path = collection_expr.path[0]
+            
+            # Handle "alle X" pattern
+            if collection_path.lower().startswith("alle "):
+                collection_type = collection_path[5:]  # Remove "alle "
+                
+                # Find the actual object type (case-insensitive match)
+                matched_type = None
+                for obj_type in self.context.domain_model.objecttypes.keys():
+                    if obj_type.lower() == collection_type.lower():
+                        matched_type = obj_type
+                        break
+                
+                if matched_type:
+                    collection_objects = self.context.find_objects_by_type(matched_type)
+            
+            # Handle "X van Y" pattern
+            elif " van " in collection_path:
+                # Use feittype resolution
+                collection_name = collection_path.split(" van ")[0].strip()
+                if self.context.current_instance:
+                    collection_objects = self._resolve_collection_from_feittype(
+                        collection_name, 
+                        self.context.current_instance
+                    )
+            
+            # Handle simple plural reference
+            else:
+                # Try to find related objects through relationships
+                if self.context.current_instance:
+                    relationships = self.context.find_relationships(subject=self.context.current_instance)
+                    for rel in relationships:
+                        if rel.object and self._matches_role_name(collection_path, rel):
+                            collection_objects.append(rel.object)
+        
+        elif len(collection_expr.path) >= 2:
+            # Complex path - use feittype resolution
+            collection_name = collection_expr.path[0]
+            if self.context.current_instance:
+                collection_objects = self._resolve_collection_from_feittype(
+                    collection_name, 
+                    self.context.current_instance
+                )
+        
+        return collection_objects
+    
+    def _resolve_collection_from_feittype(self, collection_name: str, context_obj: RuntimeObject) -> List[RuntimeObject]:
+        """Resolve a collection based on feittype relationships.
+        
+        Args:
+            collection_name: Name of the collection (e.g., "passagiers")
+            context_obj: The context object (e.g., current flight)
+        
+        Returns:
+            List of related objects
+        """
+        collection_objects = []
+        
+        # Debug logging
+        logger.info(f"Resolving collection '{collection_name}' from context object {context_obj.object_type_naam}")
+        
+        # Normalize collection name - try to match singular form
+        singular_name = collection_name.rstrip('s').lower()
+        
+        # Look through all feittypes to find matching relationships
+        for feittype_naam, feittype in self.context.domain_model.feittypen.items():
+            # Check if current object type can participate in this feittype
+            context_type_matches = False
+            target_role = None
+            
+            for rol in feittype.rollen:
+                # Check if context object matches this role
+                if rol.object_type == context_obj.object_type_naam:
+                    context_type_matches = True
+                else:
+                    # Check if the other role matches our collection name
+                    # Be flexible - check if the role name contains or starts with our target
+                    if rol.naam:
+                        role_name_lower = rol.naam.lower()
+                        # Check various matching patterns
+                        if (singular_name in role_name_lower or 
+                            collection_name.lower() in role_name_lower or
+                            role_name_lower.startswith(singular_name) or
+                            role_name_lower.startswith(collection_name.lower())):
+                            target_role = rol
+                            logger.info(f"    Role '{rol.naam}' matches collection name '{collection_name}'")
+            
+            if context_type_matches and target_role:
+                # Found a matching feittype - get related objects
+                logger.info(f"  Found matching feittype '{feittype_naam}' with target role '{target_role.naam}'")
+                relationships = self.context.find_relationships(
+                    subject=context_obj,
+                    feittype_naam=feittype_naam
+                )
+                logger.info(f"  Found {len(relationships)} relationships as subject")
+                for rel in relationships:
+                    logger.info(f"    Checking relationship: object={rel.object.object_type_naam if rel.object else None}, target_type={target_role.object_type}")
+                    # Be flexible with object type matching
+                    # Check if the role name contains the object type name or vice versa
+                    if rel.object:
+                        object_type = rel.object.object_type_naam
+                        # Direct match
+                        if object_type == target_role.object_type:
+                            collection_objects.append(rel.object)
+                            logger.info(f"    Added {object_type} to collection (direct match)")
+                        # Check if the role name contains the object type
+                        elif target_role.naam and object_type.lower() in target_role.naam.lower():
+                            collection_objects.append(rel.object)
+                            logger.info(f"    Added {object_type} to collection (role name contains type)")
+                        # Check if object matches the expected pattern for this collection
+                        elif singular_name in target_role.naam.lower():
+                            collection_objects.append(rel.object)
+                            logger.info(f"    Added {object_type} to collection (matches collection pattern)")
+                
+                # Also check reverse relationships
+                reverse_rels = self.context.find_relationships(
+                    object=context_obj,
+                    feittype_naam=feittype_naam
+                )
+                for rel in reverse_rels:
+                    if rel.subject and rel.subject.object_type_naam == target_role.object_type:
+                        collection_objects.append(rel.subject)
+        
+        return collection_objects
+    
+    def _perform_aggregation(self, func_name: str, attr_expr: AttributeReference, 
+                           collection_objects: List[RuntimeObject], expr: FunctionCall) -> Value:
+        """Perform the actual aggregation over a collection of objects.
+        
+        Args:
+            func_name: The aggregation function name ('gemiddelde', 'eerste', 'laatste', 'totaal', 'som')
+            attr_expr: The attribute to aggregate
+            collection_objects: The objects to aggregate over
+            expr: The original function call expression
+        
+        Returns:
+            The aggregated value
+        """
+        # Collect values from all objects
+        values = []
+        datatype = None
+        unit = None
+        
+        # Try to determine expected datatype from the attribute definition
+        # This is important for empty collections
+        expected_datatype = None
+        expected_unit = None
+        if attr_expr and len(attr_expr.path) == 1:
+            attr_name = attr_expr.path[0]
+            # Look through all object types to find one that has this attribute
+            for obj_type_name, obj_type_def in self.context.domain_model.objecttypes.items():
+                if attr_name in obj_type_def.attributen:
+                    attr_def = obj_type_def.attributen[attr_name]
+                    expected_datatype = attr_def.datatype
+                    expected_unit = attr_def.eenheid if hasattr(attr_def, 'eenheid') else None
+                    break
+        
+        for obj in collection_objects:
+            # Temporarily set this object as current for attribute evaluation
+            saved_instance = self.context.current_instance
+            try:
+                self.context.current_instance = obj
+                # Evaluate the attribute on this object
+                value = self.evaluate_expression(attr_expr)
+                
+                # Skip None/empty values per RegelSpraak spec
+                if value.value is not None:
+                    # Check datatype consistency
+                    if datatype is None:
+                        datatype = value.datatype
+                        unit = value.unit
+                    elif value.datatype != datatype:
+                        raise RegelspraakError(
+                            f"Cannot aggregate values of different types: {datatype} and {value.datatype}", 
+                            span=expr.span
+                        )
+                    
+                    values.append(value)
+            finally:
+                self.context.current_instance = saved_instance
+        
+        # Perform the aggregation based on function type
+        # Extract base function name (remove "_van" suffix if present)
+        base_func_name = func_name.replace('_van', '') if func_name.endswith('_van') else func_name
+        
+        if base_func_name in ['som', 'totaal']:
+            if not values:
+                # Empty collection - return 0
+                # Use expected datatype if we found it from the schema
+                return Value(value=Decimal(0), datatype=datatype or expected_datatype or "Numeriek", unit=unit or expected_unit)
+            
+            # Sum all values
+            result = values[0]
+            for val in values[1:]:
+                result = self.arithmetic.add(result, val)
+            return result
+        
+        elif base_func_name == 'gemiddelde':
+            if not values:
+                # Empty collection - return None
+                return Value(value=None, datatype=datatype or "Numeriek", unit=unit)
+            
+            # Calculate average
+            total = values[0]
+            for val in values[1:]:
+                total = self.arithmetic.add(total, val)
+            
+            # Divide by count
+            count = Decimal(len(values))
+            avg_value = total.to_decimal() / count
+            return Value(value=avg_value, datatype=datatype, unit=unit)
+        
+        elif base_func_name == 'eerste':
+            if not values:
+                # Empty collection - return None
+                return Value(value=None, datatype=datatype or "Datum", unit=unit)
+            
+            # Find earliest/minimum value
+            result = values[0]
+            for val in values[1:]:
+                if self._compare_values(val, result) < 0:
+                    result = val
+            return result
+        
+        elif base_func_name == 'laatste':
+            if not values:
+                # Empty collection - return None
+                return Value(value=None, datatype=datatype or "Datum", unit=unit)
+            
+            # Find latest/maximum value
+            result = values[0]
+            for val in values[1:]:
+                if self._compare_values(val, result) > 0:
+                    result = val
+            return result
+        
+        else:
+            raise RegelspraakError(f"Unknown aggregation function: {func_name}", span=expr.span)
+    
     def _resolve_object_reference(self, ref: AttributeReference) -> Optional[RuntimeObject]:
         """Resolve an object reference to an actual RuntimeObject.
         
