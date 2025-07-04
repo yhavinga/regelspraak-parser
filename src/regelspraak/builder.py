@@ -515,8 +515,8 @@ class RegelSpraakModelBuilder(RegelSpraakVisitor):
     def visitAttribuutMetLidwoord(self, ctx: AntlrParser.AttribuutMetLidwoordContext) -> str:
         """Extract the attribute name from attribuutMetLidwoord context."""
         logger.debug(f"visitAttribuutMetLidwoord called with: {safe_get_text(ctx)}")
-        # Get the full text first
-        full_text = safe_get_text(ctx)
+        # Get the full text first - use get_text_with_spaces to preserve spaces
+        full_text = get_text_with_spaces(ctx)
         # Strip leading articles - handle both with and without spaces
         if full_text.startswith("De"):
             if len(full_text) > 2 and full_text[2] == ' ':
@@ -880,12 +880,34 @@ class RegelSpraakModelBuilder(RegelSpraakVisitor):
                 span=self.get_span(ctx)
             )
         elif isinstance(ctx, AntlrParser.SomFuncExprContext):
-            # SOM_VAN expressie
-            expr = self.visitExpressie(ctx.expressie())
-            if expr is None: return None
+            # SOM_VAN expr1, expr2, ... EN exprN
+            args = []
+            # Collect all primaryExpression children
+            for child in ctx.getChildren():
+                if isinstance(child, AntlrParser.PrimaryExpressionContext):
+                    expr = self.visitPrimaryExpression(child)
+                    if expr:
+                        args.append(expr)
+            
+            if not args:
+                return None
+                
             return FunctionCall(
                 function_name="som_van",
-                arguments=[expr],
+                arguments=args,
+                span=self.get_span(ctx)
+            )
+        elif isinstance(ctx, AntlrParser.SomAlleExprContext):
+            # SOM_VAN ALLE naamwoord
+            collection_name = self._extract_canonical_name(ctx.naamwoord())
+            collection_ref = AttributeReference(
+                path=[collection_name],
+                span=self.get_span(ctx.naamwoord())
+            )
+            
+            return FunctionCall(
+                function_name="som_van",
+                arguments=[collection_ref],
                 span=self.get_span(ctx)
             )
         elif isinstance(ctx, AntlrParser.TijdsevenredigDeelExprContext):
@@ -1003,10 +1025,35 @@ class RegelSpraakModelBuilder(RegelSpraakVisitor):
                 logger.warning(f"No aggregation function found in DimensieAggExpr: {safe_get_text(ctx)}")
                 return None
             
-            # Get the attribute reference (what to aggregate)
-            attr_ref = self.visitAttribuutReferentie(ctx.attribuutReferentie()) if ctx.attribuutReferentie() else None
-            if attr_ref is None:
-                logger.warning(f"No attribute reference found in aggregation: {safe_get_text(ctx)}")
+            # Get the attribute (what to aggregate)
+            # Grammar now uses attribuutMetLidwoord instead of full attribuutReferentie
+            attr_ref = None
+            if ctx.attribuutMetLidwoord():
+                # Build a simple AttributeReference from the attribute name
+                attr_name = self.visitAttribuutMetLidwoord(ctx.attribuutMetLidwoord())
+                attr_ref = AttributeReference(
+                    path=[attr_name],
+                    span=self.get_span(ctx.attribuutMetLidwoord())
+                )
+            
+            # Special case: if no attribute specified but we have "van alle X",
+            # then we're aggregating all instances that have attribute X (singular)
+            # e.g., "de som van alle bedragen" means sum all "bedrag" attributes
+            if attr_ref is None and ctx.dimensieSelectie() and ctx.dimensieSelectie().aggregerenOverAlleDimensies():
+                # This will be handled as a special case - return a FunctionCall
+                # with just the collection name, and let the engine handle it
+                alle_dim_ctx = ctx.dimensieSelectie().aggregerenOverAlleDimensies()
+                if alle_dim_ctx.naamwoord():
+                    collection_name = self._extract_canonical_name(alle_dim_ctx.naamwoord())
+                    # Return a FunctionCall with the plural collection name
+                    # The engine will handle converting plural to singular
+                    return FunctionCall(
+                        function_name=func_name,
+                        arguments=[AttributeReference(path=[collection_name], span=self.get_span(alle_dim_ctx))],
+                        span=self.get_span(ctx)
+                    )
+                
+                logger.warning(f"No attribute found in aggregation: {safe_get_text(ctx)}")
                 return None
             
             # Get the dimension selection (what to aggregate over)
@@ -1023,7 +1070,7 @@ class RegelSpraakModelBuilder(RegelSpraakVisitor):
                 alle_dim_ctx = dim_select_ctx.aggregerenOverAlleDimensies()
                 if alle_dim_ctx.naamwoord():
                     # Build an AttributeReference for the collection
-                    collection_path = self._extract_naamwoord_parts(alle_dim_ctx.naamwoord())
+                    collection_path = [self._extract_canonical_name(alle_dim_ctx.naamwoord())]
                     collection_ref = AttributeReference(
                         path=collection_path,
                         span=self.get_span(alle_dim_ctx)

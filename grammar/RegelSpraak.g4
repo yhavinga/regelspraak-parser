@@ -284,7 +284,7 @@ versieGeldigheid
 
 // §13.4.3 Resultaat Deel
 resultaatDeel
-    : (naamwoord | attribuutReferentie) ( WORDT_BEREKEND_ALS expressie | WORDT_GESTELD_OP expressie | WORDT_GEINITIALISEERD_OP expressie ) # GelijkstellingResultaat
+    : (attribuutReferentie | naamwoord) ( WORDT_BEREKEND_ALS expressie | WORDT_GESTELD_OP expressie | WORDT_GEINITIALISEERD_OP expressie ) # GelijkstellingResultaat
     | feitCreatiePattern # FeitCreatieResultaat
     | onderwerpReferentie (IS | HEEFT) kenmerkNaam                                                # KenmerkFeitResultaat
     | identifier+ ( WORDT_BEREKEND_ALS expressie | WORDT_GESTELD_OP expressie | WORDT_GEINITIALISEERD_OP expressie )                   # CapitalizedGelijkstellingResultaat // For capitalized cases
@@ -510,7 +510,8 @@ primaryExpression : // Corresponds roughly to terminals/functions/references in 
     // Functions (Simplified subset)
     | DE_ABSOLUTE_TIJDSDUUR_VAN primaryExpression TOT primaryExpression (IN_HELE unitName=IDENTIFIER)?  # AbsTijdsduurFuncExpr
     | TIJDSDUUR_VAN primaryExpression TOT primaryExpression (IN_HELE unitName=IDENTIFIER)?            # TijdsduurFuncExpr
-    | SOM_VAN expressie                                                                               # SomFuncExpr
+    | SOM_VAN primaryExpression (COMMA primaryExpression)* EN primaryExpression                    # SomFuncExpr // Simple aggregation of comma-separated values
+    | SOM_VAN ALLE naamwoord                                                                       # SomAlleExpr // Aggregate all instances of something
     | HET? AANTAL (ALLE? onderwerpReferentie)                                                         # AantalFuncExpr // Made HET optional
     | NUMBER (PERCENT_SIGN | p=IDENTIFIER) VAN primaryExpression                                    # PercentageFuncExpr
     | primaryExpression afronding                                                                   # AfrondingExpr  // EBNF 13.4.16.21
@@ -538,7 +539,9 @@ primaryExpression : // Corresponds roughly to terminals/functions/references in 
     | identifier+ HET_TOTAAL_VAN expressie (GEDURENDE_DE_TIJD_DAT condition=expressie)?                  # CapitalizedTotaalVanExpr // Special case for "Het totaal van" with capitalization - Simplified condition
     | HET_TIJDSEVENREDIG_DEEL_PER (MAAND | JAAR) VAN expressie (GEDURENDE_DE_TIJD_DAT condition=expressie)? # TijdsevenredigDeelExpr // Simplified condition
     | identifier+ HET_TIJDSEVENREDIG_DEEL_PER (MAAND | JAAR) VAN expressie (GEDURENDE_DE_TIJD_DAT condition=expressie)? # CapitalizedTijdsevenredigDeelExpr // Simplified condition
-    | (getalAggregatieFunctie | datumAggregatieFunctie) attribuutReferentie dimensieSelectie         # DimensieAggExpr // EBNF 13.4.16.45 (Placeholder for now, needs refinement)
+    // For aggregations like "de som van de te betalen belasting van alle passagiers"
+    // We need a special pattern that doesn't use attribuutReferentie since that consumes "van"
+    | (getalAggregatieFunctie | datumAggregatieFunctie) attribuutMetLidwoord dimensieSelectie         # DimensieAggExpr // EBNF 13.4.16.45
     
     // References
     | attribuutReferentie                                           # AttrRefExpr
@@ -612,8 +615,10 @@ datumAggregatieFunctie
     ;
 
 // EBNF 13.4.16.46-.49 Dimensie Selectie (Placeholders)
+// Modified to support both "over" (per EBNF) and "van" (per examples in spec)
 dimensieSelectie
     : OVER (aggregerenOverAlleDimensies | aggregerenOverVerzameling | aggregerenOverBereik) DOT
+    | VAN aggregerenOverAlleDimensies  // Support "van alle X" pattern from spec examples
     ;
 
 aggregerenOverAlleDimensies

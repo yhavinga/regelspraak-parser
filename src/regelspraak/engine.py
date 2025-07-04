@@ -241,14 +241,70 @@ class Evaluator:
                 potential_type = target_ref.path[1]
                 # Check if it matches a known object type
                 if hasattr(self.context, 'domain_model') and self.context.domain_model:
+                    # First try exact match
                     if potential_type in self.context.domain_model.objecttypes:
                         return potential_type
-                # Return it anyway - let the caller validate
+                    
+                    # Try case-insensitive match
+                    for obj_type in self.context.domain_model.objecttypes:
+                        if obj_type.lower() == potential_type.lower():
+                            return obj_type
+                    
+                    # Try capitalized version
+                    potential_type_cap = potential_type.capitalize()
+                    if potential_type_cap in self.context.domain_model.objecttypes:
+                        return potential_type_cap
+                
+                # Check if it's a role name in a feittype
+                # "reis" -> "Vlucht" via feittype definition
+                for feittype_naam, feittype in self.context.domain_model.feittypen.items():
+                    for rol in feittype.rollen:
+                        if rol.naam and rol.naam.lower() == potential_type.lower():
+                            return rol.object_type
+                
+                # Return the original if no match found
                 return potential_type
-            # If path is just ["leeftijd"], we need another way (e.g. Regel header)
-            # For steel thread: assume rule applies to Natuurlijk persoon based on name/structure
-            if "persoon" in rule.naam.lower(): # Very basic heuristic for steel thread
-                return "Natuurlijk persoon"
+            elif len(target_ref.path) == 1:
+                # Handle single-element paths like ["totaal van berekening"]
+                path_elem = target_ref.path[0]
+                
+                # Check if the path element contains " van " (indicating object type)
+                if " van " in path_elem:
+                    # Extract the object type after "van"
+                    # e.g., "totaal van berekening" -> "berekening"
+                    parts = path_elem.split(" van ")
+                    if len(parts) >= 2:
+                        # Get the last part as the potential object type
+                        potential_type = parts[-1].strip()
+                        
+                        # Remove articles if present
+                        for article in ['een ', 'de ', 'het ']:
+                            if potential_type.lower().startswith(article):
+                                potential_type = potential_type[len(article):].strip()
+                                break
+                        
+                        # Check if it matches a known object type (case-insensitive)
+                        if hasattr(self.context, 'domain_model') and self.context.domain_model:
+                            for obj_type in self.context.domain_model.objecttypes:
+                                if obj_type.lower() == potential_type.lower():
+                                    return obj_type
+                        
+                        # Try capitalized version
+                        potential_type_cap = potential_type.capitalize()
+                        if hasattr(self.context, 'domain_model') and self.context.domain_model:
+                            if potential_type_cap in self.context.domain_model.objecttypes:
+                                return potential_type_cap
+                        
+                        # Check if it's a role name in a feittype
+                        for feittype_naam, feittype in self.context.domain_model.feittypen.items():
+                            for rol in feittype.rollen:
+                                if rol.naam and rol.naam.lower() == potential_type.lower():
+                                    return rol.object_type
+                
+                # If path is just ["leeftijd"], we need another way (e.g. Regel header)
+                # For steel thread: assume rule applies to Natuurlijk persoon based on name/structure
+                if "persoon" in rule.naam.lower(): # Very basic heuristic for steel thread
+                    return "Natuurlijk persoon"
 
         # Fallback for steel thread Kenmerktoekenning where target might be implicit
         if isinstance(rule.resultaat, KenmerkToekenning) and "persoon" in rule.naam.lower():
@@ -950,23 +1006,112 @@ class Evaluator:
         else:
             raise RegelspraakError(f"Unsupported unary operator: {op.name}", span=expr.span)
 
+    def _handle_som_van_alle_pattern(self, expr: FunctionCall, plural_name: str) -> Value:
+        """Handle 'som van alle bedragen' pattern where we sum attribute across all objects."""
+        # Convert plural to singular: "bedragen" -> "bedrag"
+        singular_name = plural_name[:-2] if plural_name.endswith("en") else plural_name
+        
+        # Find all objects that have this attribute
+        collection_objects = []
+        for obj_type_name in self.context.domain_model.objecttypes:
+            obj_type = self.context.domain_model.objecttypes[obj_type_name]
+            # Check if this object type has the attribute
+            if singular_name in obj_type.attributen:
+                # Get all instances of this type
+                instances = self.context.find_objects_by_type(obj_type_name)
+                collection_objects.extend(instances)
+        
+        # Now sum the attribute values from all objects
+        values_to_sum = []
+        first_unit = None
+        datatype = None
+        
+        for obj in collection_objects:
+            # Temporarily set this object as current for attribute evaluation
+            saved_instance = self.context.current_instance
+            try:
+                self.context.current_instance = obj
+                # Get the attribute value
+                value = self.context.get_attribute(obj, singular_name)
+                
+                # Skip None/empty values per RegelSpraak spec
+                if value.value is None:
+                    continue
+                    
+                # Check datatype consistency
+                if datatype is None:
+                    datatype = value.datatype
+                    first_unit = value.unit
+                elif value.datatype != datatype:
+                    raise RegelspraakError(f"Cannot sum values of different types: {datatype} and {value.datatype}", span=expr.span)
+                
+                # Check unit compatibility
+                if first_unit or value.unit:
+                    if not self.arithmetic._check_units_compatible(
+                        Value(0, datatype, first_unit), 
+                        value, 
+                        "sum"
+                    ):
+                        raise RegelspraakError(f"Cannot sum values with incompatible units: {first_unit} and {value.unit}", span=expr.span)
+                
+                # Convert to common unit if needed
+                if value.unit != first_unit and value.unit is not None:
+                    value = self.arithmetic._convert_to_unit(value, first_unit)
+                
+                values_to_sum.append(value.to_decimal())
+            finally:
+                self.context.current_instance = saved_instance
+        
+        # Calculate the sum
+        if not values_to_sum:
+            # Empty collection or all values were None
+            # Per spec, return 0 with appropriate type/unit
+            return Value(value=Decimal(0), datatype=datatype or "Numeriek", unit=first_unit)
+        else:
+            total = sum(values_to_sum)
+            return Value(value=total, datatype=datatype, unit=first_unit)
+
     def _handle_function_call(self, expr: FunctionCall) -> Value:
         """Handle function calls (basic built-ins), returning Value objects."""
         current_instance = self.context.current_instance
         instance_id = current_instance.instance_id if current_instance else None
         
-        # Evaluate arguments first
-        args = [self.evaluate_expression(arg) for arg in expr.arguments]
         func_name = expr.function_name.lower() # Normalize name
+        
+        # Special case: Check for "som_van" patterns BEFORE evaluating args
+        # This avoids errors when trying to evaluate attributes on wrong instances
+        if func_name == "som_van":
+            # Single argument case: "som van alle bedragen"
+            if len(expr.arguments) == 1:
+                arg = expr.arguments[0]
+                if isinstance(arg, AttributeReference) and len(arg.path) == 1 and arg.path[0].endswith("en"):
+                    # Handle the "som van alle bedragen" pattern specially
+                    return self._handle_som_van_alle_pattern(expr, arg.path[0])
+            
+            # Two argument case: "som van X van alle Y" (from DimensieAggExpr)
+            elif len(expr.arguments) == 2:
+                # Don't evaluate arguments yet - let the som_van handler deal with them
+                # Jump directly to som_van handling below
+                pass
+            
+            # Three+ argument case: concatenation pattern - evaluate normally
+            else:
+                # Evaluate arguments for concatenation
+                args = [self.evaluate_expression(arg) for arg in expr.arguments]
+        else:
+            # Evaluate arguments normally for other functions
+            args = [self.evaluate_expression(arg) for arg in expr.arguments]
         
         # Trace function call start (extract raw values for tracing)
         if self.context.trace_sink:
-            raw_args = [arg.value if isinstance(arg, Value) else arg for arg in args]
-            self.context.trace_sink.function_call_start(
-                expr, 
-                raw_args, 
-                instance_id=instance_id
-            )
+            # Only trace if args were evaluated
+            if 'args' in locals():
+                raw_args = [arg.value if isinstance(arg, Value) else arg for arg in args]
+                self.context.trace_sink.function_call_start(
+                    expr, 
+                    raw_args, 
+                    instance_id=instance_id
+                )
         
         result = None
         try:
@@ -1121,22 +1266,88 @@ class Evaluator:
                 result = Value(value=value, datatype="Numeriek", unit=unit)
                 
             elif func_name == "som_van":
-                # Sum aggregation: som_van(attribute_with_collection_path)
-                # Can have either 1 or 2 arguments depending on how it was parsed
-                if len(expr.arguments) == 1:
-                    # Single argument case: path like ["te betalen belasting", "passagiers", "reis"]
-                    # Need to split into attribute and collection parts
+                # Sum aggregation - handles multiple patterns:
+                # 1. Concatenation: som_van(X, Y, Z) - sum individual values
+                # 2. Collection with single arg: som_van(path_with_collection) 
+                # 3. Collection with two args: som_van(attribute, collection)
+                
+                if len(expr.arguments) >= 3:
+                    # Concatenation pattern: "de som van X, Y en Z"
+                    # Just sum all the argument values directly
+                    values_to_sum = []
+                    first_unit = None
+                    datatype = None
+                    
+                    for arg_expr in expr.arguments:
+                        value = self.evaluate_expression(arg_expr)
+                        
+                        # Skip None/empty values per RegelSpraak spec
+                        if value.value is None:
+                            continue
+                        
+                        # Check datatype consistency
+                        if datatype is None:
+                            datatype = value.datatype
+                            first_unit = value.unit
+                        elif value.datatype != datatype:
+                            raise RegelspraakError(f"Cannot sum values of different types: {datatype} and {value.datatype}", span=expr.span)
+                        
+                        # Check unit compatibility
+                        if value.unit != first_unit:
+                            if not self.arithmetic._check_units_compatible(Value(0, datatype, first_unit), value, "som_van"):
+                                raise RegelspraakError(f"Cannot sum values with incompatible units: {first_unit} and {value.unit}", span=expr.span)
+                        
+                        values_to_sum.append(value)
+                    
+                    # Perform the sum
+                    if not values_to_sum:
+                        # All values were None/empty - return 0 with appropriate type
+                        result = Value(value=Decimal(0), datatype=datatype or "Numeriek", unit=first_unit)
+                    else:
+                        # Sum all values using arithmetic operations
+                        result = values_to_sum[0]
+                        for val in values_to_sum[1:]:
+                            result = self.arithmetic.add(result, val)
+                    
+                    # Return early for concatenation pattern
+                    return result
+                
+                elif len(expr.arguments) == 1:
+                    # Single argument case - can be:
+                    # 1. Path like ["te betalen belasting", "passagiers", "reis"] 
+                    # 2. Simple plural attribute like ["bedragen"] meaning all instances with "bedrag" attribute
                     full_expr = expr.arguments[0]
                     if not isinstance(full_expr, AttributeReference):
                         raise RegelspraakError(f"Argument to 'som_van' must be an attribute reference, got {type(full_expr).__name__}", span=expr.span)
                     
-                    # Split the path - first element is the attribute, rest is the collection navigation
-                    if len(full_expr.path) < 2:
-                        raise RegelspraakError(f"'som_van' requires a path with attribute and collection, got {full_expr.path}", span=expr.span)
-                    
-                    # Create separate expressions for attribute and collection
-                    attr_expr = AttributeReference(path=[full_expr.path[0]], span=full_expr.span)
-                    collection_expr = AttributeReference(path=full_expr.path[1:], span=full_expr.span)
+                    if len(full_expr.path) == 1 and full_expr.path[0].endswith("en"):
+                        # Case 2: Simple plural like "bedragen" - find all objects with singular attribute
+                        # Convert plural to singular: "bedragen" -> "bedrag"
+                        plural_name = full_expr.path[0]
+                        # Simple pluralization rule - remove "en" suffix
+                        singular_name = plural_name[:-2] if plural_name.endswith("en") else plural_name
+                        
+                        # Find all objects that have this attribute
+                        collection_objects = []
+                        for obj_type_name in self.context.domain_model.objecttypes:
+                            obj_type = self.context.domain_model.objecttypes[obj_type_name]
+                            # Check if this object type has the attribute
+                            if singular_name in obj_type.attributen:
+                                # Get all instances of this type
+                                instances = self.context.find_objects_by_type(obj_type_name)
+                                collection_objects.extend(instances)
+                        
+                        # Now sum the attribute values
+                        attr_expr = AttributeReference(path=[singular_name], span=full_expr.span)
+                        # Skip to the summing logic below
+                        
+                    elif len(full_expr.path) >= 2:
+                        # Case 1: Path with collection reference
+                        # Split the path - first element is the attribute, rest is the collection navigation
+                        attr_expr = AttributeReference(path=[full_expr.path[0]], span=full_expr.span)
+                        collection_expr = AttributeReference(path=full_expr.path[1:], span=full_expr.span)
+                    else:
+                        raise RegelspraakError(f"'som_van' with single element path '{full_expr.path}' not recognized as plural attribute reference", span=expr.span)
                     
                 elif len(expr.arguments) == 2:
                     # Two argument case (from DimensieAggExpr)
@@ -1148,52 +1359,101 @@ class Evaluator:
                     if not isinstance(collection_expr, AttributeReference):
                         raise RegelspraakError(f"Second argument to 'som_van' must be a collection reference, got {type(collection_expr).__name__}", span=expr.span)
                 else:
-                    raise RegelspraakError(f"Function 'som_van' expects 1 or 2 arguments, got {len(expr.arguments)}", span=expr.span)
+                    raise RegelspraakError(f"Function 'som_van' expects 1, 2, or 3+ arguments, got {len(expr.arguments)}", span=expr.span)
                 
                 # Get the collection of objects to iterate over
-                collection_objects = []
-                
-                # Handle different collection patterns
-                if len(collection_expr.path) == 1:
-                    # Simple case: "alle Personen" - find all instances of that type
-                    collection_type = collection_expr.path[0]
-                    # Clean up the type name (remove articles if present)
-                    if collection_type.lower().startswith("alle "):
-                        collection_type = collection_type[5:]  # Remove "alle "
-                    
-                    # Find the actual object type (case-insensitive match)
-                    matched_type = None
-                    for obj_type in self.context.domain_model.objecttypes.keys():
-                        if obj_type.lower() == collection_type.lower():
-                            matched_type = obj_type
-                            break
-                    
-                    if matched_type:
-                        collection_objects = self.context.get_instances(matched_type)
-                    else:
-                        # Check if it's a relationship navigation (e.g., "passagiers" of current object)
-                        if self.context.current_instance:
-                            # Try to find related objects through relationships
-                            relationships = self.context.find_relationships(subject=self.context.current_instance)
-                            for rel in relationships:
-                                if rel.object and self._matches_role_name(collection_type, rel):
-                                    collection_objects.append(rel.object)
-                elif len(collection_expr.path) == 2 and collection_expr.path[0].lower() == "passagiers" and collection_expr.path[1].lower() == "reis":
-                    # Special case for TOKA: "passagiers van de reis"
-                    # This means all passengers related to the current instance (which should be a Vlucht)
-                    if self.context.current_instance and self.context.current_instance.object_type_naam == "Vlucht":
-                        # Find all relationships where the current flight is the subject
-                        relationships = self.context.find_relationships(
-                            subject=self.context.current_instance,
-                            feittype_naam="vlucht van natuurlijke personen"
-                        )
-                        for rel in relationships:
-                            if rel.object and rel.object.object_type_naam == "Natuurlijk persoon":
-                                collection_objects.append(rel.object)
+                # For simple plural attributes, collection_objects is already set above
+                if len(expr.arguments) == 1 and len(full_expr.path) == 1 and full_expr.path[0].endswith("en"):
+                    # collection_objects already set in the plural attribute handling above
+                    pass
                 else:
-                    # Complex path: navigate through relationships
-                    # For now, log a warning - this needs more sophisticated handling
-                    logger.warning(f"Complex collection paths not yet fully supported: {collection_expr.path}")
+                    # Need to resolve collection from collection_expr
+                    collection_objects = []
+                    
+                    # Handle different collection patterns
+                    if len(collection_expr.path) == 1:
+                        collection_path = collection_expr.path[0]
+                        
+                        # Check for "X van de Y" pattern (e.g., "passagiers van de reis")
+                        if " van " in collection_path:
+                            # Split on " van " to get role and context
+                            parts = collection_path.split(" van ")
+                            if len(parts) == 2:
+                                role_name = parts[0].strip()  # e.g., "passagiers"
+                                context_ref = parts[1].strip()  # e.g., "de reis"
+                                
+                                # Remove articles from context
+                                for article in ['de ', 'het ', 'een ']:
+                                    if context_ref.startswith(article):
+                                        context_ref = context_ref[len(article):]
+                                        break
+                                
+                                # Find feittype that matches this pattern
+                                # "passagiers" (passengers) + "reis" (journey/flight) -> look for related persons
+                                if self.context.current_instance:
+                                    # Find all relationships where current instance is the subject
+                                    for feittype_naam, feittype in self.context.domain_model.feittypen.items():
+                                        # Check if current instance matches the context reference
+                                        found_match = False
+                                        for rol in feittype.rollen:
+                                            # Check if this role matches the context (e.g., "reis" -> "Vlucht")
+                                            if rol.naam and context_ref.lower() in rol.naam.lower() and rol.object_type == self.context.current_instance.object_type_naam:
+                                                # Found the feittype where current instance has the context role
+                                                # Now look for the other role that matches our collection name
+                                                for other_rol in feittype.rollen:
+                                                    if other_rol != rol and other_rol.naam:
+                                                        # Check if role name contains our target (e.g., "passagier" in role_name)
+                                                        if role_name.rstrip('s').lower() in other_rol.naam.lower():
+                                                            # Found matching feittype and role
+                                                            relationships = self.context.find_relationships(
+                                                                subject=self.context.current_instance,
+                                                                feittype_naam=feittype_naam
+                                                            )
+                                                            for rel in relationships:
+                                                                if rel.object:
+                                                                    collection_objects.append(rel.object)
+                                                            found_match = True
+                                                            break
+                                                if found_match:
+                                                    break
+                        
+                        # Simple case: "alle Personen" - find all instances of that type
+                        elif collection_path.lower().startswith("alle "):
+                            collection_type = collection_path[5:]  # Remove "alle "
+                            
+                            # Find the actual object type (case-insensitive match)
+                            matched_type = None
+                            for obj_type in self.context.domain_model.objecttypes.keys():
+                                if obj_type.lower() == collection_type.lower():
+                                    matched_type = obj_type
+                                    break
+                            
+                            if matched_type:
+                                collection_objects = self.context.find_objects_by_type(matched_type)
+                        else:
+                            # Check if it's a relationship navigation (e.g., "passagiers" of current object)
+                            if self.context.current_instance:
+                                # Try to find related objects through relationships
+                                relationships = self.context.find_relationships(subject=self.context.current_instance)
+                                for rel in relationships:
+                                    if rel.object and self._matches_role_name(collection_type, rel):
+                                        collection_objects.append(rel.object)
+                    elif len(collection_expr.path) == 2 and collection_expr.path[0].lower() == "passagiers" and collection_expr.path[1].lower() == "reis":
+                        # Special case for TOKA: "passagiers van de reis"
+                        # This means all passengers related to the current instance (which should be a Vlucht)
+                        if self.context.current_instance and self.context.current_instance.object_type_naam == "Vlucht":
+                            # Find all relationships where the current flight is the subject
+                            relationships = self.context.find_relationships(
+                                subject=self.context.current_instance,
+                                feittype_naam="vlucht van natuurlijke personen"
+                            )
+                            for rel in relationships:
+                                if rel.object and rel.object.object_type_naam == "Natuurlijk persoon":
+                                    collection_objects.append(rel.object)
+                    else:
+                        # Complex path: navigate through relationships
+                        # For now, log a warning - this needs more sophisticated handling
+                        logger.warning(f"Complex collection paths not yet fully supported: {collection_expr.path}")
                 
                 # Now sum the attribute values from all objects in the collection
                 values_to_sum = []
@@ -1299,7 +1559,7 @@ class Evaluator:
             for obj_type in self.context.domain_model.objecttypes.keys():
                 if obj_type.lower() == path_elem:
                     # Return the first instance of this type (simplified)
-                    instances = self.context.get_instances(obj_type)
+                    instances = self.context.find_objects_by_type(obj_type)
                     if instances:
                         return instances[0]
                         
