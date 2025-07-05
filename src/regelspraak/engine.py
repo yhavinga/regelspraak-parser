@@ -3291,24 +3291,45 @@ class Evaluator:
 
     def _evaluate_beslistabel_row(self, beslistabel: Beslistabel, row: BeslistabelRow) -> bool:
         """Check if all conditions in a row match."""
+        # Import here to avoid circular import
+        from .beslistabel_parser import BeslistabelParser
+        parser = BeslistabelParser()
+        
         for i, condition_value in enumerate(row.condition_values):
             # Skip n.v.t. conditions
             if isinstance(condition_value, Literal) and condition_value.value == "n.v.t.":
                 continue
             
-            # Get the condition column header
-            if i >= len(beslistabel.condition_columns):
-                logger.error(f"Row has more condition values than columns")
-                return False
+            # Get the parsed condition if available
+            if beslistabel.parsed_conditions and i < len(beslistabel.parsed_conditions):
+                parsed_condition = beslistabel.parsed_conditions[i]
                 
-            condition_text = beslistabel.condition_columns[i]
+                # Build the full condition expression
+                if parsed_condition.subject_path or parsed_condition.is_kenmerk_check:
+                    # Get current object type from context
+                    current_object_type = self.context.current_instance.object_type_naam if self.context.current_instance else None
+                    
+                    # Build condition expression using parser
+                    condition_expr = parser.build_condition_expression(
+                        parsed_condition,
+                        condition_value,
+                        current_object_type,
+                        row.span
+                    )
+                    
+                    if condition_expr:
+                        # Evaluate the built condition
+                        condition_result = self.evaluate_expression(condition_expr)
+                        
+                        # Check if condition is met
+                        if not self._is_truthy(condition_result):
+                            return False
+                        continue
             
-            # Evaluate the condition
-            # For now, we do simple value comparison
-            # TODO: Parse condition_text to extract the actual condition logic
+            # Fallback: simple value comparison
             condition_result = self.evaluate_expression(condition_value)
             
-            # Check if condition is met (simplified - just check truthiness)
+            # Check if condition is met
             if not self._is_truthy(condition_result):
                 return False
         
@@ -3317,23 +3338,76 @@ class Evaluator:
 
     def _apply_beslistabel_result(self, beslistabel: Beslistabel, row: BeslistabelRow):
         """Apply the result expression from a matched row."""
-        # Parse the result column to understand what to set
-        # For now, assume it's a simple assignment pattern
+        # Evaluate the result value
         result_value = self.evaluate_expression(row.result_expression)
         
-        # TODO: Parse result_column to extract target attribute
-        # For now, we'll trace the result
-        if self.context.trace_sink:
-            self.context.trace_sink.record(TraceEvent(
-                type="BESLISTABEL_RESULT_APPLIED",
-                details={
-                    "row_number": row.row_number,
-                    "result_value": str(result_value)
-                },
-                span=row.span,
-                rule_name=beslistabel.naam,
-                instance_id=self.context.current_instance.instance_id if self.context.current_instance else None
-            ))
+        # Use parsed result information if available
+        if beslistabel.parsed_result and self.context.current_instance:
+            parsed_result = beslistabel.parsed_result
+            
+            if parsed_result.target_type == "attribute" and parsed_result.attribute_path:
+                # Apply to attribute
+                attribute_name = parsed_result.attribute_path[0]  # Simple case for now
+                
+                # Set the attribute
+                self.context.set_attribute(
+                    self.context.current_instance,
+                    attribute_name,
+                    result_value
+                )
+                
+                # Trace the assignment
+                if self.context.trace_sink:
+                    self.context.trace_sink.record(TraceEvent(
+                        type="BESLISTABEL_RESULT_APPLIED",
+                        details={
+                            "row_number": row.row_number,
+                            "target": f"attribute:{attribute_name}",
+                            "result_value": str(result_value)
+                        },
+                        span=row.span,
+                        rule_name=beslistabel.naam,
+                        instance_id=self.context.current_instance.instance_id
+                    ))
+                    
+            elif parsed_result.target_type == "kenmerk" and parsed_result.kenmerk_name:
+                # Apply to kenmerk
+                # For kenmerk assignment, result_value should be boolean
+                kenmerk_value = self._is_truthy(result_value)
+                
+                self.context.set_kenmerk(
+                    self.context.current_instance,
+                    parsed_result.kenmerk_name,
+                    kenmerk_value
+                )
+                
+                # Trace the assignment
+                if self.context.trace_sink:
+                    self.context.trace_sink.record(TraceEvent(
+                        type="BESLISTABEL_RESULT_APPLIED",
+                        details={
+                            "row_number": row.row_number,
+                            "target": f"kenmerk:{parsed_result.kenmerk_name}",
+                            "result_value": str(kenmerk_value)
+                        },
+                        span=row.span,
+                        rule_name=beslistabel.naam,
+                        instance_id=self.context.current_instance.instance_id
+                    ))
+        else:
+            # Fallback: just trace the result
+            if self.context.trace_sink:
+                self.context.trace_sink.record(TraceEvent(
+                    type="BESLISTABEL_RESULT_APPLIED",
+                    details={
+                        "row_number": row.row_number,
+                        "result_value": str(result_value),
+                        "warning": "Could not parse result target"
+                    },
+                    span=row.span,
+                    rule_name=beslistabel.naam,
+                    instance_id=self.context.current_instance.instance_id if self.context.current_instance else None
+                ))
 
     def _deduce_beslistabel_target_type(self, beslistabel: Beslistabel) -> Optional[str]:
         """Deduce the target object type from the result column text."""

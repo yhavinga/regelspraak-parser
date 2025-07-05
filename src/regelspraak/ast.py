@@ -301,6 +301,24 @@ class FeitType:
 # --- Beslistabel (Decision Table) ---
 
 @dataclass
+class BeslistabelCondition:
+    """Parsed condition from a decision table column header."""
+    header_text: str  # Original column header text
+    parsed_expression: Optional[Expression] = None  # Parsed condition template
+    subject_path: Optional[List[str]] = None  # Attribute path being tested
+    operator: Optional[Operator] = None  # Comparison operator
+    is_kenmerk_check: bool = False  # True if checking a kenmerk
+
+@dataclass
+class BeslistabelResult:
+    """Parsed result from a decision table result column header."""
+    header_text: str  # Original column header text
+    target_type: str = "attribute"  # "attribute" or "kenmerk"
+    attribute_path: Optional[List[str]] = None  # For attribute assignments
+    kenmerk_name: Optional[str] = None  # For kenmerk assignments
+    object_type: Optional[str] = None  # Target object type
+
+@dataclass
 class BeslistabelRow:
     """Single row in a decision table."""
     row_number: int
@@ -318,6 +336,9 @@ class Beslistabel:
     rows: List[BeslistabelRow]  # Data rows
     span: SourceSpan
     versie_info: Optional[Any] = None  # Version/validity info
+    # Enhanced fields for parsed headers
+    parsed_result: Optional[BeslistabelResult] = None
+    parsed_conditions: Optional[List[BeslistabelCondition]] = None
 
 
 # --- Top-Level Container ---

@@ -17,8 +17,10 @@ from .ast import (
     VerdelingTieBreak, VerdelingMaximum, VerdelingAfronding,
     Expression, Literal, AttributeReference, VariableReference,
     BinaryExpression, UnaryExpression, FunctionCall, Operator,
-    ParameterReference, SourceSpan, Beslistabel, BeslistabelRow
+    ParameterReference, SourceSpan, Beslistabel, BeslistabelRow,
+    BeslistabelCondition, BeslistabelResult
 )
+from .beslistabel_parser import BeslistabelParser
 
 logger = logging.getLogger(__name__)
 
@@ -2227,13 +2229,46 @@ class RegelSpraakModelBuilder(RegelSpraakVisitor):
         # Visit the table structure
         table_data = self.visitBeslistabelTable(ctx.beslistabelTable())
         
+        # Parse column headers
+        parser = BeslistabelParser()
+        
+        # Parse result column
+        parsed_result = parser.parse_result_column(table_data['result_column'])
+        if parsed_result:
+            parsed_result = BeslistabelResult(
+                header_text=table_data['result_column'],
+                target_type=parsed_result.target_type,
+                attribute_path=parsed_result.attribute_path,
+                kenmerk_name=parsed_result.kenmerk_name,
+                object_type=parsed_result.object_type
+            )
+        
+        # Parse condition columns
+        parsed_conditions = []
+        for condition_text in table_data['condition_columns']:
+            parsed_cond = parser.parse_condition_column(condition_text)
+            if parsed_cond:
+                parsed_conditions.append(BeslistabelCondition(
+                    header_text=condition_text,
+                    subject_path=parsed_cond.subject_path,
+                    operator=parsed_cond.operator,
+                    is_kenmerk_check=parsed_cond.is_kenmerk_check
+                ))
+            else:
+                # Keep unparsed condition for debugging
+                parsed_conditions.append(BeslistabelCondition(
+                    header_text=condition_text
+                ))
+        
         return Beslistabel(
             naam=naam,
             versie_info=versie_info,
             result_column=table_data['result_column'],
             condition_columns=table_data['condition_columns'],
             rows=table_data['rows'],
-            span=self.get_span(ctx)
+            span=self.get_span(ctx),
+            parsed_result=parsed_result,
+            parsed_conditions=parsed_conditions if parsed_conditions else None
         )
 
     def visitBeslistabelTable(self, ctx: AntlrParser.BeslistabelTableContext) -> dict:
