@@ -11,7 +11,9 @@ from . import ast
 from .ast import (
     Expression, Literal, VariableReference, AttributeReference, ParameterReference, # Added ParameterReference
     BinaryExpression, UnaryExpression, FunctionCall, Operator, DomainModel, Regel,
-    Gelijkstelling, KenmerkToekenning, ObjectCreatie, FeitCreatie, Consistentieregel, Initialisatie # Added ResultaatDeel types
+    Gelijkstelling, KenmerkToekenning, ObjectCreatie, FeitCreatie, Consistentieregel, Initialisatie, # Added ResultaatDeel types
+    Verdeling, VerdelingMethode, VerdelingGelijkeDelen, VerdelingNaarRato, VerdelingOpVolgorde,
+    VerdelingTieBreak, VerdelingMaximum, VerdelingAfronding
 )
 # Import Runtime components
 from .runtime import RuntimeContext, RuntimeObject, Value # Import Value directly
@@ -161,6 +163,26 @@ class Evaluator:
                     for obj_type in self.context.domain_model.objecttypes:
                         return obj_type  # Return first object type for now
             return None
+        elif isinstance(rule.resultaat, Verdeling):
+            # For Verdeling, the target type is the "contingent" that contains the source amount
+            # The source_amount typically refers to an attribute of the contingent
+            # e.g., "Het totaal aantal treinmiles van een te verdelen contingent treinmiles"
+            if isinstance(rule.resultaat.source_amount, AttributeReference) and rule.resultaat.source_amount.path:
+                # Look for object type in the path
+                for path_elem in rule.resultaat.source_amount.path:
+                    # Clean up the element
+                    clean_elem = path_elem
+                    for article in ['een ', 'de ', 'het ']:
+                        if clean_elem.lower().startswith(article):
+                            clean_elem = clean_elem[len(article):]
+                            break
+                    
+                    # Check if it's an object type
+                    for obj_type in self.context.domain_model.objecttypes:
+                        if obj_type.lower() in clean_elem.lower():
+                            return obj_type
+            return None
+        
         elif isinstance(rule.resultaat, FeitCreatie):
             # For FeitCreatie, we need to determine which object type the rule iterates over
             # This is complex - for now, try to deduce from subject1
@@ -615,6 +637,10 @@ class Evaluator:
                     instance_id=self.context.current_instance.instance_id if self.context.current_instance else None
                 ))
         
+        elif isinstance(res, Verdeling):
+            # Handle Verdeling - distribute values
+            self._apply_verdeling(res)
+        
         elif isinstance(res, Consistentieregel):
             # Handle Consistentieregel - validate data consistency
             # These rules return a boolean result (true=consistent, false=inconsistent)
@@ -769,8 +795,12 @@ class Evaluator:
                             
                         result = value
                     # Handle paths like ["leeftijd", "Persoon"] where the last element is the object type
-                    elif len(expr.path) == 2 and expr.path[1] == self.context.current_instance.object_type_naam:
-                        # This is "de leeftijd van de Persoon" pattern where Persoon refers to current instance
+                    elif len(expr.path) == 2 and (
+                        expr.path[1] == self.context.current_instance.object_type_naam or 
+                        self.context.current_instance.object_type_naam.lower() in expr.path[1].lower() or
+                        (len(expr.path[1]) > 20 and  # Long descriptive phrases
+                         any(word in expr.path[1].lower() for word in self.context.current_instance.object_type_naam.lower().split()))):
+                        # This refers to the current instance
                         attr_name = expr.path[0]
                         value = self.context.get_attribute(self.context.current_instance, attr_name)
                         
@@ -909,6 +939,340 @@ class Evaluator:
                 f"Unknown consistency criterion type: {res.criterium_type}",
                 span=res.span
             )
+
+    def _apply_verdeling(self, res: Verdeling) -> None:
+        """Apply distribution of values according to specified methods."""
+        # Evaluate source amount to distribute
+        source_value = self.evaluate_expression(res.source_amount)
+        if not isinstance(source_value.value, (int, float, Decimal)):
+            raise RegelspraakError(
+                f"Source amount must be numeric, got {type(source_value.value)}",
+                span=res.source_amount.span
+            )
+        total_amount = Decimal(str(source_value.value))
+        
+        # Evaluate target collection to get all objects to distribute over
+        target_objects = self._resolve_collection_for_verdeling(res.target_collection)
+        if not target_objects:
+            logger.warning("No target objects found for distribution")
+            # Handle remainder if specified
+            if res.remainder_target:
+                self._set_verdeling_remainder(res.remainder_target, source_value)
+            return
+        
+        # Determine the attribute to set from the target collection expression
+        # For "de treinmiles van alle passagiers", attribute is "treinmiles"
+        target_attribute = self._extract_verdeling_target_attribute(res.target_collection)
+        
+        # Process distribution methods in order
+        distribution_result = self._calculate_distribution(
+            total_amount=total_amount,
+            target_objects=target_objects,
+            methods=res.distribution_methods,
+            source_unit=source_value.unit,
+            source_datatype=source_value.datatype
+        )
+        
+        # Apply distributed values to target objects
+        for obj, amount in zip(target_objects, distribution_result.amounts):
+            value = Value(
+                value=amount,
+                datatype=source_value.datatype,
+                unit=source_value.unit
+            )
+            self.context.set_attribute(obj, target_attribute, value, span=res.span)
+            logger.info(f"Verdeling: Set {target_attribute} of {obj.object_type_naam} {obj.instance_id} to {amount}")
+        
+        # Handle remainder if specified
+        if res.remainder_target and distribution_result.remainder:
+            remainder_value = Value(
+                value=distribution_result.remainder,
+                datatype=source_value.datatype,
+                unit=source_value.unit
+            )
+            self._set_verdeling_remainder(res.remainder_target, remainder_value)
+    
+    def _resolve_collection_for_verdeling(self, collection_expr: Expression) -> List[RuntimeObject]:
+        """Resolve collection expression for Verdeling targets.
+        Pattern: "de X van alle Y van Z" where:
+        - X is the target attribute
+        - Y is the role name (e.g., "passagiers met recht op treinmiles")
+        - Z is the navigation context (e.g., "het te verdelen contingent treinmiles")
+        
+        Due to grammar parsing, the path might be split incorrectly:
+        ['treinmiles', 'passagiers', 'recht', 'treinmiles', 'te verdelen contingent treinmiles']
+        where 'alle' is consumed as a prefix and words are split.
+        """
+        if isinstance(collection_expr, AttributeReference):
+            path = collection_expr.path
+            logger.info(f"Verdeling: Resolving collection with path: {path}")
+            
+            # The grammar splits multi-word phrases, so we need to reconstruct them
+            # Looking for patterns where we have a feittype relationship
+            
+            # For the TOKA pattern, we expect to find objects related to the current instance
+            # through a feittype relationship
+            if self.context.current_instance and len(path) > 1:
+                # The last element often contains the navigation context
+                # e.g., "te verdelen contingent treinmiles"
+                
+                # Look for the feittype that connects the current instance type
+                # with the target object type (typically "Natuurlijk persoon" for passengers)
+                current_type = self.context.current_instance.object_type_naam
+                
+                # Find relevant feittype
+                for feittype_name, feittype in self.context.domain_model.feittypen.items():
+                    # Check if this feittype involves the current object type
+                    role_types = [rol.object_type for rol in feittype.rollen]
+                    if current_type in role_types:
+                        # This feittype involves our current object type
+                        # Find the other role (the objects we want to distribute to)
+                        for i, rol in enumerate(feittype.rollen):
+                            if rol.object_type != current_type:
+                                # This is the target object type
+                                # Get all objects related through this feittype
+                                as_subject = (i == 1)  # If target is second role, we want subjects
+                                related = self.context.get_related_objects(
+                                    self.context.current_instance,
+                                    feittype_name,
+                                    as_subject=as_subject
+                                )
+                                if related:
+                                    logger.info(f"Found {len(related)} objects through feittype '{feittype_name}'")
+                                    return related
+                
+                # If no feittype found, try to find all objects of a type
+                # Look for "passagier" or "Natuurlijk persoon" in the path
+                for obj_type in self.context.domain_model.objecttypes:
+                    for path_elem in path:
+                        if obj_type.lower() in path_elem.lower() or path_elem.lower() in obj_type.lower():
+                            logger.info(f"Finding all objects of type '{obj_type}'")
+                            return self.context.find_objects_by_type(obj_type)
+        
+        # Fallback: evaluate as expression
+        result = self.evaluate_expression(collection_expr)
+        if isinstance(result.value, list):
+            return result.value
+        
+        logger.warning("Could not resolve collection for Verdeling")
+        return []
+    
+    def _find_objects_by_feittype_role(self, source_obj: RuntimeObject, role_text: str) -> List[RuntimeObject]:
+        """Find objects that have a specific role in relation to source object."""
+        related_objects = []
+        
+        # Look through all relationships where source_obj is involved
+        for rel in self.context.relationships.values():
+            if rel.subject == source_obj:
+                # Check if the object matches the role description
+                # This is simplified - a full implementation would match against feittype role names
+                obj = rel.object
+                # For TOKA, "passagiers met recht op treinmiles" refers to Natuurlijk persoon objects
+                if "passagier" in role_text.lower() and obj.object_type_naam == "Natuurlijk persoon":
+                    related_objects.append(obj)
+        
+        logger.info(f"Verdeling: Found {len(related_objects)} objects with role '{role_text}' related to {source_obj.object_type_naam}")
+        return related_objects
+    
+    def _find_all_objects_of_type(self, type_text: str) -> List[RuntimeObject]:
+        """Find all objects matching a type description."""
+        objects = []
+        
+        # Extract the core object type from the description
+        # "passagiers met recht op treinmiles" -> look for "Natuurlijk persoon"
+        type_map = {
+            "passagier": "Natuurlijk persoon",
+            "persoon": "Natuurlijk persoon",
+            "personen": "Natuurlijk persoon",
+            "contingent": "Contingent treinmiles",
+            "vlucht": "Vlucht",
+            "vluchten": "Vlucht"
+        }
+        
+        # Find the object type
+        target_type = None
+        for key, obj_type in type_map.items():
+            if key in type_text.lower():
+                target_type = obj_type
+                break
+        
+        if not target_type:
+            # Try exact match
+            for obj_type in self.context.domain_model.objecttypes:
+                if obj_type.lower() == type_text.lower():
+                    target_type = obj_type
+                    break
+        
+        # Get all objects of this type
+        if target_type:
+            for obj in self.context.objects.values():
+                if obj.object_type_naam == target_type:
+                    objects.append(obj)
+        
+        logger.info(f"Verdeling: Found {len(objects)} objects of type '{target_type}' for description '{type_text}'")
+        return objects
+    
+    def _navigate_feittype_for_collection(self, source_obj: RuntimeObject, path: List[str]) -> List[RuntimeObject]:
+        """Navigate feittype relationships to find a collection."""
+        # This is a simplified implementation
+        # Full implementation would properly parse the navigation pattern
+        return []
+    
+    def _extract_verdeling_target_attribute(self, collection_expr: Expression) -> str:
+        """Extract the target attribute name from collection expression.
+        Pattern: "de X van alle Y" -> X is the attribute"""
+        if isinstance(collection_expr, AttributeReference) and collection_expr.path:
+            # First element is typically the attribute
+            return collection_expr.path[0]
+        
+        raise RegelspraakError(
+            "Could not determine target attribute for distribution",
+            span=collection_expr.span
+        )
+    
+    def _is_related_via_feittype(self, obj1: RuntimeObject, obj2: RuntimeObject) -> bool:
+        """Check if two objects are related via any feittype."""
+        for rel in self.context.relationships.values():
+            if (rel.subject == obj1 and rel.object == obj2) or \
+               (rel.subject == obj2 and rel.object == obj1):
+                return True
+        return False
+    
+    @dataclass
+    class DistributionResult:
+        """Result of distribution calculation."""
+        amounts: List[Decimal]
+        remainder: Decimal = Decimal('0')
+    
+    def _calculate_distribution(
+        self, 
+        total_amount: Decimal,
+        target_objects: List[RuntimeObject],
+        methods: List[VerdelingMethode],
+        source_unit: Optional[str],
+        source_datatype: str
+    ) -> 'Evaluator.DistributionResult':
+        """Calculate distribution amounts based on methods."""
+        n_targets = len(target_objects)
+        if n_targets == 0:
+            return Evaluator.DistributionResult(amounts=[], remainder=total_amount)
+        
+        # Start with equal distribution as default
+        amounts = [total_amount / n_targets] * n_targets
+        
+        # Process each method in order
+        for method in methods:
+            if isinstance(method, VerdelingGelijkeDelen):
+                # Equal distribution (already done as default)
+                pass
+            
+            elif isinstance(method, VerdelingNaarRato):
+                # Proportional distribution
+                amounts = self._distribute_naar_ratio(
+                    total_amount, target_objects, method.ratio_expression,
+                    source_unit, source_datatype
+                )
+            
+            elif isinstance(method, VerdelingOpVolgorde):
+                # Ordered distribution - sort objects first
+                sorted_objects = self._sort_objects_for_verdeling(
+                    target_objects, method.order_expression,
+                    method.order_direction == "afnemende"
+                )
+                # Reorder amounts to match
+                # This is simplified - full implementation would handle progressive distribution
+                pass
+            
+            elif isinstance(method, VerdelingMaximum):
+                # Apply maximum constraint
+                max_value = self.evaluate_expression(method.max_expression)
+                max_amount = Decimal(str(max_value.value))
+                amounts = [min(amt, max_amount) for amt in amounts]
+            
+            elif isinstance(method, VerdelingAfronding):
+                # Apply rounding
+                factor = Decimal(10) ** -method.decimals
+                if method.round_direction == "naar beneden":
+                    amounts = [amt.quantize(factor, rounding='ROUND_DOWN') for amt in amounts]
+                else:  # naar boven
+                    amounts = [amt.quantize(factor, rounding='ROUND_UP') for amt in amounts]
+        
+        # Calculate remainder
+        distributed_total = sum(amounts)
+        remainder = total_amount - distributed_total
+        
+        return Evaluator.DistributionResult(amounts=amounts, remainder=remainder)
+    
+    def _distribute_naar_ratio(
+        self,
+        total_amount: Decimal,
+        target_objects: List[RuntimeObject],
+        ratio_expr: Expression,
+        source_unit: Optional[str],
+        source_datatype: str
+    ) -> List[Decimal]:
+        """Distribute proportionally based on ratio expression."""
+        # Evaluate ratio expression for each object
+        ratios = []
+        for obj in target_objects:
+            # Temporarily set as current instance to evaluate in context
+            old_instance = self.context.current_instance
+            self.context.current_instance = obj
+            try:
+                ratio_value = self.evaluate_expression(ratio_expr)
+                ratios.append(Decimal(str(ratio_value.value)))
+            finally:
+                self.context.current_instance = old_instance
+        
+        # Calculate proportional amounts
+        total_ratio = sum(ratios)
+        if total_ratio == 0:
+            # Equal distribution if all ratios are zero
+            n = len(target_objects)
+            return [total_amount / n] * n
+        
+        amounts = [(ratio / total_ratio) * total_amount for ratio in ratios]
+        return amounts
+    
+    def _sort_objects_for_verdeling(
+        self,
+        objects: List[RuntimeObject],
+        order_expr: Expression,
+        descending: bool
+    ) -> List[RuntimeObject]:
+        """Sort objects based on order expression."""
+        # Create list of (object, sort_value) tuples
+        object_values = []
+        for obj in objects:
+            old_instance = self.context.current_instance
+            self.context.current_instance = obj
+            try:
+                sort_value = self.evaluate_expression(order_expr)
+                object_values.append((obj, sort_value.value))
+            finally:
+                self.context.current_instance = old_instance
+        
+        # Sort by value
+        object_values.sort(key=lambda x: x[1], reverse=descending)
+        return [obj for obj, _ in object_values]
+    
+    def _set_verdeling_remainder(self, remainder_expr: Expression, remainder_value: Value) -> None:
+        """Set the remainder value to the specified target."""
+        if isinstance(remainder_expr, AttributeReference):
+            # Determine object and attribute
+            if len(remainder_expr.path) >= 2:
+                # Pattern: "het X van Y"
+                attr_name = remainder_expr.path[0]
+                # Find the target object (simplified)
+                # Full implementation would properly resolve the reference
+                if self.context.current_instance:
+                    self.context.set_attribute(
+                        self.context.current_instance,
+                        attr_name,
+                        remainder_value,
+                        span=remainder_expr.span
+                    )
+                    logger.info(f"Verdeling: Set remainder {attr_name} to {remainder_value.value}")
 
     def _handle_binary(self, expr: BinaryExpression) -> Value:
         """Handle binary operations, returning Value objects."""

@@ -178,7 +178,52 @@ class KenmerkToekenning(ResultaatDeel):
     is_negated: bool = False # For 'is niet'
     # span inherited and now required
 
-# Potentially add other ResultaatDeel types: Verdeling, Actie, etc.
+# Supporting classes for Verdeling
+@dataclass
+class VerdelingMethode:
+    """Base class for distribution methods."""
+    span: SourceSpan
+
+@dataclass  
+class VerdelingGelijkeDelen(VerdelingMethode):
+    """Equal distribution."""
+    pass
+
+@dataclass
+class VerdelingNaarRato(VerdelingMethode):
+    """Proportional distribution."""
+    ratio_expression: Expression
+
+@dataclass
+class VerdelingOpVolgorde(VerdelingMethode):
+    """Ordered distribution."""
+    order_direction: str  # "toenemende" or "afnemende"
+    order_expression: Expression
+
+@dataclass
+class VerdelingTieBreak(VerdelingMethode):
+    """Tie-breaking method."""
+    tie_break_method: VerdelingMethode
+
+@dataclass
+class VerdelingMaximum(VerdelingMethode):
+    """Maximum constraint."""
+    max_expression: Expression
+
+@dataclass
+class VerdelingAfronding(VerdelingMethode):
+    """Rounding constraint."""
+    decimals: int
+    round_direction: str  # "naar beneden" or "naar boven"
+
+@dataclass
+class Verdeling(ResultaatDeel):
+    """Distributes a total amount over target attributes (§13.4.10).
+    Pattern: X wordt verdeeld over Y, waarbij wordt verdeeld: ..."""
+    source_amount: Expression  # What to distribute
+    target_collection: Expression  # Collection to distribute over  
+    distribution_methods: List[VerdelingMethode]  # Methods and constraints
+    remainder_target: Optional[Expression] = None  # Where to store remainder
 
 @dataclass
 class ObjectCreatie(ResultaatDeel):

@@ -1,70 +1,73 @@
 #!/usr/bin/env python3
 """Test tijdsduur van implementation with TOKA age calculation example."""
 
+import unittest
 from regelspraak.parsing import parse_text
 from regelspraak.engine import Evaluator
 from regelspraak.runtime import RuntimeContext, RuntimeObject, Value
 from datetime import date
 
-# TOKA age calculation rule
-regelspraak_code = """
-Objecttype de Natuurlijk persoon (mv: Natuurlijke personen) (bezield)
-    de geboortedatum Datum in dagen;
-    de leeftijd Numeriek (niet-negatief geheel getal) met eenheid jr;
 
-Objecttype de Vlucht (mv: vluchten)
-    de vluchtdatum Datum in dagen;
+class TestTijdsduurTOKA(unittest.TestCase):
+    
+    def test_toka_age_calculation(self):
+        """Test age calculation in TOKA context with feittype relationships."""
+        # TOKA age calculation rule
+        regelspraak_code = """
+        Objecttype de Natuurlijk persoon (mv: Natuurlijke personen) (bezield)
+            de geboortedatum Datum in dagen;
+            de leeftijd Numeriek (niet-negatief geheel getal) met eenheid jr;
 
-Feittype vlucht van natuurlijke personen
-    de reis Vlucht
-    de passagier Natuurlijk persoon
-    Eén reis betreft de verplaatsing van meerdere passagiers
+        Objecttype de Vlucht (mv: vluchten)
+            de vluchtdatum Datum in dagen;
 
-Regel bepaal leeftijd
-    geldig altijd
-        De leeftijd van een Natuurlijk persoon moet berekend worden als de tijdsduur van zijn
-        geboortedatum tot de vluchtdatum van zijn reis in hele jaren.
-"""
+        Feittype vlucht van natuurlijke personen
+            de reis Vlucht
+            de passagier Natuurlijk persoon
+            Eén reis betreft de verplaatsing van meerdere passagiers
 
-# Parse the RegelSpraak code
-model = parse_text(regelspraak_code)
-if not model:
-    print("Failed to parse RegelSpraak code")
-    exit(1)
+        Regel bepaal leeftijd
+            geldig altijd
+                De leeftijd van een Natuurlijk persoon moet berekend worden als de tijdsduur van zijn
+                geboortedatum tot de vluchtdatum van zijn reis in hele jaren.
+        """
 
-# Create runtime context
-context = RuntimeContext(model)
+        # Parse the RegelSpraak code
+        model = parse_text(regelspraak_code)
+        self.assertIsNotNone(model, "Failed to parse RegelSpraak code")
 
-# Create a person with birthdate
-person = RuntimeObject("Natuurlijk persoon")
-context.add_object(person)
-context.set_attribute(person, "geboortedatum", Value(date(1990, 3, 15), "Datum"))
+        # Create runtime context
+        context = RuntimeContext(model)
 
-# Create a flight with flight date
-flight = RuntimeObject("Vlucht")
-context.add_object(flight)
-context.set_attribute(flight, "vluchtdatum", Value(date(2024, 6, 20), "Datum"))
+        # Create a person with birthdate
+        person = RuntimeObject("Natuurlijk persoon")
+        context.add_object(person)
+        context.set_attribute(person, "geboortedatum", Value(date(1990, 3, 15), "Datum"))
 
-# Create relationship between person and flight
-context.add_relationship(
-    feittype_naam="vlucht van natuurlijke personen",
-    subject=flight,
-    object=person,
-    preposition="VAN"
-)
+        # Create a flight with flight date
+        flight = RuntimeObject("Vlucht")
+        context.add_object(flight)
+        context.set_attribute(flight, "vluchtdatum", Value(date(2024, 6, 20), "Datum"))
 
-# Execute rules
-evaluator = Evaluator(context)
-results = evaluator.execute_model(model)
+        # Create relationship between person and flight
+        context.add_relationship(
+            feittype_naam="vlucht van natuurlijke personen",
+            subject=flight,
+            object=person,
+            preposition="VAN"
+        )
 
-# Check results
-print(f"Person birthdate: {context.get_attribute(person, 'geboortedatum').value}")
-print(f"Flight date: {context.get_attribute(flight, 'vluchtdatum').value}")
-age = context.get_attribute(person, 'leeftijd')
-print(f"Calculated age: {age.value} {age.unit}")
+        # Execute rules
+        evaluator = Evaluator(context)
+        results = evaluator.execute_model(model)
 
-# Verify the age is correct (34 years from 1990-03-15 to 2024-06-20)
-assert age.value == 34
-assert age.unit == "jaren"
+        # Check results
+        age = context.get_attribute(person, 'leeftijd')
+        
+        # Verify the age is correct (34 years from 1990-03-15 to 2024-06-20)
+        self.assertEqual(age.value, 34)
+        self.assertEqual(age.unit, "jaren")
 
-print("\nTest passed! The tijdsduur van function correctly calculates age.")
+
+if __name__ == "__main__":
+    unittest.main()

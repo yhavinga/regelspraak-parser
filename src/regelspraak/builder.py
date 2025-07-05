@@ -12,7 +12,10 @@ from antlr4.tree.Tree import TerminalNode
 from .ast import (
     DomainModel, ObjectType, Attribuut, Kenmerk, Regel, Parameter, Domein,
     FeitType, Rol, Voorwaarde, ResultaatDeel, Gelijkstelling, KenmerkToekenning,
-    ObjectCreatie, FeitCreatie, Consistentieregel, Initialisatie, Expression, Literal, AttributeReference, VariableReference,
+    ObjectCreatie, FeitCreatie, Consistentieregel, Initialisatie, Verdeling,
+    VerdelingMethode, VerdelingGelijkeDelen, VerdelingNaarRato, VerdelingOpVolgorde,
+    VerdelingTieBreak, VerdelingMaximum, VerdelingAfronding,
+    Expression, Literal, AttributeReference, VariableReference,
     BinaryExpression, UnaryExpression, FunctionCall, Operator,
     ParameterReference, SourceSpan
 )
@@ -1887,8 +1890,91 @@ class RegelSpraakModelBuilder(RegelSpraakVisitor):
                 subject2=subject2_ref,
                 span=self.get_span(ctx)
             )
+        elif isinstance(ctx, AntlrParser.VerdelingContext):
+            # Handle Verdeling
+            verdeling_ctx = ctx.verdelingResultaat()
+            
+            # Parse source amount expression
+            source_amount = self.visit(verdeling_ctx.sourceAmount)
+            
+            # Parse target collection expression
+            target_collection = self.visit(verdeling_ctx.targetCollection)
+            
+            # Parse distribution methods
+            distribution_methods = []
+            for method_ctx in verdeling_ctx.verdelingMethode():
+                method = self.visitVerdelingMethode(method_ctx)
+                if method:
+                    distribution_methods.append(method)
+            
+            # Parse remainder target if present
+            remainder_target = None
+            if verdeling_ctx.verdelingRest():
+                rest_ctx = verdeling_ctx.verdelingRest()
+                if rest_ctx.remainderTarget:
+                    remainder_target = self.visit(rest_ctx.remainderTarget)
+            
+            return Verdeling(
+                source_amount=source_amount,
+                target_collection=target_collection,
+                distribution_methods=distribution_methods,
+                remainder_target=remainder_target,
+                span=self.get_span(ctx)
+            )
         else:
             logger.warning(f"Unknown or unhandled resultaat deel type: {type(ctx).__name__} in {safe_get_text(ctx)}")
+            return None
+
+    def visitVerdelingMethode(self, ctx: AntlrParser.VerdelingMethodeContext) -> Optional[VerdelingMethode]:
+        """Visit a distribution method and return appropriate VerdelingMethode subclass."""
+        if isinstance(ctx, AntlrParser.VerdelingGelijkeDelenContext):
+            return VerdelingGelijkeDelen(span=self.get_span(ctx))
+        
+        elif isinstance(ctx, AntlrParser.VerdelingNaarRatoContext):
+            ratio_expr = self.visit(ctx.ratioExpression)
+            return VerdelingNaarRato(
+                ratio_expression=ratio_expr,
+                span=self.get_span(ctx)
+            )
+        
+        elif isinstance(ctx, AntlrParser.VerdelingOpVolgordeContext):
+            order_dir = ctx.orderDirection.text if ctx.orderDirection else "toenemende"
+            order_expr = self.visit(ctx.orderExpression)
+            return VerdelingOpVolgorde(
+                order_direction=order_dir,
+                order_expression=order_expr,
+                span=self.get_span(ctx)
+            )
+        
+        elif isinstance(ctx, AntlrParser.VerdelingTieBreakContext):
+            tie_break_method = self.visitVerdelingMethode(ctx.tieBreakMethod)
+            return VerdelingTieBreak(
+                tie_break_method=tie_break_method,
+                span=self.get_span(ctx)
+            )
+        
+        elif isinstance(ctx, AntlrParser.VerdelingMaximumContext):
+            max_expr = self.visit(ctx.maxExpression)
+            return VerdelingMaximum(
+                max_expression=max_expr,
+                span=self.get_span(ctx)
+            )
+        
+        elif isinstance(ctx, AntlrParser.VerdelingAfrondingContext):
+            decimals = int(ctx.decimals.text) if ctx.decimals else 0
+            round_dir = ctx.roundDirection.text if ctx.roundDirection else "naar beneden"
+            return VerdelingAfronding(
+                decimals=decimals,
+                round_direction=round_dir,
+                span=self.get_span(ctx)
+            )
+        
+        elif isinstance(ctx, AntlrParser.VerdelingMethodeCommaContext):
+            # Handle comma-separated methods
+            return self.visitVerdelingMethode(ctx.verdelingMethode())
+        
+        else:
+            logger.warning(f"Unknown verdeling method type: {type(ctx).__name__}")
             return None
 
     def visitVoorwaardeDeel(self, ctx: AntlrParser.VoorwaardeDeelContext) -> Optional[Voorwaarde]:

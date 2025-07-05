@@ -8,7 +8,10 @@ from .ast import (
     DomainModel, ObjectType, Parameter, Regel, Expression, Literal,
     AttributeReference, VariableReference, ParameterReference,
     BinaryExpression, UnaryExpression, FunctionCall, Operator,
-    Gelijkstelling, KenmerkToekenning, ObjectCreatie, FeitCreatie, Consistentieregel, Initialisatie, Attribuut, Kenmerk,
+    Gelijkstelling, KenmerkToekenning, ObjectCreatie, FeitCreatie, Consistentieregel, Initialisatie, 
+    Verdeling, VerdelingMethode, VerdelingNaarRato, VerdelingOpVolgorde, VerdelingTieBreak,
+    VerdelingMaximum, VerdelingAfronding,
+    Attribuut, Kenmerk,
     SourceSpan
 )
 from .errors import RegelspraakError
@@ -322,6 +325,48 @@ class SemanticAnalyzer:
                 # For inconsistency checks, the condition is at rule level
                 # No specific validation needed here
                 pass
+        
+        elif isinstance(resultaat, Verdeling):
+            # Validate source amount expression
+            source_type = self._analyze_expression(resultaat.source_amount)
+            
+            # Validate target collection expression
+            target_type = self._analyze_expression(resultaat.target_collection)
+            
+            # Validate distribution methods
+            for method in resultaat.distribution_methods:
+                self._validate_verdeling_method(method)
+            
+            # Validate remainder target if present
+            if resultaat.remainder_target:
+                self._analyze_expression(resultaat.remainder_target)
+    
+    def _validate_verdeling_method(self, method: VerdelingMethode) -> None:
+        """Validate a distribution method."""
+        if isinstance(method, VerdelingNaarRato):
+            # Validate ratio expression exists and is numeric
+            self._analyze_expression(method.ratio_expression)
+        
+        elif isinstance(method, VerdelingOpVolgorde):
+            # Validate order expression exists
+            self._analyze_expression(method.order_expression)
+        
+        elif isinstance(method, VerdelingTieBreak):
+            # Validate tie-break method
+            if method.tie_break_method:
+                self._validate_verdeling_method(method.tie_break_method)
+        
+        elif isinstance(method, VerdelingMaximum):
+            # Validate maximum expression is numeric
+            self._analyze_expression(method.max_expression)
+        
+        elif isinstance(method, VerdelingAfronding):
+            # Validate decimals is reasonable (0-10)
+            if method.decimals < 0 or method.decimals > 10:
+                self.errors.append(SemanticError(
+                    f"Invalid decimal places for rounding: {method.decimals}",
+                    method.span
+                ))
     
     def _analyze_expression(self, expr: Expression) -> Optional[str]:
         """Analyze an expression and return its type (if known)."""

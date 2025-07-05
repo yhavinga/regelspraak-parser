@@ -291,6 +291,7 @@ resultaatDeel
     | (HET_KWARTAAL | HET_DEEL_PER_MAAND | HET_DEEL_PER_JAAR) identifier* ( WORDT_BEREKEND_ALS expressie | WORDT_GESTELD_OP expressie | WORDT_GEINITIALISEERD_OP expressie ) ( (VANAF | VAN) datumLiteral (TOT | TOT_EN_MET) datumLiteral )? DOT? # SpecialPhraseResultaat
     | HET_AANTAL_DAGEN_IN (MAAND | JAAR) ( WORDT_BEREKEND_ALS expressie | WORDT_GESTELD_OP expressie | WORDT_GEINITIALISEERD_OP expressie ) # AantalDagenInResultaat
     | objectCreatie                                                                    # ObjectCreatieResultaat
+    | verdelingResultaat                                                               # Verdeling
     ;
 
 // FeitCreatie pattern - parse the whole pattern as one unit
@@ -654,4 +655,28 @@ regelStatusCondition // Now potentially part of comparisonExpression
 // §13.3.10 Dagsoort Definition (Added based on spec)
 dagsoortDefinition
     : DAGSOORT naamwoord SEMICOLON?
+    ;
+
+// --- Verdeling Rules (§13.4.10) ---
+// Pattern: X wordt verdeeld over Y, waarbij wordt verdeeld: ...
+verdelingResultaat
+    : sourceAmount=expressie WORDT_VERDEELD_OVER targetCollection=expressie 
+      WAARBIJ_WORDT_VERDEELD COLON? verdelingMethode+
+      verdelingRest?
+    ;
+
+// Distribution methods and constraints
+verdelingMethode
+    : MINUS? IN_GELIJKE_DELEN                                                              # VerdelingGelijkeDelen
+    | MINUS? NAAR_RATO_VAN ratioExpression=expressie                                      # VerdelingNaarRato
+    | MINUS? OP_VOLGORDE_VAN orderDirection=(TOENEMENDE | AFNEMENDE) orderExpression=expressie  # VerdelingOpVolgorde
+    | MINUS? BIJ_EVEN_GROOT_CRITERIUM tieBreakMethod=verdelingMethode                     # VerdelingTieBreak
+    | MINUS? MET_EEN_MAXIMUM_VAN maxExpression=expressie                                  # VerdelingMaximum
+    | MINUS? AFGEROND_OP decimals=NUMBER DECIMALEN roundDirection=(NAAR_BENEDEN | NAAR_BOVEN)  # VerdelingAfronding
+    | COMMA verdelingMethode                                                               # VerdelingMethodeComma
+    ;
+
+// Remainder handling
+verdelingRest
+    : ALS_ONVERDEELDE_REST_BLIJFT remainderTarget=expressie OVER_VERDELING?
     ;
