@@ -17,7 +17,7 @@ from .ast import (
     VerdelingTieBreak, VerdelingMaximum, VerdelingAfronding,
     Expression, Literal, AttributeReference, VariableReference,
     BinaryExpression, UnaryExpression, FunctionCall, Operator,
-    ParameterReference, SourceSpan
+    ParameterReference, SourceSpan, Beslistabel, BeslistabelRow
 )
 
 logger = logging.getLogger(__name__)
@@ -412,6 +412,10 @@ class RegelSpraakModelBuilder(RegelSpraakVisitor):
                 if consistentieregel:
                     # Consistentieregels are special types of rules, add to regels list
                     domain_model.regels.append(consistentieregel)
+            elif isinstance(child, AntlrParser.BeslistabelContext):
+                beslistabel = self.visitBeslistabel(child)
+                if beslistabel:
+                    domain_model.beslistabellen.append(beslistabel)
         return domain_model
 
     def visitChildren(self, node):
@@ -2211,4 +2215,100 @@ class RegelSpraakModelBuilder(RegelSpraakVisitor):
                 variables[var_name] = expression
             else:
                 logger.warning(f"Could not parse variable assignment in {safe_get_text(toekenning_ctx)}")
-        return variables 
+        return variables
+
+    # --- Beslistabel (Decision Table) Methods ---
+
+    def visitBeslistabel(self, ctx: AntlrParser.BeslistabelContext) -> Beslistabel:
+        """Visit a decision table and build a Beslistabel AST node."""
+        naam = self._extract_canonical_name(ctx.naamwoord())
+        versie_info = self.visitRegelVersie(ctx.regelVersie()) if ctx.regelVersie() else None
+        
+        # Visit the table structure
+        table_data = self.visitBeslistabelTable(ctx.beslistabelTable())
+        
+        return Beslistabel(
+            naam=naam,
+            versie_info=versie_info,
+            result_column=table_data['result_column'],
+            condition_columns=table_data['condition_columns'],
+            rows=table_data['rows'],
+            span=self.get_span(ctx)
+        )
+
+    def visitBeslistabelTable(self, ctx: AntlrParser.BeslistabelTableContext) -> dict:
+        """Visit the table structure and extract header and rows."""
+        header = self.visitBeslistabelHeader(ctx.beslistabelHeader())
+        rows = [self.visitBeslistabelRow(row) for row in ctx.beslistabelRow()]
+        
+        return {
+            'result_column': header['result_column'],
+            'condition_columns': header['condition_columns'],
+            'rows': rows
+        }
+
+    def visitBeslistabelHeader(self, ctx: AntlrParser.BeslistabelHeaderContext) -> dict:
+        """Visit the header row to extract column titles."""
+        # Extract result column text
+        result_column_text = self._extract_column_text(ctx.resultColumn)
+        
+        # Extract condition column texts
+        condition_columns = []
+        if ctx.conditionColumns:
+            for col_ctx in ctx.conditionColumns:
+                col_text = self._extract_column_text(col_ctx)
+                condition_columns.append(col_text)
+        
+        return {
+            'result_column': result_column_text,
+            'condition_columns': condition_columns
+        }
+
+    def visitBeslistabelRow(self, ctx: AntlrParser.BeslistabelRowContext) -> BeslistabelRow:
+        """Visit a data row and build a BeslistabelRow AST node."""
+        row_number = int(ctx.rowNumber.text)
+        result_expression = self.visitExpressie(ctx.resultExpression)
+        
+        # Visit each cell value
+        condition_values = []
+        if ctx.conditionValues:
+            for cell_ctx in ctx.conditionValues:
+                cell_value = self.visitBeslistabelCellValue(cell_ctx)
+                condition_values.append(cell_value)
+        
+        return BeslistabelRow(
+            row_number=row_number,
+            result_expression=result_expression,
+            condition_values=condition_values,
+            span=self.get_span(ctx)
+        )
+
+    def visitBeslistabelCellValue(self, ctx: AntlrParser.BeslistabelCellValueContext):
+        """Visit a cell value which can be an expression or n.v.t."""
+        if ctx.NVT():
+            # Return a special literal for "n.v.t."
+            return Literal(
+                value="n.v.t.",
+                datatype="Tekst",
+                span=self.get_span(ctx)
+            )
+        else:
+            # Regular expression
+            return self.visitExpressie(ctx.expressie())
+
+    def _extract_column_text(self, ctx) -> str:
+        """Extract text from a column header context, preserving spaces."""
+        if not ctx:
+            return ""
+        
+        # Get all tokens between pipes
+        text_parts = []
+        for child in ctx.children:
+            if isinstance(child, TerminalNode):
+                text_parts.append(child.getText())
+            else:
+                text_parts.append(get_text_with_spaces(child))
+        
+        # Join and clean up
+        text = " ".join(text_parts).strip()
+        return text 

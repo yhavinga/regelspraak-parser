@@ -326,6 +326,8 @@ DOUBLE_DOT: '..';
 WS: [ \t\r\n]+ -> channel(HIDDEN);
 LINE_COMMENT: '//' ~[\r\n]* -> skip;
 MINUS: '-';
+PIPE: '|';
+NVT: 'n.v.t.';
 fragment LETTER: [a-zA-ZáàâäãåçéèêëíìîïñóòôöõúùûüýÿÁÀÂÄÃÅÇÉÈÊËÍÌÎÏÑÓÒÔÖÕÚÙÛÜÝŸ];
 fragment DIGIT : [0-9] ;
 

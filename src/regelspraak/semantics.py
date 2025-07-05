@@ -11,7 +11,7 @@ from .ast import (
     Gelijkstelling, KenmerkToekenning, ObjectCreatie, FeitCreatie, Consistentieregel, Initialisatie, Dagsoortdefinitie,
     Verdeling, VerdelingMethode, VerdelingNaarRato, VerdelingOpVolgorde, VerdelingTieBreak,
     VerdelingMaximum, VerdelingAfronding,
-    Attribuut, Kenmerk,
+    Attribuut, Kenmerk, Beslistabel, BeslistabelRow,
     SourceSpan
 )
 from .errors import RegelspraakError
@@ -129,6 +129,9 @@ class SemanticAnalyzer:
             
             # Pass 2: Analyze rules
             self._analyze_rules(model)
+            
+            # Pass 3: Analyze decision tables
+            self._analyze_beslistabellen(model)
             
         except SemanticError as e:
             self.errors.append(e)
@@ -512,6 +515,50 @@ class SemanticAnalyzer:
         if op == Operator.NIET:  # Assuming NIET is boolean negation
             return "Boolean"
         return None
+
+
+    def _analyze_beslistabellen(self, model: DomainModel) -> None:
+        """Analyze all decision tables in the model."""
+        for beslistabel in model.beslistabellen:
+            self._analyze_beslistabel(beslistabel)
+    
+    def _analyze_beslistabel(self, beslistabel: Beslistabel) -> None:
+        """Analyze a single decision table."""
+        # Enter table scope for analysis
+        table_scope = self.symbol_table.enter_scope(f"beslistabel:{beslistabel.naam}")
+        
+        try:
+            # Validate structure
+            if not beslistabel.rows:
+                self.errors.append(SemanticError(
+                    f"Decision table '{beslistabel.naam}' has no rows",
+                    beslistabel.span
+                ))
+                return
+            
+            # Check all rows have same number of condition values as condition columns
+            expected_conditions = len(beslistabel.condition_columns)
+            for row in beslistabel.rows:
+                if len(row.condition_values) != expected_conditions:
+                    self.errors.append(SemanticError(
+                        f"Row {row.row_number} has {len(row.condition_values)} condition values "
+                        f"but table has {expected_conditions} condition columns",
+                        row.span
+                    ))
+            
+            # Analyze result expressions in each row
+            for row in beslistabel.rows:
+                self._analyze_expression(row.result_expression)
+                
+                # Analyze condition values (skip n.v.t. literals)
+                for condition_value in row.condition_values:
+                    if not (isinstance(condition_value, Literal) and condition_value.value == "n.v.t."):
+                        self._analyze_expression(condition_value)
+            
+            # TODO: Parse and validate condition column headers once we have more complex parsing
+            
+        finally:
+            self.symbol_table.exit_scope()
 
 
 def validate(model: DomainModel) -> List[SemanticError]:

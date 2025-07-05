@@ -19,7 +19,38 @@ definitie
 
 // --- Beslistabel Rule (Added based on Spec) ---
 beslistabel
-    : BESLISTABEL naamwoord ( regelVersie )?
+    : BESLISTABEL naamwoord ( regelVersie )? beslistabelTable
+    ;
+
+// Decision table structure
+beslistabelTable
+    : beslistabelHeader beslistabelSeparator beslistabelRow+
+    ;
+
+// Header row with column titles
+beslistabelHeader
+    : PIPE PIPE? resultColumn=beslistabelColumnText PIPE conditionColumns+=beslistabelColumnText (PIPE conditionColumns+=beslistabelColumnText)* PIPE?
+    ;
+
+// Separator line with dashes
+beslistabelSeparator
+    : PIPE? (MINUS+ PIPE?)+ MINUS*
+    ;
+
+// Data row with row number and values
+beslistabelRow
+    : PIPE rowNumber=NUMBER PIPE resultExpression=expressie PIPE conditionValues+=beslistabelCellValue (PIPE conditionValues+=beslistabelCellValue)* PIPE?
+    ;
+
+// Cell value can be expression or n.v.t.
+beslistabelCellValue
+    : expressie
+    | NVT
+    ;
+
+// Column header text - everything except pipe
+beslistabelColumnText
+    : ~(PIPE)+
     ;
 
 // --- Basic Building Blocks ---

@@ -298,6 +298,28 @@ class FeitType:
     span: Optional[SourceSpan] = None
 
 
+# --- Beslistabel (Decision Table) ---
+
+@dataclass
+class BeslistabelRow:
+    """Single row in a decision table."""
+    row_number: int
+    result_expression: Expression
+    condition_values: List[Union[Expression, Literal]]  # Literal for "n.v.t."
+    span: SourceSpan
+
+@dataclass  
+class Beslistabel:
+    """Decision table with header columns and data rows.
+    Result column defines what to set, condition columns define when."""
+    naam: str
+    result_column: str  # Header text for result column
+    condition_columns: List[str]  # Header texts for condition columns
+    rows: List[BeslistabelRow]  # Data rows
+    span: SourceSpan
+    versie_info: Optional[Any] = None  # Version/validity info
+
+
 # --- Top-Level Container ---
 
 @dataclass
@@ -309,6 +331,6 @@ class DomainModel:
     domeinen: Dict[str, Domein] = field(default_factory=dict)
     feittypen: Dict[str, FeitType] = field(default_factory=dict)
     regels: List[Regel] = field(default_factory=list)
-    # Add other top-level elements like Beslistabel as needed
+    beslistabellen: List[Beslistabel] = field(default_factory=list)
     # description: Optional[str] = None
     # name: Optional[str] = None # If there's a top-level domain name 
