@@ -661,19 +661,36 @@ dagsoortDefinition
 // Pattern: X wordt verdeeld over Y, waarbij wordt verdeeld: ...
 verdelingResultaat
     : sourceAmount=expressie WORDT_VERDEELD_OVER targetCollection=expressie 
-      WAARBIJ_WORDT_VERDEELD COLON? verdelingMethode+
+      COMMA WAARBIJ_WORDT_VERDEELD (verdelingMethodeSimple | verdelingMethodeMultiLine)
       verdelingRest?
+    ;
+
+// Simple single-line format
+verdelingMethodeSimple
+    : verdelingMethode
+    ;
+
+// Multi-line format with colon and bullet points
+verdelingMethodeMultiLine
+    : COLON verdelingMethodeBulletList DOT?
+    ;
+
+verdelingMethodeBulletList
+    : verdelingMethodeBullet (verdelingMethodeBullet)*
+    ;
+
+verdelingMethodeBullet
+    : MINUS verdelingMethode (COMMA | DOT)?
     ;
 
 // Distribution methods and constraints
 verdelingMethode
-    : MINUS? IN_GELIJKE_DELEN                                                              # VerdelingGelijkeDelen
-    | MINUS? NAAR_RATO_VAN ratioExpression=expressie                                      # VerdelingNaarRato
-    | MINUS? OP_VOLGORDE_VAN orderDirection=(TOENEMENDE | AFNEMENDE) orderExpression=expressie  # VerdelingOpVolgorde
-    | MINUS? BIJ_EVEN_GROOT_CRITERIUM tieBreakMethod=verdelingMethode                     # VerdelingTieBreak
-    | MINUS? MET_EEN_MAXIMUM_VAN maxExpression=expressie                                  # VerdelingMaximum
-    | MINUS? AFGEROND_OP decimals=NUMBER DECIMALEN roundDirection=(NAAR_BENEDEN | NAAR_BOVEN)  # VerdelingAfronding
-    | COMMA verdelingMethode                                                               # VerdelingMethodeComma
+    : IN_GELIJKE_DELEN                                                              # VerdelingGelijkeDelen
+    | NAAR_RATO_VAN ratioExpression=expressie                                      # VerdelingNaarRato
+    | OP_VOLGORDE_VAN orderDirection=(TOENEMENDE | AFNEMENDE) orderExpression=expressie  # VerdelingOpVolgorde
+    | BIJ_EVEN_GROOT_CRITERIUM tieBreakMethod=verdelingMethode                     # VerdelingTieBreak
+    | MET_EEN_MAXIMUM_VAN maxExpression=expressie                                  # VerdelingMaximum
+    | AFGEROND_OP decimals=NUMBER DECIMALEN roundDirection=(NAAR_BENEDEN | NAAR_BOVEN)  # VerdelingAfronding
     ;
 
 // Remainder handling

@@ -1902,10 +1902,25 @@ class RegelSpraakModelBuilder(RegelSpraakVisitor):
             
             # Parse distribution methods
             distribution_methods = []
-            for method_ctx in verdeling_ctx.verdelingMethode():
-                method = self.visitVerdelingMethode(method_ctx)
-                if method:
-                    distribution_methods.append(method)
+            
+            # Check for simple single-line format
+            if verdeling_ctx.verdelingMethodeSimple():
+                simple_ctx = verdeling_ctx.verdelingMethodeSimple()
+                if simple_ctx.verdelingMethode():
+                    method = self.visitVerdelingMethode(simple_ctx.verdelingMethode())
+                    if method:
+                        distribution_methods.append(method)
+            
+            # Check for multi-line format with bullet points
+            elif verdeling_ctx.verdelingMethodeMultiLine():
+                multi_ctx = verdeling_ctx.verdelingMethodeMultiLine()
+                if multi_ctx.verdelingMethodeBulletList():
+                    bullet_list_ctx = multi_ctx.verdelingMethodeBulletList()
+                    for bullet_ctx in bullet_list_ctx.verdelingMethodeBullet():
+                        if bullet_ctx.verdelingMethode():
+                            method = self.visitVerdelingMethode(bullet_ctx.verdelingMethode())
+                            if method:
+                                distribution_methods.append(method)
             
             # Parse remainder target if present
             remainder_target = None

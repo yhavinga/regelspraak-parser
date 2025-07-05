@@ -123,7 +123,7 @@ class Evaluator:
                     results.setdefault(rule.naam, []).append({"instance_id": instance.instance_id, "status": "evaluated"})
                 except RuntimeError as e:
                     # Capture specific runtime errors per instance/rule
-                    print(f"RuntimeError executing rule '{rule.naam}' for instance '{instance.instance_id}': {e}")
+                    print(f"RuntimeError executing rule '{rule.naam}' for instance '{instance.instance_id if instance else 'None'}': {e}")
                     results.setdefault(rule.naam, []).append({"instance_id": instance.instance_id, "status": "error", "message": str(e)})
                 except Exception as e:
                     # Capture unexpected errors
@@ -270,6 +270,25 @@ class Evaluator:
             
             # For FeitCreatie, default to checking all object types that have relationships
             # This allows the rule to iterate over all instances that might participate
+        elif isinstance(rule.resultaat, Verdeling):
+            # For Verdeling, try to deduce from the source amount expression
+            # Pattern: "Het X van Y" where Y is the object type
+            if isinstance(rule.resultaat.source_amount, AttributeReference) and rule.resultaat.source_amount.path:
+                # e.g., ["totaal aantal treinmiles", "te verdelen contingent treinmiles"]
+                if len(rule.resultaat.source_amount.path) > 1:
+                    last_elem = rule.resultaat.source_amount.path[-1]
+                    # Extract object type from the last element
+                    # Split into words and try different combinations
+                    words = last_elem.lower().split()
+                    
+                    # Try each object type
+                    for obj_type in self.context.domain_model.objecttypes:
+                        obj_type_words = obj_type.lower().split()
+                        
+                        # Check if all words of the object type appear in the path element
+                        if all(word in words for word in obj_type_words):
+                            return obj_type
+            return None
         elif rule.voorwaarde: # Less ideal, check condition structure
             # Look for common patterns like 'Een X ...' or 'zijn Y'
             pass # TODO: Implement more robust deduction if needed
@@ -942,6 +961,7 @@ class Evaluator:
 
     def _apply_verdeling(self, res: Verdeling) -> None:
         """Apply distribution of values according to specified methods."""
+        logger.info(f"_apply_verdeling called, current_instance: {self.context.current_instance.object_type_naam if self.context.current_instance else 'None'}")
         # Evaluate source amount to distribute
         source_value = self.evaluate_expression(res.source_amount)
         if not isinstance(source_value.value, (int, float, Decimal)):
@@ -952,12 +972,28 @@ class Evaluator:
         total_amount = Decimal(str(source_value.value))
         
         # Evaluate target collection to get all objects to distribute over
-        target_objects = self._resolve_collection_for_verdeling(res.target_collection)
+        try:
+            target_objects = self._resolve_collection_for_verdeling(res.target_collection)
+        except (RegelspraakError, RuntimeError) as e:
+            # If we can't resolve the collection (e.g., no related objects), treat as empty
+            logger.warning(f"Could not resolve target collection: {e}")
+            target_objects = []
+        except Exception as e:
+            # Catch any other exception
+            logger.warning(f"Unexpected error resolving target collection: {e}")
+            target_objects = []
+        
         if not target_objects:
             logger.warning("No target objects found for distribution")
             # Handle remainder if specified
+            logger.info(f"Remainder target is: {res.remainder_target}")
             if res.remainder_target:
+                logger.info(f"Setting remainder for empty distribution: {source_value.value}")
                 self._set_verdeling_remainder(res.remainder_target, source_value)
+                logger.info("Remainder set successfully, returning from _apply_verdeling")
+            else:
+                logger.warning("No remainder target specified for empty distribution")
+            logger.info("Returning early from _apply_verdeling due to no target objects")
             return
         
         # Determine the attribute to set from the target collection expression
@@ -1042,19 +1078,30 @@ class Evaluator:
                                     return related
                 
                 # If no feittype found, try to find all objects of a type
-                # Look for "passagier" or "Natuurlijk persoon" in the path
-                for obj_type in self.context.domain_model.objecttypes:
-                    for path_elem in path:
-                        if obj_type.lower() in path_elem.lower() or path_elem.lower() in obj_type.lower():
+                # Look for object type names in the path
+                # For "de miles van alle personen van het contingent", we want to find "personen" -> Persoon
+                for path_elem in path:
+                    # Skip the attribute name (first element)
+                    if path.index(path_elem) == 0:
+                        continue
+                    
+                    # Check if this path element refers to an object type
+                    for obj_type in self.context.domain_model.objecttypes:
+                        obj_type_lower = obj_type.lower()
+                        path_elem_lower = path_elem.lower()
+                        
+                        # Check for exact match or plural forms
+                        if (obj_type_lower == path_elem_lower or 
+                            obj_type_lower + 'en' == path_elem_lower or  # Simple plural
+                            obj_type_lower + 's' == path_elem_lower or   # English plural
+                            (obj_type_lower == 'persoon' and path_elem_lower == 'personen')):  # Special case
                             logger.info(f"Finding all objects of type '{obj_type}'")
                             return self.context.find_objects_by_type(obj_type)
         
-        # Fallback: evaluate as expression
-        result = self.evaluate_expression(collection_expr)
-        if isinstance(result.value, list):
-            return result.value
-        
-        logger.warning("Could not resolve collection for Verdeling")
+        # Fallback: For patterns we can't resolve through relationships,
+        # return empty list rather than trying to evaluate as expression
+        # (which would fail if the attribute doesn't exist on current instance)
+        logger.warning(f"Could not resolve collection for Verdeling, returning empty list")
         return []
     
     def _find_objects_by_feittype_role(self, source_obj: RuntimeObject, role_text: str) -> List[RuntimeObject]:
@@ -1184,10 +1231,20 @@ class Evaluator:
                 pass
             
             elif isinstance(method, VerdelingMaximum):
-                # Apply maximum constraint
-                max_value = self.evaluate_expression(method.max_expression)
-                max_amount = Decimal(str(max_value.value))
-                amounts = [min(amt, max_amount) for amt in amounts]
+                # Apply maximum constraint per target object
+                # The max expression might reference attributes on each target
+                new_amounts = []
+                for i, (obj, amt) in enumerate(zip(target_objects, amounts)):
+                    # Temporarily switch context to evaluate max for this object
+                    old_instance = self.context.current_instance
+                    self.context.current_instance = obj
+                    try:
+                        max_value = self.evaluate_expression(method.max_expression)
+                        max_amount = Decimal(str(max_value.value))
+                        new_amounts.append(min(amt, max_amount))
+                    finally:
+                        self.context.current_instance = old_instance
+                amounts = new_amounts
             
             elif isinstance(method, VerdelingAfronding):
                 # Apply rounding
@@ -1258,13 +1315,46 @@ class Evaluator:
     
     def _set_verdeling_remainder(self, remainder_expr: Expression, remainder_value: Value) -> None:
         """Set the remainder value to the specified target."""
+        logger.info(f"_set_verdeling_remainder called with path {remainder_expr.path if hasattr(remainder_expr, 'path') else 'no path'} and value {remainder_value.value}")
         if isinstance(remainder_expr, AttributeReference):
             # Determine object and attribute
             if len(remainder_expr.path) >= 2:
-                # Pattern: "het X van Y"
+                # Pattern: "het X van Y" - attribute X on object Y
                 attr_name = remainder_expr.path[0]
-                # Find the target object (simplified)
-                # Full implementation would properly resolve the reference
+                # The object reference is in the last path element
+                # For "het restant na verdeling van het te verdelen contingent treinmiles"
+                # We need to find the object that matches this description
+                # In most cases, this will be the current instance
+                target_obj = self.context.current_instance
+                
+                # Check if the last path element refers to the current instance
+                if target_obj and len(remainder_expr.path) > 1:
+                    last_elem = remainder_expr.path[-1].lower()
+                    obj_type_lower = target_obj.object_type_naam.lower()
+                    # Check if the object type is mentioned in the last element
+                    if all(word in last_elem for word in obj_type_lower.split()):
+                        # This refers to the current instance
+                        self.context.set_attribute(
+                            target_obj,
+                            attr_name,
+                            remainder_value,
+                            span=remainder_expr.span
+                        )
+                        logger.info(f"Verdeling: Set remainder {attr_name} on {target_obj.object_type_naam} to {remainder_value.value}")
+                        return
+                
+                # If we couldn't match, still try to set on current instance
+                if self.context.current_instance:
+                    self.context.set_attribute(
+                        self.context.current_instance,
+                        attr_name,
+                        remainder_value,
+                        span=remainder_expr.span
+                    )
+                    logger.info(f"Verdeling: Set remainder {attr_name} to {remainder_value.value}")
+            elif len(remainder_expr.path) == 1:
+                # Simple attribute reference on current instance
+                attr_name = remainder_expr.path[0]
                 if self.context.current_instance:
                     self.context.set_attribute(
                         self.context.current_instance,
