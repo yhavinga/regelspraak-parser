@@ -260,6 +260,12 @@ class Initialisatie(ResultaatDeel):
     expressie: Expression
 
 @dataclass
+class Dagsoortdefinitie(ResultaatDeel):
+    """Represents a day type definition (dagsoortdefinitie: 'Een dag is een X').
+    Defines when a day is of a certain day type (§9.8)."""
+    dagsoort_naam: str  # The name of the day type (e.g., "kerstdag")
+
+@dataclass
 class Regel:
     """Represents a RegelSpraak rule definition."""
     naam: str

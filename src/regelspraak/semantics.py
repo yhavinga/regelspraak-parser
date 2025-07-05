@@ -8,7 +8,7 @@ from .ast import (
     DomainModel, ObjectType, Parameter, Regel, Expression, Literal,
     AttributeReference, VariableReference, ParameterReference,
     BinaryExpression, UnaryExpression, FunctionCall, Operator,
-    Gelijkstelling, KenmerkToekenning, ObjectCreatie, FeitCreatie, Consistentieregel, Initialisatie, 
+    Gelijkstelling, KenmerkToekenning, ObjectCreatie, FeitCreatie, Consistentieregel, Initialisatie, Dagsoortdefinitie,
     Verdeling, VerdelingMethode, VerdelingNaarRato, VerdelingOpVolgorde, VerdelingTieBreak,
     VerdelingMaximum, VerdelingAfronding,
     Attribuut, Kenmerk,
@@ -340,6 +340,12 @@ class SemanticAnalyzer:
             # Validate remainder target if present
             if resultaat.remainder_target:
                 self._analyze_expression(resultaat.remainder_target)
+        
+        elif isinstance(resultaat, Dagsoortdefinitie):
+            # Validate dagsoort name exists (should be declared with Dagsoort statement)
+            # Note: For now, we'll skip this validation as Dagsoort declarations
+            # are not yet tracked in the symbol table. This is a TODO for future improvement.
+            pass
     
     def _validate_verdeling_method(self, method: VerdelingMethode) -> None:
         """Validate a distribution method."""

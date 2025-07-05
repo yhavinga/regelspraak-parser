@@ -12,7 +12,7 @@ from antlr4.tree.Tree import TerminalNode
 from .ast import (
     DomainModel, ObjectType, Attribuut, Kenmerk, Regel, Parameter, Domein,
     FeitType, Rol, Voorwaarde, ResultaatDeel, Gelijkstelling, KenmerkToekenning,
-    ObjectCreatie, FeitCreatie, Consistentieregel, Initialisatie, Verdeling,
+    ObjectCreatie, FeitCreatie, Consistentieregel, Initialisatie, Dagsoortdefinitie, Verdeling,
     VerdelingMethode, VerdelingGelijkeDelen, VerdelingNaarRato, VerdelingOpVolgorde,
     VerdelingTieBreak, VerdelingMaximum, VerdelingAfronding,
     Expression, Literal, AttributeReference, VariableReference,
@@ -1934,6 +1934,13 @@ class RegelSpraakModelBuilder(RegelSpraakVisitor):
                 target_collection=target_collection,
                 distribution_methods=distribution_methods,
                 remainder_target=remainder_target,
+                span=self.get_span(ctx)
+            )
+        elif isinstance(ctx, AntlrParser.DagsoortdefinitieResultaatContext):
+            # Handle day type definition: "Een dag is een X"
+            dagsoort_naam = self.visitNaamwoord(ctx.naamwoord())
+            return Dagsoortdefinitie(
+                dagsoort_naam=dagsoort_naam,
                 span=self.get_span(ctx)
             )
         else:

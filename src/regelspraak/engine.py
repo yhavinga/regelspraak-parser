@@ -11,7 +11,7 @@ from . import ast
 from .ast import (
     Expression, Literal, VariableReference, AttributeReference, ParameterReference, # Added ParameterReference
     BinaryExpression, UnaryExpression, FunctionCall, Operator, DomainModel, Regel,
-    Gelijkstelling, KenmerkToekenning, ObjectCreatie, FeitCreatie, Consistentieregel, Initialisatie, # Added ResultaatDeel types
+    Gelijkstelling, KenmerkToekenning, ObjectCreatie, FeitCreatie, Consistentieregel, Initialisatie, Dagsoortdefinitie, # Added ResultaatDeel types
     Verdeling, VerdelingMethode, VerdelingGelijkeDelen, VerdelingNaarRato, VerdelingOpVolgorde,
     VerdelingTieBreak, VerdelingMaximum, VerdelingAfronding
 )
@@ -684,6 +684,32 @@ class Evaluator:
                     instance_id=self.context.current_instance.instance_id if self.context.current_instance else None
                 ))
         
+        elif isinstance(res, Dagsoortdefinitie):
+            # Handle Dagsoortdefinitie - define when a day is of a certain type
+            # This is a special case: the rule condition determines when a day 
+            # is of this type. The actual implementation would need a way to
+            # store day type information. For now, we'll just trace it.
+            
+            rule_name = None
+            if hasattr(self, '_current_rule') and self._current_rule:
+                rule_name = self._current_rule.naam
+            
+            if self.context.trace_sink:
+                self.context.trace_sink.record(TraceEvent(
+                    type="DAGSOORT_DEFINITIE",
+                    details={
+                        "dagsoort_naam": res.dagsoort_naam,
+                        "day_instance": self.context.current_instance.instance_id if self.context.current_instance else None
+                    },
+                    span=res.span,
+                    rule_name=rule_name,
+                    instance_id=self.context.current_instance.instance_id if self.context.current_instance else None
+                ))
+            
+            # TODO: Implement actual day type storage mechanism
+            # For now, we'll just mark this day instance as being of this type
+            # This would typically involve storing the day type as a kenmerk or attribute
+            
         else:
             # Use RegelspraakError instead of NotImplementedError with keyword args
             raise RegelspraakError(f"Applying result for type {type(res)} not implemented", span=res.span)

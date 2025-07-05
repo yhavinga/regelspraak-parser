@@ -284,7 +284,8 @@ versieGeldigheid
 
 // §13.4.3 Resultaat Deel
 resultaatDeel
-    : (attribuutReferentie | naamwoord) ( WORDT_BEREKEND_ALS expressie | WORDT_GESTELD_OP expressie | WORDT_GEINITIALISEERD_OP expressie ) # GelijkstellingResultaat
+    : EEN DAG IS EEN naamwoord                                                        # DagsoortdefinitieResultaat
+    | (attribuutReferentie | naamwoord) ( WORDT_BEREKEND_ALS expressie | WORDT_GESTELD_OP expressie | WORDT_GEINITIALISEERD_OP expressie ) # GelijkstellingResultaat
     | feitCreatiePattern # FeitCreatieResultaat
     | onderwerpReferentie (IS | HEEFT) kenmerkNaam                                                # KenmerkFeitResultaat
     | identifier+ ( WORDT_BEREKEND_ALS expressie | WORDT_GESTELD_OP expressie | WORDT_GEINITIALISEERD_OP expressie )                   # CapitalizedGelijkstellingResultaat // For capitalized cases
@@ -654,7 +655,7 @@ regelStatusCondition // Now potentially part of comparisonExpression
 
 // §13.3.10 Dagsoort Definition (Added based on spec)
 dagsoortDefinition
-    : DAGSOORT naamwoord SEMICOLON?
+    : DAGSOORT naamwoord ( MV_START plural+=IDENTIFIER+ RPAREN )? SEMICOLON?
     ;
 
 // --- Verdeling Rules (§13.4.10) ---
