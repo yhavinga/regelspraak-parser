@@ -62,6 +62,7 @@ identifier
 identifierOrKeyword
     : IDENTIFIER
     | DAG        // "dag" - commonly used in "een dag"
+    | DAGEN      // "dagen" - can be part of attribute names
     | MAAND      // "maand" - used in date expressions
     | JAAR       // "jaar" - used in date expressions
     | AANTAL     // "aantal" - can be part of names
@@ -71,19 +72,50 @@ identifierOrKeyword
     | HEEFT      // "heeft" - can appear in feittype names
     | ALLE       // "alle" - can appear in rule names
     | INCONSISTENT // "inconsistent" - can appear in consistency rule names
+    | IS         // "is" - can be part of kenmerk names like "is met vakantie"
+    ;
+
+// Rule for contexts where IS should not be treated as an identifier
+identifierOrKeywordNoIs
+    : IDENTIFIER
+    | DAG        // "dag" - commonly used in "een dag"
+    | DAGEN      // "dagen" - can be part of attribute names
+    | MAAND      // "maand" - used in date expressions
+    | JAAR       // "jaar" - used in date expressions
+    | AANTAL     // "aantal" - can be part of names
+    | PERIODE    // "periode" - can be an attribute name
+    | REGEL      // "regel" - can be referenced
+    | VOORWAARDE // "voorwaarde" - can be part of rule names
+    | HEEFT      // "heeft" - can appear in feittype names
+    | ALLE       // "alle" - can appear in regel names
+    | INCONSISTENT // "inconsistent" - can appear in consistency rule names
     ;
 
 naamPhrase // Used within naamwoord
-    : (DE | HET | ZIJN)? identifierOrKeyword+
+    : (DE | HET | EEN | ZIJN)? identifierOrKeyword+
     | identifierOrKeyword+ // Allow all identifiers (covers capitalized Het, De, etc.)
     | NIEUWE identifierOrKeyword+ // Allow 'nieuwe' in names
     | NIEUWE identifierOrKeyword+ MET identifierOrKeyword+ // Allow 'nieuwe X met Y' pattern in rule names
     | identifierOrKeyword+ MET identifierOrKeyword+ // Allow 'X met Y' pattern in rule names
     | NIET identifierOrKeyword+ // Allow 'niet X' pattern
+    | HET AANTAL DAGEN IN identifierOrKeyword+ // Special case for "het aantal dagen in X" as attribute name
+    ;
+
+naamPhraseNoIs // Used for object type names where IS should not be included
+    : (DE | HET | EEN | ZIJN)? identifierOrKeywordNoIs+
+    | identifierOrKeywordNoIs+ // Allow all identifiers (covers capitalized Het, De, etc.)
+    | NIEUWE identifierOrKeywordNoIs+ // Allow 'nieuwe' in names
+    | NIEUWE identifierOrKeywordNoIs+ MET identifierOrKeywordNoIs+ // Allow 'nieuwe X met Y' pattern in rule names
+    | identifierOrKeywordNoIs+ MET identifierOrKeywordNoIs+ // Allow 'X met Y' pattern in rule names
+    | NIET identifierOrKeywordNoIs+ // Allow 'niet X' pattern
     ;
 
 naamwoord // Modified to handle structure like 'phrase (preposition phrase)*'
     : naamPhrase ( voorzetsel naamPhrase )*
+    ;
+
+naamwoordNoIs // Used for object type names
+    : naamPhraseNoIs ( voorzetsel naamPhraseNoIs )*
     ;
 
 voorzetsel // Used by naamwoord and onderwerpReferentie
@@ -100,7 +132,7 @@ unit // Simple unit name
 
 // §13.3.1 Object Type Definition
 objectTypeDefinition
-    : OBJECTTYPE naamwoord ( MV_START plural+=IDENTIFIER+ RPAREN )? (BEZIELD)?
+    : OBJECTTYPE naamwoordNoIs ( MV_START plural+=IDENTIFIER+ RPAREN )? (BEZIELD)?
       ( objectTypeMember )*
     ;
 
@@ -195,6 +227,7 @@ unitIdentifier
     | METER | KILOGRAM | SECONDE | MINUUT | UUR | VOET | POND | MIJL // Keywords
     | M | KG | S | FT | LB | MIN | MI // Abbreviations + Keyword MIN
     | EURO_SYMBOL | DOLLAR_SYMBOL
+    | DAG | DAGEN | MAAND | JAAR | WEEK // Time units
     ;
 
 // Eenheid expressions
@@ -316,12 +349,10 @@ versieGeldigheid
 // §13.4.3 Resultaat Deel
 resultaatDeel
     : EEN DAG IS EEN naamwoord                                                        # DagsoortdefinitieResultaat
-    | (attribuutReferentie | naamwoord) ( WORDT_BEREKEND_ALS expressie | WORDT_GESTELD_OP expressie | WORDT_GEINITIALISEERD_OP expressie ) # GelijkstellingResultaat
+    | attribuutReferentie ( WORDT_BEREKEND_ALS expressie | WORDT_GESTELD_OP expressie | WORDT_GEINITIALISEERD_OP expressie ) # GelijkstellingResultaat
     | feitCreatiePattern # FeitCreatieResultaat
     | onderwerpReferentie (IS | HEEFT) kenmerkNaam                                                # KenmerkFeitResultaat
-    | identifier+ ( WORDT_BEREKEND_ALS expressie | WORDT_GESTELD_OP expressie | WORDT_GEINITIALISEERD_OP expressie )                   # CapitalizedGelijkstellingResultaat // For capitalized cases
     | (HET_KWARTAAL | HET_DEEL_PER_MAAND | HET_DEEL_PER_JAAR) identifier* ( WORDT_BEREKEND_ALS expressie | WORDT_GESTELD_OP expressie | WORDT_GEINITIALISEERD_OP expressie ) ( (VANAF | VAN) datumLiteral (TOT | TOT_EN_MET) datumLiteral )? DOT? # SpecialPhraseResultaat
-    | HET_AANTAL_DAGEN_IN (MAAND | JAAR) ( WORDT_BEREKEND_ALS expressie | WORDT_GESTELD_OP expressie | WORDT_GEINITIALISEERD_OP expressie ) # AantalDagenInResultaat
     | objectCreatie                                                                    # ObjectCreatieResultaat
     | verdelingResultaat                                                               # Verdeling
     ;
@@ -457,7 +488,7 @@ attribuutReferentie // According to spec: attribuutmetlidwoord "van" onderwerpke
     ;
 
 attribuutMetLidwoord // Simple attribute name with optional article
-    : (DE | HET)? identifierOrKeyword+
+    : naamwoord
     ;
 
 kenmerkNaam : onderwerpReferentie ; // Reuse onderwerpReferentie structure (as per original G4)
@@ -491,15 +522,16 @@ logicalExpression
     ;
 
 comparisonExpression
-    : left=additiveExpression IS identifier # IsKenmerkExpr // Try IS kenmerk check first
-    | left=additiveExpression HEEFT identifier # HeeftKenmerkExpr // Try HEEFT kenmerk check second
+    : subordinateClauseExpression # SubordinateClauseExpr // Try subordinate clauses first (most specific)
+    | left=additiveExpression IS naamwoord # IsKenmerkExpr // Try IS kenmerk check
+    | left=additiveExpression HEEFT naamwoord # HeeftKenmerkExpr // Try HEEFT kenmerk check
     | left=additiveExpression ( comparisonOperator right=additiveExpression )? # BinaryComparisonExpr
     | unaryCondition # UnaryConditionExpr // Try unary conditions after more specific patterns
     | regelStatusCondition # RegelStatusConditionExpr // Integrate rule status checks here
     ;
 
 comparisonOperator // Expanded list
-    : GELIJK_AAN | ONGELIJK_AAN
+    : GELIJK_AAN | ONGELIJK_AAN | GELIJK_IS_AAN
     | GROTER_DAN | GROTER_OF_GELIJK_AAN
     | KLEINER_DAN | KLEINER_OF_GELIJK_AAN
     | KLEINER_IS_DAN | GROTER_IS_DAN
@@ -568,7 +600,7 @@ primaryExpression : // Corresponds roughly to terminals/functions/references in 
 
     // Added for §13.4.16.45-53 Aggregations & Conditional Expressions
     | HET_TOTAAL_VAN expressie (GEDURENDE_DE_TIJD_DAT condition=expressie)?                               # TotaalVanExpr // EBNF 13.4.16.51 - Simplified condition
-    | HET_AANTAL_DAGEN_IN (DE MAAND | HET JAAR) DAT expressie                                         # HetAantalDagenInExpr // Special case
+    | HET AANTAL DAGEN IN (DE? MAAND | HET? JAAR) DAT expressie                                       # HetAantalDagenInExpr // Special case
     | identifier+ HET_TOTAAL_VAN expressie (GEDURENDE_DE_TIJD_DAT condition=expressie)?                  # CapitalizedTotaalVanExpr // Special case for "Het totaal van" with capitalization - Simplified condition
     | HET_TIJDSEVENREDIG_DEEL_PER (MAAND | JAAR) VAN expressie (GEDURENDE_DE_TIJD_DAT condition=expressie)? # TijdsevenredigDeelExpr // Simplified condition
     | identifier+ HET_TIJDSEVENREDIG_DEEL_PER (MAAND | JAAR) VAN expressie (GEDURENDE_DE_TIJD_DAT condition=expressie)? # CapitalizedTijdsevenredigDeelExpr // Simplified condition
@@ -682,6 +714,13 @@ unaryCondition // Now potentially part of comparisonExpression
 // Represents conditions checking the status of a rule
 regelStatusCondition // Now potentially part of comparisonExpression
     : REGEL name=naamwoord op=(IS_GEVUURD | IS_INCONSISTENT) # regelStatusCheck
+    ;
+
+// Dutch subordinate clause expressions (Subject-Object-Verb order)
+subordinateClauseExpression
+    : subject=onderwerpReferentie object=naamwoord verb=HEEFT           # SubordinateHasExpr  // hij een recht op korting heeft
+    | subject=onderwerpReferentie prepPhrase=naamwoord verb=IS          # SubordinateIsWithExpr  // hij met vakantie is
+    | subject=onderwerpReferentie verb=IS kenmerk=naamwoord             # SubordinateIsKenmerkExpr  // hij is minderjarig (normal order also supported)
     ;
 
 // §13.3.10 Dagsoort Definition (Added based on spec)

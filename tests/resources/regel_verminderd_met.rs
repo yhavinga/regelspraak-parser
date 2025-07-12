@@ -1,3 +1,3 @@
 Regel bereken_verschil
 geldig altijd
-    Het resultaat moet berekend worden als 10 verminderd met 3.
+    Het resultaat van een berekening moet berekend worden als 10 verminderd met 3.

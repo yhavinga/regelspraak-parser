@@ -816,9 +816,12 @@ class Evaluator:
                 if len(expr.path) == 1:
                     attr_name = expr.path[0]
                     
+                    # Special case: If path is ["self"], return the current instance itself
+                    if attr_name == "self":
+                        result = Value(value=self.context.current_instance, datatype="ObjectReference")
                     # Special case: If the path element is a role name that the current instance fulfills,
                     # return the current instance itself (for FeitCreatie conditions)
-                    if self._check_if_current_instance_has_role(attr_name):
+                    elif self._check_if_current_instance_has_role(attr_name):
                         # Return the current instance as a reference
                         result = Value(value=self.context.current_instance, datatype="ObjectReference")
                     else:
@@ -1906,12 +1909,15 @@ class Evaluator:
             elif func_name.startswith("de_"):
                 base_func_name = func_name[3:]
                 
-            # Single argument case: "som van alle bedragen"
+            # Single argument case: "som van alle bedragen" or "totaal van X"
             if len(expr.arguments) == 1:
                 arg = expr.arguments[0]
                 if isinstance(arg, AttributeReference) and len(arg.path) == 1 and arg.path[0].endswith("en"):
                     # Handle the "functie van alle X" pattern specially
                     return self._handle_aggregation_alle_pattern(expr, base_func_name, arg.path[0])
+                else:
+                    # Single argument that's not "alle" pattern - evaluate normally
+                    args = [self.evaluate_expression(arg) for arg in expr.arguments]
             
             # Two argument case: "som van X van alle Y" (from DimensieAggExpr)
             elif len(expr.arguments) == 2:
@@ -2538,40 +2544,82 @@ class Evaluator:
         return Value(value=Decimal(total_value), datatype=datatype, unit=unit)
     
     def _func_aantal_dagen_in(self, expr: FunctionCall, args: List[Value]) -> Value:
-        """Count number of days in a month or year."""
-        if len(args) != 1:
-            raise RegelspraakError(f"Function 'aantal_dagen_in' expects 1 argument (date), got {len(args)}", span=expr.span)
+        """Count number of days in a month or year where a condition is true.
         
-        date_arg = args[0]
-        if date_arg.datatype not in ["Datum", "Datum-tijd"]:
-            raise RegelspraakError(f"Function 'aantal_dagen_in' requires date argument, got {date_arg.datatype}", span=expr.span)
+        According to spec: "het aantal dagen in" ("de maand" | "het jaar") "dat" <expressie>
         
-        # Handle empty value
-        if date_arg.value is None:
-            return Value(value=None, datatype="Numeriek", unit="dagen")
-        
-        # Import datetime handling
-        from datetime import datetime
-        import dateutil.parser
-        import calendar
-        
-        # Parse date
-        try:
-            if isinstance(date_arg.value, str):
-                date = dateutil.parser.parse(date_arg.value)
+        The builder passes:
+        - expr.arguments[0]: Literal with period type ("maand" or "jaar")
+        - expr.arguments[1]: Condition expression (unevaluated)
+        """
+        # Handle the specification pattern with expression arguments
+        if len(expr.arguments) == 2:
+            # First argument should be the period type literal
+            period_arg = expr.arguments[0]
+            condition_expr = expr.arguments[1]
+            
+            # Extract period type
+            if isinstance(period_arg, Literal) and period_arg.datatype == "Tekst":
+                period_type = period_arg.value
             else:
-                date = date_arg.value
-        except Exception as e:
-            raise RegelspraakError(f"Error parsing date in aantal_dagen_in: {e}", span=expr.span)
+                raise RegelspraakError("First argument to aantal_dagen_in must be 'maand' or 'jaar'", span=expr.span)
+            
+            # For now, since we don't have time-dependent expression evaluation,
+            # we'll return a placeholder value. Full implementation would:
+            # 1. Determine the current evaluation context's date/period
+            # 2. Iterate through each day in that period
+            # 3. Evaluate the condition for each day
+            # 4. Count days where condition is true
+            
+            if self.context.trace_sink:
+                self.context.trace_sink.value_calculated(
+                    expression=expr,
+                    value=f"aantal_dagen_in({period_type}, <condition>)",
+                    result="placeholder implementation"
+                )
+            
+            # Placeholder: return typical days in period
+            if period_type == "jaar":
+                # Return 365 as placeholder (non-leap year)
+                return Value(value=Decimal(365), datatype="Numeriek", unit="dagen")
+            elif period_type == "maand":
+                # Return 30 as placeholder (average month)
+                return Value(value=Decimal(30), datatype="Numeriek", unit="dagen")
+            else:
+                raise RegelspraakError(f"Invalid period type: {period_type}", span=expr.span)
         
-        # Determine if we're counting days in month or year based on context
-        # This would need to be passed from the parser - for now assume month
-        # TODO: Get actual period type from expression context
+        # Legacy pattern with evaluated arguments (for backward compatibility)
+        elif len(args) == 1:
+            date_arg = args[0]
+            if date_arg.datatype not in ["Datum", "Datum-tijd"]:
+                raise RegelspraakError(f"Function 'aantal_dagen_in' requires date argument, got {date_arg.datatype}", span=expr.span)
+            
+            # Handle empty value
+            if date_arg.value is None:
+                return Value(value=None, datatype="Numeriek", unit="dagen")
+            
+            # Import datetime handling
+            from datetime import datetime, date as date_type
+            import dateutil.parser
+            import calendar
+            
+            # Parse date
+            try:
+                if isinstance(date_arg.value, str):
+                    date_val = dateutil.parser.parse(date_arg.value)
+                elif isinstance(date_arg.value, (datetime, date_type)):
+                    date_val = date_arg.value
+                else:
+                    raise RegelspraakError(f"Unexpected date type: {type(date_arg.value)}", span=expr.span)
+            except Exception as e:
+                raise RegelspraakError(f"Error parsing date in aantal_dagen_in: {e}", span=expr.span)
+            
+            # Count days in the month
+            days_count = calendar.monthrange(date_val.year, date_val.month)[1]
+            
+            return Value(value=Decimal(days_count), datatype="Numeriek", unit="dagen")
         
-        # Count days in the month
-        days_in_month = calendar.monthrange(date.year, date.month)[1]
-        
-        return Value(value=Decimal(days_in_month), datatype="Numeriek", unit="dagen")
+        raise RegelspraakError(f"Function 'aantal_dagen_in' expects 2 arguments (period_type, condition), got {len(expr.arguments)}", span=expr.span)
 
     def _compare_values(self, val1: Value, val2: Value) -> int:
         """Compare two values, returning -1 if val1 < val2, 0 if equal, 1 if val1 > val2."""

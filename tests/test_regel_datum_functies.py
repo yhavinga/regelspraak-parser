@@ -53,7 +53,7 @@ class RegelSpraakDatumFunctiesTest(RegelSpraakTestCase):
         """Test 'de eerste van' date function (§13.4.16.34)."""
         code = """Regel testEersteVanDatum
             geldig altijd
-                de vroegste datum moet gesteld worden op de eerste van 01-01-2024, 15-03-2024, 30-06-2024 en 25-12-2024.
+                de vroegste datum van een rapportage moet berekend worden als de eerste van 01-01-2024, 15-03-2024, 30-06-2024 en 25-12-2024.
         """
         tree = self.parse_text(code)
         self.assertIsNotNone(tree)
@@ -63,7 +63,7 @@ class RegelSpraakDatumFunctiesTest(RegelSpraakTestCase):
         """Test 'de laatste van' date function (§13.4.16.35)."""
         code = """Regel testLaatsteVanDatum
             geldig altijd
-                de laatste datum moet gesteld worden op de laatste van 01-01-2024, 15-03-2024, 30-06-2024 en 25-12-2024.
+                de laatste datum van een rapportage moet berekend worden als de laatste van 01-01-2024, 15-03-2024, 30-06-2024 en 25-12-2024.
         """
         tree = self.parse_text(code)
         self.assertIsNotNone(tree)
@@ -71,21 +71,39 @@ class RegelSpraakDatumFunctiesTest(RegelSpraakTestCase):
         
     def test_eerste_laatste_mixed_expressions(self):
         """Test 'de eerste/laatste van' with mixed expressions."""
-        code = """Regel testMixedDates
+        # Temporarily switch to document parser
+        original_parser_rule = self.parser_rule
+        self.parser_rule = 'regelSpraakDocument'
+        
+        code = """Objecttype Persoon
+            de geboortedatum Datum in dagen;
+            de speciale datum Datum in dagen;
+            de uiterste datum Datum in dagen;
+        
+        Objecttype Document
+            de vervaldatum Datum in dagen;
+        
+        Regel testMixedDates
             geldig altijd
-                de speciale datum moet gesteld worden op de eerste van Rekendatum, de geboortedatum van een persoon en 01-01-2025.
-        Daarbij geldt:
-                de uiterste datum is de laatste van de vervaldatum, Rekendatum plus 30 dagen en 31-12-2025.
+                de speciale datum van een persoon moet berekend worden als de eerste van Rekendatum, de geboortedatum van de persoon en 01-01-2025.
+        
+        Regel testUitersteDatum
+            geldig altijd
+                de uiterste datum van een persoon moet berekend worden als de laatste van de vervaldatum van een document, (Rekendatum plus 30 dagen) en 31-12-2025.
         """
-        tree = self.parse_text(code)
-        self.assertIsNotNone(tree)
-        self.assertNoParseErrors()
+        try:
+            tree = self.parse_text(code)
+            self.assertIsNotNone(tree)
+            self.assertNoParseErrors()
+        finally:
+            # Restore original parser rule
+            self.parser_rule = original_parser_rule
     
     def test_complex_date_calculation(self):
         """Test more complex date calculations combining multiple functions."""
         code = """Regel testComplexDatum
             geldig altijd
-                de speciale datum moet gesteld worden op de eerste paasdag van(het jaar uit Rekendatum) plus 40 dagen.
+                de speciale datum van een gebeurtenis moet gesteld worden op de eerste paasdag van(het jaar uit Rekendatum) plus 40 dagen.
         """
         tree = self.parse_text(code)
         self.assertIsNotNone(tree)

@@ -114,7 +114,6 @@ Parameter de TekstParam : Tekst;
 Parameter de BooleanParam : Boolean;
 Parameter de DatumParam : Datum in dagen;
 Parameter de DatumTijdParam : Datum en tijd in millisecondes;
-Parameter de ResultaatParameter : Tekst;
 
 Domein Bedrag is van het type Numeriek (getal met 2 decimalen);
 
@@ -130,6 +129,9 @@ Objecttype TestPersoon (bezield)
     het salaris Bedrag met eenheid €;
     isActief kenmerk (bijvoeglijk);
     heeftRijbewijs kenmerk (bezittelijk);
+    het resultaat Tekst;
+    het numeriek resultaat Numeriek;
+    het datum resultaat Datum in dagen;
 
 Objecttype TestVlucht
     de vertrekdatum Datum in dagen;
@@ -139,14 +141,14 @@ Objecttype TestVlucht
 
 Regel DeTestRegel
     geldig altijd
-        de ResultaatParameter moet gesteld worden op {expression_snippet}.
+        het resultaat van een TestPersoon moet gesteld worden op {expression_snippet}.
     Daarbij geldt:
         X is 10;
         Y is 20;
         S is "initiële tekst";
         B is waar;
-        D1 is 01-01-2023;
-        D2 is 02-01-2023;
+        DatumParam1 is 01-01-2023;
+        DatumParam2 is 02-01-2023;
         S1 is "eerste";
         S2 is "tweede";
         S3 is "derde";
@@ -319,19 +321,19 @@ Regel DeTestRegel
     # Date comparisons (phrases)
     def test_date_is_later_dan(self):
         """Test 'is later dan' date comparison."""
-        self._test_expression_in_rule("D1 is later dan D2")
+        self._test_expression_in_rule("de DatumParam is later dan de DatumTijdParam")
 
     def test_date_zijn_later_of_gelijk_aan(self):
         """Test 'zijn later of gelijk aan' date comparison phrase."""
-        self._test_expression_in_rule("de data zijn later of gelijk aan D2")
+        self._test_expression_in_rule("de data zijn later of gelijk aan de DatumParam")
 
     def test_date_is_eerder_dan(self):
         """Test 'is eerder dan' date comparison."""
-        self._test_expression_in_rule("D1 is eerder dan D2")
+        self._test_expression_in_rule("de DatumParam is eerder dan de DatumTijdParam")
 
     def test_date_zijn_eerder_of_gelijk_aan(self):
         """Test 'zijn eerder of gelijk aan' date comparison phrase."""
-        self._test_expression_in_rule("de data zijn eerder of gelijk aan D2")
+        self._test_expression_in_rule("de data zijn eerder of gelijk aan de DatumParam")
 
     # --- 7. Special Binary Operations ---
     def test_special_is_kenmerk(self):
@@ -362,23 +364,23 @@ Regel DeTestRegel
 
     def test_function_tijdsduur_van_in_eenheid(self):
         """Test 'de tijdsduur van' function with unit conversion."""
-        self._test_expression_in_rule("de tijdsduur van D1 tot D2 in hele jaren")
+        self._test_expression_in_rule("de tijdsduur van de DatumParam tot de DatumTijdParam in hele jaren")
 
     def test_function_datum_plus_tijd(self):
         """Test date plus time duration."""
-        self._test_expression_in_rule("D1 plus 5 dagen")
+        self._test_expression_in_rule("de DatumParam plus 5 dagen")
 
     def test_function_het_jaar_uit(self):
         """Test 'het jaar uit' date function."""
-        self._test_expression_in_rule("het jaar uit D1")
+        self._test_expression_in_rule("het jaar uit de DatumParam")
 
     def test_function_de_maand_uit(self):
         """Test 'de maand uit' date function."""
-        self._test_expression_in_rule("de maand uit D1")
+        self._test_expression_in_rule("de maand uit de DatumParam")
 
     def test_function_de_dag_uit(self):
         """Test 'de dag uit' date function."""
-        self._test_expression_in_rule("de dag uit D1")
+        self._test_expression_in_rule("de dag uit de DatumParam")
 
     def test_function_de_eerste_paasdag_van(self):
         """Test 'de eerste paasdag van' function."""
@@ -390,11 +392,11 @@ Regel DeTestRegel
 
     def test_function_de_eerste_van(self):
         """Test 'de eerste van' min function."""
-        self._test_expression_in_rule("de eerste van D1, D2 en D")
+        self._test_expression_in_rule("de eerste van de DatumParam, de DatumTijdParam en 31-12-2024")
 
     def test_function_de_laatste_van(self):
         """Test 'de laatste van' max function."""
-        self._test_expression_in_rule("de laatste van D1, D2 en D")
+        self._test_expression_in_rule("de laatste van de DatumParam, de DatumTijdParam en 31-12-2024")
             
     def test_function_het_aantal(self):
         """Test 'het aantal' count function."""
@@ -485,11 +487,11 @@ Regel DeTestRegel
 
     def test_complex_arithmetic_with_functions(self):
         """Test arithmetic combined with functions."""
-        self._test_expression_in_rule("(de wortel van X) plus (het jaar uit D1)")
+        self._test_expression_in_rule("(de wortel van X) plus (het jaar uit de DatumParam)")
 
     def test_complex_comparison_with_functions(self):
         """Test comparisons with function results."""
-        self._test_expression_in_rule("de tijdsduur van D1 tot D2 in dagen is groter dan 30")
+        self._test_expression_in_rule("(de tijdsduur van de DatumParam tot de DatumTijdParam in dagen) is groter dan 30")
 
     def test_complex_logical_combinations(self):
         """Test complex logical combinations."""

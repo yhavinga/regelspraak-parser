@@ -83,6 +83,7 @@ OPERATOR_MAP = {
 
     # --- Comparison (Base Forms) ---
     AntlrParser.GELIJK_AAN: Operator.GELIJK_AAN,
+    AntlrParser.GELIJK_IS_AAN: Operator.GELIJK_AAN,  # Alternative word order
     AntlrParser.ONGELIJK_AAN: Operator.NIET_GELIJK_AAN,
     AntlrParser.KLEINER_DAN: Operator.KLEINER_DAN,
     AntlrParser.GROTER_DAN: Operator.GROTER_DAN,
@@ -476,7 +477,10 @@ class RegelSpraakModelBuilder(RegelSpraakVisitor):
                         if token_type not in [AntlrParser.DE, AntlrParser.HET, AntlrParser.EEN]:
                             phrase_parts.append(token_text)
                     elif type(subchild).__name__ == 'IdentifierOrKeywordContext':
-                        phrase_parts.append(safe_get_text(subchild))
+                        text = safe_get_text(subchild)
+                        # Skip capitalized articles that were parsed as identifiers
+                        if text.lower() not in ['de', 'het', 'een']:
+                            phrase_parts.append(text)
                 
                 if phrase_parts:
                     all_parts.append(" ".join(phrase_parts))
@@ -489,6 +493,52 @@ class RegelSpraakModelBuilder(RegelSpraakVisitor):
         final_noun = " ".join(all_parts) if all_parts else safe_get_text(ctx)
         
         logger.debug(f"    visitNaamwoord returning: '{final_noun}'")
+        return final_noun
+    
+    def visitNaamwoordNoIs(self, ctx: AntlrParser.NaamwoordNoIsContext) -> Optional[str]:
+        """Visit a naamwoordNoIs context and extract the complete noun phrase including prepositions."""
+        logger.debug(f"    Visiting NaamwoordNoIs: Text='{safe_get_text(ctx)}', Type={type(ctx).__name__}, ChildCount={ctx.getChildCount()}")
+        
+        # Process all parts of the naamwoordNoIs according to grammar:
+        # naamwoordNoIs : naamPhraseNoIs ( voorzetsel naamPhraseNoIs )*
+        all_parts = []
+        
+        # Get all naamPhraseNoIs contexts
+        naam_phrases = ctx.naamPhraseNoIs()
+        if not isinstance(naam_phrases, list):
+            naam_phrases = [naam_phrases] if naam_phrases else []
+        
+        # Process the complete structure
+        for i in range(ctx.getChildCount()):
+            child = ctx.getChild(i)
+            
+            if type(child).__name__ == 'NaamPhraseNoIsContext':
+                # Process naam phrase - extract text without articles
+                phrase_parts = []
+                for subchild in child.children:
+                    if isinstance(subchild, TerminalNode):
+                        token_type = subchild.getSymbol().type
+                        token_text = safe_get_text(subchild)
+                        # Skip articles
+                        if token_type not in [AntlrParser.DE, AntlrParser.HET, AntlrParser.EEN]:
+                            phrase_parts.append(token_text)
+                    elif type(subchild).__name__ == 'IdentifierOrKeywordNoIsContext':
+                        text = safe_get_text(subchild)
+                        # Skip capitalized articles that were parsed as identifiers
+                        if text.lower() not in ['de', 'het', 'een']:
+                            phrase_parts.append(text)
+                
+                if phrase_parts:
+                    all_parts.append(" ".join(phrase_parts))
+                    
+            elif type(child).__name__ == 'VoorzetselContext':
+                # Add the preposition
+                all_parts.append(safe_get_text(child))
+        
+        # Join all parts with spaces
+        final_noun = " ".join(all_parts) if all_parts else safe_get_text(ctx)
+        
+        logger.debug(f"    visitNaamwoordNoIs returning: '{final_noun}'")
         return final_noun
     
 
@@ -510,44 +560,45 @@ class RegelSpraakModelBuilder(RegelSpraakVisitor):
     # 5. Reference Construction Methods
     def visitAttribuutReferentie(self, ctx: AntlrParser.AttribuutReferentieContext) -> Optional[AttributeReference]:
         """Visit an attribute reference and build an AttributeReference object."""
-        # Get the simple attribute name
-        attribute_name = self.visitAttribuutMetLidwoord(ctx.attribuutMetLidwoord())
+        # Get the attribute part which might include extra elements
+        attribute_part = self.visitAttribuutMetLidwoord(ctx.attribuutMetLidwoord())
+        
+        # Check if the attribute part contains "van" - this means the grammar consumed too much
+        extra_path_elements = []
+        attribute_name = attribute_part
+        if " van " in attribute_part:
+            # Split on " van " and process
+            parts = attribute_part.split(" van ")
+            attribute_name = parts[0].strip()
+            # The remaining parts are additional path elements that should come before the onderwerpReferentie
+            for i in range(1, len(parts)):
+                element = parts[i].strip()
+                # Remove trailing " van" if it exists (for middle elements)
+                if element.endswith(" van"):
+                    element = element[:-4].strip()
+                extra_path_elements.append(element)
+        
         # Recursively build the path from the nested onderwerpReferentie
         base_path = self.visitOnderwerpReferentieToPath(ctx.onderwerpReferentie())
         if not base_path:
              logger.error(f"Could not parse base path for attribute reference: {safe_get_text(ctx)}")
              return None
-        # Prepend the attribute name to the path
-        full_path = [attribute_name] + base_path
+        
+        # Build the full path: [attribute_name] + extra_elements + base_path
+        full_path = [attribute_name] + extra_path_elements + base_path
+        logger.debug(f"visitAttribuutReferentie: attribute_name='{attribute_name}', extra_elements={extra_path_elements}, base_path={base_path}, full_path={full_path}")
         return AttributeReference(path=full_path, span=self.get_span(ctx))
     
     def visitAttribuutMetLidwoord(self, ctx: AntlrParser.AttribuutMetLidwoordContext) -> str:
         """Extract the attribute name from attribuutMetLidwoord context."""
         logger.debug(f"visitAttribuutMetLidwoord called with: {safe_get_text(ctx)}")
-        # Get the full text first - use get_text_with_spaces to preserve spaces
-        full_text = get_text_with_spaces(ctx)
-        # Strip leading articles - handle both with and without spaces
-        if full_text.startswith("De"):
-            if len(full_text) > 2 and full_text[2] == ' ':
-                return full_text[3:]  # "De " with space
-            elif len(full_text) > 2:
-                # "De" without space - need to lowercase the next char
-                return full_text[2].lower() + full_text[3:]
-        elif full_text.startswith("Het"):
-            if len(full_text) > 3 and full_text[3] == ' ':
-                return full_text[4:]  # "Het " with space
-            elif len(full_text) > 3:
-                # "Het" without space - need to lowercase the next char
-                return full_text[3].lower() + full_text[4:]
-        elif full_text.startswith("de "):
-            return full_text[3:]
-        elif full_text.startswith("het "):
-            return full_text[4:]
-        # If no article or already processed, join identifierOrKeyword tokens
-        tokens = []
-        for child in ctx.identifierOrKeyword():
-            tokens.append(child.getText())
-        return " ".join(tokens) if tokens else full_text
+        # Now that attribuutMetLidwoord contains a naamwoord, delegate to it
+        if ctx.naamwoord():
+            # Get the full text via visitNaamwoord which already strips articles
+            # We'll handle the "van" splitting in visitAttribuutReferentie
+            return self.visitNaamwoord(ctx.naamwoord())
+        # Fallback to full text if no naamwoord (shouldn't happen with new grammar)
+        return get_text_with_spaces(ctx)
 
     def visitBezieldeReferentie(self, ctx: AntlrParser.BezieldeReferentieContext) -> Optional[AttributeReference]:
         """Visit bezielde referentie (e.g., 'zijn leeftijd') and create an AttributeReference,
@@ -620,6 +671,28 @@ class RegelSpraakModelBuilder(RegelSpraakVisitor):
         logger.debug(f"  Final path: {path}")
         return path
 
+    def visitOnderwerpReferentie(self, ctx: AntlrParser.OnderwerpReferentieContext) -> Optional[AttributeReference]:
+        """Visit onderwerp referentie and convert to AttributeReference.
+        
+        This handles references like "hij", "de persoon", "het adres van de persoon", etc.
+        """
+        # Convert to path using existing helper
+        path = self.visitOnderwerpReferentieToPath(ctx)
+        
+        if not path:
+            logger.warning(f"Empty path from onderwerp referentie: {safe_get_text(ctx)}")
+            return None
+        
+        # Special case: If path is just ["self"], create a special reference to current instance
+        # The engine will handle this specially
+        if path == ["self"]:
+            # Return a special marker that the engine will recognize
+            # For now, return AttributeReference with ["self"] and let engine handle it
+            return AttributeReference(path=["self"], span=self.get_span(ctx))
+        
+        # Otherwise create normal AttributeReference
+        return AttributeReference(path=path, span=self.get_span(ctx))
+    
     # 6. Expression Hierarchy Visitors
     def visitExpressie(self, ctx: AntlrParser.ExpressieContext) -> Optional[Expression]:
         """Visit the top-level expressie rule. Always delegates to its single child."""
@@ -680,36 +753,39 @@ class RegelSpraakModelBuilder(RegelSpraakVisitor):
         # The _build_binary_expression handles the chained case.
         # We need to handle specific labeled alternatives first.
 
-        if isinstance(ctx, AntlrParser.BinaryComparisonExprContext):
-            # This label should NOT exist if the grammar is simply `expr op expr`.
-            # If it DOES exist, it suggests the grammar might be `left=additiveExpr op=comparisonOperator right=additiveExpr`.
-            # Let's assume the standard precedence chain and use _build_binary_expression directly on the context.
-             logger.debug(f"Handling ComparisonExpression potentially via BinaryComparisonExprContext label: {safe_get_text(ctx)}")
-             # Ensure the operator is extracted from the comparisonOperator rule context if present
-             return self._build_binary_expression(ctx, OPERATOR_MAP, self.visitAdditiveExpression, operator_rule_name='comparisonOperator')
-
-        elif isinstance(ctx, AntlrParser.UnaryConditionExprContext):
-            return self.visitUnaryCondition(ctx.unaryCondition())
-        elif isinstance(ctx, AntlrParser.RegelStatusConditionExprContext):
-            return self.visitRegelStatusCondition(ctx.regelStatusCondition())
+        if isinstance(ctx, AntlrParser.SubordinateClauseExprContext):
+            return self.visitSubordinateClauseExpression(ctx.subordinateClauseExpression())
         elif isinstance(ctx, AntlrParser.IsKenmerkExprContext):
             left_expr = self.visitAdditiveExpression(ctx.left)
-            kenmerk_name = ctx.identifier().getText()
+            # visitNaamwoord returns a string, so use it directly
+            kenmerk_name = self.visitNaamwoord(ctx.naamwoord()) if hasattr(self, 'visitNaamwoord') else ctx.naamwoord().getText()
             # Create a Literal with the kenmerk name, not a VariableReference
-            right_expr = Literal(value=kenmerk_name, datatype="Tekst", span=self.get_span(ctx.identifier()))
+            right_expr = Literal(value=kenmerk_name, datatype="Tekst", span=self.get_span(ctx.naamwoord()))
             if left_expr is None: return None
             # For now, just use IS operator. Negation should be handled at a different level
             op = Operator.IS
             return BinaryExpression(left=left_expr, operator=op, right=right_expr, span=self.get_span(ctx))
         elif isinstance(ctx, AntlrParser.HeeftKenmerkExprContext):
             left_expr = self.visitAdditiveExpression(ctx.left)
-            kenmerk_name = ctx.identifier().getText()
+            # visitNaamwoord returns a string, so use it directly
+            kenmerk_name = self.visitNaamwoord(ctx.naamwoord()) if hasattr(self, 'visitNaamwoord') else ctx.naamwoord().getText()
             # Create a Literal with the kenmerk name, not a VariableReference
-            right_expr = Literal(value=kenmerk_name, datatype="Tekst", span=self.get_span(ctx.identifier()))
+            right_expr = Literal(value=kenmerk_name, datatype="Tekst", span=self.get_span(ctx.naamwoord()))
             if left_expr is None: return None
             # For now, just use HEEFT operator. Negation should be handled at a different level
             op = Operator.HEEFT
             return BinaryExpression(left=left_expr, operator=op, right=right_expr, span=self.get_span(ctx))
+        elif isinstance(ctx, AntlrParser.BinaryComparisonExprContext):
+            # This label should NOT exist if the grammar is simply `expr op expr`.
+            # If it DOES exist, it suggests the grammar might be `left=additiveExpr op=comparisonOperator right=additiveExpr`.
+            # Let's assume the standard precedence chain and use _build_binary_expression directly on the context.
+             logger.debug(f"Handling ComparisonExpression potentially via BinaryComparisonExprContext label: {safe_get_text(ctx)}")
+             # Ensure the operator is extracted from the comparisonOperator rule context if present
+             return self._build_binary_expression(ctx, OPERATOR_MAP, self.visitAdditiveExpression, operator_rule_name='comparisonOperator')
+        elif isinstance(ctx, AntlrParser.UnaryConditionExprContext):
+            return self.visitUnaryCondition(ctx.unaryCondition())
+        elif isinstance(ctx, AntlrParser.RegelStatusConditionExprContext):
+            return self.visitRegelStatusCondition(ctx.regelStatusCondition())
         else:
              # Default case: Assume it's a chain like `additive op additive...`
              # Check if it *looks* like a standard binary operation chain
@@ -1047,20 +1123,114 @@ class RegelSpraakModelBuilder(RegelSpraakVisitor):
                     arguments=args,
                     span=self.get_span(ctx)
                 )
-            elif isinstance(ctx, AntlrParser.TotaalVanExprContext):
+            elif isinstance(ctx, AntlrParser.TotaalVanExprContext) or isinstance(ctx, AntlrParser.CapitalizedTotaalVanExprContext):
                 func_name = "totaal_van"
-                # TotaalVan typically has similar structure to som_van
-                # Handle it like other aggregation functions
+                # TotaalVan has structure: HET_TOTAAL_VAN expressie (GEDURENDE_DE_TIJD_DAT condition)?
+                args = []
+                
+                # Process the main expression
+                if hasattr(ctx, 'expressie') and ctx.expressie():
+                    expr_ctx = ctx.expressie()
+                    # Handle case where expressie() returns a list
+                    if isinstance(expr_ctx, list):
+                        expr_ctx = expr_ctx[0] if expr_ctx else None
+                    if expr_ctx:
+                        expr = self.visitExpressie(expr_ctx)
+                        if expr:
+                            args.append(expr)
+                
+                # Process the optional time condition
+                if hasattr(ctx, 'condition') and ctx.condition:
+                    cond_ctx = ctx.condition
+                    # Handle case where condition might be a list
+                    if isinstance(cond_ctx, list):
+                        cond_ctx = cond_ctx[0] if cond_ctx else None
+                    if cond_ctx:
+                        condition_expr = self.visitExpressie(cond_ctx)
+                        if condition_expr:
+                            args.append(condition_expr)
+                
+                return FunctionCall(
+                    function_name=func_name,
+                    arguments=args,
+                    span=self.get_span(ctx)
+                )
             elif isinstance(ctx, AntlrParser.HetAantalDagenInExprContext):
                 func_name = "aantal_dagen_in"
-                # This has specific handling for date periods
+                # Grammar: HET_AANTAL_DAGEN_IN (DE MAAND | HET JAAR) DAT expressie
+                args = []
+                
+                # Determine period type (month or year)
+                period_type = None
+                for i in range(ctx.getChildCount()):
+                    child = ctx.getChild(i)
+                    if hasattr(child, 'getSymbol'):
+                        token = child.getSymbol()
+                        if token.type == AntlrParser.MAAND:
+                            period_type = "maand"
+                            break
+                        elif token.type == AntlrParser.JAAR:
+                            period_type = "jaar"
+                            break
+                
+                # Create a literal for the period type
+                if period_type:
+                    args.append(Literal(value=period_type, datatype="Tekst", span=self.get_span(ctx)))
+                
+                # Get the condition expression after DAT
                 if hasattr(ctx, 'expressie') and ctx.expressie():
-                    arg = self.visitExpressie(ctx.expressie())
-                    return FunctionCall(
-                        function_name=func_name,
-                        arguments=[arg] if arg else [],
-                        span=self.get_span(ctx)
-                    )
+                    condition = self.visitExpressie(ctx.expressie())
+                    if condition:
+                        args.append(condition)
+                
+                return FunctionCall(
+                    function_name=func_name,
+                    arguments=args,
+                    span=self.get_span(ctx)
+                )
+            
+            # Handle date extraction functions
+            elif isinstance(ctx, AntlrParser.JaarUitFuncExprContext):
+                func_name = "jaar_uit"
+                # Grammar: HET JAAR UIT primaryExpression
+                args = []
+                if ctx.primaryExpression():
+                    expr = self.visitPrimaryExpression(ctx.primaryExpression())
+                    if expr:
+                        args.append(expr)
+                return FunctionCall(
+                    function_name=func_name,
+                    arguments=args,
+                    span=self.get_span(ctx)
+                )
+            
+            elif isinstance(ctx, AntlrParser.MaandUitFuncExprContext):
+                func_name = "maand_uit"
+                # Grammar: DE MAAND UIT primaryExpression
+                args = []
+                if ctx.primaryExpression():
+                    expr = self.visitPrimaryExpression(ctx.primaryExpression())
+                    if expr:
+                        args.append(expr)
+                return FunctionCall(
+                    function_name=func_name,
+                    arguments=args,
+                    span=self.get_span(ctx)
+                )
+            
+            elif isinstance(ctx, AntlrParser.DagUitFuncExprContext):
+                func_name = "dag_uit"
+                # Grammar: DE DAG UIT primaryExpression
+                args = []
+                if ctx.primaryExpression():
+                    expr = self.visitPrimaryExpression(ctx.primaryExpression())
+                    if expr:
+                        args.append(expr)
+                return FunctionCall(
+                    function_name=func_name,
+                    arguments=args,
+                    span=self.get_span(ctx)
+                )
             
             # Handle DimensieAggExpr which covers "som van", "gemiddelde van", etc.
             elif isinstance(ctx, AntlrParser.DimensieAggExprContext):
@@ -1241,6 +1411,53 @@ class RegelSpraakModelBuilder(RegelSpraakVisitor):
         logger.warning(f"Concatenation expression without clear function context: {safe_get_text(ctx)}")
         return None
 
+    def visitSubordinateClauseExpression(self, ctx: AntlrParser.SubordinateClauseExpressionContext) -> Optional[Expression]:
+        """Visit Dutch subordinate clause expressions (Subject-Object-Verb order)."""
+        if isinstance(ctx, AntlrParser.SubordinateHasExprContext):
+            # Pattern: subject object verb=HEEFT (e.g., "hij een recht op korting heeft")
+            subject = self.visitOnderwerpReferentie(ctx.subject)
+            # The 'object' field might be reserved in Python, check for object_
+            object_ctx = ctx.object_ if hasattr(ctx, 'object_') else ctx.object
+            object_name = object_ctx.getText()
+            # Transform to normal word order: subject HEEFT object
+            left_expr = subject
+            right_expr = Literal(value=object_name, datatype="Tekst", span=self.get_span(object_ctx))
+            return BinaryExpression(
+                left=left_expr,
+                operator=Operator.HEEFT,
+                right=right_expr,
+                span=self.get_span(ctx)
+            )
+        elif isinstance(ctx, AntlrParser.SubordinateIsWithExprContext):
+            # Pattern: subject prepPhrase verb=IS (e.g., "hij met vakantie is")
+            subject = self.visitOnderwerpReferentie(ctx.subject)
+            prep_phrase = ctx.prepPhrase.getText()
+            # Transform to: subject IS prep_phrase (as kenmerk check)
+            left_expr = subject
+            right_expr = Literal(value=prep_phrase, datatype="Tekst", span=self.get_span(ctx.prepPhrase))
+            return BinaryExpression(
+                left=left_expr,
+                operator=Operator.IS,
+                right=right_expr,
+                span=self.get_span(ctx)
+            )
+        elif isinstance(ctx, AntlrParser.SubordinateIsKenmerkExprContext):
+            # Pattern: subject verb=IS kenmerk (e.g., "hij is minderjarig")
+            # This is already in normal word order but included for completeness
+            subject = self.visitOnderwerpReferentie(ctx.subject)
+            kenmerk_name = ctx.kenmerk.getText()
+            left_expr = subject
+            right_expr = Literal(value=kenmerk_name, datatype="Tekst", span=self.get_span(ctx.kenmerk))
+            return BinaryExpression(
+                left=left_expr,
+                operator=Operator.IS,
+                right=right_expr,
+                span=self.get_span(ctx)
+            )
+        else:
+            logger.error(f"Unknown subordinate clause type: {type(ctx).__name__}")
+            return None
+
     # 7. Definition Structure Visitors
     def visitDefinitie(self, ctx: AntlrParser.DefinitieContext) -> Any:
         """Visit a definition node and delegate to specific definition visitors."""
@@ -1263,10 +1480,10 @@ class RegelSpraakModelBuilder(RegelSpraakVisitor):
 
     def visitObjectTypeDefinition(self, ctx: AntlrParser.ObjectTypeDefinitionContext) -> ObjectType:
         """Visit an object type definition and build an ObjectType object."""
-        naam_ctx = ctx.naamwoord()
-        naam = self._extract_canonical_name(naam_ctx)
+        naam_ctx = ctx.naamwoordNoIs()
+        naam = self.visitNaamwoordNoIs(naam_ctx)
         if not naam: # Add error handling if name extraction fails
-                logger.error(f"Could not extract canonical name for ObjectType in {safe_get_text(ctx)}")
+                logger.error(f"Could not extract name for ObjectType in {safe_get_text(ctx)}")
                 # Decide how to handle: return None, raise error, or default name?
                 # For now, let's maybe allow creation with a placeholder if needed downstream
                 naam = "<error_extracting_object_name>" # Or return None?
@@ -1742,34 +1959,42 @@ class RegelSpraakModelBuilder(RegelSpraakVisitor):
         # Determine the type of result based on the matched alternative
         if isinstance(ctx, AntlrParser.GelijkstellingResultaatContext):
             # Handle GelijkstellingResultaat (wordt berekend als / gesteld op)
+            # According to spec, gelijkstelling always uses attribuutReferentie
             target_ref = None
-            if ctx.naamwoord():
-                # Handle cases where target is a simple naamwoord (e.g., variable?)
-                # This might need refinement depending on semantic context
-                target_name = self.visitNaamwoord(ctx.naamwoord())
-                # Strip leading articles if present - handle both with and without spaces
-                if target_name.startswith("De"):
-                    if len(target_name) > 2 and target_name[2] == ' ':
-                        target_name = target_name[3:]  # "De " with space
-                    elif len(target_name) > 2:
-                        # "De" without space - need to lowercase the next char
-                        target_name = target_name[2].lower() + target_name[3:]
-                elif target_name.startswith("Het"):
-                    if len(target_name) > 3 and target_name[3] == ' ':
-                        target_name = target_name[4:]  # "Het " with space
-                    elif len(target_name) > 3:
-                        # "Het" without space - need to lowercase the next char
-                        target_name = target_name[3].lower() + target_name[4:]
-                elif target_name.startswith("Een "):
-                    target_name = target_name[4:]
-                target_ref = AttributeReference(path=[target_name], span=self.get_span(ctx.naamwoord()))
-            elif ctx.attribuutReferentie():
+            if ctx.attribuutReferentie():
                 target_ref = self.visitAttribuutReferentie(ctx.attribuutReferentie())
 
             expr = self.visitExpressie(ctx.expressie())
             if not target_ref or not expr:
                 logger.error(f"Failed to parse gelijkstelling target or expression in {safe_get_text(ctx)}")
                 return None
+            
+            # Fix for aantal dagen in parsing issue
+            # If we have a BinaryExpression where left is FunctionCall for aantal_dagen_in
+            # and operator is IS, we need to merge them into a single FunctionCall
+            if (isinstance(expr, BinaryExpression) and 
+                expr.operator == Operator.IS and
+                isinstance(expr.left, FunctionCall) and
+                expr.left.function_name == "aantal_dagen_in" and
+                len(expr.left.arguments) == 2):
+                # The second argument should be a pronoun or reference
+                # We need to create a new expression that combines the pronoun with the IS comparison
+                second_arg = expr.left.arguments[1]
+                if isinstance(second_arg, AttributeReference) and second_arg.path == ["self"]:
+                    # Create the correct condition expression: "hij is minderjarig"
+                    condition_expr = BinaryExpression(
+                        left=second_arg,
+                        operator=Operator.IS,
+                        right=expr.right,
+                        span=expr.span
+                    )
+                    # Create corrected FunctionCall
+                    expr = FunctionCall(
+                        function_name=expr.left.function_name,
+                        arguments=[expr.left.arguments[0], condition_expr],
+                        span=expr.left.span
+                    )
+                    logger.debug(f"Fixed aantal_dagen_in parsing: merged IS expression into function call")
             
             # Check if this is an initialization (WORDT_GEINITIALISEERD_OP) or regular assignment
             # Look for the WORDT_GEINITIALISEERD_OP token in the context
@@ -2071,7 +2296,7 @@ class RegelSpraakModelBuilder(RegelSpraakVisitor):
             for condition in conditions[1:]:
                 result = BinaryExpression(
                     left=result,
-                    operator=Operator.OR,
+                    operator=Operator.OF,
                     right=condition,
                     span=self.get_span(ctx)
                 )
@@ -2087,7 +2312,7 @@ class RegelSpraakModelBuilder(RegelSpraakVisitor):
             for condition in conditions[1:]:
                 result = BinaryExpression(
                     left=result,
-                    operator=Operator.OR,
+                    operator=Operator.OF,
                     right=condition,
                     span=self.get_span(ctx)
                 )
@@ -2198,7 +2423,7 @@ class RegelSpraakModelBuilder(RegelSpraakVisitor):
             for condition in conditions[1:]:
                 result = BinaryExpression(
                     left=result,
-                    operator=Operator.OR,
+                    operator=Operator.OF,
                     right=condition,
                     span=self.get_span(ctx)
                 )

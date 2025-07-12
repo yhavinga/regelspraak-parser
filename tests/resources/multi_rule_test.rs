@@ -25,5 +25,5 @@ Regel Bepaal recht op toeslag
 // Test Rule 3: Tests expressions with newlines and rounding functions
 Regel Forfaitaire verrekening
     geldig vanaf 01-01-2023 t/m 31-12-2023
-        Het forfait moet gesteld worden op 
-            (het basisbedrag plus het toeslagbedrag) naar beneden afgerond op 0 decimalen. 
+        Het forfait van een belastingplichtige moet gesteld worden op 
+            (het basisbedrag van de belastingplichtige plus het toeslagbedrag van de belastingplichtige) naar beneden afgerond op 0 decimalen. 

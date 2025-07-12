@@ -5,7 +5,8 @@ lexer grammar RegelSpraakLexer;
 // --- Keywords (Order matters: Longest matches first, then categories, then IDENTIFIER) ---
 
 // --- Longest Multi-Word Keywords First ---
-HET_AANTAL_DAGEN_IN: 'het aantal dagen in';
+// Removed HET_AANTAL_DAGEN_IN to allow these words in attribute names
+// HET_AANTAL_DAGEN_IN: 'het aantal dagen in';
 HET_KWARTAAL: 'het kwartaal';
 HET_DEEL_PER_MAAND: 'het deel per maand';
 HET_DEEL_PER_JAAR: 'het deel per jaar';
@@ -58,6 +59,7 @@ NIEUWE: 'nieuwe';
 ER_AAN: [Ee] 'r aan';
 
 // --- Comparison Phrase Tokens ---
+GELIJK_IS_AAN: 'gelijk is aan';
 IS_GELIJK_AAN: 'is gelijk aan';
 IS_ONGELIJK_AAN: 'is ongelijk aan';
 IS_KLEINER_DAN: 'is kleiner dan';
@@ -233,13 +235,14 @@ VIER_TELWOORD: 'vier';
 ALTIJD: 'altijd';
 BIJ: 'bij';
 DAG: 'dag';
+DAGEN: 'dagen';
 DAT: 'dat';
-DE: 'de';
+DE: [Dd] 'e';
 DD_PUNT: 'dd.';
 DIE: 'die';
 EEN: [Ee] 'en';
 EN: 'en';
-HET: 'het';
+HET: [Hh] 'et';
 MEERDERE: 'meerdere';
 HIJ: 'hij';
 IN: 'in';
