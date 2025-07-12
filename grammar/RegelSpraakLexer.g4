@@ -7,9 +7,10 @@ lexer grammar RegelSpraakLexer;
 // --- Longest Multi-Word Keywords First ---
 // Removed HET_AANTAL_DAGEN_IN to allow these words in attribute names
 // HET_AANTAL_DAGEN_IN: 'het aantal dagen in';
-HET_KWARTAAL: 'het kwartaal';
-HET_DEEL_PER_MAAND: 'het deel per maand';
-HET_DEEL_PER_JAAR: 'het deel per jaar';
+// Commented out to avoid conflicts with attribute names like "het kwartaal bedrag"
+// HET_KWARTAAL: 'het kwartaal';
+// HET_DEEL_PER_MAAND: 'het deel per maand';
+// HET_DEEL_PER_JAAR: 'het deel per jaar';
 VOOR_HET_ATTRIBUUT_ZONDER_VOORZETSEL: '(voor het attribuut zonder voorzetsel):';
 NA_HET_ATTRIBUUT_MET_VOORZETSEL: '(na het attribuut met voorzetsel';
 DATUM_TIJD_MILLIS: 'Datum en tijd in millisecondes';

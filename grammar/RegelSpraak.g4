@@ -73,6 +73,8 @@ identifierOrKeyword
     | ALLE       // "alle" - can appear in rule names
     | INCONSISTENT // "inconsistent" - can appear in consistency rule names
     | IS         // "is" - can be part of kenmerk names like "is met vakantie"
+    | KWARTAAL   // "kwartaal" - can be part of attribute names like "kwartaal bedrag"
+    | METER      // "meter" - can be part of object type names like "een meter"
     ;
 
 // Rule for contexts where IS should not be treated as an identifier
@@ -89,6 +91,8 @@ identifierOrKeywordNoIs
     | HEEFT      // "heeft" - can appear in feittype names
     | ALLE       // "alle" - can appear in regel names
     | INCONSISTENT // "inconsistent" - can appear in consistency rule names
+    | KWARTAAL   // "kwartaal" - can be part of attribute names like "kwartaal bedrag"
+    | METER      // "meter" - can be part of object type names like "een meter"
     ;
 
 naamPhrase // Used within naamwoord
@@ -352,7 +356,6 @@ resultaatDeel
     | attribuutReferentie ( WORDT_BEREKEND_ALS expressie | WORDT_GESTELD_OP expressie | WORDT_GEINITIALISEERD_OP expressie ) # GelijkstellingResultaat
     | feitCreatiePattern # FeitCreatieResultaat
     | onderwerpReferentie (IS | HEEFT) kenmerkNaam                                                # KenmerkFeitResultaat
-    | (HET_KWARTAAL | HET_DEEL_PER_MAAND | HET_DEEL_PER_JAAR) identifier* ( WORDT_BEREKEND_ALS expressie | WORDT_GESTELD_OP expressie | WORDT_GEINITIALISEERD_OP expressie ) ( (VANAF | VAN) datumLiteral (TOT | TOT_EN_MET) datumLiteral )? DOT? # SpecialPhraseResultaat
     | objectCreatie                                                                    # ObjectCreatieResultaat
     | verdelingResultaat                                                               # Verdeling
     ;
@@ -599,11 +602,11 @@ primaryExpression : // Corresponds roughly to terminals/functions/references in 
     | LAATSTE_VAN primaryExpression (COMMA primaryExpression)* EN primaryExpression         # LaatsteDatumFuncExpr // EBNF 13.4.16.35
 
     // Added for §13.4.16.45-53 Aggregations & Conditional Expressions
-    | HET_TOTAAL_VAN expressie (GEDURENDE_DE_TIJD_DAT condition=expressie)?                               # TotaalVanExpr // EBNF 13.4.16.51 - Simplified condition
+    | HET_TOTAAL_VAN expressie conditieBijExpressie?                               # TotaalVanExpr // EBNF 13.4.16.51
     | HET AANTAL DAGEN IN (DE? MAAND | HET? JAAR) DAT expressie                                       # HetAantalDagenInExpr // Special case
-    | identifier+ HET_TOTAAL_VAN expressie (GEDURENDE_DE_TIJD_DAT condition=expressie)?                  # CapitalizedTotaalVanExpr // Special case for "Het totaal van" with capitalization - Simplified condition
-    | HET_TIJDSEVENREDIG_DEEL_PER (MAAND | JAAR) VAN expressie (GEDURENDE_DE_TIJD_DAT condition=expressie)? # TijdsevenredigDeelExpr // Simplified condition
-    | identifier+ HET_TIJDSEVENREDIG_DEEL_PER (MAAND | JAAR) VAN expressie (GEDURENDE_DE_TIJD_DAT condition=expressie)? # CapitalizedTijdsevenredigDeelExpr // Simplified condition
+    | identifier+ HET_TOTAAL_VAN expressie conditieBijExpressie?                  # CapitalizedTotaalVanExpr // Special case for "Het totaal van" with capitalization
+    | HET_TIJDSEVENREDIG_DEEL_PER (MAAND | JAAR) VAN expressie conditieBijExpressie? # TijdsevenredigDeelExpr
+    | identifier+ HET_TIJDSEVENREDIG_DEEL_PER (MAAND | JAAR) VAN expressie conditieBijExpressie? # CapitalizedTijdsevenredigDeelExpr
     // For aggregations like "de som van de te betalen belasting van alle passagiers"
     // We need a special pattern that doesn't use attribuutReferentie since that consumes "van"
     | (getalAggregatieFunctie | datumAggregatieFunctie) attribuutMetLidwoord dimensieSelectie         # DimensieAggExpr // EBNF 13.4.16.45
