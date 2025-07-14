@@ -824,129 +824,43 @@ class RegelSpraakModelBuilder(RegelSpraakVisitor):
 
         # --- Handle Labeled Alternatives FIRST ---
         # Handle unary operators
-        if isinstance(ctx, AntlrParser.UnaryMinusExprContext):
-            logger.debug("  -> Matched UnaryMinusExprContext")
-            operand = self.visitPrimaryExpression(ctx.primaryExpression())
-            if operand is None: return None
-            return UnaryExpression(operator=Operator.MIN, operand=operand, span=self.get_span(ctx))
-        elif isinstance(ctx, AntlrParser.UnaryNietExprContext):
-            logger.debug("  -> Matched UnaryNietExprContext")
-            operand = self.visitPrimaryExpression(ctx.primaryExpression())
-            if operand is None: return None
-            return UnaryExpression(operator=Operator.NIET, operand=operand, span=self.get_span(ctx))
-        elif isinstance(ctx, AntlrParser.BezieldeRefExprContext):
-             logger.debug("  -> Matched BezieldeRefExprContext")
-             return self.visitBezieldeReferentie(ctx.bezieldeReferentie())
-        elif isinstance(ctx, AntlrParser.AttrRefExprContext):
-             logger.debug("  -> Matched AttrRefExprContext")
-             return self.visitAttribuutReferentie(ctx.attribuutReferentie())
-        elif isinstance(ctx, AntlrParser.ParamRefExprContext):
-            logger.debug("  -> Matched ParamRefExprContext")
-            param_name_ctx = ctx.parameterMetLidwoord().naamwoord() # Drill down
-            param_name = self._extract_canonical_name(param_name_ctx)
-            if not param_name:
-                    logger.error(f"Could not extract canonical name for parameter reference in {safe_get_text(ctx)}")
-                    param_name = "<unknown_param>" # Keep fallback
-            logger.debug(f"    Extracted param_name: '{param_name}'")
-            result = ParameterReference(parameter_name=param_name, span=self.get_span(ctx))
-            logger.debug(f"    Returning: {result}")
-            return result
-        elif isinstance(ctx, AntlrParser.ParenExprContext):
-             logger.debug("  -> Matched ParenExprContext")
-             return self.visitExpressie(ctx.expressie())
-        elif isinstance(ctx, AntlrParser.OnderwerpRefExprContext):
-            logger.debug("  -> Matched OnderwerpRefExprContext")
-            onderwerp_ref = ctx.onderwerpReferentie()
-            
-            # Build path from onderwerp reference parts
-            path = self.visitOnderwerpReferentieToPath(onderwerp_ref)
-            logger.debug(f"    Built path: {path}")
-            
-            # Check if this is a single-element path that might be a parameter
-            if len(path) == 1 and path[0] in self.parameter_names:
-                logger.debug(f"    Recognized as parameter: '{path[0]}'")
-                return ParameterReference(parameter_name=path[0], span=self.get_span(ctx))
-            
-            # Otherwise treat as attribute reference
-            result = AttributeReference(path=path, span=self.get_span(ctx))
-            logger.debug(f"    Returning: {result}")
-            return result
-        elif isinstance(ctx, AntlrParser.NaamwoordExprContext):
-            logger.debug("  -> Matched NaamwoordExprContext")
-            # Use _extract_canonical_name for consistent canonicalization
-            canonical_name = self._extract_canonical_name(ctx.naamwoord())
-            logger.debug(f"    Canonical name: '{canonical_name}'")
-            if canonical_name:
-                # Check if this is a parameter name
-                if canonical_name in self.parameter_names:
-                    logger.debug(f"    Name '{canonical_name}' is a known parameter, creating ParameterReference")
-                    result = ParameterReference(parameter_name=canonical_name, span=self.get_span(ctx))
-                else:
-                    # Not a parameter, assume variable reference
-                    logger.debug(f"    Name '{canonical_name}' is not a known parameter, creating VariableReference")
-                    result = VariableReference(variable_name=canonical_name, span=self.get_span(ctx))
-                logger.debug(f"    Returning: {result}")
-                return result
-            else:
-                logger.error(f"_extract_canonical_name returned None for {safe_get_text(ctx)}")
-                return None
-        elif isinstance(ctx, AntlrParser.RekendatumKeywordExprContext):
-            logger.debug("  -> Matched RekendatumKeywordExprContext")
-            result = VariableReference(variable_name="rekendatum", span=self.get_span(ctx))
-            logger.debug(f"    Returning: {result}")
-            return result
-        elif isinstance(ctx, AntlrParser.IdentifierExprContext):
-            logger.debug("  -> Matched IdentifierExprContext")
-            name = ctx.identifier().getText()
-            logger.debug(f"    Extracted identifier: '{name}'")
-            # Check if this is a parameter name
-            if name in self.parameter_names:
-                logger.debug(f"    Identifier '{name}' is a known parameter, creating ParameterReference")
-                result = ParameterReference(parameter_name=name, span=self.get_span(ctx))
-            else:
-                # Not a parameter, assume variable reference
-                logger.debug(f"    Identifier '{name}' is not a known parameter, creating VariableReference")
-                result = VariableReference(variable_name=name, span=self.get_span(ctx))
-            logger.debug(f"    Returning: {result}")
-            return result
-        elif isinstance(ctx, AntlrParser.NumberLiteralExprContext):
-            logger.debug("  -> Matched NumberLiteralExprContext")
-            num_text = ctx.NUMBER().getText().replace(',', '.')
-            try:
-                value = float(num_text) if '.' in num_text or 'e' in num_text or 'E' in num_text else int(num_text)
-                
-                # Check if there's a unit
-                unit = None
-                if ctx.unitIdentifier():
-                    unit = ctx.unitIdentifier().getText()
-                    logger.debug(f"    Found unit: '{unit}'")
-                
-                return Literal(value=value, datatype="Numeriek", eenheid=unit, span=self.get_span(ctx))
-            except ValueError:
-                 logger.error(f"Invalid numeric literal: {ctx.NUMBER().getText()} in {safe_get_text(ctx)}")
-                 return None
-        elif isinstance(ctx, AntlrParser.StringLiteralExprContext):
-            # Strip both single and double quotes
-            text = ctx.STRING_LITERAL().getText()
-            if text.startswith('"') and text.endswith('"'):
-                text = text[1:-1]
-            elif text.startswith("'") and text.endswith("'"):
-                text = text[1:-1]
-            return Literal(value=text, datatype="Tekst", span=self.get_span(ctx))
-        elif isinstance(ctx, AntlrParser.EnumLiteralExprContext):
-             return Literal(value=ctx.ENUM_LITERAL().getText(), datatype="Enumeratie", span=self.get_span(ctx))
-        elif isinstance(ctx, AntlrParser.DatumLiteralExprContext):
-             # Assuming datumLiteral itself holds the text directly or via DATE_TIME_LITERAL
-             date_text = safe_get_text(ctx.datumLiteral().DATE_TIME_LITERAL()) if ctx.datumLiteral().DATE_TIME_LITERAL() else safe_get_text(ctx.datumLiteral())
-             return Literal(value=date_text, datatype="Datum", span=self.get_span(ctx))
-        elif isinstance(ctx, AntlrParser.BooleanTrueLiteralExprContext):
-            return Literal(value=True, datatype="Boolean", span=self.get_span(ctx))
-        elif isinstance(ctx, AntlrParser.BooleanFalseLiteralExprContext):
-             return Literal(value=False, datatype="Boolean", span=self.get_span(ctx))
-        elif isinstance(ctx, AntlrParser.PronounExprContext):
-             return AttributeReference(path=["self"], span=self.get_span(ctx))
-        # --- Handle Labeled Function Calls --- 
-        elif isinstance(ctx, AntlrParser.AbsValFuncExprContext):
+        unary_result = self._handle_unary_operators(ctx)
+        if unary_result is not None:
+            return unary_result
+        
+        # --- Handle References ---
+        ref_result = self._handle_references(ctx)
+        if ref_result is not None:
+            return ref_result
+        
+        # --- Handle Literals ---
+        literal_result = self._handle_literals(ctx)
+        if literal_result is not None:
+            return literal_result
+        
+        # --- Handle Function Calls ---
+        func_result = self._handle_function_calls(ctx)
+        if func_result is not None:
+            return func_result
+        
+        # --- Handle Parenthesized Expression ---
+        if isinstance(ctx, AntlrParser.ParenExprContext):
+            logger.debug("  -> Matched ParenExprContext")
+            return self.visitExpressie(ctx.expressie())
+        
+        # --- Fallback / Deprecated Checks (Should ideally be covered by labels) ---
+        # These might catch cases if grammar labels are incomplete or visitor is missing cases
+        # Check for parentheses using attribute access (less reliable than label)
+        if hasattr(ctx, 'LPAREN') and ctx.LPAREN() and hasattr(ctx, 'RPAREN') and ctx.RPAREN() and hasattr(ctx, 'expressie') and ctx.expressie():
+            return self.visitExpressie(ctx.expressie())
+        
+        # Add other fallback checks if needed, but they are less robust
+        logger.warning(f"Unknown or unhandled primary expression type (no specific label matched): {type(ctx).__name__} -> {safe_get_text(ctx)}")
+        return None
+
+    def _handle_function_calls(self, ctx) -> Optional[Expression]:
+        """Handle all function call contexts from primaryExpression."""
+        if isinstance(ctx, AntlrParser.AbsValFuncExprContext):
             # de absolute waarde van (expression)
             expr = self.visitPrimaryExpression(ctx.primaryExpression())
             if expr is None: return None
@@ -1350,16 +1264,144 @@ class RegelSpraakModelBuilder(RegelSpraakVisitor):
             # Handle concatenation expressions (e.g., "X, Y en Z")
             return self.visitConcatenatieExpressie(ctx)
         
-        # --- Fallback / Deprecated Checks (Should ideally be covered by labels) ---
-        # These might catch cases if grammar labels are incomplete or visitor is missing cases
-        else:
-            # Check for parentheses using attribute access (less reliable than label)
-            if hasattr(ctx, 'LPAREN') and ctx.LPAREN() and hasattr(ctx, 'RPAREN') and ctx.RPAREN() and hasattr(ctx, 'expressie') and ctx.expressie():
-                return self.visitExpressie(ctx.expressie())
-            # Add other fallback checks if needed, but they are less robust
+        # No function call matched
+        return None
+
+    def _handle_literals(self, ctx) -> Optional[Expression]:
+        """Handle all literal contexts from primaryExpression."""
+        if isinstance(ctx, AntlrParser.NumberLiteralExprContext):
+            logger.debug("  -> Matched NumberLiteralExprContext")
+            num_text = ctx.NUMBER().getText().replace(',', '.')
+            try:
+                value = float(num_text) if '.' in num_text or 'e' in num_text or 'E' in num_text else int(num_text)
+                
+                # Check if there's a unit
+                unit = None
+                if ctx.unitIdentifier():
+                    unit = ctx.unitIdentifier().getText()
+                    logger.debug(f"    Found unit: '{unit}'")
+                
+                return Literal(value=value, datatype="Numeriek", eenheid=unit, span=self.get_span(ctx))
+            except ValueError:
+                 logger.error(f"Invalid numeric literal: {ctx.NUMBER().getText()} in {safe_get_text(ctx)}")
+                 return None
+        elif isinstance(ctx, AntlrParser.StringLiteralExprContext):
+            # Strip both single and double quotes
+            text = ctx.STRING_LITERAL().getText()
+            if text.startswith('"') and text.endswith('"'):
+                text = text[1:-1]
+            elif text.startswith("'") and text.endswith("'"):
+                text = text[1:-1]
+            return Literal(value=text, datatype="Tekst", span=self.get_span(ctx))
+        elif isinstance(ctx, AntlrParser.EnumLiteralExprContext):
+             return Literal(value=ctx.ENUM_LITERAL().getText(), datatype="Enumeratie", span=self.get_span(ctx))
+        elif isinstance(ctx, AntlrParser.DatumLiteralExprContext):
+             # Assuming datumLiteral itself holds the text directly or via DATE_TIME_LITERAL
+             date_text = safe_get_text(ctx.datumLiteral().DATE_TIME_LITERAL()) if ctx.datumLiteral().DATE_TIME_LITERAL() else safe_get_text(ctx.datumLiteral())
+             return Literal(value=date_text, datatype="Datum", span=self.get_span(ctx))
+        elif isinstance(ctx, AntlrParser.BooleanTrueLiteralExprContext):
+            return Literal(value=True, datatype="Boolean", span=self.get_span(ctx))
+        elif isinstance(ctx, AntlrParser.BooleanFalseLiteralExprContext):
+             return Literal(value=False, datatype="Boolean", span=self.get_span(ctx))
+        elif isinstance(ctx, AntlrParser.PronounExprContext):
+             return AttributeReference(path=["self"], span=self.get_span(ctx))
+        
+        # No literal matched
+        return None
+
+    def _handle_references(self, ctx) -> Optional[Expression]:
+        """Handle all reference contexts from primaryExpression."""
+        if isinstance(ctx, AntlrParser.BezieldeRefExprContext):
+             logger.debug("  -> Matched BezieldeRefExprContext")
+             return self.visitBezieldeReferentie(ctx.bezieldeReferentie())
+        elif isinstance(ctx, AntlrParser.AttrRefExprContext):
+             logger.debug("  -> Matched AttrRefExprContext")
+             return self.visitAttribuutReferentie(ctx.attribuutReferentie())
+        elif isinstance(ctx, AntlrParser.ParamRefExprContext):
+            logger.debug("  -> Matched ParamRefExprContext")
+            param_name_ctx = ctx.parameterMetLidwoord().naamwoord() # Drill down
+            param_name = self._extract_canonical_name(param_name_ctx)
+            if not param_name:
+                    logger.error(f"Could not extract canonical name for parameter reference in {safe_get_text(ctx)}")
+                    param_name = "<unknown_param>" # Keep fallback
+            logger.debug(f"    Extracted param_name: '{param_name}'")
+            result = ParameterReference(parameter_name=param_name, span=self.get_span(ctx))
+            logger.debug(f"    Returning: {result}")
+            return result
+        elif isinstance(ctx, AntlrParser.OnderwerpRefExprContext):
+            logger.debug("  -> Matched OnderwerpRefExprContext")
+            onderwerp_ref = ctx.onderwerpReferentie()
             
-            logger.warning(f"Unknown or unhandled primary expression type (no specific label matched): {type(ctx).__name__} -> {safe_get_text(ctx)}")
-            return None
+            # Build path from onderwerp reference parts
+            path = self.visitOnderwerpReferentieToPath(onderwerp_ref)
+            logger.debug(f"    Built path: {path}")
+            
+            # Check if this is a single-element path that might be a parameter
+            if len(path) == 1 and path[0] in self.parameter_names:
+                logger.debug(f"    Recognized as parameter: '{path[0]}'")
+                return ParameterReference(parameter_name=path[0], span=self.get_span(ctx))
+            
+            # Otherwise treat as attribute reference
+            result = AttributeReference(path=path, span=self.get_span(ctx))
+            logger.debug(f"    Returning: {result}")
+            return result
+        elif isinstance(ctx, AntlrParser.NaamwoordExprContext):
+            logger.debug("  -> Matched NaamwoordExprContext")
+            # Use _extract_canonical_name for consistent canonicalization
+            canonical_name = self._extract_canonical_name(ctx.naamwoord())
+            logger.debug(f"    Canonical name: '{canonical_name}'")
+            if canonical_name:
+                # Check if this is a parameter name
+                if canonical_name in self.parameter_names:
+                    logger.debug(f"    Name '{canonical_name}' is a known parameter, creating ParameterReference")
+                    result = ParameterReference(parameter_name=canonical_name, span=self.get_span(ctx))
+                else:
+                    # Not a parameter, assume variable reference
+                    logger.debug(f"    Name '{canonical_name}' is not a known parameter, creating VariableReference")
+                    result = VariableReference(variable_name=canonical_name, span=self.get_span(ctx))
+                logger.debug(f"    Returning: {result}")
+                return result
+            else:
+                logger.error(f"_extract_canonical_name returned None for {safe_get_text(ctx)}")
+                return None
+        elif isinstance(ctx, AntlrParser.RekendatumKeywordExprContext):
+            logger.debug("  -> Matched RekendatumKeywordExprContext")
+            result = VariableReference(variable_name="rekendatum", span=self.get_span(ctx))
+            logger.debug(f"    Returning: {result}")
+            return result
+        elif isinstance(ctx, AntlrParser.IdentifierExprContext):
+            logger.debug("  -> Matched IdentifierExprContext")
+            name = ctx.identifier().getText()
+            logger.debug(f"    Extracted identifier: '{name}'")
+            # Check if this is a parameter name
+            if name in self.parameter_names:
+                logger.debug(f"    Identifier '{name}' is a known parameter, creating ParameterReference")
+                result = ParameterReference(parameter_name=name, span=self.get_span(ctx))
+            else:
+                # Not a parameter, assume variable reference
+                logger.debug(f"    Identifier '{name}' is not a known parameter, creating VariableReference")
+                result = VariableReference(variable_name=name, span=self.get_span(ctx))
+            logger.debug(f"    Returning: {result}")
+            return result
+        
+        # No reference matched
+        return None
+
+    def _handle_unary_operators(self, ctx) -> Optional[Expression]:
+        """Handle unary operator contexts from primaryExpression."""
+        if isinstance(ctx, AntlrParser.UnaryMinusExprContext):
+            logger.debug("  -> Matched UnaryMinusExprContext")
+            operand = self.visitPrimaryExpression(ctx.primaryExpression())
+            if operand is None: return None
+            return UnaryExpression(operator=Operator.MIN, operand=operand, span=self.get_span(ctx))
+        elif isinstance(ctx, AntlrParser.UnaryNietExprContext):
+            logger.debug("  -> Matched UnaryNietExprContext")
+            operand = self.visitPrimaryExpression(ctx.primaryExpression())
+            if operand is None: return None
+            return UnaryExpression(operator=Operator.NIET, operand=operand, span=self.get_span(ctx))
+        
+        # No unary operator matched
+        return None
 
     def visitConcatenatieExpressie(self, ctx) -> Optional[FunctionCall]:
         """Visit concatenation expression (e.g., "X, Y en Z")."""
