@@ -14,10 +14,11 @@ from .ast import (
     Gelijkstelling, KenmerkToekenning, ObjectCreatie, FeitCreatie, Consistentieregel, Initialisatie, Dagsoortdefinitie, # Added ResultaatDeel types
     Verdeling, VerdelingMethode, VerdelingGelijkeDelen, VerdelingNaarRato, VerdelingOpVolgorde,
     VerdelingTieBreak, VerdelingMaximum, VerdelingAfronding,
-    Beslistabel, BeslistabelRow
+    Beslistabel, BeslistabelRow,
+    DimensionedAttributeReference, DimensionLabel
 )
 # Import Runtime components
-from .runtime import RuntimeContext, RuntimeObject, Value # Import Value directly
+from .runtime import RuntimeContext, RuntimeObject, Value, DimensionCoordinate # Import Value directly
 # Import arithmetic operations
 from .arithmetic import UnitArithmetic
 # Import custom error
@@ -170,6 +171,9 @@ class Evaluator:
         target_ref: Optional[ast.AttributeReference] = None
         if isinstance(rule.resultaat, (Gelijkstelling, KenmerkToekenning, Initialisatie)):
             target_ref = rule.resultaat.target
+            # Handle DimensionedAttributeReference by extracting its base attribute
+            if isinstance(target_ref, DimensionedAttributeReference):
+                target_ref = target_ref.base_attribute
         elif isinstance(rule.resultaat, Consistentieregel):
             # For consistency rules, determine the target based on the criterium type
             if rule.resultaat.criterium_type == "uniek" and rule.resultaat.target:
@@ -506,29 +510,111 @@ class Evaluator:
 
         if isinstance(res, Gelijkstelling):
             value = self.evaluate_expression(res.expressie)
-            # Path structure from builder: ["attribute", "object_type", ...]
-            # For "De resultaat van een Bedrag": ["resultaat", "Bedrag"]
-            # The first element is the attribute name
-            if not res.target.path:
-                raise RegelspraakError("Gelijkstelling target path is empty.", span=res.target.span)
-            attr_name = res.target.path[0]
-            # Pass the Value object directly
-            self.context.set_attribute(instance, attr_name, value, span=res.span)
+            # Handle both AttributeReference and DimensionedAttributeReference
+            target_ref = res.target
+            if isinstance(target_ref, DimensionedAttributeReference):
+                # For dimensioned attributes, we need to set the value at specific coordinates
+                base_ref = target_ref.base_attribute
+                if not base_ref.path:
+                    raise RegelspraakError("DimensionedAttributeReference base path is empty.", span=target_ref.span)
+                attr_name = base_ref.path[0]
+                
+                # Build dimension coordinates from labels
+                coordinates = DimensionCoordinate(labels={})
+                
+                # Map dimension labels to dimension names
+                obj_type_def = self.context.domain_model.objecttypes.get(instance.object_type_naam)
+                if obj_type_def:
+                    attr_def = obj_type_def.attributen.get(attr_name)
+                    if attr_def and hasattr(attr_def, 'dimensions') and attr_def.dimensions:
+                        for label in target_ref.dimension_labels:
+                            label_matched = False
+                            for dim_name in attr_def.dimensions:
+                                if dim_name in self.context.domain_model.dimensions:
+                                    dimension = self.context.domain_model.dimensions[dim_name]
+                                    # Check if this label belongs to this dimension
+                                    for order, dim_label in dimension.labels:
+                                        if dim_label == label.label:
+                                            coordinates.labels[dim_name] = label.label
+                                            label_matched = True
+                                            break
+                                if label_matched:
+                                    break
+                            if not label_matched:
+                                raise RegelspraakError(
+                                    f"Unknown dimension label '{label.label}' for attribute '{attr_name}'",
+                                    span=label.span
+                                )
+                
+                # Set the dimensioned value
+                self.context.set_dimensioned_attribute(instance, attr_name, coordinates, value, span=res.span)
+            else:
+                # Regular attribute reference
+                if not target_ref.path:
+                    raise RegelspraakError("Gelijkstelling target path is empty.", span=target_ref.span)
+                attr_name = target_ref.path[0]
+                # Pass the Value object directly
+                self.context.set_attribute(instance, attr_name, value, span=res.span)
         
         elif isinstance(res, Initialisatie):
-            # First check if the attribute is empty (None or not set)
-            if not res.target.path:
-                raise RegelspraakError("Initialisatie target path is empty.", span=res.target.span)
-            attr_name = res.target.path[0]
-            
-            # Check if attribute already has a value
-            try:
-                current_value = self.context.get_attribute(instance, attr_name)
-                # If we got here, attribute exists and has a value, do nothing (per spec)
-            except RuntimeError:
-                # Attribute doesn't exist or is empty, so initialize it
-                value = self.evaluate_expression(res.expressie)
-                self.context.set_attribute(instance, attr_name, value, span=res.span)
+            # Handle both AttributeReference and DimensionedAttributeReference
+            target_ref = res.target
+            if isinstance(target_ref, DimensionedAttributeReference):
+                # For dimensioned attributes
+                base_ref = target_ref.base_attribute
+                if not base_ref.path:
+                    raise RegelspraakError("DimensionedAttributeReference base path is empty.", span=target_ref.span)
+                attr_name = base_ref.path[0]
+                
+                # Build dimension coordinates from labels
+                coordinates = DimensionCoordinate(labels={})
+                
+                # Map dimension labels to dimension names
+                obj_type_def = self.context.domain_model.objecttypes.get(instance.object_type_naam)
+                if obj_type_def:
+                    attr_def = obj_type_def.attributen.get(attr_name)
+                    if attr_def and hasattr(attr_def, 'dimensions') and attr_def.dimensions:
+                        for label in target_ref.dimension_labels:
+                            label_matched = False
+                            for dim_name in attr_def.dimensions:
+                                if dim_name in self.context.domain_model.dimensions:
+                                    dimension = self.context.domain_model.dimensions[dim_name]
+                                    # Check if this label belongs to this dimension
+                                    for order, dim_label in dimension.labels:
+                                        if dim_label == label.label:
+                                            coordinates.labels[dim_name] = label.label
+                                            label_matched = True
+                                            break
+                                if label_matched:
+                                    break
+                            if not label_matched:
+                                raise RegelspraakError(
+                                    f"Unknown dimension label '{label.label}' for attribute '{attr_name}'",
+                                    span=label.span
+                                )
+                
+                # Check if dimensioned attribute already has a value
+                try:
+                    current_value = self.context.get_dimensioned_attribute(instance, attr_name, coordinates)
+                    # If we got here, attribute exists and has a value, do nothing (per spec)
+                except RuntimeError:
+                    # Attribute doesn't exist or is empty, so initialize it
+                    value = self.evaluate_expression(res.expressie)
+                    self.context.set_dimensioned_attribute(instance, attr_name, coordinates, value, span=res.span)
+            else:
+                # Regular attribute reference
+                if not target_ref.path:
+                    raise RegelspraakError("Initialisatie target path is empty.", span=target_ref.span)
+                attr_name = target_ref.path[0]
+                
+                # Check if attribute already has a value
+                try:
+                    current_value = self.context.get_attribute(instance, attr_name)
+                    # If we got here, attribute exists and has a value, do nothing (per spec)
+                except RuntimeError:
+                    # Attribute doesn't exist or is empty, so initialize it
+                    value = self.evaluate_expression(res.expressie)
+                    self.context.set_attribute(instance, attr_name, value, span=res.span)
 
         elif isinstance(res, KenmerkToekenning):
             kenmerk_value = not res.is_negated
@@ -802,6 +888,72 @@ class Evaluator:
                         instance_id=instance_id
                     )
                     
+                result = value
+
+            elif isinstance(expr, DimensionedAttributeReference):
+                # Handle dimensioned attribute references like "bruto inkomen van huidig jaar"
+                if self.context.current_instance is None:
+                    raise RegelspraakError("Cannot evaluate dimensioned attribute reference: No current instance.", span=expr.span)
+                
+                # First evaluate the base attribute reference to get the object
+                base_ref = expr.base_attribute
+                if not base_ref.path:
+                    raise RegelspraakError("Dimensioned attribute reference path is empty.", span=expr.span)
+                
+                # Extract attribute name and object path
+                if len(base_ref.path) == 1:
+                    # Simple case: attribute on current instance
+                    attr_name = base_ref.path[0]
+                    target_obj = self.context.current_instance
+                else:
+                    # Complex path: navigate to the object
+                    attr_name = base_ref.path[0]
+                    # For now, assume the rest of the path refers to the current instance
+                    # TODO: Implement full path navigation for dimensioned attributes
+                    target_obj = self.context.current_instance
+                
+                # Build dimension coordinates from labels
+                coordinates = DimensionCoordinate(labels={})
+                
+                # For each dimension label, we need to map it to its dimension name
+                # This is a limitation of our current approach - we need semantic context
+                # For now, we'll use a heuristic based on the attribute definition
+                obj_type_def = self.context.domain_model.objecttypes.get(target_obj.object_type_naam)
+                if obj_type_def:
+                    attr_def = obj_type_def.attributen.get(attr_name)
+                    if attr_def and hasattr(attr_def, 'dimensions') and attr_def.dimensions:
+                        # Match labels to dimensions based on the dimension definitions
+                        for label in expr.dimension_labels:
+                            label_matched = False
+                            for dim_name in attr_def.dimensions:
+                                if dim_name in self.context.domain_model.dimensions:
+                                    dimension = self.context.domain_model.dimensions[dim_name]
+                                    # Check if this label belongs to this dimension
+                                    for order, dim_label in dimension.labels:
+                                        if dim_label == label.label:
+                                            coordinates.labels[dim_name] = label.label
+                                            label_matched = True
+                                            break
+                                if label_matched:
+                                    break
+                            if not label_matched:
+                                raise RegelspraakError(
+                                    f"Unknown dimension label '{label.label}' for attribute '{attr_name}'",
+                                    span=label.span
+                                )
+                
+                # Get the dimensioned value
+                value = self.context.get_dimensioned_attribute(target_obj, attr_name, coordinates)
+                
+                # Trace dimensioned attribute read
+                if self.context.trace_sink:
+                    self.context.trace_sink.attribute_read(
+                        target_obj,
+                        f"{attr_name}[{coordinates.labels}]",
+                        value.value if isinstance(value, Value) else value,
+                        expr=expr
+                    )
+                
                 result = value
 
             elif isinstance(expr, AttributeReference):

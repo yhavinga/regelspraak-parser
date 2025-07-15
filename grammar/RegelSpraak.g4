@@ -258,7 +258,7 @@ voorzetselSpecificatie // EBNF 13.3.7.2
     ;
 
 labelWaardeSpecificatie // EBNF 13.3.7.5
-    : NUMBER DOT dimWaarde=identifier // Using NUMBER for the digit(s), identifier for the value
+    : NUMBER DOT dimWaarde=naamwoord // Using NUMBER for the digit(s), naamwoord for multi-word labels
     ;
 
 // §13.3.6 Tijdlijn (Simplified in original G4)

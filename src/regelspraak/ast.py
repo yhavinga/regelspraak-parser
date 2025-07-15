@@ -77,6 +77,11 @@ class DimensionedAttributeReference(Expression):
     """Reference to attribute with dimension coordinates."""
     base_attribute: AttributeReference
     dimension_labels: List[DimensionLabel]  # Must match all dimensions
+    
+    @property
+    def path(self) -> List[str]:
+        """Return the path from the base attribute for backward compatibility."""
+        return self.base_attribute.path
 
 @dataclass
 class VariableReference(Expression):
