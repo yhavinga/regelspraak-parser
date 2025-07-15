@@ -2,6 +2,7 @@
 from dataclasses import dataclass, field
 from typing import List, Dict, Any, Optional, Union, Tuple
 from enum import Enum
+from datetime import datetime
 
 # --- Basic Types & Enums ---
 
@@ -127,7 +128,7 @@ class Attribuut:
     is_lijst: bool = False # Indicates if it's a list (e.g., 'lijst van ...')
     is_object_ref: bool = False # Indicates if this attribute references another object type
     dimensions: List[str] = field(default_factory=list)  # ["jaardimensie", "brutonettodimensie"]
-    # Add other fields as needed: constraints, tijdlijn, etc.
+    timeline: Optional[str] = None  # "dag", "maand", or "jaar" for time-dependent attributes
     # description: Optional[str] = None
 
 @dataclass
@@ -157,6 +158,7 @@ class Parameter:
     span: SourceSpan
     eenheid: Optional[str] = None
     waarde: Optional[Literal] = None # Parsed literal value
+    timeline: Optional[str] = None  # "dag", "maand", or "jaar" for time-dependent parameters
     # description: Optional[str] = None
 
 @dataclass
@@ -169,6 +171,23 @@ class Domein:
     constraints: List[Any] = field(default_factory=list) # e.g., range, pattern
     enumeratie_waarden: Optional[List[str]] = None
     # description: Optional[str] = None
+
+# --- Timeline Support ---
+
+@dataclass
+class Period:
+    """Represents a single period in a timeline with a constant value.
+    The period is from start_date (inclusive) to end_date (exclusive)."""
+    start_date: datetime
+    end_date: datetime  # Exclusive - the period ends just before this date
+    value: Any  # The constant value during this period (will be a Value object at runtime)
+    
+@dataclass  
+class Timeline:
+    """Represents a time-dependent value as a sequence of periods.
+    Each period has a constant value from start to end date."""
+    periods: List[Period]
+    granularity: str  # "dag", "maand", or "jaar" - determines when values can change
 
 # --- Rule Structure ---
 

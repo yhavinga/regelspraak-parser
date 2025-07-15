@@ -1777,7 +1777,18 @@ class RegelSpraakModelBuilder(RegelSpraakVisitor):
                 if dim_ref_ctx.name:
                     dimensions.append(dim_ref_ctx.name.text)
         
-        return Attribuut(naam=naam, datatype=datatype_str, eenheid=eenheid, dimensions=dimensions, span=self.get_span(ctx))
+        # Handle timeline specification
+        timeline = None
+        if ctx.tijdlijn():
+            tijdlijn_ctx = ctx.tijdlijn()
+            if tijdlijn_ctx.VOOR_ELKE_DAG():
+                timeline = "dag"
+            elif tijdlijn_ctx.VOOR_ELKE_MAAND():
+                timeline = "maand"
+            elif tijdlijn_ctx.VOOR_ELK_JAAR():
+                timeline = "jaar"
+        
+        return Attribuut(naam=naam, datatype=datatype_str, eenheid=eenheid, dimensions=dimensions, timeline=timeline, span=self.get_span(ctx))
 
     def visitKenmerkSpecificatie(self, ctx: AntlrParser.KenmerkSpecificatieContext) -> Optional[Kenmerk]:
         """Visit a kenmerk specification and build a Kenmerk object."""
@@ -2128,6 +2139,17 @@ class RegelSpraakModelBuilder(RegelSpraakVisitor):
         if naam:
             self.parameter_names.add(naam)
             logger.debug(f"Added parameter name to tracking: '{naam}'")
+        
+        # Handle timeline specification
+        timeline = None
+        if ctx.tijdlijn():
+            tijdlijn_ctx = ctx.tijdlijn()
+            if tijdlijn_ctx.VOOR_ELKE_DAG():
+                timeline = "dag"
+            elif tijdlijn_ctx.VOOR_ELKE_MAAND():
+                timeline = "maand"
+            elif tijdlijn_ctx.VOOR_ELK_JAAR():
+                timeline = "jaar"
 
         # TODO: Parse literal value if present (e.g., Parameter x : Numeriek is 5)
 
@@ -2135,6 +2157,7 @@ class RegelSpraakModelBuilder(RegelSpraakVisitor):
             naam=naam,
             datatype=datatype_str,
             eenheid=eenheid,
+            timeline=timeline,
             span=self.get_span(ctx)
         )
 

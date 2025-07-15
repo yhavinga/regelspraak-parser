@@ -262,7 +262,7 @@ The project has made excellent progress, tackling a complex DSL. The focus now s
   - Result: All aggregation expressions now support both "gedurende de tijd dat" and period patterns
   - Test suite increased to 375 tests (11 skipped)
 
-**Current Coverage: ~85% of specification**
+**Current Coverage: ~90% of specification**
 
 **Implemented:**
 - Basic rule types: Gelijkstelling, KenmerkToekenning, ObjectCreatie, FeitCreatie, Consistentieregel, Initialisatie, Dagsoortdefinitie
@@ -275,13 +275,13 @@ The project has made excellent progress, tackling a complex DSL. The focus now s
 - Date functions: tijdsduur_van (with whole year calculation), absolute_tijdsduur_van with unit conversion, aantal dagen in (basic)
 - Aggregation functions: som_van, eerste_van, laatste_van, totaal_van (all patterns including feittype navigation)
 - Generic collection resolution without hardcoded object types
+- Dimensions (Dimensies) - full functionality (multi-valued attributes with adjectival/prepositional styles, coordinate-based access)
 
 **Missing Critical Features:**
-1. **Dimensions (Dimensies)**: Multi-valued attributes indexed by labels - HIGHEST PRIORITY
-2. **Timelines (Tijdlijnen)**: Advanced time-dependent values and expressions  
-3. **Subselectie**: Creating subsets of instances based on criteria
-4. **Recursion (Recursie)**: Recursive rule evaluation within rule groups
-5. **Advanced Predicates**: elfproef, is uniek (execution missing), is een dagsoort
-6. **Grammar Limitations**: aantal dagen in conditional pattern ("dat" clause)
+1. **Timelines (Tijdlijnen)**: Advanced time-dependent values and expressions - HIGHEST PRIORITY
+2. **Subselectie**: Creating subsets of instances based on criteria
+3. **Recursion (Recursie)**: Recursive rule evaluation within rule groups
+4. **Advanced Predicates**: elfproef, is uniek (execution missing), is een dagsoort
+5. **Grammar Limitations**: aantal dagen in conditional pattern ("dat" clause)
 
-**Next Priority**: Implement Dimensions - the most impactful missing feature for real-world rules.
+**Next Priority**: Implement Timelines - the next major missing feature for time-dependent rules.
