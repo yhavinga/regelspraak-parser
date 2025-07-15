@@ -4,7 +4,7 @@ from typing import Any, Dict, Optional, List, TYPE_CHECKING, Union
 from dataclasses import dataclass, field
 import logging
 from decimal import Decimal
-from datetime import date
+from datetime import date, datetime
 
 # Import AST nodes
 from . import ast
@@ -64,8 +64,22 @@ class Evaluator:
             "het_totaal_van": self._func_totaal_van,
         }
 
-    def execute_model(self, domain_model: DomainModel):
-        """Executes all rules in the domain model against the context."""
+    def execute_model(self, domain_model: DomainModel, evaluation_date: Optional[datetime] = None):
+        """Executes all rules in the domain model against the context.
+        
+        Args:
+            domain_model: The model containing rules to execute
+            evaluation_date: Optional date for timeline evaluation. If not provided,
+                           uses current date for timeline attributes/parameters.
+        """
+        # Set evaluation date in context
+        if evaluation_date:
+            self.context.evaluation_date = evaluation_date
+        elif self.context.evaluation_date is None:
+            # Default to current date if not set
+            from datetime import date, datetime
+            self.context.evaluation_date = datetime.now()
+        
         # Simple execution: iterate through all rules and apply them to
         # all relevant object instances found in the context.
         # TODO: Need a more sophisticated strategy for rule ordering and scoping.
@@ -2466,7 +2480,7 @@ class Evaluator:
             return Value(value=None, datatype="Numeriek", unit=expr.unit_conversion)
         
         # Import datetime handling
-        from datetime import datetime, timedelta
+        from datetime import date, datetime, timedelta
         import dateutil.parser
         
         # Parse dates - handle both date and datetime
@@ -2751,7 +2765,7 @@ class Evaluator:
                 return Value(value=None, datatype="Numeriek", unit="dagen")
             
             # Import datetime handling
-            from datetime import datetime, date as date_type
+            from datetime import date, datetime, date as date_type
             import dateutil.parser
             import calendar
             
@@ -2781,7 +2795,7 @@ class Evaluator:
         
         # Handle dates specially
         if val1.datatype in ["Datum", "Datum-tijd"]:
-            from datetime import datetime
+            from datetime import date, datetime
             import dateutil.parser
             
             # Parse dates if they're strings

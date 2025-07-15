@@ -9,6 +9,7 @@ from collections import defaultdict
 from . import ast
 from .errors import RuntimeError
 from .units import CompositeUnit, UnitRegistry
+from datetime import datetime
 
 if TYPE_CHECKING:
     # Use forward reference for type hint to avoid circular import
@@ -49,6 +50,48 @@ class Value:
             return CompositeUnit(numerator=[], denominator=[])
 
 
+@dataclass
+class TimelineValue:
+    """Represents a timeline-aware value that changes over time.
+    
+    A timeline value consists of a sequence of periods, each with a constant value.
+    The timeline's granularity (dag/maand/jaar) determines when values can change.
+    """
+    timeline: ast.Timeline  # Contains periods with Value objects
+    
+    def get_value_at(self, date: datetime) -> Optional[Value]:
+        """Get the value that applies at a specific date.
+        
+        Returns None if no period covers the given date.
+        """
+        for period in self.timeline.periods:
+            # Check if date falls within this period (inclusive start, exclusive end)
+            if period.start_date <= date < period.end_date:
+                return period.value
+        return None
+    
+    def get_periods_between(self, start_date: datetime, end_date: datetime) -> List[ast.Period]:
+        """Get all periods that overlap with the given date range."""
+        overlapping = []
+        for period in self.timeline.periods:
+            # Check for overlap
+            if period.start_date < end_date and period.end_date > start_date:
+                overlapping.append(period)
+        return overlapping
+    
+    def add_period(self, period: ast.Period) -> None:
+        """Add a new period to the timeline, maintaining chronological order."""
+        # Insert in the correct position to maintain order
+        inserted = False
+        for i, existing in enumerate(self.timeline.periods):
+            if period.start_date < existing.start_date:
+                self.timeline.periods.insert(i, period)
+                inserted = True
+                break
+        if not inserted:
+            self.timeline.periods.append(period)
+
+
 @dataclass(frozen=True)
 class DimensionCoordinate:
     """Coordinates for accessing multi-dimensional values."""
@@ -72,6 +115,8 @@ class RuntimeObject:
     object_type_naam: str
     # Attributes store their current Value (for non-dimensioned attributes)
     attributen: Dict[str, Value] = field(default_factory=dict)
+    # Timeline attributes store TimelineValue objects
+    timeline_attributen: Dict[str, TimelineValue] = field(default_factory=dict)
     # Dimensioned attributes store lists of DimensionedValue
     dimensioned_attributen: Dict[str, List[DimensionedValue]] = field(default_factory=dict)
     # Kenmerken store their current boolean state (True if the object has the kenmerk)
@@ -99,6 +144,17 @@ class RuntimeObject:
                 attr_storage[i] = DimensionedValue(coordinates, value)
                 return
         attr_storage.append(DimensionedValue(coordinates, value))
+    
+    def get_timeline_attribute(self, attr_name: str, date: datetime) -> Optional[Value]:
+        """Get attribute value at a specific date from its timeline."""
+        timeline_value = self.timeline_attributen.get(attr_name)
+        if timeline_value:
+            return timeline_value.get_value_at(date)
+        return None
+    
+    def set_timeline_attribute(self, attr_name: str, timeline_value: TimelineValue):
+        """Set a timeline value for an attribute."""
+        self.timeline_attributen[attr_name] = timeline_value
 
 @dataclass
 class Relationship:
@@ -118,6 +174,10 @@ class RuntimeContext:
 
     # Stores parameter names mapped to their runtime Value
     parameters: Dict[str, Value] = field(default_factory=dict)
+    # Stores timeline parameters
+    timeline_parameters: Dict[str, TimelineValue] = field(default_factory=dict)
+    # Current evaluation date for timeline lookups
+    evaluation_date: Optional[datetime] = None
     # Stores object instances, keyed by object type name for easier lookup
     instances: Dict[str, List[RuntimeObject]] = field(default_factory=lambda: defaultdict(list))
     # Stores variables within the current rule execution scope  
@@ -136,11 +196,26 @@ class RuntimeContext:
         # Maybe trace parameter loading?
 
     def get_parameter(self, name: str) -> Value:
-        """Retrieves a parameter's Value from the context."""
-        param_value = self.parameters.get(name)
-        if param_value is None:
-             # Check definition? Or just fail? Fail for now.
-             raise RuntimeError(f"Parameter '{name}' not found in runtime context.")
+        """Retrieves a parameter's Value from the context.
+        
+        If the parameter has a timeline and evaluation_date is set,
+        returns the value at that date. Otherwise returns the non-timeline value.
+        """
+        # First check if this is a timeline parameter
+        timeline_value = self.timeline_parameters.get(name)
+        if timeline_value and self.evaluation_date:
+            # Get value at the evaluation date
+            param_value = timeline_value.get_value_at(self.evaluation_date)
+            if param_value is None:
+                raise RuntimeError(f"Timeline parameter '{name}' has no value at date {self.evaluation_date}")
+        else:
+            # Fall back to non-timeline parameter
+            param_value = self.parameters.get(name)
+            if param_value is None:
+                # Check if it exists as timeline but no evaluation date set
+                if name in self.timeline_parameters:
+                    raise RuntimeError(f"Timeline parameter '{name}' requires evaluation_date to be set")
+                raise RuntimeError(f"Parameter '{name}' not found in runtime context.")
         
         # Trace parameter read
         if self.trace_sink:
@@ -174,6 +249,16 @@ class RuntimeContext:
          
          self.parameters[name] = value_obj
          # TODO: Trace assignment?
+    
+    def set_timeline_parameter(self, name: str, timeline_value: TimelineValue):
+        """Sets a timeline parameter value."""
+        param_def = self.domain_model.parameters.get(name)
+        if not param_def:
+            raise RuntimeError(f"Cannot set timeline parameter '{name}': Definition not found in domain model.")
+        if not param_def.timeline:
+            raise RuntimeError(f"Parameter '{name}' is not defined as a timeline parameter")
+        
+        self.timeline_parameters[name] = timeline_value
 
     # --- Variable Handling (Rule Scope) ---
 
@@ -226,10 +311,31 @@ class RuntimeContext:
         self.current_instance = instance
 
     def get_attribute(self, instance: RuntimeObject, attr_name: str) -> Value:
-        """Gets an attribute's Value from a specific object instance."""
-        attr_value = instance.attributen.get(attr_name)
+        """Gets an attribute's Value from a specific object instance.
+        
+        If the attribute has a timeline and evaluation_date is set,
+        returns the value at that date. Otherwise returns the non-timeline value.
+        """
+        # Check if this attribute has a timeline in the definition
+        obj_type_def = self.domain_model.objecttypes.get(instance.object_type_naam)
+        if obj_type_def:
+            attr_def = obj_type_def.attributen.get(attr_name)
+            if attr_def and attr_def.timeline and self.evaluation_date:
+                # This is a timeline attribute - get from timeline storage
+                attr_value = instance.get_timeline_attribute(attr_name, self.evaluation_date)
+                if attr_value is None:
+                    raise RuntimeError(f"Timeline attribute '{attr_name}' has no value at date {self.evaluation_date}")
+            else:
+                # Regular attribute
+                attr_value = instance.attributen.get(attr_name)
+        else:
+            # No definition found, try regular attribute
+            attr_value = instance.attributen.get(attr_name)
+        
         if attr_value is None:
-            # Check definition? Default value? Fail for now.
+            # Check if it's a timeline attribute but no evaluation date
+            if attr_name in instance.timeline_attributen:
+                raise RuntimeError(f"Timeline attribute '{attr_name}' requires evaluation_date to be set")
             raise RuntimeError(f"Attribute '{attr_name}' not found on instance of '{instance.object_type_naam}'.")
         
         # Trace attribute read
@@ -287,6 +393,28 @@ class RuntimeContext:
         # Use the provided span for tracing if available
         if self.trace_sink:
             self.trace_sink.assignment(instance, attr_name, old_raw_value, value_obj.value, span)
+    
+    def set_timeline_attribute(self, instance: RuntimeObject, attr_name: str, 
+                              timeline_value: TimelineValue, span: Optional[ast.SourceSpan] = None):
+        """Sets a timeline attribute value on an instance."""
+        # Find the ObjectType definition to validate
+        obj_type_def = self.domain_model.objecttypes.get(instance.object_type_naam)
+        if not obj_type_def:
+            raise RuntimeError(f"ObjectType '{instance.object_type_naam}' definition not found.")
+        
+        attr_def = obj_type_def.attributen.get(attr_name)
+        if not attr_def:
+            raise RuntimeError(f"Attribute '{attr_name}' not defined in ObjectType '{instance.object_type_naam}'.")
+        
+        if not attr_def.timeline:
+            raise RuntimeError(f"Attribute '{attr_name}' is not defined as a timeline attribute")
+        
+        # Set the timeline value
+        instance.set_timeline_attribute(attr_name, timeline_value)
+        
+        # Trace if available
+        if self.trace_sink and hasattr(self.trace_sink, 'timeline_set'):
+            self.trace_sink.timeline_set(instance, attr_name, timeline_value, span)
 
     def get_dimensioned_attribute(self, instance: RuntimeObject, attr_name: str, 
                                  coordinates: DimensionCoordinate) -> Value:
@@ -424,6 +552,39 @@ class RuntimeContext:
                     self.add_parameter(param_name, param_value)
                 # Silently skip unknown parameters
         
+        # Load Timeline Parameters
+        if "timeline_parameters" in data and isinstance(data["timeline_parameters"], dict):
+            for param_name, timeline_data in data["timeline_parameters"].items():
+                param_def = self.domain_model.parameters.get(param_name)
+                if param_def and param_def.timeline:
+                    # Create timeline from the data
+                    granularity = timeline_data.get("granularity", param_def.timeline)
+                    periods_data = timeline_data.get("periods", [])
+                    
+                    # Build periods list
+                    periods = []
+                    for period_data in periods_data:
+                        # Parse dates
+                        from dateutil import parser as date_parser
+                        start_date = date_parser.parse(period_data["from"])
+                        end_date = date_parser.parse(period_data["to"])
+                        
+                        # Create Value object for this period
+                        raw_value = period_data["value"]
+                        unit = period_data.get("unit", param_def.eenheid)
+                        value = Value(value=raw_value, datatype=param_def.datatype, unit=unit)
+                        
+                        # Create Period
+                        period = ast.Period(start_date=start_date, end_date=end_date, value=value)
+                        periods.append(period)
+                    
+                    # Create Timeline and TimelineValue
+                    timeline = ast.Timeline(periods=periods, granularity=granularity)
+                    timeline_value = TimelineValue(timeline=timeline)
+                    
+                    # Set the timeline parameter
+                    self.set_timeline_parameter(param_name, timeline_value)
+        
         # Load Instances
         if "instances" in data and isinstance(data["instances"], list):
             for instance_data in data["instances"]:
@@ -449,6 +610,39 @@ class RuntimeContext:
                         if attr_def:
                             self.set_attribute(new_instance, attr_name, raw_value)
                         # Silently skip unknown attributes
+                
+                # Set timeline attributes
+                if "timeline_attributen" in instance_data and isinstance(instance_data["timeline_attributen"], dict):
+                    for attr_name, timeline_data in instance_data["timeline_attributen"].items():
+                        attr_def = obj_type_def.attributen.get(attr_name)
+                        if attr_def and attr_def.timeline:
+                            # Create timeline from the data
+                            granularity = timeline_data.get("granularity", attr_def.timeline)
+                            periods_data = timeline_data.get("periods", [])
+                            
+                            # Build periods list
+                            periods = []
+                            for period_data in periods_data:
+                                # Parse dates
+                                from dateutil import parser as date_parser
+                                start_date = date_parser.parse(period_data["from"])
+                                end_date = date_parser.parse(period_data["to"])
+                                
+                                # Create Value object for this period
+                                raw_value = period_data["value"]
+                                unit = period_data.get("unit", attr_def.eenheid)
+                                value = Value(value=raw_value, datatype=attr_def.datatype, unit=unit)
+                                
+                                # Create Period
+                                period = ast.Period(start_date=start_date, end_date=end_date, value=value)
+                                periods.append(period)
+                            
+                            # Create Timeline and TimelineValue
+                            timeline = ast.Timeline(periods=periods, granularity=granularity)
+                            timeline_value = TimelineValue(timeline=timeline)
+                            
+                            # Set the timeline attribute
+                            self.set_timeline_attribute(new_instance, attr_name, timeline_value)
         
         # Load Relationships
         if "relationships" in data and isinstance(data["relationships"], list):
