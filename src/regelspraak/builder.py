@@ -18,7 +18,8 @@ from .ast import (
     Expression, Literal, AttributeReference, VariableReference,
     BinaryExpression, UnaryExpression, FunctionCall, Operator,
     ParameterReference, SourceSpan, Beslistabel, BeslistabelRow,
-    BeslistabelCondition, BeslistabelResult
+    BeslistabelCondition, BeslistabelResult, Dimension, DimensionLabel,
+    DimensionedAttributeReference
 )
 from .beslistabel_parser import BeslistabelParser
 
@@ -404,6 +405,8 @@ class RegelSpraakModelBuilder(RegelSpraakVisitor):
                     self.parameter_names.add(definition.naam)
                 elif isinstance(definition, FeitType):
                     domain_model.feittypen[definition.naam] = definition
+                elif isinstance(definition, Dimension):
+                    domain_model.dimensions[definition.naam] = definition
                 elif definition is not None:
                      logger.warning(f"Unhandled definition type: {type(definition)} from {safe_get_text(child)}")
             elif isinstance(child, AntlrParser.RegelContext):
@@ -553,30 +556,47 @@ class RegelSpraakModelBuilder(RegelSpraakVisitor):
         if ctx.HIJ():
             return "self" # Represent pronoun as 'self' or similar context key
         elif ctx.identifierOrKeyword():
-            # Combine identifierOrKeyword tokens, ignore DE/HET/EEN/ZIJN for the path key
-            return " ".join([id_token.getText() for id_token in ctx.identifierOrKeyword()])
+            # Combine identifierOrKeyword tokens
+            text = " ".join([id_token.getText() for id_token in ctx.identifierOrKeyword()])
+            
+            # If contains "van", only return first part
+            # This handles cases where grammar groups "de burgemeester van de hoofdstad" as one basisOnderwerp
+            if " van " in text:
+                return text.split(" van ")[0].strip()
+            
+            return text
         return "<unknown_basis_onderwerp>"
 
     # 5. Reference Construction Methods
-    def visitAttribuutReferentie(self, ctx: AntlrParser.AttribuutReferentieContext) -> Optional[AttributeReference]:
-        """Visit an attribute reference and build an AttributeReference object."""
-        # Get the attribute part which might include extra elements
+    def visitAttribuutReferentie(self, ctx: AntlrParser.AttribuutReferentieContext) -> Optional[Expression]:
+        """Visit an attribute reference and build an AttributeReference or DimensionedAttributeReference object."""
+        # Get the attribute part
         attribute_part = self.visitAttribuutMetLidwoord(ctx.attribuutMetLidwoord())
         
-        # Check if the attribute part contains "van" - this means the grammar consumed too much
-        extra_path_elements = []
-        attribute_name = attribute_part
-        if " van " in attribute_part:
-            # Split on " van " and process
-            parts = attribute_part.split(" van ")
-            attribute_name = parts[0].strip()
-            # The remaining parts are additional path elements that should come before the onderwerpReferentie
-            for i in range(1, len(parts)):
-                element = parts[i].strip()
-                # Remove trailing " van" if it exists (for middle elements)
-                if element.endswith(" van"):
-                    element = element[:-4].strip()
-                extra_path_elements.append(element)
+        # Also get the raw naamwoord text to check for dimension patterns and nested paths
+        raw_attribute_text = None
+        if ctx.attribuutMetLidwoord() and ctx.attribuutMetLidwoord().naamwoord():
+            raw_attribute_text = self.visitNaamwoord(ctx.attribuutMetLidwoord().naamwoord())
+        
+        # Check if the raw attribute contains nested path info that was split off
+        prepositional_dimension = None
+        additional_path_elements = []
+        if raw_attribute_text and " van " in raw_attribute_text and raw_attribute_text != attribute_part:
+            # Extract the parts that were removed
+            parts = raw_attribute_text.split(" van ")
+            if len(parts) > 1:
+                # Check if this is a dimension pattern or a nested path
+                dimension_keywords = ["jaar", "maand", "dag", "kwartaal", "periode", "vorig", "huidig", "volgend"]
+                remaining_parts = parts[1:]
+                
+                for part in remaining_parts:
+                    part = part.strip()
+                    if any(keyword in part.lower() for keyword in dimension_keywords):
+                        # This is a dimension
+                        prepositional_dimension = part
+                    else:
+                        # This is part of the path (e.g., "burgemeester" in "naam van burgemeester")
+                        additional_path_elements.append(part)
         
         # Recursively build the path from the nested onderwerpReferentie
         base_path = self.visitOnderwerpReferentieToPath(ctx.onderwerpReferentie())
@@ -584,10 +604,117 @@ class RegelSpraakModelBuilder(RegelSpraakVisitor):
              logger.error(f"Could not parse base path for attribute reference: {safe_get_text(ctx)}")
              return None
         
-        # Build the full path: [attribute_name] + extra_elements + base_path
-        full_path = [attribute_name] + extra_path_elements + base_path
-        logger.debug(f"visitAttribuutReferentie: attribute_name='{attribute_name}', extra_elements={extra_path_elements}, base_path={base_path}, full_path={full_path}")
-        return AttributeReference(path=full_path, span=self.get_span(ctx))
+        logger.debug(f"visitAttribuutReferentie: attribute_part='{attribute_part}', raw_base_path={base_path}, prepositional_dimension='{prepositional_dimension}'")
+        
+        # Now we need to analyze the attribute part and base path to extract dimension labels
+        # For dimensioned attributes, the pattern is:
+        # "bruto inkomen" where "bruto" is adjectival dimension label
+        # And base_path might start with dimension label like ["huidig jaar", "Natuurlijk persoon"]
+        
+        dimension_labels = []
+        actual_attribute_name = attribute_part
+        
+        # First, check if we found a prepositional dimension in the attribute itself
+        if prepositional_dimension:
+            dimension_labels.append(DimensionLabel(
+                dimension_name="",  # Will be resolved in engine
+                label=prepositional_dimension,
+                span=self.get_span(ctx)
+            ))
+        
+        # Check if attribute_part contains multiple words (possible adjectival dimension)
+        # Only treat as dimensioned if we have dimension keywords
+        attr_words = attribute_part.split()
+        if len(attr_words) > 1:
+            # Check if first word is actually a known dimension label
+            # Common dimension labels based on specification examples
+            known_dimension_labels = ["bruto", "netto", "vorig", "huidig", "volgend"]
+            potential_label = attr_words[0].lower()
+            
+            # Only create dimension label if it's a known dimension keyword
+            if potential_label in known_dimension_labels:
+                dimension_labels.append(DimensionLabel(
+                    dimension_name="",  # Will be resolved in engine
+                    label=attr_words[0],  # Use original case
+                    span=self.get_span(ctx)
+                ))
+                actual_attribute_name = " ".join(attr_words[1:])
+            # Otherwise, keep the full attribute name intact
+            # Multi-word attributes like "totaal te betalen belasting" are NOT dimensioned
+        
+        # Special handling for complex dimension patterns
+        # The onderwerpReferentie might contain "huidig jaar van een Natuurlijk persoon"
+        # which gets parsed as a single naamwoord due to grammar rules
+        processed_path = []
+        dimension_found = False
+        
+        for i, path_elem in enumerate(base_path):
+            # Check if this element contains dimension patterns
+            if " van " in path_elem and not dimension_found:
+                # Split on " van " to separate potential dimension from object reference
+                parts = path_elem.split(" van ")
+                
+                # Check each part for dimension keywords
+                dimension_keywords = ["jaar", "maand", "dag", "kwartaal", "periode", "vorig", "huidig", "volgend"]
+                dimension_part = None
+                remaining_parts = []
+                
+                for j, part in enumerate(parts):
+                    part = part.strip()
+                    if any(keyword in part.lower() for keyword in dimension_keywords) and not dimension_found:
+                        # This part is likely a dimension label
+                        dimension_labels.append(DimensionLabel(
+                            dimension_name="",  # Will be resolved in engine
+                            label=part,
+                            span=self.get_span(ctx)
+                        ))
+                        dimension_found = True
+                    else:
+                        # This part is likely an object reference
+                        # Remove common articles
+                        if part.startswith(("een ", "de ", "het ")):
+                            part = part[4:].strip() if part.startswith("een ") else part[3:].strip()
+                        if part:  # Only add non-empty parts
+                            remaining_parts.append(part)
+                
+                # Add remaining parts to processed path
+                processed_path.extend(remaining_parts)
+            else:
+                # No dimension pattern detected, keep as is
+                processed_path.append(path_elem)
+        
+        # If we didn't find dimensions but base_path starts with dimension keywords, check again
+        if not dimension_found and len(base_path) >= 1:
+            first_elem = base_path[0]
+            dimension_keywords = ["jaar", "maand", "dag", "kwartaal", "periode", "vorig", "huidig", "volgend"]
+            if any(keyword in first_elem.lower() for keyword in dimension_keywords):
+                dimension_labels.append(DimensionLabel(
+                    dimension_name="",  # Will be resolved in engine
+                    label=first_elem,
+                    span=self.get_span(ctx)
+                ))
+                processed_path = base_path[1:] if len(base_path) > 1 else []
+        
+        # Use processed path if we found dimensions, otherwise use original
+        final_base_path = processed_path if dimension_found or not base_path else base_path
+        
+        # Build the full path: [attribute_name] + additional_path_elements + base_path
+        full_path = [actual_attribute_name] + additional_path_elements + final_base_path
+        
+        # Create the base attribute reference
+        base_attr_ref = AttributeReference(path=full_path, span=self.get_span(ctx))
+        
+        # If we have dimension labels, create a DimensionedAttributeReference
+        if dimension_labels:
+            logger.debug(f"visitAttribuutReferentie: Creating DimensionedAttributeReference with labels={[l.label for l in dimension_labels]}")
+            return DimensionedAttributeReference(
+                base_attribute=base_attr_ref,
+                dimension_labels=dimension_labels,
+                span=self.get_span(ctx)
+            )
+        else:
+            logger.debug(f"visitAttribuutReferentie: attribute_name='{actual_attribute_name}', base_path={base_path}, full_path={full_path}")
+            return base_attr_ref
     
     def visitAttribuutMetLidwoord(self, ctx: AntlrParser.AttribuutMetLidwoordContext) -> str:
         """Extract the attribute name from attribuutMetLidwoord context."""
@@ -595,8 +722,14 @@ class RegelSpraakModelBuilder(RegelSpraakVisitor):
         # Now that attribuutMetLidwoord contains a naamwoord, delegate to it
         if ctx.naamwoord():
             # Get the full text via visitNaamwoord which already strips articles
-            # We'll handle the "van" splitting in visitAttribuutReferentie
-            return self.visitNaamwoord(ctx.naamwoord())
+            result = self.visitNaamwoord(ctx.naamwoord())
+            # If the attribute name contains "van", extract just the first part
+            # This handles both dimension patterns and nested path patterns
+            if " van " in result:
+                # For patterns like "naam van burgemeester", we want just "naam"
+                parts = result.split(" van ", 1)  # Split only on first "van"
+                return parts[0].strip()
+            return result
         # Fallback to full text if no naamwoord (shouldn't happen with new grammar)
         return get_text_with_spaces(ctx)
 
@@ -854,6 +987,20 @@ class RegelSpraakModelBuilder(RegelSpraakVisitor):
         if hasattr(ctx, 'LPAREN') and ctx.LPAREN() and hasattr(ctx, 'RPAREN') and ctx.RPAREN() and hasattr(ctx, 'expressie') and ctx.expressie():
             return self.visitExpressie(ctx.expressie())
         
+        # Special case: DateCalcExpr that's not a date calculation
+        if isinstance(ctx, AntlrParser.DateCalcExprContext):
+            # The grammar matched this as a date calc, but it's not
+            # Handle as regular binary expression
+            left_expr = self.visit(ctx.primaryExpression(0))
+            right_expr = self.visit(ctx.primaryExpression(1))
+            operator = Operator.PLUS if ctx.PLUS() else Operator.MIN
+            return BinaryExpression(
+                left=left_expr,
+                operator=operator,
+                right=right_expr,
+                span=self.get_span(ctx)
+            )
+        
         # Add other fallback checks if needed, but they are less robust
         logger.warning(f"Unknown or unhandled primary expression type (no specific label matched): {type(ctx).__name__} -> {safe_get_text(ctx)}")
         return None
@@ -1001,7 +1148,29 @@ class RegelSpraakModelBuilder(RegelSpraakVisitor):
             func_name = None
             
             # Handle specific date function contexts
-            if isinstance(ctx, AntlrParser.EersteDatumFuncExprContext):
+            if isinstance(ctx, AntlrParser.DateCalcExprContext):
+                # This is a date calculation pattern like "date + 5 days"
+                # But sometimes the grammar incorrectly matches complex expressions
+                # If this doesn't look like a date calculation, return None to handle elsewhere
+                identifier_text = ctx.identifier().getText() if ctx.identifier() else ""
+                time_units = ["dagen", "maanden", "jaren", "weken", "uren", "minuten", "seconden"]
+                
+                if not any(unit in identifier_text.lower() for unit in time_units):
+                    # This is not a date calculation, don't handle it here
+                    return None
+                
+                # This is a date calculation
+                left_expr = self.visit(ctx.primaryExpression(0))
+                right_expr = self.visit(ctx.primaryExpression(1))
+                operator = Operator.PLUS if ctx.PLUS() else Operator.MIN
+                
+                return FunctionCall(
+                    function_name="datum_calc",
+                    arguments=[left_expr, right_expr],
+                    unit_conversion=identifier_text,
+                    span=self.get_span(ctx)
+                )
+            elif isinstance(ctx, AntlrParser.EersteDatumFuncExprContext):
                 func_name = "eerste_van"
                 # Parse arguments - grammar: EERSTE_VAN primaryExpression (COMMA primaryExpression)* EN primaryExpression
                 args = []
@@ -1263,6 +1432,36 @@ class RegelSpraakModelBuilder(RegelSpraakVisitor):
         elif isinstance(ctx, AntlrParser.ConcatenatieExprContext) or isinstance(ctx, AntlrParser.SimpleConcatenatieExprContext):
             # Handle concatenation expressions (e.g., "X, Y en Z")
             return self.visitConcatenatieExpressie(ctx)
+        elif isinstance(ctx, AntlrParser.DateCalcExprContext):
+            # This is actually a date calculation pattern like "date + 5 days"
+            # But sometimes the grammar incorrectly matches complex expressions
+            # If this doesn't look like a date calculation, handle as binary expression
+            left_expr = self.visit(ctx.primaryExpression(0))
+            right_expr = self.visit(ctx.primaryExpression(1))
+            
+            # Check if the identifier looks like a time unit (dagen, maanden, jaren)
+            identifier_text = ctx.identifier().getText() if ctx.identifier() else ""
+            time_units = ["dagen", "maanden", "jaren", "weken", "uren", "minuten", "seconden"]
+            
+            if any(unit in identifier_text.lower() for unit in time_units):
+                # This is a date calculation
+                operator = Operator.PLUS if ctx.PLUS() else Operator.MIN
+                # Create a function call for date arithmetic
+                return FunctionCall(
+                    function_name="datum_calc",
+                    arguments=[left_expr, right_expr],
+                    unit_conversion=identifier_text,
+                    span=self.get_span(ctx)
+                )
+            else:
+                # This is not a date calculation, handle as regular binary expression
+                operator = Operator.PLUS if ctx.PLUS() else Operator.MIN
+                return BinaryExpression(
+                    left=left_expr,
+                    operator=operator,
+                    right=right_expr,
+                    span=self.get_span(ctx)
+                )
         
         # No function call matched
         return None
@@ -1511,11 +1710,13 @@ class RegelSpraakModelBuilder(RegelSpraakVisitor):
             return self.visitParameterDefinition(ctx.parameterDefinition())
         elif ctx.feitTypeDefinition():
             return self.visitFeitTypeDefinition(ctx.feitTypeDefinition())
+        elif ctx.dimensieDefinition():
+            return self.visitDimensieDefinition(ctx.dimensieDefinition())
         else:
             # Log if the definition context contains something unexpected
             # Use safe_get_text helper function
             child_text = safe_get_text(ctx.getChild(0)) if ctx.getChildCount() > 0 else "empty"
-            if ctx.getChildCount() > 0 and not isinstance(ctx.getChild(0), (AntlrParser.ObjectTypeDefinitionContext, AntlrParser.DomeinDefinitionContext, AntlrParser.ParameterDefinitionContext, AntlrParser.FeitTypeDefinitionContext, TerminalNode)):
+            if ctx.getChildCount() > 0 and not isinstance(ctx.getChild(0), (AntlrParser.ObjectTypeDefinitionContext, AntlrParser.DomeinDefinitionContext, AntlrParser.ParameterDefinitionContext, AntlrParser.FeitTypeDefinitionContext, AntlrParser.DimensieDefinitionContext, TerminalNode)):
                  logger.warning(f"Unknown definition type encountered: {child_text}")
             # It might be an empty definition context or whitespace (TerminalNode), which is fine.
             return None
@@ -1569,8 +1770,14 @@ class RegelSpraakModelBuilder(RegelSpraakVisitor):
              logger.error(f"Could not parse attribute: name='{naam}', datatype='{datatype_str}' in {safe_get_text(ctx)}")
              return None
 
-        # TODO: Handle GEDIMENSIONEERD_MET if needed
-        return Attribuut(naam=naam, datatype=datatype_str, eenheid=eenheid, span=self.get_span(ctx))
+        # Handle GEDIMENSIONEERD_MET for dimension references
+        dimensions = []
+        if ctx.GEDIMENSIONEERD_MET():
+            for dim_ref_ctx in ctx.dimensieRef():
+                if dim_ref_ctx.name:
+                    dimensions.append(dim_ref_ctx.name.text)
+        
+        return Attribuut(naam=naam, datatype=datatype_str, eenheid=eenheid, dimensions=dimensions, span=self.get_span(ctx))
 
     def visitKenmerkSpecificatie(self, ctx: AntlrParser.KenmerkSpecificatieContext) -> Optional[Kenmerk]:
         """Visit a kenmerk specification and build a Kenmerk object."""
@@ -1831,6 +2038,59 @@ class RegelSpraakModelBuilder(RegelSpraakVisitor):
         # Join all words with spaces to form the complete cardinality description
         return " ".join(parts) if parts else None
 
+    def visitDimensieDefinition(self, ctx: AntlrParser.DimensieDefinitionContext) -> Optional[Dimension]:
+        """Visit a dimension definition and build a Dimension AST node."""
+        # Extract dimension name (first naamwoord)
+        naamwoord_list = ctx.naamwoord()
+        if not naamwoord_list or len(naamwoord_list) < 1:
+            logger.error(f"No dimension name found in {safe_get_text(ctx)}")
+            return None
+        
+        naam = self._extract_canonical_name(naamwoord_list[0])
+        if not naam:
+            logger.error(f"Could not extract dimension name from {safe_get_text(ctx)}")
+            return None
+        
+        # Extract plural form (meervoud) - from the label after dimensieNaamMeervoud
+        meervoud = None
+        if ctx.dimensieNaamMeervoud:
+            meervoud = self._extract_canonical_name(ctx.dimensieNaamMeervoud)
+        
+        # Determine usage style and preposition from voorzetselSpecificatie
+        usage_style = None
+        preposition = None
+        voorzetsel_ctx = ctx.voorzetselSpecificatie()
+        if voorzetsel_ctx:
+            if voorzetsel_ctx.NA_HET_ATTRIBUUT_MET_VOORZETSEL():
+                usage_style = "prepositional"
+                # Extract the preposition from the context
+                if voorzetsel_ctx.vz:
+                    preposition = voorzetsel_ctx.vz.getText()
+            elif voorzetsel_ctx.VOOR_HET_ATTRIBUUT_ZONDER_VOORZETSEL():
+                usage_style = "adjectival"
+        
+        # Extract labels with their order numbers
+        labels = []
+        for label_ctx in ctx.labelWaardeSpecificatie():
+            # Get the number and dimension value
+            if label_ctx.NUMBER() and label_ctx.dimWaarde:
+                number = int(label_ctx.NUMBER().getText())
+                value = self._extract_canonical_name(label_ctx.dimWaarde)
+                if value:
+                    labels.append((number, value))
+        
+        # Sort labels by their number to ensure correct order
+        labels.sort(key=lambda x: x[0])
+        
+        return Dimension(
+            naam=naam,
+            meervoud=meervoud if meervoud else naam + "s",  # Default plural
+            labels=labels,
+            usage_style=usage_style if usage_style else "prepositional",  # Default
+            preposition=preposition,
+            span=self.get_span(ctx)
+        )
+    
     def visitParameterDefinition(self, ctx: AntlrParser.ParameterDefinitionContext) -> Optional[Parameter]:
         """Visit a parameter definition and build a Parameter object."""
         # Access the name via parameterNamePhrase rule

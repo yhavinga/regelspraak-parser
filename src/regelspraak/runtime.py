@@ -1,8 +1,9 @@
 """Runtime representation of RegelSpraak concepts during evaluation."""
 
 from dataclasses import dataclass, field
-from typing import Any, Dict, Optional, List, TYPE_CHECKING, Union
+from typing import Any, Dict, Optional, List, TYPE_CHECKING, Union, Tuple
 from decimal import Decimal
+from collections import defaultdict
 
 # Import AST and Error types using relative imports consistent with the project structure
 from . import ast
@@ -48,16 +49,56 @@ class Value:
             return CompositeUnit(numerator=[], denominator=[])
 
 
+@dataclass(frozen=True)
+class DimensionCoordinate:
+    """Coordinates for accessing multi-dimensional values."""
+    labels: Dict[str, str]  # {dimension_name: label_value}
+    
+    def __hash__(self):
+        """Make coordinates hashable for use as dict keys."""
+        return hash(tuple(sorted(self.labels.items())))
+
+
+@dataclass(frozen=True)
+class DimensionedValue:
+    """Container for values with dimension coordinates."""
+    coordinates: DimensionCoordinate
+    value: Value
+
+
 @dataclass
 class RuntimeObject:
     """Represents an instance of an ObjectType in the runtime world."""
     object_type_naam: str
-    # Attributes store their current Value
+    # Attributes store their current Value (for non-dimensioned attributes)
     attributen: Dict[str, Value] = field(default_factory=dict)
+    # Dimensioned attributes store lists of DimensionedValue
+    dimensioned_attributen: Dict[str, List[DimensionedValue]] = field(default_factory=dict)
     # Kenmerken store their current boolean state (True if the object has the kenmerk)
     kenmerken: Dict[str, bool] = field(default_factory=dict)
     # Unique identifier for the object instance (optional but helpful)
     instance_id: Optional[str] = None # Could be auto-generated or assigned
+    
+    def get_dimensioned_attribute(self, attr_name: str, coordinates: DimensionCoordinate) -> Optional[Value]:
+        """Get attribute value at specific dimension coordinates."""
+        attr_storage = self.dimensioned_attributen.get(attr_name, [])
+        for dv in attr_storage:
+            if dv.coordinates.labels == coordinates.labels:
+                return dv.value
+        return None
+    
+    def set_dimensioned_attribute(self, attr_name: str, coordinates: DimensionCoordinate, value: Value):
+        """Set attribute value at specific dimension coordinates."""
+        if attr_name not in self.dimensioned_attributen:
+            self.dimensioned_attributen[attr_name] = []
+        
+        attr_storage = self.dimensioned_attributen[attr_name]
+        # Update existing or append new
+        for i, dv in enumerate(attr_storage):
+            if dv.coordinates.labels == coordinates.labels:
+                attr_storage[i] = DimensionedValue(coordinates, value)
+                return
+        attr_storage.append(DimensionedValue(coordinates, value))
 
 @dataclass
 class Relationship:
@@ -246,6 +287,90 @@ class RuntimeContext:
         # Use the provided span for tracing if available
         if self.trace_sink:
             self.trace_sink.assignment(instance, attr_name, old_raw_value, value_obj.value, span)
+
+    def get_dimensioned_attribute(self, instance: RuntimeObject, attr_name: str, 
+                                 coordinates: DimensionCoordinate) -> Value:
+        """Gets an attribute's value at specific dimension coordinates."""
+        # Find the ObjectType definition to check if attribute is dimensioned
+        obj_type_def = self.domain_model.objecttypes.get(instance.object_type_naam)
+        if not obj_type_def:
+            raise RuntimeError(f"ObjectType '{instance.object_type_naam}' definition not found.")
+        
+        attr_def = obj_type_def.attributen.get(attr_name)
+        if not attr_def:
+            raise RuntimeError(f"Attribute '{attr_name}' not defined in ObjectType '{instance.object_type_naam}'.")
+        
+        # Check if attribute is dimensioned
+        if not hasattr(attr_def, 'dimensions') or not attr_def.dimensions:
+            raise RuntimeError(f"Attribute '{attr_name}' is not dimensioned.")
+        
+        # Validate that all required dimensions are provided
+        for dim_name in attr_def.dimensions:
+            if dim_name not in coordinates.labels:
+                raise RuntimeError(f"Missing dimension '{dim_name}' in coordinates for attribute '{attr_name}'.")
+        
+        # Get the value from the instance
+        value = instance.get_dimensioned_attribute(attr_name, coordinates)
+        if value is None:
+            raise RuntimeError(f"No value found for attribute '{attr_name}' at coordinates {coordinates.labels}.")
+        
+        # Trace attribute read
+        if self.trace_sink:
+            self.trace_sink.attribute_read(
+                instance=instance,
+                attr_name=f"{attr_name}[{coordinates.labels}]",
+                value=value.value
+            )
+        
+        return value
+
+    def set_dimensioned_attribute(self, instance: RuntimeObject, attr_name: str,
+                                coordinates: DimensionCoordinate, value: Union[Value, Any],
+                                unit: Optional[str] = None, span: Optional[ast.SourceSpan] = None):
+        """Sets an attribute's value at specific dimension coordinates."""
+        # Find the ObjectType definition to get expected datatype and unit
+        obj_type_def = self.domain_model.objecttypes.get(instance.object_type_naam)
+        if not obj_type_def:
+            raise RuntimeError(f"ObjectType '{instance.object_type_naam}' definition not found.")
+        
+        attr_def = obj_type_def.attributen.get(attr_name)
+        if not attr_def:
+            raise RuntimeError(f"Attribute '{attr_name}' not defined in ObjectType '{instance.object_type_naam}'.")
+        
+        # Check if attribute is dimensioned
+        if not hasattr(attr_def, 'dimensions') or not attr_def.dimensions:
+            raise RuntimeError(f"Attribute '{attr_name}' is not dimensioned.")
+        
+        # Validate that all required dimensions are provided
+        for dim_name in attr_def.dimensions:
+            if dim_name not in coordinates.labels:
+                raise RuntimeError(f"Missing dimension '{dim_name}' in coordinates for attribute '{attr_name}'.")
+        
+        # If value is already a Value object, use it; otherwise wrap it
+        if isinstance(value, Value):
+            value_obj = value
+        else:
+            # Use the provided unit if given, otherwise fallback to definition's unit
+            unit_to_use = unit if unit is not None else attr_def.eenheid
+            datatype = attr_def.datatype
+            value_obj = Value(value=value, datatype=datatype, unit=unit_to_use)
+        
+        # Get old value for tracing
+        old_value = instance.get_dimensioned_attribute(attr_name, coordinates)
+        old_raw_value = old_value.value if old_value else None
+        
+        # Set the new value
+        instance.set_dimensioned_attribute(attr_name, coordinates, value_obj)
+        
+        # Use the provided span for tracing if available
+        if self.trace_sink:
+            self.trace_sink.assignment(
+                instance, 
+                f"{attr_name}[{coordinates.labels}]", 
+                old_raw_value, 
+                value_obj.value, 
+                span
+            )
 
     def get_kenmerk(self, instance: RuntimeObject, kenmerk_name: str) -> bool:
         """Gets a kenmerk's boolean state from an instance (defaults to False)."""

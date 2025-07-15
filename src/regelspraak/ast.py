@@ -66,6 +66,19 @@ class AttributeReference(Expression):
     path: List[str] # e.g., ["de persoon", "de leeftijd"] or ["de vlucht", "afstand"]
 
 @dataclass
+class DimensionLabel:
+    """Reference to a specific dimension label in expressions."""
+    dimension_name: str
+    label: str
+    span: SourceSpan
+
+@dataclass
+class DimensionedAttributeReference(Expression):
+    """Reference to attribute with dimension coordinates."""
+    base_attribute: AttributeReference
+    dimension_labels: List[DimensionLabel]  # Must match all dimensions
+
+@dataclass
 class VariableReference(Expression):
     """Represents a reference to a rule variable."""
     variable_name: str
@@ -108,7 +121,8 @@ class Attribuut:
     eenheid: Optional[str] = None
     is_lijst: bool = False # Indicates if it's a list (e.g., 'lijst van ...')
     is_object_ref: bool = False # Indicates if this attribute references another object type
-    # Add other fields as needed: constraints, dimensions, tijdlijn, etc.
+    dimensions: List[str] = field(default_factory=list)  # ["jaardimensie", "brutonettodimensie"]
+    # Add other fields as needed: constraints, tijdlijn, etc.
     # description: Optional[str] = None
 
 @dataclass
@@ -244,6 +258,16 @@ class FeitCreatie(ResultaatDeel):
     subject2: Expression  # Second subject (e.g., "de persoon")
 
 @dataclass
+class Dimension:
+    """Represents a dimension definition (§3.6)."""
+    naam: str
+    meervoud: str  # Plural form
+    labels: List[Tuple[int, str]]  # [(1, "vorig jaar"), (2, "huidig jaar")]
+    usage_style: str  # "prepositional" or "adjectival"
+    preposition: Optional[str] = None  # "van", "in", etc. if prepositional
+    span: SourceSpan = field(default_factory=SourceSpan.unknown)
+
+@dataclass
 class Consistentieregel(ResultaatDeel):
     """Consistency rule that validates data integrity (§9.5).
     Returns false (inconsistent) if criteria are not met.
@@ -351,6 +375,7 @@ class DomainModel:
     parameters: Dict[str, Parameter] = field(default_factory=dict)
     domeinen: Dict[str, Domein] = field(default_factory=dict)
     feittypen: Dict[str, FeitType] = field(default_factory=dict)
+    dimensions: Dict[str, Dimension] = field(default_factory=dict)
     regels: List[Regel] = field(default_factory=list)
     beslistabellen: List[Beslistabel] = field(default_factory=list)
     # description: Optional[str] = None

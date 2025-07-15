@@ -12,7 +12,7 @@ from .ast import (
     Verdeling, VerdelingMethode, VerdelingNaarRato, VerdelingOpVolgorde, VerdelingTieBreak,
     VerdelingMaximum, VerdelingAfronding,
     Attribuut, Kenmerk, Beslistabel, BeslistabelRow,
-    SourceSpan
+    SourceSpan, Dimension
 )
 from .errors import RegelspraakError
 
@@ -29,6 +29,7 @@ class SymbolKind(Enum):
     RULE = "rule"
     DOMAIN = "domain"
     FEITTYPE = "feittype"
+    DIMENSION = "dimension"
 
 
 @dataclass
@@ -196,6 +197,31 @@ class SemanticAnalyzer:
                     # Mark this attribute as an object reference
                     attribuut.is_object_ref = True
                     logger.debug(f"Marked attribute '{attr_name}' of type '{obj_name}' as object reference to '{attribuut.datatype}'")
+        
+        # Third pass on object types: validate dimension references
+        for obj_name, obj_type in model.objecttypes.items():
+            for attr_name, attribuut in obj_type.attributen.items():
+                # Check if the attribute has dimension references
+                if hasattr(attribuut, 'dimensions') and attribuut.dimensions:
+                    for dim_name in attribuut.dimensions:
+                        if dim_name not in model.dimensions:
+                            self.errors.append(
+                                SemanticError(
+                                    f"Unknown dimension '{dim_name}' referenced in attribute '{attr_name}' of type '{obj_name}'",
+                                    attribuut.span
+                                )
+                            )
+        
+        # Collect dimensions
+        for dimension_name, dimension in model.dimensions.items():
+            try:
+                self.symbol_table.define(
+                    dimension_name,
+                    SymbolKind.DIMENSION,
+                    definition=dimension
+                )
+            except SemanticError as e:
+                self.errors.append(e)
         
         # Collect rule names (for future cross-rule references)
         for regel in model.regels:
