@@ -24,7 +24,7 @@ class Value:
     
     def to_decimal(self) -> Decimal:
         """Convert numeric value to Decimal for precise arithmetic."""
-        if self.datatype not in ["Numeriek", "Percentage", "Bedrag"]:
+        if not any(self.datatype.startswith(t) for t in ["Numeriek", "Percentage", "Bedrag"]):
             raise RuntimeError(f"Cannot convert {self.datatype} to Decimal")
         
         if isinstance(self.value, Decimal):
@@ -207,7 +207,17 @@ class RuntimeContext:
             # Get value at the evaluation date
             param_value = timeline_value.get_value_at(self.evaluation_date)
             if param_value is None:
-                raise RuntimeError(f"Timeline parameter '{name}' has no value at date {self.evaluation_date}")
+                # Per specification: empty timeline values are treated as 0 for numeric types
+                # Return an empty value instead of raising an error
+                param_def = self.domain_model.parameters.get(name)
+                if param_def:
+                    if param_def.datatype.startswith(("Numeriek", "Bedrag")):
+                        param_value = Value(value=0, datatype=param_def.datatype, unit=param_def.eenheid)
+                    else:
+                        # For non-numeric types, return appropriate empty value
+                        param_value = Value(value="", datatype=param_def.datatype, unit=param_def.eenheid)
+                else:
+                    raise RuntimeError(f"Timeline parameter '{name}' has no value at date {self.evaluation_date}")
         else:
             # Fall back to non-timeline parameter
             param_value = self.parameters.get(name)
@@ -324,7 +334,13 @@ class RuntimeContext:
                 # This is a timeline attribute - get from timeline storage
                 attr_value = instance.get_timeline_attribute(attr_name, self.evaluation_date)
                 if attr_value is None:
-                    raise RuntimeError(f"Timeline attribute '{attr_name}' has no value at date {self.evaluation_date}")
+                    # Per specification: empty timeline values are treated as 0 for numeric types
+                    # Return an empty value instead of raising an error
+                    if attr_def.datatype.startswith(("Numeriek", "Bedrag")):
+                        attr_value = Value(value=0, datatype=attr_def.datatype, unit=attr_def.eenheid)
+                    else:
+                        # For non-numeric types, return appropriate empty value
+                        attr_value = Value(value="", datatype=attr_def.datatype, unit=attr_def.eenheid)
             else:
                 # Regular attribute
                 attr_value = instance.attributen.get(attr_name)

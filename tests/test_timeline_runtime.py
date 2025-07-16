@@ -2,7 +2,7 @@
 import unittest
 from datetime import datetime, date
 from regelspraak.parsing import parse_text
-from regelspraak.ast import DomainModel, Period, Timeline
+from regelspraak.ast import DomainModel, Period, Timeline, Parameter
 from regelspraak.runtime import RuntimeContext, RuntimeObject, Value, TimelineValue
 from regelspraak.engine import Evaluator
 from regelspraak.errors import RuntimeError
@@ -170,7 +170,7 @@ class TestTimelineRuntime(unittest.TestCase):
         self.assertEqual(name.value, "Jan")
     
     def test_missing_timeline_value_error(self):
-        """Test error when timeline has no value at evaluation date."""
+        """Test that timeline returns empty value (0) when no value at evaluation date."""
         # Create timeline with gap
         periods = [
             Period(
@@ -187,13 +187,22 @@ class TestTimelineRuntime(unittest.TestCase):
         timeline = Timeline(periods=periods, granularity="dag")
         timeline_value = TimelineValue(timeline=timeline)
         
+        # Need to define the parameter in the model for proper type info
+        self.model.parameters["dagkoers"] = Parameter(
+            naam="dagkoers",
+            datatype="Numeriek",
+            eenheid="euro",
+            timeline="dag",
+            span=None
+        )
         self.context.set_timeline_parameter("dagkoers", timeline_value)
         
-        # Try to get value in the gap
+        # Get value in the gap - should return 0 per specification
         self.context.evaluation_date = datetime(2024, 1, 15)
-        with self.assertRaises(RuntimeError) as cm:
-            self.context.get_parameter("dagkoers")
-        self.assertIn("has no value at date", str(cm.exception))
+        value = self.context.get_parameter("dagkoers")
+        self.assertEqual(value.value, 0)
+        self.assertEqual(value.datatype, "Numeriek")
+        self.assertEqual(value.unit, "euro")
     
     def test_timeline_without_evaluation_date_error(self):
         """Test error when accessing timeline without evaluation date."""

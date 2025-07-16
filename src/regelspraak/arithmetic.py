@@ -64,18 +64,31 @@ class UnitArithmetic:
     def add(self, left: Value, right: Value) -> Value:
         """Add two values with unit checking."""
         # Type checking
-        if left.datatype not in ["Numeriek", "Percentage", "Bedrag"]:
+        if not any(left.datatype.startswith(t) for t in ["Numeriek", "Percentage", "Bedrag"]):
             raise RuntimeError(f"Cannot add {left.datatype} values")
-        if right.datatype not in ["Numeriek", "Percentage", "Bedrag"]:
+        if not any(right.datatype.startswith(t) for t in ["Numeriek", "Percentage", "Bedrag"]):
             raise RuntimeError(f"Cannot add {right.datatype} values")
         
         # Handle empty values (treat as 0)
         left_dec = self._ensure_decimal(left) if left.value is not None else Decimal('0')
         right_dec = self._ensure_decimal(right) if right.value is not None else Decimal('0')
         
-        # Unit checking and conversion
-        if not self._check_units_compatible(left, right, "addition"):
-            raise RuntimeError(f"Cannot add values with incompatible units: '{left.unit}' and '{right.unit}'")
+        # Special case: adding 0 is always allowed regardless of units
+        if left_dec == Decimal('0') and right.unit is not None:
+            # Take the unit from the non-zero value
+            result_unit = right.unit
+            left_dec = Decimal('0')  # Keep as 0
+            right_dec = right_dec
+        elif right_dec == Decimal('0') and left.unit is not None:
+            # Take the unit from the non-zero value
+            result_unit = left.unit
+            left_dec = left_dec
+            right_dec = Decimal('0')  # Keep as 0
+        else:
+            # Unit checking and conversion
+            if not self._check_units_compatible(left, right, "addition"):
+                raise RuntimeError(f"Cannot add values with incompatible units: '{left.unit}' and '{right.unit}'")
+            result_unit = left.unit
         
         # Convert right to left's unit if needed
         if left.unit != right.unit and left.unit and right.unit:
@@ -95,14 +108,14 @@ class UnitArithmetic:
             quantizer = Decimal('0.1') ** max_places
             result_dec = result_dec.quantize(quantizer)
         
-        return Value(value=result_dec, datatype=left.datatype, unit=left.unit)
+        return Value(value=result_dec, datatype=left.datatype, unit=result_unit)
     
     def subtract(self, left: Value, right: Value) -> Value:
         """Subtract two values with unit checking."""
         # Type checking
-        if left.datatype not in ["Numeriek", "Percentage", "Bedrag"]:
+        if not any(left.datatype.startswith(t) for t in ["Numeriek", "Percentage", "Bedrag"]):
             raise RuntimeError(f"Cannot subtract {left.datatype} values")
-        if right.datatype not in ["Numeriek", "Percentage", "Bedrag"]:
+        if not any(right.datatype.startswith(t) for t in ["Numeriek", "Percentage", "Bedrag"]):
             raise RuntimeError(f"Cannot subtract {right.datatype} values")
         
         # Handle empty values (treat as 0)
@@ -140,9 +153,9 @@ class UnitArithmetic:
         Otherwise, empty values are treated as 0.
         """
         # Type checking
-        if left.datatype not in ["Numeriek", "Percentage", "Bedrag"]:
+        if not any(left.datatype.startswith(t) for t in ["Numeriek", "Percentage", "Bedrag"]):
             raise RuntimeError(f"Cannot subtract {left.datatype} values")
-        if right.datatype not in ["Numeriek", "Percentage", "Bedrag"]:
+        if not any(right.datatype.startswith(t) for t in ["Numeriek", "Percentage", "Bedrag"]):
             raise RuntimeError(f"Cannot subtract {right.datatype} values")
         
         # Special handling: if left is empty, result is empty
@@ -180,9 +193,9 @@ class UnitArithmetic:
     def multiply(self, left: Value, right: Value) -> Value:
         """Multiply two values, creating composite units."""
         # Type checking
-        if left.datatype not in ["Numeriek", "Bedrag"]:
+        if not any(left.datatype.startswith(t) for t in ["Numeriek", "Bedrag"]):
             raise RuntimeError(f"Cannot multiply {left.datatype} values")
-        if right.datatype not in ["Numeriek", "Bedrag"]:
+        if not any(right.datatype.startswith(t) for t in ["Numeriek", "Bedrag"]):
             raise RuntimeError(f"Cannot multiply {right.datatype} values")
         
         # Percentage cannot be used with multiplication
@@ -234,9 +247,9 @@ class UnitArithmetic:
             use_abs_style: If True, use "gedeeld door (ABS)" style with 5 decimal places
         """
         # Type checking
-        if left.datatype not in ["Numeriek", "Bedrag"]:
+        if not any(left.datatype.startswith(t) for t in ["Numeriek", "Bedrag"]):
             raise RuntimeError(f"Cannot divide {left.datatype} values")
-        if right.datatype not in ["Numeriek", "Bedrag"]:
+        if not any(right.datatype.startswith(t) for t in ["Numeriek", "Bedrag"]):
             raise RuntimeError(f"Cannot divide {right.datatype} values")
         
         # Handle empty values
@@ -349,7 +362,7 @@ class UnitArithmetic:
     
     def negate(self, value: Value) -> Value:
         """Negate a numeric value (unary minus)."""
-        if value.datatype not in ["Numeriek", "Percentage", "Bedrag"]:
+        if not any(value.datatype.startswith(t) for t in ["Numeriek", "Percentage", "Bedrag"]):
             raise RuntimeError(f"Cannot negate {value.datatype} values")
         
         dec_val = self._ensure_decimal(value)

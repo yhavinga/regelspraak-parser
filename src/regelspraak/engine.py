@@ -18,7 +18,7 @@ from .ast import (
     DimensionedAttributeReference, DimensionLabel
 )
 # Import Runtime components
-from .runtime import RuntimeContext, RuntimeObject, Value, DimensionCoordinate # Import Value directly
+from .runtime import RuntimeContext, RuntimeObject, Value, DimensionCoordinate, TimelineValue # Import Value directly
 # Import arithmetic operations
 from .arithmetic import UnitArithmetic
 # Import custom error
@@ -43,6 +43,7 @@ class Evaluator:
         self.context = context
         self.arithmetic = UnitArithmetic(context.unit_registry)
         self._current_rule = None  # Track current rule for tracing
+        self._in_timeline_evaluation = False  # Track if we're evaluating within a timeline
         
         # Function registry for cleaner function handling
         self._function_registry = {
@@ -523,6 +524,35 @@ class Evaluator:
             raise RegelspraakError("Cannot apply result: No current instance.", span=res.span)
 
         if isinstance(res, Gelijkstelling):
+            # Check if the target is a timeline attribute or if the expression contains timeline operands
+            target_is_timeline = False
+            if hasattr(res.target, 'path') and res.target.path:
+                attr_name = res.target.path[0]
+                obj_type_def = self.context.domain_model.objecttypes.get(instance.object_type_naam)
+                if obj_type_def:
+                    attr_def = obj_type_def.attributen.get(attr_name)
+                    if attr_def and attr_def.timeline:
+                        target_is_timeline = True
+            
+            # If target is timeline or expression contains timeline operands, evaluate as timeline
+            if target_is_timeline or self._is_timeline_expression(res.expressie):
+                # Evaluate as timeline expression
+                timeline_value = self._evaluate_timeline_expression(res.expressie)
+                
+                # Get the target attribute
+                target_ref = res.target
+                if isinstance(target_ref, DimensionedAttributeReference):
+                    raise RegelspraakError("Timeline expressions with dimensioned attributes not yet supported", span=res.span)
+                elif not target_ref.path:
+                    raise RegelspraakError("Gelijkstelling target path is empty.", span=target_ref.span)
+                
+                attr_name = target_ref.path[0]
+                
+                # Set the timeline value on the attribute
+                self.context.set_timeline_attribute(instance, attr_name, timeline_value, span=res.span)
+                return
+            
+            # Regular non-timeline expression evaluation
             value = self.evaluate_expression(res.expressie)
             # Handle both AttributeReference and DimensionedAttributeReference
             target_ref = res.target
@@ -627,8 +657,23 @@ class Evaluator:
                     # If we got here, attribute exists and has a value, do nothing (per spec)
                 except RuntimeError:
                     # Attribute doesn't exist or is empty, so initialize it
-                    value = self.evaluate_expression(res.expressie)
-                    self.context.set_attribute(instance, attr_name, value, span=res.span)
+                    # Check if the target is a timeline attribute or if the expression contains timeline operands
+                    target_is_timeline = False
+                    obj_type_def = self.context.domain_model.objecttypes.get(instance.object_type_naam)
+                    if obj_type_def:
+                        attr_def = obj_type_def.attributen.get(attr_name)
+                        if attr_def and attr_def.timeline:
+                            target_is_timeline = True
+                    
+                    # If target is timeline or expression contains timeline operands, evaluate as timeline
+                    if target_is_timeline or self._is_timeline_expression(res.expressie):
+                        # Evaluate as timeline expression
+                        timeline_value = self._evaluate_timeline_expression(res.expressie)
+                        self.context.set_timeline_attribute(instance, attr_name, timeline_value, span=res.span)
+                    else:
+                        # Regular expression
+                        value = self.evaluate_expression(res.expressie)
+                        self.context.set_attribute(instance, attr_name, value, span=res.span)
 
         elif isinstance(res, KenmerkToekenning):
             kenmerk_value = not res.is_negated
@@ -847,6 +892,24 @@ class Evaluator:
 
     def evaluate_expression(self, expr: Expression) -> Value:
         """Evaluate an AST Expression node, returning a Value object."""
+        # Check if this expression involves timeline values
+        if self._is_timeline_expression(expr):
+            # This expression involves timelines, but we're being called for a single value
+            # This happens when evaluating expressions in rules that expect single values
+            # Use the current evaluation date from context
+            if self.context.evaluation_date is None:
+                raise RegelspraakError("Timeline expression requires evaluation_date to be set", span=expr.span)
+            
+            # For expressions involving timelines, we need to check if the current evaluation date
+            # falls within any of the timeline periods. If not, we still need to evaluate the
+            # expression, treating timeline values as empty (0 for numeric types).
+            saved_is_timeline = self._in_timeline_evaluation
+            self._in_timeline_evaluation = True
+            try:
+                return self._evaluate_expression_non_timeline(expr)
+            finally:
+                self._in_timeline_evaluation = saved_is_timeline
+        
         current_instance = self.context.current_instance
         instance_id = current_instance.instance_id if current_instance else None
         
@@ -1156,6 +1219,631 @@ class Evaluator:
                 )
                 
         return result
+
+    def _is_timeline_expression(self, expr: Expression) -> bool:
+        """Check if an expression involves timeline values."""
+        # Check for timeline parameters or attributes
+        if isinstance(expr, ParameterReference):
+            param_def = self.context.domain_model.parameters.get(expr.parameter_name)
+            if param_def and param_def.timeline:
+                # Check if there's a timeline value stored
+                return expr.parameter_name in self.context.timeline_parameters
+        
+        elif isinstance(expr, AttributeReference):
+            if self.context.current_instance and expr.path:
+                # Handle both simple paths like ['salaris'] and compound paths like ['self', 'salaris']
+                if len(expr.path) == 1:
+                    attr_name = expr.path[0]
+                elif len(expr.path) == 2 and expr.path[0] == 'self':
+                    attr_name = expr.path[1]
+                else:
+                    # For other path patterns, try to extract attribute name
+                    attr_name = None
+                    for part in expr.path:
+                        if part != 'self' and part != self.context.current_instance.object_type_naam:
+                            attr_name = part
+                            break
+                
+                if attr_name:
+                    obj_type_def = self.context.domain_model.objecttypes.get(
+                        self.context.current_instance.object_type_naam
+                    )
+                    if obj_type_def:
+                        attr_def = obj_type_def.attributen.get(attr_name)
+                        if attr_def and attr_def.timeline:
+                            # Check if there's a timeline value stored
+                            return attr_name in self.context.current_instance.timeline_attributen
+        
+        elif isinstance(expr, BinaryExpression):
+            # Either operand being a timeline makes the whole expression a timeline
+            return self._is_timeline_expression(expr.left) or self._is_timeline_expression(expr.right)
+        
+        elif isinstance(expr, UnaryExpression):
+            return self._is_timeline_expression(expr.operand)
+        
+        elif isinstance(expr, FunctionCall):
+            # Check if any argument is a timeline
+            return any(self._is_timeline_expression(arg) for arg in expr.arguments)
+        
+        # Literals and other expressions are not timelines
+        return False
+
+    def _evaluate_timeline_expression(self, expr: Expression) -> TimelineValue:
+        """Evaluate an expression that involves timeline values."""
+        from .timeline_utils import merge_knips, get_evaluation_periods, remove_redundant_knips
+        from .runtime import TimelineValue
+        
+        # Collect all timeline operands to determine knips
+        timelines = self._collect_timeline_operands(expr)
+        
+        if not timelines:
+            # No actual timeline values found, evaluate as regular expression
+            result = self.evaluate_expression(expr)
+            # Return a constant timeline
+            return TimelineValue(timeline=ast.Timeline(
+                periods=[ast.Period(
+                    start_date=datetime(1900, 1, 1),
+                    end_date=datetime(2200, 1, 1),
+                    value=result
+                )],
+                granularity="dag"
+            ))
+        
+        # Merge all knips from timeline operands
+        all_knips = merge_knips(*timelines)
+        
+        # Get evaluation periods between knips
+        periods = get_evaluation_periods(all_knips)
+        
+        # Evaluate expression for each period
+        result_periods = []
+        for start_date, end_date in periods:
+            # Set evaluation date to start of period
+            saved_date = self.context.evaluation_date
+            self.context.evaluation_date = start_date
+            
+            try:
+                # Evaluate expression for this period
+                period_value = self._evaluate_expression_for_period(expr)
+                
+                # Create period with result
+                result_periods.append(ast.Period(
+                    start_date=start_date,
+                    end_date=end_date,
+                    value=period_value
+                ))
+            finally:
+                # Restore evaluation date
+                self.context.evaluation_date = saved_date
+        
+        # Determine result granularity (finest among operands)
+        granularity = self._determine_finest_granularity(timelines)
+        
+        # Create timeline from periods
+        result_timeline = ast.Timeline(periods=result_periods, granularity=granularity)
+        
+        # Remove redundant knips where values don't change
+        result_timeline = remove_redundant_knips(result_timeline)
+        
+        return TimelineValue(timeline=result_timeline)
+
+    def _evaluate_expression_for_period(self, expr: Expression) -> Value:
+        """Evaluate expression for current evaluation date in context.
+        This evaluates the expression without timeline checking, since
+        we're already inside timeline evaluation with a specific date."""
+        # Direct evaluation without timeline check - we're already in a period
+        return self._evaluate_expression_non_timeline(expr)
+
+    def _evaluate_expression_non_timeline(self, expr: Expression) -> Value:
+        """Evaluate an expression without timeline checking.
+        This is used internally when we're already evaluating within a specific time period."""
+        current_instance = self.context.current_instance
+        instance_id = current_instance.instance_id if current_instance else None
+        
+        # Trace expression evaluation start
+        if self.context.trace_sink:
+            self.context.trace_sink.expression_eval_start(
+                expr,
+                rule_name=None,  # We don't have rule context here
+                instance_id=instance_id
+            )
+            
+        result = None
+        try:
+            if isinstance(expr, Literal):
+                # Wrap literal in Value object
+                # Determine datatype from literal type
+                if isinstance(expr.value, bool):
+                    datatype = "Boolean"
+                elif isinstance(expr.value, (int, float, Decimal)):
+                    datatype = "Numeriek"
+                elif isinstance(expr.value, str):
+                    datatype = "Tekst"
+                else:
+                    datatype = "Onbekend"
+                    
+                # Check if literal has unit info (would need to be added to AST)
+                unit = getattr(expr, 'unit', None)
+                result = Value(value=expr.value, datatype=datatype, unit=unit)
+
+            elif isinstance(expr, VariableReference):
+                value = self.context.get_variable(expr.variable_name)
+                
+                # Trace variable read
+                if self.context.trace_sink:
+                    self.context.trace_sink.variable_read(
+                        expr.variable_name, 
+                        value.value if isinstance(value, Value) else value, 
+                        expr=expr,
+                        instance_id=instance_id
+                    )
+                    
+                result = value
+
+            elif isinstance(expr, ParameterReference):
+                # Always use context.get_parameter which now handles timeline empty values correctly
+                value = self.context.get_parameter(expr.parameter_name)
+                
+                # Trace parameter read
+                if self.context.trace_sink:
+                    self.context.trace_sink.parameter_read(
+                        expr.parameter_name, 
+                        value.value if isinstance(value, Value) else value, 
+                        expr=expr,
+                        instance_id=instance_id
+                    )
+                    
+                result = value
+
+            elif isinstance(expr, DimensionedAttributeReference):
+                # Handle dimensioned attribute references like "bruto inkomen van huidig jaar"
+                if self.context.current_instance is None:
+                    raise RegelspraakError("Cannot evaluate dimensioned attribute reference: No current instance.", span=expr.span)
+                
+                # First evaluate the base attribute reference to get the object
+                base_ref = expr.base_attribute
+                if not base_ref.path:
+                    raise RegelspraakError("Dimensioned attribute reference path is empty.", span=expr.span)
+                
+                # Extract attribute name and object path
+                if len(base_ref.path) == 1:
+                    # Simple case: attribute on current instance
+                    attr_name = base_ref.path[0]
+                    target_obj = self.context.current_instance
+                else:
+                    # Complex path: navigate to the object
+                    attr_name = base_ref.path[0]
+                    # For now, assume the rest of the path refers to the current instance
+                    # TODO: Implement full path navigation for dimensioned attributes
+                    target_obj = self.context.current_instance
+                
+                # Build dimension coordinates from labels
+                coordinates = DimensionCoordinate(labels={})
+                
+                # For each dimension label, we need to map it to its dimension name
+                # This is a limitation of our current approach - we need semantic context
+                # For now, we'll use a heuristic based on the attribute definition
+                obj_type_def = self.context.domain_model.objecttypes.get(target_obj.object_type_naam)
+                if obj_type_def:
+                    attr_def = obj_type_def.attributen.get(attr_name)
+                    if attr_def and hasattr(attr_def, 'dimensions') and attr_def.dimensions:
+                        # Match labels to dimensions based on the dimension definitions
+                        for label in expr.dimension_labels:
+                            label_matched = False
+                            for dim_name in attr_def.dimensions:
+                                if dim_name in self.context.domain_model.dimensions:
+                                    dimension = self.context.domain_model.dimensions[dim_name]
+                                    # Check if this label belongs to this dimension
+                                    for order, dim_label in dimension.labels:
+                                        if dim_label == label.label:
+                                            coordinates.labels[dim_name] = label.label
+                                            label_matched = True
+                                            break
+                                if label_matched:
+                                    break
+                            if not label_matched:
+                                raise RegelspraakError(
+                                    f"Unknown dimension label '{label.label}' for attribute '{attr_name}'",
+                                    span=label.span
+                                )
+                
+                # Get the dimensioned value
+                value = self.context.get_dimensioned_attribute(target_obj, attr_name, coordinates)
+                
+                # Trace dimensioned attribute read
+                if self.context.trace_sink:
+                    self.context.trace_sink.attribute_read(
+                        target_obj,
+                        f"{attr_name}[{coordinates.labels}]",
+                        value.value if isinstance(value, Value) else value,
+                        expr=expr
+                    )
+                
+                result = value
+
+            elif isinstance(expr, AttributeReference):
+                # Simple case: direct attribute on current instance (e.g., "leeftijd")
+                # TODO: Handle multi-part paths (e.g., person.address.street)
+                if self.context.current_instance is None:
+                    raise RegelspraakError("Cannot evaluate attribute reference: No current instance.", span=expr.span)
+                if not expr.path:
+                    raise RegelspraakError("Attribute reference path is empty.", span=expr.span)
+
+                # If path is like ["leeftijd"], get from current_instance
+                if len(expr.path) == 1:
+                    attr_name = expr.path[0]
+                    
+                    # Special case: If path is ["self"], return the current instance itself
+                    if attr_name == "self":
+                        result = Value(value=self.context.current_instance, datatype="ObjectReference")
+                    # Special case: If the path element is a role name that the current instance fulfills,
+                    # return the current instance itself (for FeitCreatie conditions)
+                    elif self._check_if_current_instance_has_role(attr_name):
+                        # Return the current instance as a reference
+                        result = Value(value=self.context.current_instance, datatype="ObjectReference")
+                    else:
+                        # Always use context.get_attribute which now handles timeline empty values correctly
+                        value = self.context.get_attribute(self.context.current_instance, attr_name)
+                        
+                        # Trace attribute read
+                        if self.context.trace_sink:
+                            self.context.trace_sink.attribute_read(
+                                self.context.current_instance,
+                                attr_name,
+                                value.value if isinstance(value, Value) else value,
+                                expr=expr
+                            )
+                            
+                        result = value
+                else:
+                    # Handle paths like ['self', 'leeftijd']
+                    if expr.path[0] == 'self': # Check if path starts with 'self'
+                        if len(expr.path) != 2: # Ensure path is exactly ['self', 'attr']
+                            raise RegelspraakError(f"Unsupported 'self' path structure: {expr.path}", span=expr.span)
+                        attr_name = expr.path[1]
+                        value = self.context.get_attribute(self.context.current_instance, attr_name)
+                        
+                        # Trace attribute read
+                        if self.context.trace_sink:
+                            self.context.trace_sink.attribute_read(
+                                self.context.current_instance,
+                                attr_name,
+                                value,
+                                expr=expr
+                            )
+                            
+                        result = value
+                    # Handle paths like ["Natuurlijk persoon", "leeftijd"]
+                    elif expr.path[0] == self.context.current_instance.object_type_naam:
+                        if len(expr.path) != 2: # Ensure path is exactly ['Type', 'attr']
+                            raise RegelspraakError(f"Unsupported type-qualified path structure: {expr.path}", span=expr.span)
+                        attr_name = expr.path[1]
+                        value = self.context.get_attribute(self.context.current_instance, attr_name)
+                        
+                        # Trace attribute read
+                        if self.context.trace_sink:
+                            self.context.trace_sink.attribute_read(
+                                self.context.current_instance,
+                                attr_name,
+                                value,
+                                expr=expr
+                            )
+                            
+                        result = value
+                    # Handle paths like ["leeftijd", "Persoon"] where the last element is the object type
+                    elif len(expr.path) == 2 and (
+                        expr.path[1] == self.context.current_instance.object_type_naam or 
+                        self.context.current_instance.object_type_naam.lower() in expr.path[1].lower() or
+                        (len(expr.path[1]) > 20 and  # Long descriptive phrases
+                         any(word in expr.path[1].lower() for word in self.context.current_instance.object_type_naam.lower().split()))):
+                        # This refers to the current instance
+                        attr_name = expr.path[0]
+                        value = self.context.get_attribute(self.context.current_instance, attr_name)
+                        
+                        # Trace attribute read
+                        if self.context.trace_sink:
+                            self.context.trace_sink.attribute_read(
+                                self.context.current_instance,
+                                attr_name,
+                                value,
+                                expr=expr
+                            )
+                            
+                        result = value
+                    else:
+                        # Handle nested object references
+                        # Path like ["vluchtdatum", "reis", "persoon"] means:
+                        # person.reis.vluchtdatum (reversed for navigation)
+                        
+                        # Start from current instance and traverse the path
+                        current_obj = self.context.current_instance
+                        # Reverse path for navigation: ["vluchtdatum", "reis"] -> ["reis", "vluchtdatum"]
+                        nav_path = list(reversed(expr.path))
+                        
+                        # Navigate through all but the last element
+                        for i, segment in enumerate(nav_path[:-1]):
+                            # First, check if segment is a role name in a feittype
+                            role_found = False
+                            for feittype_name, feittype in self.context.domain_model.feittypen.items():
+                                # Check if segment matches a role name in this feittype
+                                for rol in feittype.rollen:
+                                    if rol.naam.lower() == segment.lower():
+                                        # Find related objects through this feittype
+                                        # Determine which role index this is (0 or 1)
+                                        role_index = feittype.rollen.index(rol)
+                                        # If we matched role 0, we want objects fulfilling role 1, and vice versa
+                                        as_subject = (role_index == 1)  # If we matched the second role, look for subjects
+                                        
+                                        related_objects = self.context.get_related_objects(
+                                            current_obj, feittype_name, as_subject=as_subject
+                                        )
+                                        if not related_objects:
+                                            raise RegelspraakError(
+                                                f"No related object found for role '{segment}' from {current_obj.object_type_naam}",
+                                                span=expr.span
+                                            )
+                                        # Take the first related object (simplified for now)
+                                        current_obj = related_objects[0]
+                                        role_found = True
+                                        break
+                            
+                            if not role_found:
+                                # Try as an attribute with ObjectReference
+                                try:
+                                    ref_value = self.context.get_attribute(current_obj, segment)
+                                    # Check if it's an object reference
+                                    if ref_value.datatype != "ObjectReference":
+                                        raise RegelspraakError(
+                                            f"Expected ObjectReference or role name for '{segment}' but got {ref_value.datatype}",
+                                            span=expr.span
+                                        )
+                                    # Move to the referenced object
+                                    current_obj = ref_value.value
+                                    if not isinstance(current_obj, RuntimeObject):
+                                        raise RegelspraakError(
+                                            f"Invalid object reference in path at '{segment}'",
+                                            span=expr.span
+                                        )
+                                except RuntimeError as e:
+                                    # Attribute not found, raise more informative error
+                                    raise RegelspraakError(
+                                        f"'{segment}' is neither a role name nor an attribute on {current_obj.object_type_naam}",
+                                        span=expr.span
+                                    )
+                        
+                        # Get the final attribute from the last object
+                        final_attr = nav_path[-1]
+                        value = self.context.get_attribute(current_obj, final_attr)
+                        
+                        # Trace the final attribute read
+                        if self.context.trace_sink:
+                            self.context.trace_sink.attribute_read(
+                                current_obj,
+                                final_attr,
+                                value.value if isinstance(value, Value) else value,
+                                expr=expr
+                            )
+                        
+                        result = value
+
+            elif isinstance(expr, BinaryExpression):
+                result = self._handle_binary_non_timeline(expr)
+
+            elif isinstance(expr, UnaryExpression):
+                result = self._handle_unary_non_timeline(expr)
+
+            elif isinstance(expr, FunctionCall):
+                result = self._handle_function_call_non_timeline(expr)
+
+            else:
+                raise RegelspraakError(f"Unknown expression type: {type(expr)}", span=expr.span)
+                
+        finally:
+            # Trace expression evaluation end (even if there was an error)
+            if self.context.trace_sink:
+                self.context.trace_sink.expression_eval_end(
+                    expr,
+                    result,
+                    instance_id=instance_id
+                )
+                
+        return result
+
+    def _handle_binary_non_timeline(self, expr: BinaryExpression) -> Value:
+        """Handle binary operations during timeline evaluation (non-recursive)."""
+        left_val = self._evaluate_expression_non_timeline(expr.left)
+        op = expr.operator
+
+        # Handle IS and IN specially as they return boolean values
+        if op == Operator.IS:
+            # Right side should be a kenmerk name (string) or type name (string)
+            right_val = self._evaluate_expression_non_timeline(expr.right)
+            if not isinstance(right_val.value, str):
+                raise RegelspraakError(f"Right side of 'IS' must evaluate to a string (kenmerk/type name), got {type(right_val.value)}", span=expr.right.span)
+            
+            # For IS operator, we need the actual object instance
+            # If left_val is an object reference, we need to resolve it
+            instance = self.context.current_instance  # Default to current instance
+            
+            if instance is None:
+                raise RegelspraakError("Could not determine object instance for 'IS' check.", span=expr.left.span)
+                 
+            bool_result = self.context.check_is(instance, right_val.value)
+            return Value(value=bool_result, datatype="Boolean", unit=None)
+
+        elif op == Operator.IN:
+            right_val = self._evaluate_expression_non_timeline(expr.right)
+            # Extract raw values for IN check
+            left_raw = left_val.value if isinstance(left_val, Value) else left_val
+            right_raw = right_val.value if isinstance(right_val, Value) else right_val
+            bool_result = self.context.check_in(left_raw, right_raw)
+            return Value(value=bool_result, datatype="Boolean", unit=None)
+
+        # Standard evaluation for other operators
+        right_val = self._evaluate_expression_non_timeline(expr.right)
+
+        # Arithmetic operations using unit-aware arithmetic
+        if op == Operator.PLUS:
+            return self.arithmetic.add(left_val, right_val)
+        elif op == Operator.MIN:
+            return self.arithmetic.subtract(left_val, right_val)
+        elif op == Operator.VERMINDERD_MET:
+            return self.arithmetic.subtract_verminderd_met(left_val, right_val)
+        elif op == Operator.MAAL:
+            return self.arithmetic.multiply(left_val, right_val)
+        elif op == Operator.GEDEELD_DOOR:
+            return self.arithmetic.divide(left_val, right_val, use_abs_style=False)
+        elif op == Operator.GEDEELD_DOOR_ABS:
+            return self.arithmetic.divide(left_val, right_val, use_abs_style=True)
+        elif op == Operator.MACHT:
+            return self.arithmetic.power(left_val, right_val)
+
+        # Comparison operations - return boolean Values
+        elif op in [Operator.GELIJK_AAN, Operator.NIET_GELIJK_AAN, 
+                    Operator.KLEINER_DAN, Operator.GROTER_DAN,
+                    Operator.KLEINER_OF_GELIJK_AAN, Operator.GROTER_OF_GELIJK_AAN]:
+            
+            # For comparisons, we need to check unit compatibility and convert if needed
+            if left_val.datatype in ["Numeriek", "Percentage", "Bedrag"] and \
+               right_val.datatype in ["Numeriek", "Percentage", "Bedrag"]:
+                # Check units are compatible
+                if not self.arithmetic._check_units_compatible(left_val, right_val, "comparison"):
+                    raise RegelspraakError(f"Cannot compare values with incompatible units: '{left_val.unit}' and '{right_val.unit}'", span=expr.span)
+                
+                # Convert right to left's unit if needed
+                if left_val.unit != right_val.unit and left_val.unit and right_val.unit:
+                    right_val = self.arithmetic._convert_to_unit(right_val, left_val.unit)
+            
+            # Extract values for comparison
+            left_cmp = left_val.value
+            right_cmp = right_val.value
+            
+            # Perform comparison
+            if op == Operator.GELIJK_AAN:
+                result = left_cmp == right_cmp
+            elif op == Operator.NIET_GELIJK_AAN:
+                result = left_cmp != right_cmp
+            elif op == Operator.KLEINER_DAN:
+                result = left_cmp < right_cmp
+            elif op == Operator.GROTER_DAN:
+                result = left_cmp > right_cmp
+            elif op == Operator.KLEINER_OF_GELIJK_AAN:
+                result = left_cmp <= right_cmp
+            elif op == Operator.GROTER_OF_GELIJK_AAN:
+                result = left_cmp >= right_cmp
+                
+            return Value(value=result, datatype="Boolean", unit=None)
+
+        # Logical operations - expect boolean Values
+        elif op == Operator.EN:
+            if left_val.datatype != "Boolean" or right_val.datatype != "Boolean":
+                raise RegelspraakError(f"Operator 'en' requires boolean operands, got {left_val.datatype} and {right_val.datatype}", span=expr.span)
+            result = left_val.value and right_val.value
+            return Value(value=result, datatype="Boolean", unit=None)
+            
+        elif op == Operator.OF:
+            if left_val.datatype != "Boolean" or right_val.datatype != "Boolean":
+                raise RegelspraakError(f"Operator 'of' requires boolean operands, got {left_val.datatype} and {right_val.datatype}", span=expr.span)
+            result = left_val.value or right_val.value
+            return Value(value=result, datatype="Boolean", unit=None)
+
+        else:
+            raise RegelspraakError(f"Unsupported or unhandled binary operator: {op.name}", span=expr.span)
+
+    def _handle_unary_non_timeline(self, expr: UnaryExpression) -> Value:
+        """Handle unary operations during timeline evaluation (non-recursive)."""
+        operand_val = self._evaluate_expression_non_timeline(expr.operand)
+        op = expr.operator
+
+        if op == Operator.NIET:
+            if operand_val.datatype != "Boolean":
+                 raise RegelspraakError(f"Operator 'niet' requires a boolean operand, got {operand_val.datatype}", span=expr.operand.span)
+            result = not operand_val.value
+            return Value(value=result, datatype="Boolean", unit=None)
+        elif op == Operator.MIN: # Handle unary minus
+            return self.arithmetic.negate(operand_val)
+        else:
+            raise RegelspraakError(f"Unsupported unary operator: {op.name}", span=expr.span)
+
+    def _handle_function_call_non_timeline(self, expr: FunctionCall) -> Value:
+        """Handle function calls during timeline evaluation (non-recursive)."""
+        func_name = expr.function_name.lower()
+        
+        # Check if this function is registered
+        if func_name in self._function_registry:
+            return self._function_registry[func_name](expr)
+        else:
+            # Extract raw function name from "de functienaam van" pattern
+            if func_name.startswith("de ") and func_name.endswith(" van"):
+                core_func_name = func_name[3:-4]  # Remove "de " and " van"
+                if core_func_name in self._function_registry:
+                    return self._function_registry[core_func_name](expr)
+            
+            # Extract from "het functienaam van" pattern  
+            if func_name.startswith("het ") and func_name.endswith(" van"):
+                core_func_name = func_name[4:-4]  # Remove "het " and " van"
+                if core_func_name in self._function_registry:
+                    return self._function_registry[core_func_name](expr)
+            
+            raise RegelspraakError(f"Unknown function: {expr.function_name}", span=expr.span)
+
+    def _collect_timeline_operands(self, expr: Expression) -> List[ast.Timeline]:
+        """Recursively collect all timeline operands from an expression."""
+        timelines = []
+        
+        if isinstance(expr, ParameterReference):
+            timeline_val = self.context.timeline_parameters.get(expr.parameter_name)
+            if timeline_val:
+                timelines.append(timeline_val.timeline)
+        
+        elif isinstance(expr, AttributeReference):
+            if self.context.current_instance and expr.path:
+                # Handle both simple paths like ['salaris'] and compound paths like ['self', 'salaris']
+                if len(expr.path) == 1:
+                    attr_name = expr.path[0]
+                elif len(expr.path) == 2 and expr.path[0] == 'self':
+                    attr_name = expr.path[1]
+                else:
+                    # For other path patterns, try to extract attribute name
+                    # For now, assume the first element that's not 'self' or an object type
+                    attr_name = None
+                    for part in expr.path:
+                        if part != 'self' and part != self.context.current_instance.object_type_naam:
+                            attr_name = part
+                            break
+                
+                if attr_name:
+                    timeline_val = self.context.current_instance.timeline_attributen.get(attr_name)
+                    if timeline_val:
+                        timelines.append(timeline_val.timeline)
+        
+        elif isinstance(expr, BinaryExpression):
+            timelines.extend(self._collect_timeline_operands(expr.left))
+            timelines.extend(self._collect_timeline_operands(expr.right))
+        
+        elif isinstance(expr, UnaryExpression):
+            timelines.extend(self._collect_timeline_operands(expr.operand))
+        
+        elif isinstance(expr, FunctionCall):
+            for arg in expr.arguments:
+                timelines.extend(self._collect_timeline_operands(arg))
+        
+        return timelines
+
+    def _determine_finest_granularity(self, timelines: List[ast.Timeline]) -> str:
+        """Determine the finest granularity among timelines."""
+        if not timelines:
+            return "dag"
+        
+        # Granularity hierarchy: dag < maand < jaar
+        granularity_order = {"dag": 0, "maand": 1, "jaar": 2}
+        
+        finest = "jaar"  # Start with coarsest
+        for timeline in timelines:
+            if granularity_order[timeline.granularity] < granularity_order[finest]:
+                finest = timeline.granularity
+        
+        return finest
 
     def _apply_consistentieregel(self, res: Consistentieregel) -> bool:
         """Apply a consistency rule and return true if consistent, false if inconsistent."""
