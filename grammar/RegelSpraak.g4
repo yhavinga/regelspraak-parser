@@ -353,9 +353,9 @@ versieGeldigheid
 // §13.4.3 Resultaat Deel
 resultaatDeel
     : EEN DAG IS EEN naamwoord                                                        # DagsoortdefinitieResultaat
-    | attribuutReferentie ( WORDT_BEREKEND_ALS expressie | WORDT_GESTELD_OP expressie | WORDT_GEINITIALISEERD_OP expressie ) # GelijkstellingResultaat
+    | attribuutReferentie ( WORDT_BEREKEND_ALS expressie | WORDT_GESTELD_OP expressie | WORDT_GEINITIALISEERD_OP expressie ) periodeDefinitie? # GelijkstellingResultaat
     | feitCreatiePattern # FeitCreatieResultaat
-    | onderwerpReferentie (IS | HEEFT) kenmerkNaam                                                # KenmerkFeitResultaat
+    | onderwerpReferentie (IS | HEEFT) kenmerkNaam periodeDefinitie?                  # KenmerkFeitResultaat
     | objectCreatie                                                                    # ObjectCreatieResultaat
     | verdelingResultaat                                                               # Verdeling
     ;
@@ -666,6 +666,23 @@ periodevergelijkingEnkelvoudig // Reusing/defining for conditieBijExpressie and 
     | VAN datumLiteral TOT_EN_MET datumLiteral
     | TOT datumLiteral
     | TOT_EN_MET datumLiteral
+    ;
+
+// Timeline period definition for rule results
+periodeDefinitie
+    : VANAF dateExpression                                            # VanafPeriode
+    | TOT dateExpression                                              # TotPeriode
+    | TOT_EN_MET dateExpression                                       # TotEnMetPeriode
+    | VAN dateExpression TOT dateExpression                           # VanTotPeriode
+    | VAN dateExpression TOT_EN_MET dateExpression                    # VanTotEnMetPeriode
+    ;
+
+// Date expression can be a literal date or a calculated date
+dateExpression
+    : datumLiteral
+    | REKENDATUM
+    | REKENJAAR
+    | attribuutReferentie  // Allow date attributes like "zijn geboortedatum"
     ;
 
 // EBNF 13.4.16.42 Getal Aggregatie Functie

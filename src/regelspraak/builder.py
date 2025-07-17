@@ -19,7 +19,7 @@ from .ast import (
     BinaryExpression, UnaryExpression, FunctionCall, Operator,
     ParameterReference, SourceSpan, Beslistabel, BeslistabelRow,
     BeslistabelCondition, BeslistabelResult, Dimension, DimensionLabel,
-    DimensionedAttributeReference
+    DimensionedAttributeReference, PeriodDefinition
 )
 from .beslistabel_parser import BeslistabelParser
 
@@ -290,6 +290,28 @@ class RegelSpraakModelBuilder(RegelSpraakVisitor):
         final_name = " ".join(name_parts)
         logger.debug(f"    _extract_canonical_name returning: '{final_name}'")
         return final_name
+
+    def _extract_canonical_name_from_text(self, text: str) -> str:
+        """Extract canonical name from a text string by removing common articles.
+        
+        This is a simpler version of _extract_canonical_name that works on plain text
+        rather than ANTLR contexts. Used when we have a string that may contain articles.
+        """
+        if not text:
+            return text
+            
+        # Split the text into words
+        words = text.split()
+        if not words:
+            return text
+            
+        # Check if first word is an article to remove
+        articles = {'de', 'het', 'een', 'De', 'Het', 'Een'}
+        if words[0] in articles:
+            # Remove the article and rejoin
+            return ' '.join(words[1:])
+        
+        return text
 
     def _build_binary_expression(self, ctx, operator_map, sub_visitor_func, operator_rule_name: Optional[str] = None) -> Optional[Expression]:
         """Generic helper to build BinaryExpression nodes for left-associative rules.
@@ -804,6 +826,53 @@ class RegelSpraakModelBuilder(RegelSpraakVisitor):
         logger.debug(f"  Final path: {path}")
         return path
 
+    def visitNumberLiteralExpr(self, ctx: AntlrParser.NumberLiteralExprContext) -> Optional[Expression]:
+        """Visit NumberLiteralExpr labeled alternative in primaryExpression."""
+        logger.debug(f"visitNumberLiteralExpr called: {safe_get_text(ctx)}")
+        num_text = ctx.NUMBER().getText().replace(',', '.')
+        try:
+            value = float(num_text) if '.' in num_text or 'e' in num_text or 'E' in num_text else int(num_text)
+            
+            # Check if there's a unit
+            unit = None
+            if ctx.unitIdentifier():
+                unit = ctx.unitIdentifier().getText()
+                logger.debug(f"  Found unit in visitNumberLiteralExpr: '{unit}'")
+            
+            result = Literal(value=value, datatype="Numeriek", eenheid=unit, span=self.get_span(ctx))
+            logger.debug(f"  Returning from visitNumberLiteralExpr: {result}")
+            return result
+        except ValueError:
+            logger.error(f"Invalid numeric literal: {ctx.NUMBER().getText()} in {safe_get_text(ctx)}")
+            return None
+
+    def visitOnderwerpRefExpr(self, ctx: AntlrParser.OnderwerpRefExprContext) -> Optional[Expression]:
+        """Visit OnderwerpRefExpr labeled alternative in primaryExpression.
+        
+        This is called when an onderwerpReferentie appears as a primary expression.
+        We need to check if it's actually a parameter reference.
+        """
+        logger.debug(f"visitOnderwerpRefExpr called: {safe_get_text(ctx)}")
+        onderwerp_ref = ctx.onderwerpReferentie()
+        
+        # Build path from onderwerp reference parts
+        path = self.visitOnderwerpReferentieToPath(onderwerp_ref)
+        logger.debug(f"  Built path in visitOnderwerpRefExpr: {path}")
+        
+        # Check if this is a single-element path that might be a parameter
+        if len(path) == 1:
+            # Extract canonical name (without article) to check against parameter names
+            canonical_name = self._extract_canonical_name_from_text(path[0])
+            logger.debug(f"  Checking if '{canonical_name}' (from '{path[0]}') is a parameter")
+            if canonical_name in self.parameter_names:
+                logger.debug(f"  Recognized as parameter: '{canonical_name}'")
+                return ParameterReference(parameter_name=canonical_name, span=self.get_span(ctx))
+        
+        # Otherwise treat as attribute reference
+        result = AttributeReference(path=path, span=self.get_span(ctx))
+        logger.debug(f"  Returning from visitOnderwerpRefExpr: {result}")
+        return result
+
     def visitOnderwerpReferentie(self, ctx: AntlrParser.OnderwerpReferentieContext) -> Optional[AttributeReference]:
         """Visit onderwerp referentie and convert to AttributeReference.
         
@@ -991,9 +1060,30 @@ class RegelSpraakModelBuilder(RegelSpraakVisitor):
         if isinstance(ctx, AntlrParser.DateCalcExprContext):
             # The grammar matched this as a date calc, but it's not
             # Handle as regular binary expression
-            left_expr = self.visit(ctx.primaryExpression(0))
-            right_expr = self.visit(ctx.primaryExpression(1))
+            logger.debug(f"  -> Handling DateCalcExprContext as binary expression")
+            left_ctx = ctx.primaryExpression(0)
+            right_ctx = ctx.primaryExpression(1)
+            logger.debug(f"    Left context type: {type(left_ctx).__name__}")
+            logger.debug(f"    Right context type: {type(right_ctx).__name__}")
+            
+            # Check if there's an identifier that might be a unit
+            identifier_text = ctx.identifier().getText() if ctx.identifier() else ""
+            logger.debug(f"    DateCalcExpr identifier: '{identifier_text}'")
+            
+            left_expr = self.visit(left_ctx)
+            right_expr = self.visit(right_ctx)
+            
+            # If the right expression is a number literal and we have an identifier that's not a time unit,
+            # treat the identifier as the unit for the number
+            if right_expr and isinstance(right_expr, Literal) and right_expr.datatype == "Numeriek" and identifier_text:
+                time_units = ["dagen", "maanden", "jaren", "weken", "uren", "minuten", "seconden"]
+                if identifier_text not in time_units:
+                    logger.debug(f"    Treating identifier '{identifier_text}' as unit for number literal")
+                    right_expr.eenheid = identifier_text
+            
             operator = Operator.PLUS if ctx.PLUS() else Operator.MIN
+            logger.debug(f"    Left expr: {left_expr}")
+            logger.debug(f"    Right expr: {right_expr}")
             return BinaryExpression(
                 left=left_expr,
                 operator=operator,
@@ -1536,9 +1626,13 @@ class RegelSpraakModelBuilder(RegelSpraakVisitor):
             logger.debug(f"    Built path: {path}")
             
             # Check if this is a single-element path that might be a parameter
-            if len(path) == 1 and path[0] in self.parameter_names:
-                logger.debug(f"    Recognized as parameter: '{path[0]}'")
-                return ParameterReference(parameter_name=path[0], span=self.get_span(ctx))
+            if len(path) == 1:
+                # Extract canonical name (without article) to check against parameter names
+                canonical_name = self._extract_canonical_name_from_text(path[0])
+                logger.debug(f"    Checking if '{canonical_name}' (from '{path[0]}') is a parameter")
+                if canonical_name in self.parameter_names:
+                    logger.debug(f"    Recognized as parameter: '{canonical_name}'")
+                    return ParameterReference(parameter_name=canonical_name, span=self.get_span(ctx))
             
             # Otherwise treat as attribute reference
             result = AttributeReference(path=path, span=self.get_span(ctx))
@@ -2138,6 +2232,7 @@ class RegelSpraakModelBuilder(RegelSpraakVisitor):
         # Add parameter name to our tracking set
         if naam:
             self.parameter_names.add(naam)
+            logger.debug(f"Added parameter to tracking: {naam}")
             logger.debug(f"Added parameter name to tracking: '{naam}'")
         
         # Handle timeline specification
@@ -2329,16 +2424,23 @@ class RegelSpraakModelBuilder(RegelSpraakVisitor):
                     is_initialization = True
                     break
             
+            # Check for optional period definition
+            period_def = None
+            if hasattr(ctx, 'periodeDefinitie') and ctx.periodeDefinitie():
+                period_def = self.visit(ctx.periodeDefinitie())
+            
             if is_initialization:
                 return Initialisatie(
                     target=target_ref,
                     expressie=expr,
+                    period_definition=period_def,
                     span=self.get_span(ctx)
                 )
             else:
                 return Gelijkstelling(
                     target=target_ref,
                     expressie=expr,
+                    period_definition=period_def,
                     span=self.get_span(ctx)
                 )
         elif isinstance(ctx, AntlrParser.KenmerkFeitResultaatContext):
@@ -2358,10 +2460,17 @@ class RegelSpraakModelBuilder(RegelSpraakVisitor):
             if not target_ref or not kenmerk_naam:
                 logger.error(f"Failed to parse kenmerk toekenning target or name in {safe_get_text(ctx)}")
                 return None
+            
+            # Check for optional period definition
+            period_def = None
+            if hasattr(ctx, 'periodeDefinitie') and ctx.periodeDefinitie():
+                period_def = self.visit(ctx.periodeDefinitie())
+            
             return KenmerkToekenning(
                 target=target_ref,
                 kenmerk_naam=kenmerk_naam,
                 is_negated=is_negated,
+                period_definition=period_def,
                 span=self.get_span(ctx)
             )
         elif isinstance(ctx, AntlrParser.ObjectCreatieResultaatContext):
@@ -2896,4 +3005,88 @@ class RegelSpraakModelBuilder(RegelSpraakVisitor):
         
         # Join and clean up
         text = " ".join(text_parts).strip()
-        return text 
+        return text
+    
+    # Timeline Period Definition Visitors
+    
+    def visitVanafPeriode(self, ctx: AntlrParser.VanafPeriodeContext) -> PeriodDefinition:
+        """Handle 'vanaf [date]' period definition."""
+        date_expr = self.visit(ctx.dateExpression())
+        logger.debug(f"visitVanafPeriode: date_expr = {date_expr}")
+        return PeriodDefinition(
+            period_type="vanaf",
+            start_date=date_expr,
+            end_date=None,
+            span=self.get_span(ctx)
+        )
+    
+    def visitTotPeriode(self, ctx: AntlrParser.TotPeriodeContext) -> PeriodDefinition:
+        """Handle 'tot [date]' period definition."""
+        date_expr = self.visit(ctx.dateExpression())
+        return PeriodDefinition(
+            period_type="tot",
+            start_date=None,
+            end_date=date_expr,
+            span=self.get_span(ctx)
+        )
+    
+    def visitTotEnMetPeriode(self, ctx: AntlrParser.TotEnMetPeriodeContext) -> PeriodDefinition:
+        """Handle 'tot en met [date]' period definition."""
+        date_expr = self.visit(ctx.dateExpression())
+        return PeriodDefinition(
+            period_type="tot_en_met",
+            start_date=None,
+            end_date=date_expr,
+            span=self.get_span(ctx)
+        )
+    
+    def visitVanTotPeriode(self, ctx: AntlrParser.VanTotPeriodeContext) -> PeriodDefinition:
+        """Handle 'van [date] tot [date]' period definition."""
+        date_exprs = [self.visit(de) for de in ctx.dateExpression()]
+        return PeriodDefinition(
+            period_type="van_tot",
+            start_date=date_exprs[0] if len(date_exprs) > 0 else None,
+            end_date=date_exprs[1] if len(date_exprs) > 1 else None,
+            span=self.get_span(ctx)
+        )
+    
+    def visitVanTotEnMetPeriode(self, ctx: AntlrParser.VanTotEnMetPeriodeContext) -> PeriodDefinition:
+        """Handle 'van [date] tot en met [date]' period definition."""
+        date_exprs = [self.visit(de) for de in ctx.dateExpression()]
+        return PeriodDefinition(
+            period_type="van_tot_en_met",
+            start_date=date_exprs[0] if len(date_exprs) > 0 else None,
+            end_date=date_exprs[1] if len(date_exprs) > 1 else None,
+            span=self.get_span(ctx)
+        )
+    
+    def visitDateExpression(self, ctx: AntlrParser.DateExpressionContext) -> Expression:
+        """Handle date expressions (literal dates, REKENDATUM, REKENJAAR, or attribute references)."""
+        logger.debug(f"visitDateExpression called with: {safe_get_text(ctx)}")
+        if ctx.datumLiteral():
+            # Extract the date literal value
+            date_ctx = ctx.datumLiteral()
+            if date_ctx.DATE_TIME_LITERAL():
+                date_text = date_ctx.DATE_TIME_LITERAL().getText()
+            else:
+                date_text = safe_get_text(date_ctx)
+            result = Literal(value=date_text, datatype="Datum", span=self.get_span(ctx))
+            logger.debug(f"  -> datumLiteral result: {result}")
+            return result
+        elif ctx.REKENDATUM():
+            # REKENDATUM is a parameter reference
+            result = ParameterReference(parameter_name="rekendatum", span=self.get_span(ctx))
+            logger.debug(f"  -> REKENDATUM result: {result}")
+            return result
+        elif ctx.REKENJAAR():
+            # REKENJAAR is a parameter reference
+            result = ParameterReference(parameter_name="rekenjaar", span=self.get_span(ctx))
+            logger.debug(f"  -> REKENJAAR result: {result}")
+            return result
+        elif ctx.attribuutReferentie():
+            result = self.visitAttribuutReferentie(ctx.attribuutReferentie())
+            logger.debug(f"  -> attribuutReferentie result: {result}")
+            return result
+        else:
+            logger.error(f"Unknown date expression type: {safe_get_text(ctx)}")
+            return None 

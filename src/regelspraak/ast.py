@@ -189,6 +189,13 @@ class Timeline:
     periods: List[Period]
     granularity: str  # "dag", "maand", or "jaar" - determines when values can change
 
+@dataclass
+class PeriodDefinition(Expression):
+    """Represents a timeline period definition (vanaf, tot, van...tot, etc.)."""
+    period_type: str  # "vanaf", "tot", "tot_en_met", "van_tot", "van_tot_en_met"
+    start_date: Optional[Expression] = None  # For vanaf, van...tot patterns
+    end_date: Optional[Expression] = None    # For tot, van...tot patterns
+
 # --- Rule Structure ---
 
 @dataclass
@@ -207,6 +214,7 @@ class Gelijkstelling(ResultaatDeel):
     """Represents an assignment (gelijkstelling: 'wordt berekend als')."""
     target: AttributeReference # The attribute being assigned to
     expressie: Expression
+    period_definition: Optional['PeriodDefinition'] = None  # For timeline value assignments
 
 @dataclass
 class KenmerkToekenning(ResultaatDeel):
@@ -214,6 +222,7 @@ class KenmerkToekenning(ResultaatDeel):
     target: AttributeReference # Often refers to the object itself implicitly
     kenmerk_naam: str
     is_negated: bool = False # For 'is niet'
+    period_definition: Optional['PeriodDefinition'] = None  # For timeline kenmerk assignments
     # span inherited and now required
 
 # Supporting classes for Verdeling
@@ -306,6 +315,7 @@ class Initialisatie(ResultaatDeel):
     Only sets the value if the attribute is currently empty (§9.6)."""
     target: AttributeReference  # The attribute being initialized
     expressie: Expression
+    period_definition: Optional['PeriodDefinition'] = None  # For timeline value initialization
 
 @dataclass
 class Dagsoortdefinitie(ResultaatDeel):

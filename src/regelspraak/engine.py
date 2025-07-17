@@ -15,7 +15,8 @@ from .ast import (
     Verdeling, VerdelingMethode, VerdelingGelijkeDelen, VerdelingNaarRato, VerdelingOpVolgorde,
     VerdelingTieBreak, VerdelingMaximum, VerdelingAfronding,
     Beslistabel, BeslistabelRow,
-    DimensionedAttributeReference, DimensionLabel
+    DimensionedAttributeReference, DimensionLabel,
+    PeriodDefinition, Period, Timeline
 )
 # Import Runtime components
 from .runtime import RuntimeContext, RuntimeObject, Value, DimensionCoordinate, TimelineValue # Import Value directly
@@ -180,6 +181,59 @@ class Evaluator:
         
         return results
 
+    def _deduce_type_from_subject_ref(self, subject_ref: AttributeReference) -> Optional[str]:
+        """Deduce object type from a FeitCreatie subject reference."""
+        if not subject_ref or not subject_ref.path:
+            return None
+        
+        for path_elem in subject_ref.path:
+            # First remove any articles
+            clean_elem = path_elem
+            for article in ['een ', 'de ', 'het ']:
+                if clean_elem.lower().startswith(article):
+                    clean_elem = clean_elem[len(article):]
+                    break
+            
+            if clean_elem in self.context.domain_model.objecttypes:
+                return clean_elem
+            
+            # Check if this might be a role in a feittype
+            # For roles like "echtgenoot", "partner", etc., we need to find the object type from the feittype
+            for feittype_name, feittype in self.context.domain_model.feittypen.items():
+                # Check if the clean_elem matches a role name pattern in the feittype
+                # Since we can't extract exact role names from grammar, check if the word appears in the feittype name
+                if clean_elem.lower() in feittype_name.lower():
+                    # Found a match - return the object type from the first role
+                    # For reciprocal relationships, all roles have the same object type
+                    if feittype.rollen and len(feittype.rollen) > 0:
+                        return feittype.rollen[0].object_type
+            
+            # Try to find object type within the path element
+            # Be more careful - "product aanbieding" should match "Aanbieding" not "Product"
+            # Try matching from the end with multiple words
+            path_elem_lower = clean_elem.lower()
+            words = path_elem_lower.split()
+            if words:
+                # First try to match the last word (most specific)
+                # "product aanbieding" -> try "aanbieding" first
+                last_word = words[-1]
+                for obj_type in self.context.domain_model.objecttypes:
+                    obj_type_lower = obj_type.lower()
+                    if last_word == obj_type_lower:
+                        return obj_type
+                
+                # Then try longer combinations
+                for length in range(len(words), 1, -1):
+                    # Try combinations starting from the end
+                    for start in range(len(words) - length + 1):
+                        candidate = ' '.join(words[start:start + length])
+                        for obj_type in self.context.domain_model.objecttypes:
+                            obj_type_lower = obj_type.lower()
+                            if candidate == obj_type_lower:
+                                return obj_type
+        
+        return None
+
     def _deduce_rule_target_type(self, rule: Regel) -> Optional[str]:
         """Tries to deduce the primary ObjectType a rule applies to."""
         # Simplistic: Look at the target of the resultaat
@@ -234,91 +288,13 @@ class Evaluator:
         
         elif isinstance(rule.resultaat, FeitCreatie):
             # For FeitCreatie, we need to determine which object type the rule iterates over
-            # This is complex - for now, try to deduce from subject1
-            if isinstance(rule.resultaat.subject1, AttributeReference) and rule.resultaat.subject1.path:
-                # If subject1 refers to an object type, use that
-                for path_elem in rule.resultaat.subject1.path:
-                    # First remove any articles
-                    clean_elem = path_elem
-                    for article in ['een ', 'de ', 'het ']:
-                        if clean_elem.lower().startswith(article):
-                            clean_elem = clean_elem[len(article):]
-                            break
-                    
-                    if clean_elem in self.context.domain_model.objecttypes:
-                        return clean_elem
-                    
-                    # Try to find object type within the path element
-                    # Be more careful - "product aanbieding" should match "Aanbieding" not "Product"
-                    # Try matching from the end with multiple words
-                    path_elem_lower = clean_elem.lower()
-                    words = path_elem_lower.split()
-                    if words:
-                        # First try to match the last word (most specific)
-                        # "product aanbieding" -> try "aanbieding" first
-                        last_word = words[-1]
-                        for obj_type in self.context.domain_model.objecttypes:
-                            obj_type_lower = obj_type.lower()
-                            if last_word == obj_type_lower:
-                                return obj_type
-                        
-                        # Then try longer combinations
-                        for length in range(len(words), 1, -1):
-                            # Try combinations starting from the end
-                            for start in range(len(words) - length + 1):
-                                candidate = ' '.join(words[start:start + length])
-                                for obj_type in self.context.domain_model.objecttypes:
-                                    obj_type_lower = obj_type.lower()
-                                    if candidate == obj_type_lower:
-                                        return obj_type
-            # Otherwise, check subject2
-            if isinstance(rule.resultaat.subject2, AttributeReference) and rule.resultaat.subject2.path:
-                for path_elem in rule.resultaat.subject2.path:
-                    # First remove any articles
-                    clean_elem = path_elem
-                    for article in ['een ', 'de ', 'het ']:
-                        if clean_elem.lower().startswith(article):
-                            clean_elem = clean_elem[len(article):]
-                            break
-                    
-                    if clean_elem in self.context.domain_model.objecttypes:
-                        return clean_elem
-                    
-                    # Try to find object type within the path element
-                    # Try matching from the end with multiple words
-                    path_elem_lower = clean_elem.lower()
-                    words = path_elem_lower.split()
-                    if words:
-                        # First try to match the last word (most specific)
-                        last_word = words[-1]
-                        for obj_type in self.context.domain_model.objecttypes:
-                            obj_type_lower = obj_type.lower()
-                            if last_word == obj_type_lower:
-                                return obj_type
-                        
-                        # Then try longer combinations
-                        for length in range(len(words), 1, -1):
-                            # Try combinations starting from the end
-                            for start in range(len(words) - length + 1):
-                                candidate = ' '.join(words[start:start + length])
-                                for obj_type in self.context.domain_model.objecttypes:
-                                    obj_type_lower = obj_type.lower()
-                                    if candidate == obj_type_lower:
-                                        return obj_type
-            # Try to find object type from roles in feittypes
-            # Check if subject1 or subject2 contain role names
-            if isinstance(rule.resultaat.subject1, AttributeReference) and rule.resultaat.subject1.path:
-                for path_elem in rule.resultaat.subject1.path:
-                    # Remove articles
-                    clean_elem = path_elem.lower().replace("een ", "").replace("de ", "").replace("het ", "")
-                    # Check if it's a role name in any feittype
-                    for feittype_naam, feittype in self.context.domain_model.feittypen.items():
-                        for rol in feittype.rollen:
-                            if rol.naam and clean_elem in rol.naam.lower():
-                                return rol.object_type
+            # Try subject1 first
+            result = self._deduce_type_from_subject_ref(rule.resultaat.subject1)
+            if result:
+                return result
             
-            # For FeitCreatie, default to checking all object types that have relationships
-            # This allows the rule to iterate over all instances that might participate
+            # Otherwise, try subject2
+            return self._deduce_type_from_subject_ref(rule.resultaat.subject2)
         elif isinstance(rule.resultaat, Verdeling):
             # For Verdeling, try to deduce from the source amount expression
             # Pattern: "Het X van Y" where Y is the object type
@@ -536,9 +512,6 @@ class Evaluator:
             
             # If target is timeline or expression contains timeline operands, evaluate as timeline
             if target_is_timeline or self._is_timeline_expression(res.expressie):
-                # Evaluate as timeline expression
-                timeline_value = self._evaluate_timeline_expression(res.expressie)
-                
                 # Get the target attribute
                 target_ref = res.target
                 if isinstance(target_ref, DimensionedAttributeReference):
@@ -548,8 +521,46 @@ class Evaluator:
                 
                 attr_name = target_ref.path[0]
                 
-                # Set the timeline value on the attribute
-                self.context.set_timeline_attribute(instance, attr_name, timeline_value, span=res.span)
+                # Check if there's a period definition
+                if res.period_definition:
+                    # Evaluate the expression to get a single value
+                    value = self.evaluate_expression(res.expressie)
+                    
+                    # Get attribute definition to find unit and granularity
+                    granularity = "dag"  # Default
+                    unit = None
+                    obj_type_def = self.context.domain_model.objecttypes.get(instance.object_type_naam)
+                    if obj_type_def:
+                        attr_def = obj_type_def.attributen.get(attr_name)
+                        if attr_def:
+                            if attr_def.timeline:
+                                granularity = attr_def.timeline
+                            if hasattr(attr_def, 'eenheid') and attr_def.eenheid:
+                                unit = attr_def.eenheid
+                    
+                    # If the value doesn't have a unit but the attribute does, apply it
+                    if unit and (not value.unit or value.unit == ""):
+                        value = Value(value=value.value, datatype=value.datatype, unit=unit)
+                    
+                    # Debug
+                    logger.debug(f"Timeline period value: {value}, unit from attr_def: {unit}")
+                    
+                    # Evaluate the period definition to get the period
+                    period = self._evaluate_period_definition(res.period_definition)
+                    period.value = value  # Set the value for this period
+                    
+                    # Create a timeline with just this period
+                    timeline = Timeline(periods=[period], granularity=granularity)
+                    timeline_value = TimelineValue(timeline=timeline)
+                    
+                    # Set the timeline value on the attribute
+                    self.context.set_timeline_attribute(instance, attr_name, timeline_value, span=res.span)
+                else:
+                    # Evaluate as timeline expression (existing behavior)
+                    timeline_value = self._evaluate_timeline_expression(res.expressie)
+                    
+                    # Set the timeline value on the attribute
+                    self.context.set_timeline_attribute(instance, attr_name, timeline_value, span=res.span)
                 return
             
             # Regular non-timeline expression evaluation
@@ -563,32 +574,8 @@ class Evaluator:
                     raise RegelspraakError("DimensionedAttributeReference base path is empty.", span=target_ref.span)
                 attr_name = base_ref.path[0]
                 
-                # Build dimension coordinates from labels
-                coordinates = DimensionCoordinate(labels={})
-                
-                # Map dimension labels to dimension names
-                obj_type_def = self.context.domain_model.objecttypes.get(instance.object_type_naam)
-                if obj_type_def:
-                    attr_def = obj_type_def.attributen.get(attr_name)
-                    if attr_def and hasattr(attr_def, 'dimensions') and attr_def.dimensions:
-                        for label in target_ref.dimension_labels:
-                            label_matched = False
-                            for dim_name in attr_def.dimensions:
-                                if dim_name in self.context.domain_model.dimensions:
-                                    dimension = self.context.domain_model.dimensions[dim_name]
-                                    # Check if this label belongs to this dimension
-                                    for order, dim_label in dimension.labels:
-                                        if dim_label == label.label:
-                                            coordinates.labels[dim_name] = label.label
-                                            label_matched = True
-                                            break
-                                if label_matched:
-                                    break
-                            if not label_matched:
-                                raise RegelspraakError(
-                                    f"Unknown dimension label '{label.label}' for attribute '{attr_name}'",
-                                    span=label.span
-                                )
+                # Resolve dimension coordinates using helper
+                coordinates = self._resolve_dimension_coordinates(target_ref, instance)
                 
                 # Set the dimensioned value
                 self.context.set_dimensioned_attribute(instance, attr_name, coordinates, value, span=res.span)
@@ -610,32 +597,8 @@ class Evaluator:
                     raise RegelspraakError("DimensionedAttributeReference base path is empty.", span=target_ref.span)
                 attr_name = base_ref.path[0]
                 
-                # Build dimension coordinates from labels
-                coordinates = DimensionCoordinate(labels={})
-                
-                # Map dimension labels to dimension names
-                obj_type_def = self.context.domain_model.objecttypes.get(instance.object_type_naam)
-                if obj_type_def:
-                    attr_def = obj_type_def.attributen.get(attr_name)
-                    if attr_def and hasattr(attr_def, 'dimensions') and attr_def.dimensions:
-                        for label in target_ref.dimension_labels:
-                            label_matched = False
-                            for dim_name in attr_def.dimensions:
-                                if dim_name in self.context.domain_model.dimensions:
-                                    dimension = self.context.domain_model.dimensions[dim_name]
-                                    # Check if this label belongs to this dimension
-                                    for order, dim_label in dimension.labels:
-                                        if dim_label == label.label:
-                                            coordinates.labels[dim_name] = label.label
-                                            label_matched = True
-                                            break
-                                if label_matched:
-                                    break
-                            if not label_matched:
-                                raise RegelspraakError(
-                                    f"Unknown dimension label '{label.label}' for attribute '{attr_name}'",
-                                    span=label.span
-                                )
+                # Resolve dimension coordinates using helper
+                coordinates = self._resolve_dimension_coordinates(target_ref, instance)
                 
                 # Check if dimensioned attribute already has a value
                 try:
@@ -925,19 +888,41 @@ class Evaluator:
         try:
             if isinstance(expr, Literal):
                 # Wrap literal in Value object
-                # Determine datatype from literal type
-                if isinstance(expr.value, bool):
-                    datatype = "Boolean"
-                elif isinstance(expr.value, (int, float, Decimal)):
-                    datatype = "Numeriek"
-                elif isinstance(expr.value, str):
-                    datatype = "Tekst"
+                # Use the datatype from the literal if it exists
+                if hasattr(expr, 'datatype') and expr.datatype:
+                    datatype = expr.datatype
+                    value = expr.value
+                    
+                    # Special handling for date literals
+                    if datatype == "Datum" and isinstance(value, str):
+                        # Parse date string to datetime
+                        from datetime import datetime
+                        # Handle various date formats: dd-mm-yyyy, dd.mm.yyyy, yyyy-mm-dd
+                        for fmt in ["%d-%m-%Y", "%d.%m.%Y", "%Y-%m-%d", "%d-%m-%Y %H:%M:%S.%f"]:
+                            try:
+                                value = datetime.strptime(value, fmt)
+                                break
+                            except ValueError:
+                                continue
+                        else:
+                            # If no format matched, keep as string and let downstream handle it
+                            pass
                 else:
-                    datatype = "Onbekend"
+                    # Fallback: determine datatype from literal type
+                    value = expr.value
+                    if isinstance(expr.value, bool):
+                        datatype = "Boolean"
+                    elif isinstance(expr.value, (int, float, Decimal)):
+                        datatype = "Numeriek"
+                    elif isinstance(expr.value, str):
+                        datatype = "Tekst"
+                    else:
+                        datatype = "Onbekend"
                     
                 # Check if literal has unit info (would need to be added to AST)
-                unit = getattr(expr, 'unit', None)
-                result = Value(value=expr.value, datatype=datatype, unit=unit)
+                # Note: Literal AST node uses 'eenheid', Value uses 'unit'
+                unit = getattr(expr, 'eenheid', None)
+                result = Value(value=value, datatype=datatype, unit=unit)
 
             elif isinstance(expr, VariableReference):
                 value = self.context.get_variable(expr.variable_name)
@@ -989,35 +974,8 @@ class Evaluator:
                     # TODO: Implement full path navigation for dimensioned attributes
                     target_obj = self.context.current_instance
                 
-                # Build dimension coordinates from labels
-                coordinates = DimensionCoordinate(labels={})
-                
-                # For each dimension label, we need to map it to its dimension name
-                # This is a limitation of our current approach - we need semantic context
-                # For now, we'll use a heuristic based on the attribute definition
-                obj_type_def = self.context.domain_model.objecttypes.get(target_obj.object_type_naam)
-                if obj_type_def:
-                    attr_def = obj_type_def.attributen.get(attr_name)
-                    if attr_def and hasattr(attr_def, 'dimensions') and attr_def.dimensions:
-                        # Match labels to dimensions based on the dimension definitions
-                        for label in expr.dimension_labels:
-                            label_matched = False
-                            for dim_name in attr_def.dimensions:
-                                if dim_name in self.context.domain_model.dimensions:
-                                    dimension = self.context.domain_model.dimensions[dim_name]
-                                    # Check if this label belongs to this dimension
-                                    for order, dim_label in dimension.labels:
-                                        if dim_label == label.label:
-                                            coordinates.labels[dim_name] = label.label
-                                            label_matched = True
-                                            break
-                                if label_matched:
-                                    break
-                            if not label_matched:
-                                raise RegelspraakError(
-                                    f"Unknown dimension label '{label.label}' for attribute '{attr_name}'",
-                                    span=label.span
-                                )
+                # Resolve dimension coordinates using helper
+                coordinates = self._resolve_dimension_coordinates(expr, target_obj)
                 
                 # Get the dimensioned value
                 value = self.context.get_dimensioned_attribute(target_obj, attr_name, coordinates)
@@ -1268,6 +1226,42 @@ class Evaluator:
         # Literals and other expressions are not timelines
         return False
 
+    def _resolve_dimension_coordinates(self, target_ref: DimensionedAttributeReference, instance: RuntimeObject) -> DimensionCoordinate:
+        """Resolve dimension labels to dimension coordinates for a given attribute."""
+        base_ref = target_ref.base_attribute
+        if not base_ref.path:
+            raise RegelspraakError("DimensionedAttributeReference base path is empty.", span=target_ref.span)
+        attr_name = base_ref.path[0]
+        
+        # Build dimension coordinates from labels
+        coordinates = DimensionCoordinate(labels={})
+        
+        # Map dimension labels to dimension names
+        obj_type_def = self.context.domain_model.objecttypes.get(instance.object_type_naam)
+        if obj_type_def:
+            attr_def = obj_type_def.attributen.get(attr_name)
+            if attr_def and hasattr(attr_def, 'dimensions') and attr_def.dimensions:
+                for label in target_ref.dimension_labels:
+                    label_matched = False
+                    for dim_name in attr_def.dimensions:
+                        if dim_name in self.context.domain_model.dimensions:
+                            dimension = self.context.domain_model.dimensions[dim_name]
+                            # Check if this label belongs to this dimension
+                            for order, dim_label in dimension.labels:
+                                if dim_label == label.label:
+                                    coordinates.labels[dim_name] = label.label
+                                    label_matched = True
+                                    break
+                        if label_matched:
+                            break
+                    if not label_matched:
+                        raise RegelspraakError(
+                            f"Unknown dimension label '{label.label}' for attribute '{attr_name}'",
+                            span=label.span
+                        )
+        
+        return coordinates
+
     def _evaluate_timeline_expression(self, expr: Expression) -> TimelineValue:
         """Evaluate an expression that involves timeline values."""
         from .timeline_utils import merge_knips, get_evaluation_periods, remove_redundant_knips
@@ -1352,19 +1346,41 @@ class Evaluator:
         try:
             if isinstance(expr, Literal):
                 # Wrap literal in Value object
-                # Determine datatype from literal type
-                if isinstance(expr.value, bool):
-                    datatype = "Boolean"
-                elif isinstance(expr.value, (int, float, Decimal)):
-                    datatype = "Numeriek"
-                elif isinstance(expr.value, str):
-                    datatype = "Tekst"
+                # Use the datatype from the literal if it exists
+                if hasattr(expr, 'datatype') and expr.datatype:
+                    datatype = expr.datatype
+                    value = expr.value
+                    
+                    # Special handling for date literals
+                    if datatype == "Datum" and isinstance(value, str):
+                        # Parse date string to datetime
+                        from datetime import datetime
+                        # Handle various date formats: dd-mm-yyyy, dd.mm.yyyy, yyyy-mm-dd
+                        for fmt in ["%d-%m-%Y", "%d.%m.%Y", "%Y-%m-%d", "%d-%m-%Y %H:%M:%S.%f"]:
+                            try:
+                                value = datetime.strptime(value, fmt)
+                                break
+                            except ValueError:
+                                continue
+                        else:
+                            # If no format matched, keep as string and let downstream handle it
+                            pass
                 else:
-                    datatype = "Onbekend"
+                    # Fallback: determine datatype from literal type
+                    value = expr.value
+                    if isinstance(expr.value, bool):
+                        datatype = "Boolean"
+                    elif isinstance(expr.value, (int, float, Decimal)):
+                        datatype = "Numeriek"
+                    elif isinstance(expr.value, str):
+                        datatype = "Tekst"
+                    else:
+                        datatype = "Onbekend"
                     
                 # Check if literal has unit info (would need to be added to AST)
-                unit = getattr(expr, 'unit', None)
-                result = Value(value=expr.value, datatype=datatype, unit=unit)
+                # Note: Literal AST node uses 'eenheid', Value uses 'unit'
+                unit = getattr(expr, 'eenheid', None)
+                result = Value(value=value, datatype=datatype, unit=unit)
 
             elif isinstance(expr, VariableReference):
                 value = self.context.get_variable(expr.variable_name)
@@ -1417,35 +1433,8 @@ class Evaluator:
                     # TODO: Implement full path navigation for dimensioned attributes
                     target_obj = self.context.current_instance
                 
-                # Build dimension coordinates from labels
-                coordinates = DimensionCoordinate(labels={})
-                
-                # For each dimension label, we need to map it to its dimension name
-                # This is a limitation of our current approach - we need semantic context
-                # For now, we'll use a heuristic based on the attribute definition
-                obj_type_def = self.context.domain_model.objecttypes.get(target_obj.object_type_naam)
-                if obj_type_def:
-                    attr_def = obj_type_def.attributen.get(attr_name)
-                    if attr_def and hasattr(attr_def, 'dimensions') and attr_def.dimensions:
-                        # Match labels to dimensions based on the dimension definitions
-                        for label in expr.dimension_labels:
-                            label_matched = False
-                            for dim_name in attr_def.dimensions:
-                                if dim_name in self.context.domain_model.dimensions:
-                                    dimension = self.context.domain_model.dimensions[dim_name]
-                                    # Check if this label belongs to this dimension
-                                    for order, dim_label in dimension.labels:
-                                        if dim_label == label.label:
-                                            coordinates.labels[dim_name] = label.label
-                                            label_matched = True
-                                            break
-                                if label_matched:
-                                    break
-                            if not label_matched:
-                                raise RegelspraakError(
-                                    f"Unknown dimension label '{label.label}' for attribute '{attr_name}'",
-                                    span=label.span
-                                )
+                # Resolve dimension coordinates using helper
+                coordinates = self._resolve_dimension_coordinates(expr, target_obj)
                 
                 # Get the dimensioned value
                 value = self.context.get_dimensioned_attribute(target_obj, attr_name, coordinates)
@@ -1844,6 +1833,99 @@ class Evaluator:
                 finest = timeline.granularity
         
         return finest
+
+    def _evaluate_period_definition(self, period_def: PeriodDefinition) -> Period:
+        """Evaluate a period definition and return a Period object."""
+        # Evaluate date expressions
+        start_date = None
+        end_date = None
+        
+        if period_def.start_date:
+            start_val = self.evaluate_expression(period_def.start_date)
+            if start_val.datatype == "Datum":
+                start_date = start_val.value
+            elif start_val.datatype == "Numeriek":
+                # Handle REKENJAAR - convert year to January 1st of that year
+                year = int(start_val.value)
+                start_date = datetime(year, 1, 1)
+            else:
+                raise RegelspraakError(f"Expected date for period start, got {start_val.datatype}", span=period_def.span)
+        
+        if period_def.end_date:
+            end_val = self.evaluate_expression(period_def.end_date)
+            if end_val.datatype == "Datum":
+                end_date = end_val.value
+            elif end_val.datatype == "Numeriek":
+                # Handle REKENJAAR - convert year to January 1st of that year
+                year = int(end_val.value)
+                end_date = datetime(year, 1, 1)
+            else:
+                raise RegelspraakError(f"Expected date for period end, got {end_val.datatype}", span=period_def.span)
+        
+        # Handle different period types according to specification §5.1.3
+        if period_def.period_type == "vanaf":
+            # From date onwards
+            if not start_date:
+                raise RegelspraakError("'vanaf' requires a start date", span=period_def.span)
+            return Period(
+                start_date=start_date,
+                end_date=datetime(2200, 1, 1),  # Far future date
+                value=None  # Value will be set by caller
+            )
+        
+        elif period_def.period_type == "tot":
+            # Up to but not including date
+            if not end_date:
+                raise RegelspraakError("'tot' requires an end date", span=period_def.span)
+            return Period(
+                start_date=datetime(1900, 1, 1),  # Far past date
+                end_date=end_date,
+                value=None
+            )
+        
+        elif period_def.period_type == "tot_en_met":
+            # Up to and including date
+            if not end_date:
+                raise RegelspraakError("'tot en met' requires an end date", span=period_def.span)
+            # Add one day to make it inclusive
+            if isinstance(end_date, datetime):
+                end_date = end_date.replace(hour=0, minute=0, second=0, microsecond=0)
+                # Add one day to make the end date inclusive
+                from datetime import timedelta
+                end_date = end_date + timedelta(days=1)
+            return Period(
+                start_date=datetime(1900, 1, 1),
+                end_date=end_date,
+                value=None
+            )
+        
+        elif period_def.period_type == "van_tot":
+            # From date1 to date2 (exclusive)
+            if not start_date or not end_date:
+                raise RegelspraakError("'van...tot' requires both start and end dates", span=period_def.span)
+            return Period(
+                start_date=start_date,
+                end_date=end_date,
+                value=None
+            )
+        
+        elif period_def.period_type == "van_tot_en_met":
+            # From date1 to date2 (inclusive)
+            if not start_date or not end_date:
+                raise RegelspraakError("'van...tot en met' requires both start and end dates", span=period_def.span)
+            # Add one day to make end date inclusive
+            if isinstance(end_date, datetime):
+                end_date = end_date.replace(hour=0, minute=0, second=0, microsecond=0)
+                from datetime import timedelta
+                end_date = end_date + timedelta(days=1)
+            return Period(
+                start_date=start_date,
+                end_date=end_date,
+                value=None
+            )
+        
+        else:
+            raise RegelspraakError(f"Unknown period type: {period_def.period_type}", span=period_def.span)
 
     def _apply_consistentieregel(self, res: Consistentieregel) -> bool:
         """Apply a consistency rule and return true if consistent, false if inconsistent."""
