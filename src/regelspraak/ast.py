@@ -3,6 +3,7 @@ from dataclasses import dataclass, field
 from typing import List, Dict, Any, Optional, Union, Tuple
 from enum import Enum
 from datetime import datetime
+from abc import ABC, abstractmethod
 
 # --- Basic Types & Enums ---
 
@@ -114,6 +115,57 @@ class FunctionCall(Expression):
     arguments: List[Expression]
     # Specific arguments for functions like 'tijdsduur van ... in ...'
     unit_conversion: Optional[str] = None # e.g., "hele jr"
+
+@dataclass
+class Subselectie(Expression):
+    """Filters a collection based on a predicate.
+    Example: "passagiers van de reis die minderjarig zijn"
+    """
+    onderwerp: Expression  # The collection to filter
+    predicaat: 'Predicaat'  # The filter condition
+
+
+# --- Predicaat Model ---
+
+@dataclass
+class Predicaat(ABC):
+    """Abstract base for all predicate types."""
+    span: SourceSpan
+
+@dataclass
+class ObjectPredicaat(Predicaat):
+    """One-sided object predicate for kenmerk/role checks.
+    Examples: 
+    - "minderjarig zijn" (kenmerk)
+    - "een passagier zijn" (role)
+    """
+    naam: str  # kenmerk or role name
+    heeft_lidwoord: bool = False  # True if "een" present
+    is_hebben: bool = False  # True for "hebben", False for "zijn"
+
+@dataclass
+class VergelijkingsPredicaat(Predicaat):
+    """Comparison predicate for attributes.
+    Example: "een leeftijd hebben groter dan 18"
+    """
+    attribuut: Optional[AttributeReference]  # Left side (implicit)
+    operator: Operator  # Comparison operator
+    waarde: Expression  # Right side value
+
+@dataclass
+class GetalPredicaat(VergelijkingsPredicaat):
+    """Numeric comparison predicate."""
+    pass
+
+@dataclass
+class TekstPredicaat(VergelijkingsPredicaat):
+    """Text comparison predicate."""
+    pass
+
+@dataclass
+class DatumPredicaat(VergelijkingsPredicaat):
+    """Date comparison predicate."""
+    pass
 
 
 # --- Core Definitions ---

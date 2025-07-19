@@ -19,7 +19,9 @@ from .ast import (
     BinaryExpression, UnaryExpression, FunctionCall, Operator,
     ParameterReference, SourceSpan, Beslistabel, BeslistabelRow,
     BeslistabelCondition, BeslistabelResult, Dimension, DimensionLabel,
-    DimensionedAttributeReference, PeriodDefinition
+    DimensionedAttributeReference, PeriodDefinition,
+    Subselectie, Predicaat, ObjectPredicaat, VergelijkingsPredicaat,
+    GetalPredicaat, TekstPredicaat, DatumPredicaat
 )
 from .beslistabel_parser import BeslistabelParser
 
@@ -802,29 +804,18 @@ class RegelSpraakModelBuilder(RegelSpraakVisitor):
     def visitOnderwerpReferentieToPath(self, ctx: AntlrParser.OnderwerpReferentieContext) -> List[str]:
         """Helper to convert onderwerpReferentie into a path list for AttributeReference.
         
-        Grammar: onderwerpReferentie : basisOnderwerp ( voorzetsel basisOnderwerp )*
-        Example: "de straat van het adres van de persoon" -> ["straat", "adres", "persoon"]
+        This method was refactored to handle the visitor refactoring where
+        visitOnderwerpReferentie returns an Expression instead of a path.
         """
-        path = []
+        if not ctx:
+            return []
         
-        # Process all basisOnderwerp elements in the onderwerpReferentie
-        basis_onderwerpen = ctx.basisOnderwerp()
-        if not isinstance(basis_onderwerpen, list):
-            basis_onderwerpen = [basis_onderwerpen] if basis_onderwerpen else []
+        # With the new grammar structure, we need to get the onderwerpBasis first
+        onderwerp_basis_ctx = ctx.onderwerpBasis()
+        if onderwerp_basis_ctx:
+            return self.visitOnderwerpBasisToPath(onderwerp_basis_ctx)
         
-        logger.debug(f"visitOnderwerpReferentieToPath: found {len(basis_onderwerpen)} basisOnderwerp elements")
-        
-        # Extract text from each basisOnderwerp
-        for i, basis_ctx in enumerate(basis_onderwerpen):
-            path_part = self.visitBasisOnderwerpToString(basis_ctx)
-            logger.debug(f"  basisOnderwerp[{i}]: '{path_part}'")
-            if path_part:
-                path.append(path_part)
-        
-        # Path is built in the order of the grammar
-        # For "de straat van het adres van de persoon", we get ["straat", "adres", "persoon"]
-        logger.debug(f"  Final path: {path}")
-        return path
+        return []
 
     def visitNumberLiteralExpr(self, ctx: AntlrParser.NumberLiteralExprContext) -> Optional[Expression]:
         """Visit NumberLiteralExpr labeled alternative in primaryExpression."""
@@ -873,27 +864,258 @@ class RegelSpraakModelBuilder(RegelSpraakVisitor):
         logger.debug(f"  Returning from visitOnderwerpRefExpr: {result}")
         return result
 
-    def visitOnderwerpReferentie(self, ctx: AntlrParser.OnderwerpReferentieContext) -> Optional[AttributeReference]:
-        """Visit onderwerp referentie and convert to AttributeReference.
+    def visitOnderwerpReferentie(self, ctx: AntlrParser.OnderwerpReferentieContext) -> Optional[Expression]:
+        """Visit onderwerp referentie and convert to AttributeReference or Subselectie.
         
-        This handles references like "hij", "de persoon", "het adres van de persoon", etc.
+        This handles references like "hij", "de persoon", "het adres van de persoon", 
+        as well as filtered collections like "passagiers die minderjarig zijn".
         """
-        # Convert to path using existing helper
-        path = self.visitOnderwerpReferentieToPath(ctx)
+        # First get the base onderwerp from onderwerpBasis
+        onderwerp_basis_ctx = ctx.onderwerpBasis()
+        if not onderwerp_basis_ctx:
+            logger.warning(f"No onderwerpBasis in onderwerpReferentie: {safe_get_text(ctx)}")
+            return None
+            
+        # Build the base AttributeReference from onderwerpBasis
+        path = self.visitOnderwerpBasisToPath(onderwerp_basis_ctx)
         
         if not path:
-            logger.warning(f"Empty path from onderwerp referentie: {safe_get_text(ctx)}")
+            logger.warning(f"Empty path from onderwerp basis: {safe_get_text(onderwerp_basis_ctx)}")
             return None
         
-        # Special case: If path is just ["self"], create a special reference to current instance
-        # The engine will handle this specially
-        if path == ["self"]:
-            # Return a special marker that the engine will recognize
-            # For now, return AttributeReference with ["self"] and let engine handle it
-            return AttributeReference(path=["self"], span=self.get_span(ctx))
+        # Create the base AttributeReference
+        base_ref = AttributeReference(path=path, span=self.get_span(onderwerp_basis_ctx))
         
-        # Otherwise create normal AttributeReference
-        return AttributeReference(path=path, span=self.get_span(ctx))
+        # Check if there's a predicaat (DIE/DAT followed by predicaat)
+        if ctx.DIE() or ctx.DAT():
+            predicaat_ctx = ctx.predicaat()
+            if predicaat_ctx:
+                predicaat = self.visitPredicaat(predicaat_ctx)
+                if predicaat:
+                    # Create Subselectie with the base reference and predicaat
+                    return Subselectie(
+                        onderwerp=base_ref,
+                        predicaat=predicaat,
+                        span=self.get_span(ctx)
+                    )
+                else:
+                    logger.warning(f"Failed to parse predicaat in subselectie: {safe_get_text(predicaat_ctx)}")
+        
+        # No predicaat, just return the base reference
+        return base_ref
+    
+    def visitOnderwerpBasisToPath(self, ctx: AntlrParser.OnderwerpBasisContext) -> List[str]:
+        """Convert onderwerp basis to a path list."""
+        if not ctx:
+            return []
+        
+        # Build path from basisOnderwerp elements
+        path = []
+        
+        # Process all basisOnderwerp elements in the onderwerpBasis
+        basis_onderwerpen = ctx.basisOnderwerp()
+        if not isinstance(basis_onderwerpen, list):
+            basis_onderwerpen = [basis_onderwerpen] if basis_onderwerpen else []
+        
+        logger.debug(f"visitOnderwerpBasisToPath: found {len(basis_onderwerpen)} basisOnderwerp elements")
+        
+        # Extract text from each basisOnderwerp
+        for i, basis_ctx in enumerate(basis_onderwerpen):
+            path_part = self.visitBasisOnderwerpToString(basis_ctx)
+            logger.debug(f"  basisOnderwerp[{i}]: '{path_part}'")
+            if path_part:
+                path.append(path_part)
+        
+        logger.debug(f"visitOnderwerpBasisToPath final path: {path}")
+        return path
+    
+    # --- Predicaat Visitors ---
+    
+    def visitPredicaat(self, ctx: AntlrParser.PredicaatContext) -> Optional[Predicaat]:
+        """Dispatch to specific predicaat type."""
+        if ctx.elementairPredicaat():
+            return self.visitElementairPredicaat(ctx.elementairPredicaat())
+        else:
+            logger.warning(f"Unsupported predicaat type: {safe_get_text(ctx)}")
+            return None
+    
+    def visitElementairPredicaat(self, ctx: AntlrParser.ElementairPredicaatContext) -> Optional[Predicaat]:
+        """Visit elementair predicaat and dispatch to specific type."""
+        if ctx.objectPredicaat():
+            return self.visitObjectPredicaat(ctx.objectPredicaat())
+        elif ctx.attribuutVergelijkingsPredicaat():
+            return self.visitAttribuutVergelijkingsPredicaat(ctx.attribuutVergelijkingsPredicaat())
+        elif ctx.getalPredicaat():
+            return self.visitGetalPredicaat(ctx.getalPredicaat())
+        elif ctx.tekstPredicaat():
+            return self.visitTekstPredicaat(ctx.tekstPredicaat())
+        elif ctx.datumPredicaat():
+            return self.visitDatumPredicaat(ctx.datumPredicaat())
+        else:
+            logger.warning(f"Unknown elementair predicaat type: {safe_get_text(ctx)}")
+            return None
+    
+    def visitObjectPredicaat(self, ctx: AntlrParser.ObjectPredicaatContext) -> Optional[ObjectPredicaat]:
+        """Visit object predicaat for kenmerk/role checks."""
+        if ctx.eenzijdigeObjectVergelijking():
+            eenzijdig = ctx.eenzijdigeObjectVergelijking()
+            heeft_lidwoord = eenzijdig.EEN() is not None
+            
+            # Get the kenmerk or role name
+            if eenzijdig.kenmerkNaam():
+                naam = self.visitKenmerkNaam(eenzijdig.kenmerkNaam())
+            elif eenzijdig.rolNaam():
+                naam = self.visitNaamwoord(eenzijdig.rolNaam())
+            else:
+                logger.warning("No kenmerk or role name in eenzijdige object vergelijking")
+                return None
+            
+            is_hebben = eenzijdig.HEBBEN() is not None
+            
+            return ObjectPredicaat(
+                naam=naam,
+                heeft_lidwoord=heeft_lidwoord,
+                is_hebben=is_hebben,
+                span=self.get_span(ctx)
+            )
+        else:
+            # Handle tweezijdige if needed
+            logger.warning("Tweezijdige object vergelijking not yet implemented")
+            return None
+    
+    def visitAttribuutVergelijkingsPredicaat(self, ctx: AntlrParser.AttribuutVergelijkingsPredicaatContext) -> Optional[VergelijkingsPredicaat]:
+        """Visit attribute comparison predicate.
+        Example: 'een leeftijd hebben kleiner dan 18'
+        """
+        # Get attribute name
+        attribuut_naam = self.visitNaamwoord(ctx.attribuutNaam)
+        if not attribuut_naam:
+            logger.error("No attribute name in attribuutVergelijkingsPredicaat")
+            return None
+        
+        # Create AttributeReference for the attribute
+        # The attribuut field will be resolved during evaluation to use the current instance
+        attribuut_ref = AttributeReference(
+            path=[attribuut_naam],
+            span=self.get_span(ctx.attribuutNaam)
+        )
+        
+        # Get comparison operator
+        comp_op = ctx.comparisonOperator()
+        if not comp_op:
+            logger.error("No comparison operator in attribuutVergelijkingsPredicaat")
+            return None
+        
+        # Extract the operator token from the comparisonOperator context
+        if comp_op.getChildCount() == 1:
+            op_node = comp_op.getChild(0)
+            if isinstance(op_node, TerminalNode):
+                op_type = op_node.symbol.type
+                operator = OPERATOR_MAP.get(op_type)
+                if not operator:
+                    logger.error(f"Unknown comparison operator token type: {op_type} (text: '{safe_get_text(op_node)}')")
+                    return None
+            else:
+                logger.error(f"Expected terminal node in comparisonOperator, got {type(op_node)}")
+                return None
+        else:
+            logger.error(f"Unexpected child count in comparisonOperator: {comp_op.getChildCount()}")
+            return None
+        
+        # Get value expression
+        waarde = self.visitExpressie(ctx.expressie())
+        if not waarde:
+            logger.error("No value expression in attribuutVergelijkingsPredicaat")
+            return None
+        
+        # Return VergelijkingsPredicaat (can be used for any datatype)
+        return VergelijkingsPredicaat(
+            attribuut=attribuut_ref,
+            operator=operator,
+            waarde=waarde,
+            span=self.get_span(ctx)
+        )
+    
+    def visitGetalPredicaat(self, ctx: AntlrParser.GetalPredicaatContext) -> Optional[GetalPredicaat]:
+        """Visit numeric comparison predicate."""
+        operator = self._map_comparison_operator_meervoud(ctx.getalVergelijkingsOperatorMeervoud())
+        if not operator:
+            return None
+            
+        waarde = self.visitExpressie(ctx.getalExpressie())
+        if not waarde:
+            return None
+            
+        # Note: attribuut will be inferred from context during evaluation
+        return GetalPredicaat(
+            attribuut=None,  # To be resolved in engine
+            operator=operator,
+            waarde=waarde,
+            span=self.get_span(ctx)
+        )
+    
+    def visitTekstPredicaat(self, ctx: AntlrParser.TekstPredicaatContext) -> Optional[TekstPredicaat]:
+        """Visit text comparison predicate."""
+        operator = self._map_comparison_operator_meervoud(ctx.tekstVergelijkingsOperatorMeervoud())
+        if not operator:
+            return None
+            
+        waarde = self.visitExpressie(ctx.tekstExpressie())
+        if not waarde:
+            return None
+            
+        return TekstPredicaat(
+            attribuut=None,  # To be resolved in engine
+            operator=operator,
+            waarde=waarde,
+            span=self.get_span(ctx)
+        )
+    
+    def visitDatumPredicaat(self, ctx: AntlrParser.DatumPredicaatContext) -> Optional[DatumPredicaat]:
+        """Visit date comparison predicate."""
+        operator = self._map_comparison_operator_meervoud(ctx.datumVergelijkingsOperatorMeervoud())
+        if not operator:
+            return None
+            
+        waarde = self.visitExpressie(ctx.datumExpressie())
+        if not waarde:
+            return None
+            
+        return DatumPredicaat(
+            attribuut=None,  # To be resolved in engine
+            operator=operator,
+            waarde=waarde,
+            span=self.get_span(ctx)
+        )
+    
+    def _map_comparison_operator_meervoud(self, ctx) -> Optional[Operator]:
+        """Map comparison operator tokens (meervoud form) to Operator enum."""
+        if not ctx:
+            return None
+            
+        if ctx.ZIJN_GELIJK_AAN():
+            return Operator.GELIJK_AAN
+        elif ctx.ZIJN_ONGELIJK_AAN():
+            return Operator.NIET_GELIJK_AAN
+        elif ctx.ZIJN_GROTER_DAN():
+            return Operator.GROTER_DAN
+        elif ctx.ZIJN_GROTER_OF_GELIJK_AAN():
+            return Operator.GROTER_OF_GELIJK_AAN
+        elif ctx.ZIJN_KLEINER_DAN():
+            return Operator.KLEINER_DAN
+        elif ctx.ZIJN_KLEINER_OF_GELIJK_AAN():
+            return Operator.KLEINER_OF_GELIJK_AAN
+        elif ctx.ZIJN_LATER_DAN():
+            return Operator.GROTER_DAN  # For dates
+        elif ctx.ZIJN_LATER_OF_GELIJK_AAN():
+            return Operator.GROTER_OF_GELIJK_AAN  # For dates
+        elif ctx.ZIJN_EERDER_DAN():
+            return Operator.KLEINER_DAN  # For dates
+        elif ctx.ZIJN_EERDER_OF_GELIJK_AAN():
+            return Operator.KLEINER_OF_GELIJK_AAN  # For dates
+        else:
+            logger.warning(f"Unknown comparison operator: {safe_get_text(ctx)}")
+            return None
     
     # 6. Expression Hierarchy Visitors
     def visitExpressie(self, ctx: AntlrParser.ExpressieContext) -> Optional[Expression]:
@@ -1486,15 +1708,32 @@ class RegelSpraakModelBuilder(RegelSpraakVisitor):
                 # For now, we'll focus on the common case: "van alle X"
                 collection_ref = None
                 if dim_select_ctx.aggregerenOverAlleDimensies():
-                    # "alle X" pattern
+                    # "alle X" pattern, possibly with filtering
                     alle_dim_ctx = dim_select_ctx.aggregerenOverAlleDimensies()
                     if alle_dim_ctx.naamwoord():
                         # Build an AttributeReference for the collection
-                        collection_path = [self._extract_canonical_name(alle_dim_ctx.naamwoord())]
+                        # Parse the naamwoord to build a proper path
+                        naamwoord_ctx = alle_dim_ctx.naamwoord()
+                        
+                        # Extract the full collection reference as a single path element
+                        # Don't split on "van" - treat "passagiers van de reis" as one navigation expression
+                        naamwoord_text = self._extract_canonical_name(naamwoord_ctx)
+                        collection_path = [naamwoord_text]
+                        
                         collection_ref = AttributeReference(
                             path=collection_path,
                             span=self.get_span(alle_dim_ctx)
                         )
+                        
+                        # Check if there's a filtering predicate
+                        if alle_dim_ctx.predicaat():
+                            # Create a Subselectie to filter the collection
+                            predicaat = self.visitPredicaat(alle_dim_ctx.predicaat())
+                            collection_ref = Subselectie(
+                                onderwerp=collection_ref,
+                                predicaat=predicaat,
+                                span=self.get_span(alle_dim_ctx)
+                            )
                 
                 if collection_ref is None:
                     logger.warning(f"Could not parse dimension selection: {safe_get_text(dim_select_ctx)}")
@@ -2025,7 +2264,11 @@ class RegelSpraakModelBuilder(RegelSpraakVisitor):
         words = []
         for child in ctx.content.children:
             if hasattr(child, 'getText'):
-                words.append(child.getText())
+                word = child.getText()
+                # Stop if we hit a cardinality starter
+                if word in ['Eén', 'Een', 'Één', 'Meerdere', 'Vele', 'Enkele']:
+                    break
+                words.append(word)
         
         # Check if there's an explicit object type after plural form
         if ctx.objecttype:

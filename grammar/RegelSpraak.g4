@@ -477,7 +477,11 @@ genesteSamengesteldeVoorwaarde
 // --- RegelSpraak Onderwerpketen (§13.4.1) & References ---
 
 // §13.4.1 Onderwerpketen (Simplified/Combined References in original G4)
-onderwerpReferentie // Allow sequence + nesting + pronoun
+onderwerpReferentie // Allow sequence + nesting + pronoun + subselectie
+    : onderwerpBasis ( (DIE | DAT) predicaat )? // Optional filtering with predicaat
+    ;
+
+onderwerpBasis // Base onderwerp without subselectie to avoid left recursion
     : basisOnderwerp ( voorzetsel basisOnderwerp )* // Allow any voorzetsel for nesting
     ;
 
@@ -500,6 +504,79 @@ kenmerkNaam : onderwerpReferentie ; // Reuse onderwerpReferentie structure (as p
 bezieldeReferentie // Used in primaryExpression
     : ZIJN identifier
     ;
+
+// --- Predicaat Rules (§5.6 and §13.4.14) ---
+predicaat
+    : elementairPredicaat
+    // | samengesteldPredicaat // Deferred for minimal implementation
+    ;
+
+elementairPredicaat
+    : attribuutVergelijkingsPredicaat  // Check this before objectPredicaat
+    | objectPredicaat
+    | getalPredicaat
+    | tekstPredicaat  
+    | datumPredicaat
+    ;
+
+// Object predicaat for kenmerk/role checks
+objectPredicaat
+    : eenzijdigeObjectVergelijking
+    // | tweezijdigeObjectVergelijking // Deferred for minimal implementation
+    ;
+
+eenzijdigeObjectVergelijking
+    : EEN? (kenmerkNaam | rolNaam) (ZIJN | HEBBEN)
+    ;
+
+rolNaam : naamwoord ; // Role name is similar to kenmerk name
+
+// Attribute comparison predicaat (e.g., "een leeftijd hebben kleiner dan 18")
+attribuutVergelijkingsPredicaat
+    : EEN? attribuutNaam=naamwoord HEBBEN comparisonOperator expressie
+    ;
+
+// Comparison predicates
+getalPredicaat
+    : getalVergelijkingsOperatorMeervoud getalExpressie
+    ;
+
+tekstPredicaat
+    : tekstVergelijkingsOperatorMeervoud tekstExpressie
+    ;
+
+datumPredicaat
+    : datumVergelijkingsOperatorMeervoud datumExpressie
+    ;
+
+// Add comparison operators (meervoud for die/dat context)
+getalVergelijkingsOperatorMeervoud
+    : ZIJN_GELIJK_AAN
+    | ZIJN_ONGELIJK_AAN
+    | ZIJN_GROTER_DAN
+    | ZIJN_GROTER_OF_GELIJK_AAN
+    | ZIJN_KLEINER_DAN
+    | ZIJN_KLEINER_OF_GELIJK_AAN
+    ;
+
+tekstVergelijkingsOperatorMeervoud
+    : ZIJN_GELIJK_AAN
+    | ZIJN_ONGELIJK_AAN
+    ;
+
+datumVergelijkingsOperatorMeervoud
+    : ZIJN_GELIJK_AAN
+    | ZIJN_ONGELIJK_AAN
+    | ZIJN_LATER_DAN
+    | ZIJN_LATER_OF_GELIJK_AAN
+    | ZIJN_EERDER_DAN
+    | ZIJN_EERDER_OF_GELIJK_AAN
+    ;
+
+// Expression types for predicates
+getalExpressie : expressie ;
+tekstExpressie : expressie ;
+datumExpressie : expressie ;
 
 
 // §13.4.2 Variabele Deel
@@ -707,7 +784,7 @@ dimensieSelectie
     ;
 
 aggregerenOverAlleDimensies
-    : ALLE naamwoord // naamwoord used for meervoud form
+    : ALLE naamwoord ( (DIE | DAT) predicaat )? // Support filtering with predicates
     ;
 
 aggregerenOverVerzameling // EBNF 13.4.16.48 - Using naamwoord for meervoud, identifier for waarde

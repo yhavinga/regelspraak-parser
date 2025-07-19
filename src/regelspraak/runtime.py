@@ -1,7 +1,7 @@
 """Runtime representation of RegelSpraak concepts during evaluation."""
 
 from dataclasses import dataclass, field
-from typing import Any, Dict, Optional, List, TYPE_CHECKING, Union, Tuple
+from typing import Any, Dict, Optional, List, TYPE_CHECKING, Union, Tuple, Set
 from decimal import Decimal
 from collections import defaultdict
 
@@ -745,6 +745,13 @@ class RuntimeContext:
         return related
 
     # --- Evaluation Helpers ('IS', 'IN') ---
+
+    def get_kenmerken_for_type(self, object_type_naam: str) -> Set[str]:
+        """Get all defined kenmerken for an object type."""
+        obj_type = self.domain_model.objecttypes.get(object_type_naam)
+        if not obj_type:
+            return set()
+        return set(obj_type.kenmerken.keys())
 
     def check_is(self, instance: RuntimeObject, kenmerk_or_type: str) -> bool:
         """Handles the 'IS' operator for type or kenmerk checks."""

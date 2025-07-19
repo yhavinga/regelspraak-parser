@@ -16,7 +16,9 @@ from .ast import (
     VerdelingTieBreak, VerdelingMaximum, VerdelingAfronding,
     Beslistabel, BeslistabelRow,
     DimensionedAttributeReference, DimensionLabel,
-    PeriodDefinition, Period, Timeline
+    PeriodDefinition, Period, Timeline,
+    Subselectie, Predicaat, ObjectPredicaat, VergelijkingsPredicaat,
+    GetalPredicaat, TekstPredicaat, DatumPredicaat
 )
 # Import Runtime components
 from .runtime import RuntimeContext, RuntimeObject, Value, DimensionCoordinate, TimelineValue # Import Value directly
@@ -322,7 +324,21 @@ class Evaluator:
             # Path structure from visitAttribuutReferentie: ["attribute", "object_type", ...]
             # e.g., ["resultaat", "Bedrag"] for "De resultaat van een Bedrag"
             # e.g., ["leeftijd", "Natuurlijk persoon"] for "De leeftijd van een Natuurlijk persoon"
-            if len(target_ref.path) > 1: 
+            # For KenmerkToekenning: ["Natuurlijk persoon"] for "Een Natuurlijk persoon is minderjarig"
+            if len(target_ref.path) == 1:
+                # For KenmerkToekenning, the path is just the object type
+                potential_type = target_ref.path[0]
+                # Check if it matches a known object type
+                if hasattr(self.context, 'domain_model') and self.context.domain_model:
+                    # First try exact match
+                    if potential_type in self.context.domain_model.objecttypes:
+                        return potential_type
+                    
+                    # Try case-insensitive match
+                    for obj_type in self.context.domain_model.objecttypes:
+                        if obj_type.lower() == potential_type.lower():
+                            return obj_type
+            elif len(target_ref.path) > 1: 
                 # The second element is typically the object type
                 potential_type = target_ref.path[1]
                 # Check if it matches a known object type
@@ -733,10 +749,16 @@ class Evaluator:
                     self.context.set_current_instance(target_obj)
                     
                     try:
+                        logger.info(f"FeitCreatie: Evaluating condition for target {target_obj.object_type_naam} {target_obj.instance_id}")
+                        logger.info(f"  Current instance: {self.context.current_instance}")
                         condition_value = self.evaluate_expression(self._current_rule.voorwaarde.expressie)
+                        logger.info(f"  Condition result: {condition_value}")
                         if condition_value.datatype != "Boolean" or not condition_value.value:
                             # Condition not met, skip this target
                             continue
+                    except Exception as e:
+                        logger.error(f"Error evaluating FeitCreatie condition: {e}")
+                        raise
                     finally:
                         # Restore original instance
                         self.context.set_current_instance(original_instance)
@@ -999,9 +1021,25 @@ class Evaluator:
                 if not expr.path:
                     raise RegelspraakError("Attribute reference path is empty.", span=expr.span)
 
+                # Check if the last element of the path refers to the current instance type
+                # E.g., ["passagiers", "vlucht"] when current instance is a Vlucht
+                working_path = expr.path[:]  # Make a copy
+                logger.debug(f"AttributeReference evaluation: path={expr.path}, current_instance={self.context.current_instance.object_type_naam}")
+                if len(working_path) > 1:
+                    last_element = working_path[-1].lower()
+                    current_type = self.context.current_instance.object_type_naam.lower()
+                    
+                    # Check if last element matches current instance type
+                    # Only match if it's the exact type name (with or without articles)
+                    last_element_clean = last_element.replace("de ", "").replace("het ", "").replace("een ", "")
+                    if (last_element == current_type or last_element_clean == current_type):
+                        # Remove the last element as it refers to the current instance
+                        logger.debug(f"Removing last element '{last_element}' as it matches current instance type '{current_type}'")
+                        working_path = working_path[:-1]
+                
                 # If path is like ["leeftijd"], get from current_instance
-                if len(expr.path) == 1:
-                    attr_name = expr.path[0]
+                if len(working_path) == 1:
+                    attr_name = working_path[0]
                     
                     # Special case: If path is ["self"], return the current instance itself
                     if attr_name == "self":
@@ -1012,18 +1050,197 @@ class Evaluator:
                         # Return the current instance as a reference
                         result = Value(value=self.context.current_instance, datatype="ObjectReference")
                     else:
-                        value = self.context.get_attribute(self.context.current_instance, attr_name)
-                        
-                        # Trace attribute read
-                        if self.context.trace_sink:
-                            self.context.trace_sink.attribute_read(
-                                self.context.current_instance,
-                                attr_name,
-                                value.value if isinstance(value, Value) else value,
-                                expr=expr
-                            )
-                            
-                        result = value
+                        # Check for "X van de Y" pattern in single element path
+                        if " van " in attr_name:
+                            # Split on " van " to get role and context
+                            parts = attr_name.split(" van ")
+                            if len(parts) == 2:
+                                role_name = parts[0].strip()  # e.g., "passagiers"
+                                context_ref = parts[1].strip()  # e.g., "de vlucht"
+                                logger.debug(f"AttributeReference: Parsed navigation pattern - role_name='{role_name}', context_ref='{context_ref}'")
+                                
+                                # Remove articles from context
+                                for article in ['de ', 'het ', 'een ']:
+                                    if context_ref.startswith(article):
+                                        context_ref = context_ref[len(article):]
+                                        break
+                                
+                                # Check if context matches current instance type
+                                current_type_lower = self.context.current_instance.object_type_naam.lower()
+                                if context_ref.lower() == current_type_lower:
+                                    # Navigation from current instance through role
+                                    logger.debug(f"Context '{context_ref}' matches current instance type, looking for role '{role_name}'")
+                                    
+                                    # Find related objects through feittype relationships
+                                    role_found = False
+                                    for feittype_name, feittype in self.context.domain_model.feittypen.items():
+                                        for i, rol in enumerate(feittype.rollen):
+                                            # Check if current instance can participate in this role
+                                            if rol.object_type == self.context.current_instance.object_type_naam:
+                                                # Current instance matches this role, now check the other role for our target
+                                                for j, other_rol in enumerate(feittype.rollen):
+                                                    if i != j:  # Different role
+                                                        # Match role name
+                                                        role_naam_lower = other_rol.naam.lower()
+                                                        role_name_lower = role_name.lower()
+                                                        
+                                                        # Remove articles for better matching
+                                                        role_naam_clean = role_naam_lower.replace("de ", "").replace("het ", "").replace("een ", "")
+                                                        role_name_clean = role_name_lower.replace("de ", "").replace("het ", "").replace("een ", "")
+                                                        
+                                                        # Check exact match or plural match
+                                                        matches = (role_naam_clean == role_name_clean or 
+                                                                 (other_rol.meervoud and other_rol.meervoud.lower() == role_name_lower) or
+                                                                 (other_rol.meervoud and other_rol.meervoud.lower().replace("de ", "").replace("het ", "") == role_name_clean) or
+                                                                 # Simple pluralization rules
+                                                                 (role_naam_clean + 's' == role_name_clean) or  # passagier -> passagiers
+                                                                 (role_naam_clean + 'en' == role_name_clean) or  # boek -> boeken
+                                                                 (role_name_clean + 's' == role_naam_clean) or  # passagiers -> passagier
+                                                                 (role_name_clean.endswith('en') and role_name_clean[:-2] == role_naam_clean))  # boeken -> boek
+                                                        
+                                                        if matches:
+                                                            # Found matching role - get related objects
+                                                            as_subject = (i == 0)  # If current instance is at role 0, it's the subject
+                                                            related_objects = self.context.get_related_objects(
+                                                                self.context.current_instance, feittype_name, as_subject=as_subject
+                                                            )
+                                                            
+                                                            logger.debug(f"Found {len(related_objects)} related objects for role '{role_name}'")
+                                                            result = Value(value=related_objects, datatype="Lijst")
+                                                            role_found = True
+                                                            break
+                                                if role_found:
+                                                    break
+                                        if role_found:
+                                            break
+                                    
+                                    if not role_found:
+                                        # Navigation pattern didn't match any feittype
+                                        raise RegelspraakError(
+                                            f"No feittype found for navigation pattern '{attr_name}' from {self.context.current_instance.object_type_naam}",
+                                            span=expr.span
+                                        )
+                                else:
+                                    # Context doesn't match current instance
+                                    raise RegelspraakError(
+                                        f"Navigation context '{context_ref}' does not match current instance type '{self.context.current_instance.object_type_naam}'",
+                                        span=expr.span
+                                    )
+                            else:
+                                # Multiple "van" in the expression, not a simple navigation
+                                raise RegelspraakError(
+                                    f"Complex navigation pattern not supported: '{attr_name}'",
+                                    span=expr.span
+                                )
+                        else:
+                            # Not a navigation pattern, try as regular attribute
+                            try:
+                                value = self.context.get_attribute(self.context.current_instance, attr_name)
+                                
+                                # Trace attribute read
+                                if self.context.trace_sink:
+                                    self.context.trace_sink.attribute_read(
+                                        self.context.current_instance,
+                                        attr_name,
+                                        value.value if isinstance(value, Value) else value,
+                                        expr=expr
+                                    )
+                                    
+                                result = value
+                            except RuntimeError as e:
+                                # Not an attribute, check if it's a role name for navigation
+                                # E.g., "passagiers" to get all passengers of the current vlucht
+                                logger.debug(f"Attribute '{attr_name}' not found on {self.context.current_instance.object_type_naam}, checking roles...")
+                                role_found = False
+                                for feittype_name, feittype in self.context.domain_model.feittypen.items():
+                                    for rol in feittype.rollen:
+                                        # Match against role name or plural form
+                                        role_naam_lower = rol.naam.lower()
+                                        attr_name_lower = attr_name.lower()
+                                        
+                                        # Remove articles for better matching
+                                        role_naam_clean = role_naam_lower.replace("de ", "").replace("het ", "").replace("een ", "")
+                                        attr_name_clean = attr_name_lower.replace("de ", "").replace("het ", "").replace("een ", "")
+                                        
+                                        # Handle broken role parsing where role name includes object type
+                                        role_first_word = role_naam_clean.split()[0] if role_naam_clean else ""
+                                        
+                                        # Check exact match or plural match
+                                        matches = (role_naam_clean == attr_name_clean or 
+                                                 (rol.meervoud and rol.meervoud.lower() == attr_name_lower) or
+                                                 (rol.meervoud and rol.meervoud.lower().replace("de ", "").replace("het ", "") == attr_name_clean) or
+                                                 # Simple pluralization rules
+                                                 (role_naam_clean + 's' == attr_name_clean) or  # passagier -> passagiers
+                                                 (role_naam_clean + 'en' == attr_name_clean) or  # boek -> boeken
+                                                 (attr_name_clean + 's' == role_naam_clean) or  # passagiers -> passagier
+                                                 (attr_name_clean.endswith('en') and attr_name_clean[:-2] == role_naam_clean) or  # boeken -> boek
+                                                 # Irregular plurals (common Dutch cases)
+                                                 (role_naam_clean == 'lid' and attr_name_clean == 'leden') or
+                                                 (role_naam_clean == 'kind' and attr_name_clean == 'kinderen') or
+                                                 (role_naam_clean == 'ei' and attr_name_clean == 'eieren') or
+                                                 # Match first word of role (for broken parsing)
+                                                 (role_first_word and (
+                                                     role_first_word == attr_name_clean or
+                                                     role_first_word + 's' == attr_name_clean or
+                                                     role_first_word + 'en' == attr_name_clean or
+                                                     attr_name_clean + 's' == role_first_word or
+                                                     (attr_name_clean.endswith('en') and attr_name_clean[:-2] == role_first_word))))
+                                        
+                                        if matches:
+                                            # Check if current instance can participate in this feittype
+                                            logger.debug(f"Role match found: '{attr_name}' matches role '{rol.naam}' in feittype '{feittype_name}'")
+                                            can_participate = False
+                                            for i, check_rol in enumerate(feittype.rollen):
+                                                if check_rol.object_type == self.context.current_instance.object_type_naam:
+                                                    # Current instance matches this role's object type
+                                                    # We want the OTHER role's objects
+                                                    role_index = feittype.rollen.index(rol)
+                                                    if i != role_index:  # This is the role current instance plays
+                                                        # If current instance is at role index 0 (typically subject role),
+                                                        # and we want role index 1 (typically object role),
+                                                        # then we need to look for relationships where current instance is subject
+                                                        as_subject = (i == 0)
+                                                        logger.debug(f"Getting related objects: current role index={i}, matched role index={role_index}, as_subject={as_subject}")
+                                                        
+                                                        related_objects = self.context.get_related_objects(
+                                                            self.context.current_instance, feittype_name, as_subject=as_subject
+                                                        )
+                                                        
+                                                        # For plural forms, return the collection
+                                                        is_plural = (attr_name_clean.endswith('s') or attr_name_clean.endswith('en') or 
+                                                                   attr_name_clean != role_naam_clean)
+                                                        
+                                                        if is_plural:
+                                                            logger.debug(f"Returning {len(related_objects)} related objects as list for plural role '{attr_name}'")
+                                                            result = Value(value=related_objects, datatype="Lijst")
+                                                        else:
+                                                            # Singular form, return first object or error if none/multiple
+                                                            if not related_objects:
+                                                                raise RegelspraakError(
+                                                                    f"No related object found for role '{attr_name}' from {self.context.current_instance.object_type_naam}",
+                                                                    span=expr.span
+                                                                )
+                                                            if len(related_objects) > 1:
+                                                                raise RegelspraakError(
+                                                                    f"Multiple objects found for singular role '{attr_name}' from {self.context.current_instance.object_type_naam}",
+                                                                    span=expr.span
+                                                                )
+                                                            result = Value(value=related_objects[0], datatype="ObjectReference")
+                                                        
+                                                        role_found = True
+                                                        can_participate = True
+                                                        break
+                                            if can_participate:
+                                                break
+                                    if role_found:
+                                        break
+                                
+                                if not role_found:
+                                    # Neither attribute nor role, raise error
+                                    raise RegelspraakError(
+                                        f"'{attr_name}' is neither an attribute nor a role name on {self.context.current_instance.object_type_naam}",
+                                        span=expr.span
+                                    )
                 else:
                     # Handle paths like ['self', 'leeftijd']
                     if expr.path[0] == 'self': # Check if path starts with 'self'
@@ -1096,7 +1313,40 @@ class Evaluator:
                             for feittype_name, feittype in self.context.domain_model.feittypen.items():
                                 # Check if segment matches a role name in this feittype
                                 for rol in feittype.rollen:
-                                    if rol.naam.lower() == segment.lower():
+                                    # Match against role name or plural form
+                                    role_naam_lower = rol.naam.lower()
+                                    segment_lower = segment.lower()
+                                    
+                                    # Remove articles for better matching
+                                    role_naam_clean = role_naam_lower.replace("de ", "").replace("het ", "").replace("een ", "")
+                                    segment_clean = segment_lower.replace("de ", "").replace("het ", "").replace("een ", "")
+                                    
+                                    # Handle broken role parsing where role name includes object type
+                                    # e.g., "passagier Natuurlijk persoon" should match "passagier" or "passagiers"
+                                    role_first_word = role_naam_clean.split()[0] if role_naam_clean else ""
+                                    
+                                    # Check exact match or plural match
+                                    matches = (role_naam_clean == segment_clean or 
+                                             (rol.meervoud and rol.meervoud.lower() == segment_lower) or
+                                             (rol.meervoud and rol.meervoud.lower().replace("de ", "").replace("het ", "") == segment_clean) or
+                                             # Simple pluralization rules
+                                             (role_naam_clean + 's' == segment_clean) or  # passagier -> passagiers
+                                             (role_naam_clean + 'en' == segment_clean) or  # boek -> boeken
+                                             (segment_clean + 's' == role_naam_clean) or  # passagiers -> passagier
+                                             (segment_clean.endswith('en') and segment_clean[:-2] == role_naam_clean) or  # boeken -> boek
+                                             # Irregular plurals (common Dutch cases)
+                                             (role_naam_clean == 'lid' and segment_clean == 'leden') or
+                                             (role_naam_clean == 'kind' and segment_clean == 'kinderen') or
+                                             (role_naam_clean == 'ei' and segment_clean == 'eieren') or
+                                             # Match first word of role (for broken parsing)
+                                             (role_first_word and (
+                                                 role_first_word == segment_clean or
+                                                 role_first_word + 's' == segment_clean or
+                                                 role_first_word + 'en' == segment_clean or
+                                                 segment_clean + 's' == role_first_word or
+                                                 (segment_clean.endswith('en') and segment_clean[:-2] == role_first_word))))  # leden -> lid
+                                    
+                                    if matches:
                                         # Find related objects through this feittype
                                         # Determine which role index this is (0 or 1)
                                         role_index = feittype.rollen.index(rol)
@@ -1111,8 +1361,20 @@ class Evaluator:
                                                 f"No related object found for role '{segment}' from {current_obj.object_type_naam}",
                                                 span=expr.span
                                             )
-                                        # Take the first related object (simplified for now)
-                                        current_obj = related_objects[0]
+                                        
+                                        # Check if this is the final segment and if it's a plural form
+                                        is_final_segment = (i == len(nav_path) - 2)
+                                        is_plural = (segment_clean.endswith('s') or segment_clean.endswith('en') or 
+                                                   segment_clean != role_naam_clean)  # Different from role name suggests plural
+                                        
+                                        if is_final_segment and is_plural and len(related_objects) > 1:
+                                            # This is a collection navigation - return all related objects
+                                            result = Value(value=related_objects, datatype="Lijst")
+                                            return result
+                                        else:
+                                            # Take the first related object for intermediate navigation
+                                            current_obj = related_objects[0]
+                                        
                                         role_found = True
                                         break
                             
@@ -1163,6 +1425,9 @@ class Evaluator:
 
             elif isinstance(expr, FunctionCall):
                 result = self._handle_function_call(expr)
+                
+            elif isinstance(expr, Subselectie):
+                result = self._evaluate_subselectie(expr)
 
             else:
                 raise RegelspraakError(f"Unknown expression type: {type(expr)}", span=expr.span)
@@ -1222,6 +1487,10 @@ class Evaluator:
         elif isinstance(expr, FunctionCall):
             # Check if any argument is a timeline
             return any(self._is_timeline_expression(arg) for arg in expr.arguments)
+        
+        elif isinstance(expr, Subselectie):
+            # Check if the onderwerp or predicaat involves timelines
+            return self._is_timeline_expression(expr.onderwerp)
         
         # Literals and other expressions are not timelines
         return False
@@ -1330,7 +1599,8 @@ class Evaluator:
 
     def _evaluate_expression_non_timeline(self, expr: Expression) -> Value:
         """Evaluate an expression without timeline checking.
-        This is used internally when we're already evaluating within a specific time period."""
+        This is used internally when we're already evaluating within a specific time period.
+        NON-TIMELINE EVALUATION METHOD"""
         current_instance = self.context.current_instance
         instance_id = current_instance.instance_id if current_instance else None
         
@@ -1451,6 +1721,7 @@ class Evaluator:
                 result = value
 
             elif isinstance(expr, AttributeReference):
+                # IN NON-TIMELINE EVALUATION
                 # Simple case: direct attribute on current instance (e.g., "leeftijd")
                 # TODO: Handle multi-part paths (e.g., person.address.street)
                 if self.context.current_instance is None:
@@ -1525,20 +1796,30 @@ class Evaluator:
                         self.context.current_instance.object_type_naam.lower() in expr.path[1].lower() or
                         (len(expr.path[1]) > 20 and  # Long descriptive phrases
                          any(word in expr.path[1].lower() for word in self.context.current_instance.object_type_naam.lower().split()))):
-                        # This refers to the current instance
-                        attr_name = expr.path[0]
-                        value = self.context.get_attribute(self.context.current_instance, attr_name)
                         
-                        # Trace attribute read
-                        if self.context.trace_sink:
-                            self.context.trace_sink.attribute_read(
-                                self.context.current_instance,
-                                attr_name,
-                                value,
-                                expr=expr
-                            )
+                        # First check if path[0] is a role name (e.g., "passagiers" in ["passagiers", "vlucht"])
+                        logger.debug(f"Checking if '{expr.path[0]}' is a role from '{self.context.current_instance.object_type_naam}'")
+                        try:
+                            result = self._evaluate_role_navigation(expr.path[0], self.context.current_instance)
+                            logger.debug(f"Role navigation succeeded - returning collection/object")
+                            # Role navigation succeeded - result is already set
+                        except RegelspraakError as e:
+                            logger.debug(f"Not a role: {e}")
+                            # Not a role - treat as attribute on current instance
+                            # This refers to the current instance
+                            attr_name = expr.path[0]
+                            value = self.context.get_attribute(self.context.current_instance, attr_name)
                             
-                        result = value
+                            # Trace attribute read
+                            if self.context.trace_sink:
+                                self.context.trace_sink.attribute_read(
+                                    self.context.current_instance,
+                                    attr_name,
+                                    value,
+                                    expr=expr
+                                )
+                                
+                            result = value
                     else:
                         # Handle nested object references
                         # Path like ["vluchtdatum", "reis", "persoon"] means:
@@ -1556,7 +1837,40 @@ class Evaluator:
                             for feittype_name, feittype in self.context.domain_model.feittypen.items():
                                 # Check if segment matches a role name in this feittype
                                 for rol in feittype.rollen:
-                                    if rol.naam.lower() == segment.lower():
+                                    # Match against role name or plural form
+                                    role_naam_lower = rol.naam.lower()
+                                    segment_lower = segment.lower()
+                                    
+                                    # Remove articles for better matching
+                                    role_naam_clean = role_naam_lower.replace("de ", "").replace("het ", "").replace("een ", "")
+                                    segment_clean = segment_lower.replace("de ", "").replace("het ", "").replace("een ", "")
+                                    
+                                    # Handle broken role parsing where role name includes object type
+                                    # e.g., "passagier Natuurlijk persoon" should match "passagier" or "passagiers"
+                                    role_first_word = role_naam_clean.split()[0] if role_naam_clean else ""
+                                    
+                                    # Check exact match or plural match
+                                    matches = (role_naam_clean == segment_clean or 
+                                             (rol.meervoud and rol.meervoud.lower() == segment_lower) or
+                                             (rol.meervoud and rol.meervoud.lower().replace("de ", "").replace("het ", "") == segment_clean) or
+                                             # Simple pluralization rules
+                                             (role_naam_clean + 's' == segment_clean) or  # passagier -> passagiers
+                                             (role_naam_clean + 'en' == segment_clean) or  # boek -> boeken
+                                             (segment_clean + 's' == role_naam_clean) or  # passagiers -> passagier
+                                             (segment_clean.endswith('en') and segment_clean[:-2] == role_naam_clean) or  # boeken -> boek
+                                             # Irregular plurals (common Dutch cases)
+                                             (role_naam_clean == 'lid' and segment_clean == 'leden') or
+                                             (role_naam_clean == 'kind' and segment_clean == 'kinderen') or
+                                             (role_naam_clean == 'ei' and segment_clean == 'eieren') or
+                                             # Match first word of role (for broken parsing)
+                                             (role_first_word and (
+                                                 role_first_word == segment_clean or
+                                                 role_first_word + 's' == segment_clean or
+                                                 role_first_word + 'en' == segment_clean or
+                                                 segment_clean + 's' == role_first_word or
+                                                 (segment_clean.endswith('en') and segment_clean[:-2] == role_first_word))))  # leden -> lid
+                                    
+                                    if matches:
                                         # Find related objects through this feittype
                                         # Determine which role index this is (0 or 1)
                                         role_index = feittype.rollen.index(rol)
@@ -1571,8 +1885,20 @@ class Evaluator:
                                                 f"No related object found for role '{segment}' from {current_obj.object_type_naam}",
                                                 span=expr.span
                                             )
-                                        # Take the first related object (simplified for now)
-                                        current_obj = related_objects[0]
+                                        
+                                        # Check if this is the final segment and if it's a plural form
+                                        is_final_segment = (i == len(nav_path) - 2)
+                                        is_plural = (segment_clean.endswith('s') or segment_clean.endswith('en') or 
+                                                   segment_clean != role_naam_clean)  # Different from role name suggests plural
+                                        
+                                        if is_final_segment and is_plural and len(related_objects) > 1:
+                                            # This is a collection navigation - return all related objects
+                                            result = Value(value=related_objects, datatype="Lijst")
+                                            return result
+                                        else:
+                                            # Take the first related object for intermediate navigation
+                                            current_obj = related_objects[0]
+                                        
                                         role_found = True
                                         break
                             
@@ -1623,6 +1949,9 @@ class Evaluator:
 
             elif isinstance(expr, FunctionCall):
                 result = self._handle_function_call_non_timeline(expr)
+                
+            elif isinstance(expr, Subselectie):
+                result = self._evaluate_subselectie(expr)
 
             else:
                 raise RegelspraakError(f"Unknown expression type: {type(expr)}", span=expr.span)
@@ -1651,8 +1980,11 @@ class Evaluator:
                 raise RegelspraakError(f"Right side of 'IS' must evaluate to a string (kenmerk/type name), got {type(right_val.value)}", span=expr.right.span)
             
             # For IS operator, we need the actual object instance
-            # If left_val is an object reference, we need to resolve it
-            instance = self.context.current_instance  # Default to current instance
+            # If left_val is an object reference, use that object
+            if left_val.datatype == "ObjectReference" and isinstance(left_val.value, RuntimeObject):
+                instance = left_val.value
+            else:
+                instance = self.context.current_instance  # Default to current instance
             
             if instance is None:
                 raise RegelspraakError("Could not determine object instance for 'IS' check.", span=expr.left.span)
@@ -1775,6 +2107,126 @@ class Evaluator:
                     return self._function_registry[core_func_name](expr)
             
             raise RegelspraakError(f"Unknown function: {expr.function_name}", span=expr.span)
+    
+    # --- Subselectie Evaluation ---
+    
+    def _evaluate_subselectie(self, subselectie: Subselectie) -> Value:
+        """Evaluate subselectie by filtering collection based on predicaat."""
+        # 1. Evaluate the onderwerp to get base collection
+        collection_value = self.evaluate_expression(subselectie.onderwerp)
+        
+        # Extract the actual collection from the Value object
+        if isinstance(collection_value, Value):
+            collection = collection_value.value
+        else:
+            collection = collection_value
+        
+        # Ensure we have a collection
+        if not isinstance(collection, list):
+            if isinstance(collection, RuntimeObject):
+                collection = [collection]
+            else:
+                logger.warning(f"Subselectie onderwerp did not return collection: {type(collection)}")
+                return Value(value=[], datatype="Lijst")
+        
+        # 2. Filter collection based on predicaat
+        filtered = []
+        for item in collection:
+            if not isinstance(item, RuntimeObject):
+                logger.warning(f"Skipping non-object in collection: {type(item)}")
+                continue
+                
+            # Save current instance
+            original_instance = self.context.current_instance
+            try:
+                # Set the item as current instance for predicate evaluation
+                self.context.current_instance = item
+                
+                # Evaluate predicaat for this item
+                if self._evaluate_predicaat(subselectie.predicaat, item):
+                    filtered.append(item)
+            finally:
+                # Restore original instance
+                self.context.current_instance = original_instance
+        
+        logger.info(f"Subselectie filtered {len(collection)} to {len(filtered)} items")
+        
+        # Return filtered collection as Value
+        return Value(value=filtered, datatype="Lijst")
+    
+    def _evaluate_predicaat(self, predicaat: Predicaat, instance: RuntimeObject) -> bool:
+        """Evaluate predicaat for a single instance."""
+        if isinstance(predicaat, ObjectPredicaat):
+            return self._evaluate_object_predicaat(predicaat, instance)
+        elif isinstance(predicaat, VergelijkingsPredicaat):
+            # Handle all comparison predicates (GetalPredicaat, TekstPredicaat, DatumPredicaat)
+            if isinstance(predicaat, GetalPredicaat):
+                return self._evaluate_comparison_predicaat(predicaat, instance, 'Numeriek')
+            elif isinstance(predicaat, TekstPredicaat):
+                return self._evaluate_comparison_predicaat(predicaat, instance, 'Tekst')
+            elif isinstance(predicaat, DatumPredicaat):
+                return self._evaluate_comparison_predicaat(predicaat, instance, 'Datum')
+            else:
+                # Generic VergelijkingsPredicaat - infer type from value
+                return self._evaluate_comparison_predicaat(predicaat, instance, None)
+        else:
+            raise NotImplementedError(f"Predicaat type not implemented: {type(predicaat)}")
+    
+    def _evaluate_object_predicaat(self, predicaat: ObjectPredicaat, instance: RuntimeObject) -> bool:
+        """Evaluate object predicaat (kenmerk/role check)."""
+        # Check if it's a kenmerk
+        kenmerken = self.context.get_kenmerken_for_type(instance.object_type_naam)
+        if predicaat.naam in kenmerken:
+            # It's a kenmerk check
+            kenmerk_value = self.context.check_is(instance, predicaat.naam)
+            return bool(kenmerk_value)
+        
+        # Check if it's a role
+        # Note: Role checking would require feittype navigation
+        # For now, focus on kenmerk checks
+        logger.warning(f"Role checking not yet implemented for: {predicaat.naam}")
+        return False
+    
+    def _evaluate_comparison_predicaat(self, predicaat: VergelijkingsPredicaat, 
+                                       instance: RuntimeObject, expected_type: str) -> bool:
+        """Evaluate comparison predicaat."""
+        # For predicates, the left side is implicit - it's an attribute of the instance
+        # We need to infer which attribute based on the comparison type and context
+        
+        # For now, require explicit attribute reference in the predicaat
+        if predicaat.attribuut is None:
+            logger.error("Comparison predicaat requires attribute reference")
+            return False
+        
+        # Get left value
+        try:
+            left_value = self.evaluate_expression(predicaat.attribuut)
+            if isinstance(left_value, Value):
+                left_value = left_value.value
+        except Exception as e:
+            logger.warning(f"Could not evaluate attribute for predicaat: {e}")
+            return False
+        
+        # Get right value
+        right_value = self.evaluate_expression(predicaat.waarde)
+        if isinstance(right_value, Value):
+            right_value = right_value.value
+        
+        # Perform comparison based on operator
+        if predicaat.operator == Operator.GELIJK_AAN:
+            return left_value == right_value
+        elif predicaat.operator == Operator.NIET_GELIJK_AAN:
+            return left_value != right_value
+        elif predicaat.operator == Operator.KLEINER_DAN:
+            return left_value < right_value
+        elif predicaat.operator == Operator.GROTER_DAN:
+            return left_value > right_value
+        elif predicaat.operator == Operator.KLEINER_OF_GELIJK_AAN:
+            return left_value <= right_value
+        elif predicaat.operator == Operator.GROTER_OF_GELIJK_AAN:
+            return left_value >= right_value
+        else:
+            raise NotImplementedError(f"Comparison operator not implemented: {predicaat.operator}")
 
     def _collect_timeline_operands(self, expr: Expression) -> List[ast.Timeline]:
         """Recursively collect all timeline operands from an expression."""
@@ -1816,6 +2268,10 @@ class Evaluator:
         elif isinstance(expr, FunctionCall):
             for arg in expr.arguments:
                 timelines.extend(self._collect_timeline_operands(arg))
+        
+        elif isinstance(expr, Subselectie):
+            timelines.extend(self._collect_timeline_operands(expr.onderwerp))
+            # We might also need to check predicaat expressions in the future
         
         return timelines
 
@@ -2372,8 +2828,11 @@ class Evaluator:
                 raise RegelspraakError(f"Right side of 'IS' must evaluate to a string (kenmerk/type name), got {type(right_val.value)}", span=expr.right.span)
             
             # For IS operator, we need the actual object instance
-            # If left_val is an object reference, we need to resolve it
-            instance = self.context.current_instance  # Default to current instance
+            # If left_val is an object reference, use that object
+            if left_val.datatype == "ObjectReference" and isinstance(left_val.value, RuntimeObject):
+                instance = left_val.value
+            else:
+                instance = self.context.current_instance  # Default to current instance
             
             if instance is None:
                 raise RegelspraakError("Could not determine object instance for 'IS' check.", span=expr.left.span)
@@ -2835,7 +3294,8 @@ class Evaluator:
         # Special case: Check for aggregation patterns BEFORE evaluating args
         # This avoids errors when trying to evaluate attributes on wrong instances
         aggregation_functions = ["som_van", "gemiddelde_van", "totaal_van", "eerste_van", "laatste_van", 
-                                "het_gemiddelde_van", "het_totaal_van", "de_eerste_van", "de_laatste_van"]
+                                "het_gemiddelde_van", "het_totaal_van", "de_eerste_van", "de_laatste_van",
+                                "aantal", "het_aantal"]
         
         if func_name in aggregation_functions:
             # Normalize function name (remove articles)
@@ -2988,8 +3448,8 @@ class Evaluator:
                     
                     if not isinstance(attr_expr, AttributeReference):
                         raise RegelspraakError(f"First argument to 'som_van' must be an attribute reference, got {type(attr_expr).__name__}", span=expr.span)
-                    if not isinstance(collection_expr, AttributeReference):
-                        raise RegelspraakError(f"Second argument to 'som_van' must be a collection reference, got {type(collection_expr).__name__}", span=expr.span)
+                    if not isinstance(collection_expr, (AttributeReference, Subselectie)):
+                        raise RegelspraakError(f"Second argument to 'som_van' must be a collection reference or subselectie, got {type(collection_expr).__name__}", span=expr.span)
                 else:
                     raise RegelspraakError(f"Function 'som_van' expects 1, 2, or 3+ arguments, got {len(expr.arguments)}", span=expr.span)
                 
@@ -3002,8 +3462,18 @@ class Evaluator:
                     # Need to resolve collection from collection_expr
                     collection_objects = []
                     
-                    # Handle different collection patterns
-                    if len(collection_expr.path) == 1:
+                    # Handle Subselectie (filtered collection)
+                    if isinstance(collection_expr, Subselectie):
+                        # Evaluate the subselectie to get the filtered collection
+                        subselectie_result = self._evaluate_subselectie(collection_expr)
+                        if isinstance(subselectie_result.value, list):
+                            collection_objects = subselectie_result.value
+                        else:
+                            logger.warning(f"Subselectie did not return a list: {type(subselectie_result.value)}")
+                            collection_objects = []
+                    
+                    # Handle different collection patterns for AttributeReference
+                    elif isinstance(collection_expr, AttributeReference) and len(collection_expr.path) == 1:
                         collection_path = collection_expr.path[0]
                         
                         # Check for "X van de Y" pattern (e.g., "passagiers van de reis")
@@ -3013,6 +3483,7 @@ class Evaluator:
                             if len(parts) == 2:
                                 role_name = parts[0].strip()  # e.g., "passagiers"
                                 context_ref = parts[1].strip()  # e.g., "de reis"
+                                logger.debug(f"som_van: Parsed collection pattern - role_name='{role_name}', context_ref='{context_ref}'")
                                 
                                 # Remove articles from context
                                 for article in ['de ', 'het ', 'een ']:
@@ -3029,13 +3500,19 @@ class Evaluator:
                                         found_match = False
                                         for rol in feittype.rollen:
                                             # Check if this role matches the context (e.g., "reis" -> "Vlucht")
-                                            if rol.naam and context_ref.lower() in rol.naam.lower() and rol.object_type == self.context.current_instance.object_type_naam:
+                                            # Also check if context_ref matches the object type name (e.g., "vlucht" -> "Vlucht")
+                                            role_matches = rol.naam and context_ref.lower() in rol.naam.lower()
+                                            type_matches = rol.object_type and rol.object_type.lower() == context_ref.lower()
+                                            logger.debug(f"  Checking rol '{rol.naam}' (type={rol.object_type}): role_matches={role_matches}, type_matches={type_matches}, current_type={self.context.current_instance.object_type_naam}")
+                                            if (role_matches or type_matches) and rol.object_type == self.context.current_instance.object_type_naam:
                                                 # Found the feittype where current instance has the context role
                                                 # Now look for the other role that matches our collection name
                                                 for other_rol in feittype.rollen:
                                                     if other_rol != rol and other_rol.naam:
                                                         # Check if role name contains our target (e.g., "passagier" in role_name)
-                                                        if role_name.rstrip('s').lower() in other_rol.naam.lower():
+                                                        singular_role = role_name.rstrip('s').lower()
+                                                        logger.debug(f"    Checking other_rol '{other_rol.naam}' against singular '{singular_role}'")
+                                                        if singular_role in other_rol.naam.lower():
                                                             # Found matching feittype and role
                                                             relationships = self.context.find_relationships(
                                                                 subject=self.context.current_instance,
@@ -3149,8 +3626,27 @@ class Evaluator:
                     total = sum(values_to_sum)
                     result = Value(value=total, datatype=datatype, unit=first_unit)
             elif func_name == "het_aantal":
-                # TODO: Implement count aggregation
-                raise RegelspraakError(f"Function '{expr.function_name}' not fully implemented", span=expr.span)
+                # Count aggregation - return the number of items in the collection
+                # If there's a single argument, it should be a collection
+                if len(args) == 1:
+                    collection_value = args[0]
+                    if isinstance(collection_value, Value):
+                        collection = collection_value.value
+                    else:
+                        collection = collection_value
+                    
+                    # Handle different types
+                    if isinstance(collection, list):
+                        count = len(collection)
+                    elif collection is None:
+                        count = 0
+                    else:
+                        # Single item counts as 1
+                        count = 1
+                    
+                    result = Value(value=count, datatype="Numeriek")
+                else:
+                    raise RegelspraakError(f"Function '{expr.function_name}' expects 1 argument, got {len(args)}", span=expr.span)
             # ... other functions like 'gemiddelde van', etc.
             else:
                 # Check context for user-defined functions? TBD
@@ -3849,6 +4345,12 @@ class Evaluator:
         # Extract base function name (remove "_van" suffix if present)
         base_func_name = func_name.replace('_van', '') if func_name.endswith('_van') else func_name
         
+        # Check if this is a count aggregation
+        if base_func_name in ['aantal']:
+            # For count, just return the number of objects in the collection
+            count = len(collection_objects)
+            return Value(value=count, datatype="Numeriek")
+        
         if base_func_name in ['som', 'totaal']:
             if not values:
                 # Empty collection - return 0
@@ -4217,6 +4719,76 @@ class Evaluator:
                     result.append(rel.subject)
         
         return result
+    
+    def _evaluate_role_navigation(self, role_name: str, from_object: RuntimeObject) -> Value:
+        """Evaluate navigation to related objects via a role name.
+        Returns a collection if the role name is plural, single object otherwise."""
+        role_name_lower = role_name.lower()
+        role_name_clean = role_name_lower.replace("de ", "").replace("het ", "").replace("een ", "")
+        
+        # Look for matching role in feittypen
+        for feittype_name, feittype in self.context.domain_model.feittypen.items():
+            for rol in feittype.rollen:
+                # Match against role name or plural form
+                role_naam_lower = rol.naam.lower()
+                role_naam_clean = role_naam_lower.replace("de ", "").replace("het ", "").replace("een ", "")
+                
+                # Handle broken role parsing where role name includes object type
+                role_first_word = role_naam_clean.split()[0] if role_naam_clean else ""
+                
+                # Check exact match or plural match
+                matches = (role_naam_clean == role_name_clean or 
+                         (rol.meervoud and rol.meervoud.lower() == role_name_lower) or
+                         (rol.meervoud and rol.meervoud.lower().replace("de ", "").replace("het ", "") == role_name_clean) or
+                         # Simple pluralization rules
+                         (role_naam_clean + 's' == role_name_clean) or  # passagier -> passagiers
+                         (role_naam_clean + 'en' == role_name_clean) or  # boek -> boeken
+                         (role_name_clean + 's' == role_naam_clean) or  # passagiers -> passagier
+                         (role_name_clean.endswith('en') and role_name_clean[:-2] == role_naam_clean) or  # boeken -> boek
+                         # Irregular plurals (common Dutch cases)
+                         (role_naam_clean == 'lid' and role_name_clean == 'leden') or
+                         (role_naam_clean == 'kind' and role_name_clean == 'kinderen') or
+                         (role_naam_clean == 'ei' and role_name_clean == 'eieren') or
+                         # Match first word of role (for broken parsing)
+                         (role_first_word and (
+                             role_first_word == role_name_clean or
+                             role_first_word + 's' == role_name_clean or
+                             role_first_word + 'en' == role_name_clean or
+                             role_name_clean + 's' == role_first_word or
+                             (role_name_clean.endswith('en') and role_name_clean[:-2] == role_first_word))))
+                
+                if matches:
+                    # Found matching role - get related objects
+                    role_index = feittype.rollen.index(rol)
+                    as_subject = (role_index == 1)
+                    
+                    related_objects = self.context.get_related_objects(
+                        from_object, feittype_name, as_subject=as_subject
+                    )
+                    
+                    # Check if this is a plural form
+                    is_plural = (role_name_clean.endswith('s') or role_name_clean.endswith('en') or 
+                               role_name_clean != role_naam_clean or 
+                               (role_first_word and role_name_clean != role_first_word))
+                    
+                    if is_plural:
+                        # Return as collection
+                        return Value(value=related_objects, datatype="Lijst")
+                    else:
+                        # Return single object
+                        if related_objects:
+                            return Value(value=related_objects[0], datatype="ObjectReference")
+                        else:
+                            raise RegelspraakError(
+                                f"No related object found for role '{role_name}' from {from_object.object_type_naam}",
+                                span=None
+                            )
+        
+        # No matching role found
+        raise RegelspraakError(
+            f"'{role_name}' is not a valid role name for navigation from {from_object.object_type_naam}",
+            span=None
+        )
     
     def _check_if_current_instance_has_role(self, role_name: str) -> bool:
         """Check if the current instance can fulfill the given role."""

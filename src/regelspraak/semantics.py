@@ -12,7 +12,9 @@ from .ast import (
     Verdeling, VerdelingMethode, VerdelingNaarRato, VerdelingOpVolgorde, VerdelingTieBreak,
     VerdelingMaximum, VerdelingAfronding,
     Attribuut, Kenmerk, Beslistabel, BeslistabelRow,
-    SourceSpan, Dimension
+    SourceSpan, Dimension,
+    Subselectie, Predicaat, ObjectPredicaat, VergelijkingsPredicaat,
+    GetalPredicaat, TekstPredicaat, DatumPredicaat
 )
 from .errors import RegelspraakError
 
@@ -462,6 +464,16 @@ class SemanticAnalyzer:
             # TODO: Validate function exists and arguments match
             return None  # Type depends on function
         
+        elif isinstance(expr, Subselectie):
+            # Analyze onderwerp expression
+            onderwerp_type = self._analyze_expression(expr.onderwerp)
+            
+            # Analyze predicaat
+            self._analyze_predicaat(expr.predicaat)
+            
+            # Subselectie returns a list of the onderwerp type
+            return "Lijst"
+        
         return None
     
     def _analyze_attribute_reference(self, ref: AttributeReference) -> Optional[str]:
@@ -541,6 +553,23 @@ class SemanticAnalyzer:
         if op == Operator.NIET:  # Assuming NIET is boolean negation
             return "Boolean"
         return None
+    
+    def _analyze_predicaat(self, predicaat: Predicaat) -> None:
+        """Analyze a predicaat for semantic correctness."""
+        if isinstance(predicaat, ObjectPredicaat):
+            # For object predicates, we check kenmerk/role names
+            # This requires knowing the type of objects being filtered
+            # For now, just register that it's used
+            pass
+        
+        elif isinstance(predicaat, VergelijkingsPredicaat):
+            # Analyze the comparison expression
+            if predicaat.attribuut:
+                self._analyze_expression(predicaat.attribuut)
+            self._analyze_expression(predicaat.waarde)
+            
+            # TODO: Type check that the comparison is valid
+            # (e.g., numeric comparison for GetalPredicaat)
 
 
     def _analyze_beslistabellen(self, model: DomainModel) -> None:
