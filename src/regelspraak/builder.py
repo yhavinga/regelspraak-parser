@@ -13,7 +13,7 @@ from antlr4.tree.Tree import TerminalNode
 from .ast import (
     DomainModel, ObjectType, Attribuut, Kenmerk, Regel, RegelGroep, Parameter, Domein,
     FeitType, Rol, Voorwaarde, ResultaatDeel, Gelijkstelling, KenmerkToekenning,
-    ObjectCreatie, FeitCreatie, Consistentieregel, Initialisatie, Dagsoortdefinitie, Verdeling,
+    ObjectCreatie, FeitCreatie, Consistentieregel, Initialisatie, Dagsoortdefinitie, Dagsoort, Verdeling,
     VerdelingMethode, VerdelingGelijkeDelen, VerdelingNaarRato, VerdelingOpVolgorde,
     VerdelingTieBreak, VerdelingMaximum, VerdelingAfronding,
     Expression, Literal, AttributeReference, VariableReference,
@@ -432,6 +432,8 @@ class RegelSpraakModelBuilder(RegelSpraakVisitor):
                     domain_model.feittypen[definition.naam] = definition
                 elif isinstance(definition, Dimension):
                     domain_model.dimensions[definition.naam] = definition
+                elif isinstance(definition, Dagsoort):
+                    domain_model.dagsoorten[definition.naam] = definition
                 elif definition is not None:
                      logger.warning(f"Unhandled definition type: {type(definition)} from {safe_get_text(child)}")
             elif isinstance(child, AntlrParser.RegelContext):
@@ -1967,7 +1969,41 @@ class RegelSpraakModelBuilder(RegelSpraakVisitor):
                 span=self.get_span(ctx)
             )
         
-        # TODO: Handle other unaryCondition alternatives (dagsoort, uniek, etc.)
+        # Handle unaryDagsoortCondition alternative
+        elif isinstance(ctx, AntlrParser.UnaryDagsoortConditionContext):
+            expr = self.visitPrimaryExpression(ctx.expr)
+            if expr is None:
+                return None
+            
+            # Get the dagsoort name
+            dagsoort_name = ctx.dagsoort.getText() if ctx.dagsoort else None
+            if not dagsoort_name:
+                logger.error(f"No dagsoort name found in {safe_get_text(ctx)}")
+                return None
+            
+            # Map token to operator
+            op_token = ctx.op
+            if op_token.type == AntlrLexer.IS_EEN_DAGSOORT:
+                operator = Operator.IS_EEN_DAGSOORT
+            elif op_token.type == AntlrLexer.ZIJN_EEN_DAGSOORT:
+                operator = Operator.ZIJN_EEN_DAGSOORT
+            elif op_token.type == AntlrLexer.IS_GEEN_DAGSOORT:
+                operator = Operator.IS_GEEN_DAGSOORT
+            elif op_token.type == AntlrLexer.ZIJN_GEEN_DAGSOORT:
+                operator = Operator.ZIJN_GEEN_DAGSOORT
+            else:
+                logger.warning(f"Unhandled dagsoort operator: {op_token.text}")
+                return None
+            
+            # Create binary expression with date on left, dagsoort name on right
+            return BinaryExpression(
+                left=expr,
+                operator=operator,
+                right=Literal(value=dagsoort_name, datatype="Tekst", span=self.get_span(ctx.dagsoort)),
+                span=self.get_span(ctx)
+            )
+        
+        # TODO: Handle other unaryCondition alternatives (uniek, etc.)
         logger.warning(f"Unhandled unary condition type: {type(ctx).__name__}")
         return None
 
@@ -2081,11 +2117,13 @@ class RegelSpraakModelBuilder(RegelSpraakVisitor):
             return self.visitFeitTypeDefinition(ctx.feitTypeDefinition())
         elif ctx.dimensieDefinition():
             return self.visitDimensieDefinition(ctx.dimensieDefinition())
+        elif ctx.dagsoortDefinition():
+            return self.visitDagsoortDefinition(ctx.dagsoortDefinition())
         else:
             # Log if the definition context contains something unexpected
             # Use safe_get_text helper function
             child_text = safe_get_text(ctx.getChild(0)) if ctx.getChildCount() > 0 else "empty"
-            if ctx.getChildCount() > 0 and not isinstance(ctx.getChild(0), (AntlrParser.ObjectTypeDefinitionContext, AntlrParser.DomeinDefinitionContext, AntlrParser.ParameterDefinitionContext, AntlrParser.FeitTypeDefinitionContext, AntlrParser.DimensieDefinitionContext, TerminalNode)):
+            if ctx.getChildCount() > 0 and not isinstance(ctx.getChild(0), (AntlrParser.ObjectTypeDefinitionContext, AntlrParser.DomeinDefinitionContext, AntlrParser.ParameterDefinitionContext, AntlrParser.FeitTypeDefinitionContext, AntlrParser.DimensieDefinitionContext, AntlrParser.DagsoortDefinitionContext, TerminalNode)):
                  logger.warning(f"Unknown definition type encountered: {child_text}")
             # It might be an empty definition context or whitespace (TerminalNode), which is fine.
             return None
@@ -2472,6 +2510,31 @@ class RegelSpraakModelBuilder(RegelSpraakVisitor):
             labels=labels,
             usage_style=usage_style if usage_style else "prepositional",  # Default
             preposition=preposition,
+            span=self.get_span(ctx)
+        )
+    
+    def visitDagsoortDefinition(self, ctx: AntlrParser.DagsoortDefinitionContext) -> Optional[Dagsoort]:
+        """Visit a dagsoort (day type) definition and build a Dagsoort object."""
+        # Extract the name from naamwoord
+        naamwoord_ctx = ctx.naamwoord()
+        if not naamwoord_ctx:
+            logger.error(f"No dagsoort name found in {safe_get_text(ctx)}")
+            return None
+        
+        naam = self._extract_canonical_name(naamwoord_ctx)
+        if not naam:
+            logger.error(f"Could not extract dagsoort name from {safe_get_text(ctx)}")
+            return None
+        
+        # Extract plural form if present
+        meervoud = None
+        if ctx.MV_START() and ctx.plural:
+            meervoud_parts = [token.text for token in ctx.plural]
+            meervoud = " ".join(meervoud_parts) if meervoud_parts else None
+        
+        return Dagsoort(
+            naam=naam,
+            meervoud=meervoud,
             span=self.get_span(ctx)
         )
     

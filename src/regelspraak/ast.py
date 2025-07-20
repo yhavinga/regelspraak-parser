@@ -49,6 +49,12 @@ class Operator(Enum):
     # Validation predicates
     VOLDOET_AAN_DE_ELFPROEF = "voldoet aan de elfproef"
     VOLDOET_NIET_AAN_DE_ELFPROEF = "voldoet niet aan de elfproef"
+    
+    # Dagsoort (day type) predicates
+    IS_EEN_DAGSOORT = "is een dagsoort"
+    ZIJN_EEN_DAGSOORT = "zijn een dagsoort"
+    IS_GEEN_DAGSOORT = "is geen dagsoort"
+    ZIJN_GEEN_DAGSOORT = "zijn geen dagsoort"
 
 
 # --- Expression Model ---
@@ -226,6 +232,14 @@ class Domein:
     constraints: List[Any] = field(default_factory=list) # e.g., range, pattern
     enumeratie_waarden: Optional[List[str]] = None
     # description: Optional[str] = None
+
+@dataclass
+class Dagsoort:
+    """Represents a day type declaration (§3.12).
+    Example: Dagsoort de kerstdag (mv: kerstdagen)"""
+    naam: str  # The name of the day type (e.g., "kerstdag")
+    meervoud: Optional[str] = None  # Plural form (e.g., "kerstdagen")
+    span: SourceSpan = field(default_factory=SourceSpan.unknown)
 
 # --- Timeline Support ---
 
@@ -476,6 +490,7 @@ class DomainModel:
     domeinen: Dict[str, Domein] = field(default_factory=dict)
     feittypen: Dict[str, FeitType] = field(default_factory=dict)
     dimensions: Dict[str, Dimension] = field(default_factory=dict)
+    dagsoorten: Dict[str, Dagsoort] = field(default_factory=dict)
     regels: List[Regel] = field(default_factory=list)
     regelgroepen: List[RegelGroep] = field(default_factory=list)
     beslistabellen: List[Beslistabel] = field(default_factory=list)

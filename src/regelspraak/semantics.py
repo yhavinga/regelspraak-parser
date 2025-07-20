@@ -8,7 +8,7 @@ from .ast import (
     DomainModel, ObjectType, Parameter, Regel, RegelGroep, Expression, Literal,
     AttributeReference, VariableReference, ParameterReference,
     BinaryExpression, UnaryExpression, FunctionCall, Operator,
-    Gelijkstelling, KenmerkToekenning, ObjectCreatie, FeitCreatie, Consistentieregel, Initialisatie, Dagsoortdefinitie,
+    Gelijkstelling, KenmerkToekenning, ObjectCreatie, FeitCreatie, Consistentieregel, Initialisatie, Dagsoortdefinitie, Dagsoort,
     Verdeling, VerdelingMethode, VerdelingNaarRato, VerdelingOpVolgorde, VerdelingTieBreak,
     VerdelingMaximum, VerdelingAfronding,
     Attribuut, Kenmerk, Beslistabel, BeslistabelRow,
@@ -33,6 +33,7 @@ class SymbolKind(Enum):
     DOMAIN = "domain"
     FEITTYPE = "feittype"
     DIMENSION = "dimension"
+    DAGSOORT = "dagsoort"
 
 
 @dataclass
@@ -222,6 +223,17 @@ class SemanticAnalyzer:
                     dimension_name,
                     SymbolKind.DIMENSION,
                     definition=dimension
+                )
+            except SemanticError as e:
+                self.errors.append(e)
+        
+        # Collect dagsoorten
+        for dagsoort_name, dagsoort in model.dagsoorten.items():
+            try:
+                self.symbol_table.define(
+                    dagsoort_name,
+                    SymbolKind.DAGSOORT,
+                    definition=dagsoort
                 )
             except SemanticError as e:
                 self.errors.append(e)
@@ -431,9 +443,12 @@ class SemanticAnalyzer:
         
         elif isinstance(resultaat, Dagsoortdefinitie):
             # Validate dagsoort name exists (should be declared with Dagsoort statement)
-            # Note: For now, we'll skip this validation as Dagsoort declarations
-            # are not yet tracked in the symbol table. This is a TODO for future improvement.
-            pass
+            dagsoort_symbol = self.symbol_table.lookup(resultaat.dagsoort_naam)
+            if not dagsoort_symbol or dagsoort_symbol.kind != SymbolKind.DAGSOORT:
+                self.errors.append(SemanticError(
+                    f"Dagsoort '{resultaat.dagsoort_naam}' not declared",
+                    resultaat.span
+                ))
     
     def _validate_verdeling_method(self, method: VerdelingMethode) -> None:
         """Validate a distribution method."""
@@ -505,6 +520,22 @@ class SemanticAnalyzer:
         elif isinstance(expr, BinaryExpression):
             left_type = self._analyze_expression(expr.left)
             right_type = self._analyze_expression(expr.right)
+            
+            # Check dagsoort operators
+            if expr.operator in [Operator.IS_EEN_DAGSOORT, Operator.ZIJN_EEN_DAGSOORT,
+                                Operator.IS_GEEN_DAGSOORT, Operator.ZIJN_GEEN_DAGSOORT]:
+                # Right side should be a literal with dagsoort name
+                if isinstance(expr.right, Literal) and isinstance(expr.right.value, str):
+                    dagsoort_name = expr.right.value
+                    dagsoort_symbol = self.symbol_table.lookup(dagsoort_name)
+                    if not dagsoort_symbol or dagsoort_symbol.kind != SymbolKind.DAGSOORT:
+                        self.errors.append(SemanticError(
+                            f"Dagsoort '{dagsoort_name}' not declared",
+                            expr.right.span
+                        ))
+                # Left side should be a date expression
+                # TODO: Validate left_type is a date type when type system is complete
+                return "Boolean"
             
             # TODO: Type checking for operators
             # For now, just ensure both operands are valid

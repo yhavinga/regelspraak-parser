@@ -66,6 +66,12 @@ class Evaluator:
             "de_laatste_van": self._func_laatste_van,
             "het_gemiddelde_van": self._func_gemiddelde_van,
             "het_totaal_van": self._func_totaal_van,
+            "maand_uit": self._func_maand_uit,
+            "dag_uit": self._func_dag_uit,
+            "jaar_uit": self._func_jaar_uit,
+            "de_maand_uit": self._func_maand_uit,
+            "de_dag_uit": self._func_dag_uit,
+            "het_jaar_uit": self._func_jaar_uit,
         }
 
     def execute_model(self, domain_model: DomainModel, evaluation_date: Optional[datetime] = None):
@@ -254,6 +260,9 @@ class Evaluator:
             # Handle DimensionedAttributeReference by extracting its base attribute
             if isinstance(target_ref, DimensionedAttributeReference):
                 target_ref = target_ref.base_attribute
+        elif isinstance(rule.resultaat, Dagsoortdefinitie):
+            # Dagsoort definitions target "dag" objects
+            return "Dag"
         elif isinstance(rule.resultaat, Consistentieregel):
             # For consistency rules, determine the target based on the criterium type
             if rule.resultaat.criterium_type == "uniek" and rule.resultaat.target:
@@ -2218,6 +2227,23 @@ class Evaluator:
             right_raw = right_val.value if isinstance(right_val, Value) else right_val
             bool_result = self.context.check_in(left_raw, right_raw)
             return Value(value=bool_result, datatype="Boolean", unit=None)
+        
+        # Handle dagsoort operators
+        elif op in [Operator.IS_EEN_DAGSOORT, Operator.ZIJN_EEN_DAGSOORT, 
+                    Operator.IS_GEEN_DAGSOORT, Operator.ZIJN_GEEN_DAGSOORT]:
+            # Right side should be the dagsoort name
+            right_val = self._evaluate_expression_non_timeline(expr.right)
+            if not isinstance(right_val.value, str):
+                raise RegelspraakError(f"Right side of dagsoort check must be a string, got {type(right_val.value)}", span=expr.right.span)
+            
+            # Check if the date matches the dagsoort
+            is_dagsoort = self._dagsoort_check(left_val, right_val.value, expr.span)
+            
+            # Return based on operator
+            if op in [Operator.IS_EEN_DAGSOORT, Operator.ZIJN_EEN_DAGSOORT]:
+                return Value(value=is_dagsoort, datatype="Boolean", unit=None)
+            else:  # IS_GEEN_DAGSOORT, ZIJN_GEEN_DAGSOORT
+                return Value(value=not is_dagsoort, datatype="Boolean", unit=None)
 
         # Standard evaluation for other operators
         right_val = self._evaluate_expression_non_timeline(expr.right)
@@ -3072,6 +3098,23 @@ class Evaluator:
             right_raw = right_val.value if isinstance(right_val, Value) else right_val
             bool_result = self.context.check_in(left_raw, right_raw)
             return Value(value=bool_result, datatype="Boolean", unit=None)
+        
+        # Handle dagsoort operators
+        elif op in [Operator.IS_EEN_DAGSOORT, Operator.ZIJN_EEN_DAGSOORT, 
+                    Operator.IS_GEEN_DAGSOORT, Operator.ZIJN_GEEN_DAGSOORT]:
+            # Right side should be the dagsoort name
+            right_val = self.evaluate_expression(expr.right)
+            if not isinstance(right_val.value, str):
+                raise RegelspraakError(f"Right side of dagsoort check must be a string, got {type(right_val.value)}", span=expr.right.span)
+            
+            # Check if the date matches the dagsoort
+            is_dagsoort = self._dagsoort_check(left_val, right_val.value, expr.span)
+            
+            # Return based on operator
+            if op in [Operator.IS_EEN_DAGSOORT, Operator.ZIJN_EEN_DAGSOORT]:
+                return Value(value=is_dagsoort, datatype="Boolean", unit=None)
+            else:  # IS_GEEN_DAGSOORT, ZIJN_GEEN_DAGSOORT
+                return Value(value=not is_dagsoort, datatype="Boolean", unit=None)
 
         # Standard evaluation for other operators
         right_val = self.evaluate_expression(expr.right)
@@ -3194,6 +3237,93 @@ class Evaluator:
         
         # Check if divisible by 11
         return total % 11 == 0
+
+    def _dagsoort_check(self, date_value: Value, dagsoort_name: str, span: SourceSpan) -> bool:
+        """Check if a date matches a dagsoort definition.
+        
+        Args:
+            date_value: The date to check
+            dagsoort_name: Name of the dagsoort (e.g., "kerstdag")
+            span: Source span for error reporting
+            
+        Returns:
+            True if the date matches the dagsoort definition
+        """
+        # Validate that we have a date
+        if date_value.datatype not in ["Datum", "Datum in dagen", "Datum en tijd in millisecondes"]:
+            raise RegelspraakError(
+                f"Dagsoort check requires a date value, got {date_value.datatype}", 
+                span=span
+            )
+        
+        # Get the date value
+        date_val = date_value.value
+        if date_val is None:
+            return False
+        
+        # Convert to datetime if needed
+        if isinstance(date_val, str):
+            try:
+                # Try parsing common date formats
+                from dateutil import parser
+                date_val = parser.parse(date_val)
+            except Exception:
+                return False
+        elif isinstance(date_val, (int, float)):
+            # Assume it's a timestamp in milliseconds
+            date_val = datetime.fromtimestamp(date_val / 1000)
+        
+        if not isinstance(date_val, (date, datetime)):
+            return False
+            
+        # Find all rules that define this dagsoort
+        dagsoort_rules = []
+        for regel in self.context.domain_model.regels:
+            if isinstance(regel.resultaat, Dagsoortdefinitie) and \
+               regel.resultaat.dagsoort_naam.lower() == dagsoort_name.lower():
+                dagsoort_rules.append(regel)
+        
+        if not dagsoort_rules:
+            # No definition found for this dagsoort
+            logger.warning(f"No dagsoort definition found for '{dagsoort_name}'")
+            return False
+        
+        # Create a temporary "dag" object to evaluate against
+        # This is a special case where we need to evaluate rules against a date
+        original_instance = self.context.current_instance
+        
+        # Create a minimal object to hold the date
+        dag_object = RuntimeObject(
+            object_type_naam="Dag",  # Special object type for date evaluation
+            instance_id=f"dag_{date_val.isoformat()}"
+        )
+        
+        # The date itself is the "dag" attribute
+        dag_object.attributen["dag"] = Value(value=date_val, datatype="Datum")
+        
+        try:
+            self.context.set_current_instance(dag_object)
+            
+            # Check each dagsoort rule
+            for regel in dagsoort_rules:
+                if regel.voorwaarde:
+                    # Evaluate the rule condition
+                    try:
+                        condition_result = self.evaluate_expression(regel.voorwaarde.expressie)
+                        if condition_result.datatype == "Boolean" and condition_result.value:
+                            return True
+                    except Exception as e:
+                        logger.debug(f"Error evaluating dagsoort rule '{regel.naam}': {e}")
+                        continue
+                else:
+                    # No condition means always true
+                    return True
+                    
+            return False  # No rule matched
+            
+        finally:
+            # Restore original context
+            self.context.set_current_instance(original_instance)
 
     def _resolve_collection_from_feittype(self, collection_name: str, base_instance: RuntimeObject) -> List[RuntimeObject]:
         """Resolve a collection name through feittype relationships.
@@ -4375,6 +4505,97 @@ class Evaluator:
             return Value(value=Decimal(days_count), datatype="Numeriek", unit="dagen")
         
         raise RegelspraakError(f"Function 'aantal_dagen_in' expects 2 arguments (period_type, condition), got {len(expr.arguments)}", span=expr.span)
+
+    def _to_date(self, value: Value) -> Optional[date]:
+        """Convert a Value to a date object.
+        Handles various date formats and returns None for empty values.
+        """
+        if value.value is None:
+            return None
+        
+        val = value.value
+        
+        # Already a date
+        if isinstance(val, date):
+            return val
+        
+        # DateTime - extract date part
+        if isinstance(val, datetime):
+            return val.date()
+        
+        # Timestamp in milliseconds (for "Datum en tijd in millisecondes")
+        if value.datatype == "Datum en tijd in millisecondes" and isinstance(val, (int, float, Decimal)):
+            # Convert milliseconds to datetime
+            dt = datetime.fromtimestamp(float(val) / 1000.0)
+            return dt.date()
+        
+        # String date - try to parse
+        if isinstance(val, str):
+            try:
+                import dateutil.parser
+                parsed = dateutil.parser.parse(val)
+                return parsed.date()
+            except:
+                return None
+        
+        return None
+
+    def _func_maand_uit(self, expr: FunctionCall, args: List[Value]) -> Value:
+        """Extract month from a date value.
+        Returns the month number (1-12) from a date.
+        """
+        if len(args) != 1:
+            raise RegelspraakError(f"Function 'maand uit' expects 1 argument, got {len(args)}", span=expr.span)
+        
+        arg = args[0]
+        if arg.datatype not in ["Datum", "Datum in dagen", "Datum en tijd", "Datum en tijd in millisecondes"]:
+            raise RegelspraakError(f"Function 'maand uit' requires date argument, got {arg.datatype}", span=expr.span)
+        
+        # Convert value to date
+        date_val = self._to_date(arg)
+        if date_val is None:
+            return Value(value=None, datatype="Numeriek", unit=None)
+        
+        # Extract month (1-12)
+        return Value(value=Decimal(date_val.month), datatype="Numeriek", unit=None)
+    
+    def _func_dag_uit(self, expr: FunctionCall, args: List[Value]) -> Value:
+        """Extract day of month from a date value.
+        Returns the day number (1-31) from a date.
+        """
+        if len(args) != 1:
+            raise RegelspraakError(f"Function 'dag uit' expects 1 argument, got {len(args)}", span=expr.span)
+        
+        arg = args[0]
+        if arg.datatype not in ["Datum", "Datum in dagen", "Datum en tijd", "Datum en tijd in millisecondes"]:
+            raise RegelspraakError(f"Function 'dag uit' requires date argument, got {arg.datatype}", span=expr.span)
+        
+        # Convert value to date
+        date_val = self._to_date(arg)
+        if date_val is None:
+            return Value(value=None, datatype="Numeriek", unit=None)
+        
+        # Extract day (1-31)
+        return Value(value=Decimal(date_val.day), datatype="Numeriek", unit=None)
+    
+    def _func_jaar_uit(self, expr: FunctionCall, args: List[Value]) -> Value:
+        """Extract year from a date value.
+        Returns the year number from a date.
+        """
+        if len(args) != 1:
+            raise RegelspraakError(f"Function 'jaar uit' expects 1 argument, got {len(args)}", span=expr.span)
+        
+        arg = args[0]
+        if arg.datatype not in ["Datum", "Datum in dagen", "Datum en tijd", "Datum en tijd in millisecondes"]:
+            raise RegelspraakError(f"Function 'jaar uit' requires date argument, got {arg.datatype}", span=expr.span)
+        
+        # Convert value to date
+        date_val = self._to_date(arg)
+        if date_val is None:
+            return Value(value=None, datatype="Numeriek", unit=None)
+        
+        # Extract year
+        return Value(value=Decimal(date_val.year), datatype="Numeriek", unit=None)
 
     def _compare_values(self, val1: Value, val2: Value) -> int:
         """Compare two values, returning -1 if val1 < val2, 0 if equal, 1 if val1 > val2."""
