@@ -2641,11 +2641,102 @@ class Evaluator:
             if not res.target:
                 raise RegelspraakError("Uniqueness check requires a target expression", span=res.span)
             
-            # For uniqueness, we need to check all instances of the same type
-            # The target expression should reference a collection like "alle Natuurlijke personen"
-            # For now, implement a simple check
-            logger.warning("Uniqueness checks not fully implemented yet")
-            return True  # Assume consistent for now
+            # Extract attribute name and object type from target
+            # Expected pattern: AttributeReference with path like ["burgerservicenummer", "alle", "Natuurlijke personen"]
+            if not isinstance(res.target, AttributeReference) or len(res.target.path) < 3:
+                raise RegelspraakError(
+                    "Uniqueness check requires pattern 'de <attribute> van alle <object type>'",
+                    span=res.target.span if res.target else res.span
+                )
+            
+            # Parse the path
+            attribute_name_plural = res.target.path[0]
+            if res.target.path[-2].lower() != "alle":
+                raise RegelspraakError(
+                    f"Expected 'alle' in uniqueness pattern, got '{res.target.path[-2]}'",
+                    span=res.target.span
+                )
+            object_type_name_plural = res.target.path[-1]
+            
+            # Find the object type by matching plural form
+            object_type_name = None
+            object_type_def = None
+            for ot_name, ot_def in self.context.domain_model.objecttypes.items():
+                if (ot_def.meervoud and ot_def.meervoud == object_type_name_plural) or \
+                   ot_name == object_type_name_plural:
+                    object_type_name = ot_name
+                    object_type_def = ot_def
+                    break
+            
+            if not object_type_def:
+                raise RegelspraakError(
+                    f"Object type with plural form '{object_type_name_plural}' not found",
+                    span=res.target.span
+                )
+            
+            # Find attribute by matching plural form or name
+            attribute_name = None
+            for attr_name, attr_def in object_type_def.attributen.items():
+                # Check if plural form matches or if the name itself matches
+                if (hasattr(attr_def, 'meervoud') and attr_def.meervoud == attribute_name_plural) or \
+                   attr_name == attribute_name_plural:
+                    attribute_name = attr_name
+                    break
+            
+            if not attribute_name:
+                # If no exact match, try removing trailing 's' or other common plural endings
+                # This is a fallback for simple pluralization
+                if attribute_name_plural.endswith('s'):
+                    singular_guess = attribute_name_plural[:-1]
+                    if singular_guess in object_type_def.attributen:
+                        attribute_name = singular_guess
+            
+            if not attribute_name:
+                raise RegelspraakError(
+                    f"Attribute with plural form '{attribute_name_plural}' not found on type '{object_type_name}'",
+                    span=res.target.span
+                )
+            
+            # Get all instances of the specified object type
+            instances = self.context.find_objects_by_type(object_type_name)
+            
+            # Extract attribute values
+            seen_values = set()
+            for obj in instances:
+                if attribute_name in obj.attributen:
+                    value = obj.attributen[attribute_name].value
+                    # Convert to string for consistent comparison
+                    value_str = str(value) if value is not None else None
+                    if value_str is not None:
+                        if value_str in seen_values:
+                            # Found duplicate
+                            logger.info(f"Uniqueness violation: duplicate value '{value_str}' for attribute '{attribute_name}'")
+                            self.context.trace_sink.record(TraceEvent(
+                                type="CONSISTENCY_CHECK",
+                                details={
+                                    "criterium_type": "uniek",
+                                    "object_type": object_type_name,
+                                    "attribute": attribute_name,
+                                    "duplicate_value": value_str,
+                                    "consistent": False
+                                }
+                            ))
+                            return False  # Not unique = inconsistent
+                        seen_values.add(value_str)
+            
+            # All values are unique
+            self.context.trace_sink.record(TraceEvent(
+                type="CONSISTENCY_CHECK",
+                details={
+                    "criterium_type": "uniek",
+                    "object_type": object_type_name,
+                    "attribute": attribute_name,
+                    "unique_values": len(seen_values),
+                    "total_instances": len(instances),
+                    "consistent": True
+                }
+            ))
+            return True  # All unique = consistent
             
         elif res.criterium_type == "inconsistent":
             # For inconsistency rules, the condition determines if data is inconsistent

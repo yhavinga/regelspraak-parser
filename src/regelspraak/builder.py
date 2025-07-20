@@ -2003,7 +2003,21 @@ class RegelSpraakModelBuilder(RegelSpraakVisitor):
                 span=self.get_span(ctx)
             )
         
-        # TODO: Handle other unaryCondition alternatives (uniek, etc.)
+        # Handle unaryUniekCondition alternative
+        elif isinstance(ctx, AntlrParser.UnaryUniekConditionContext):
+            # This handles expressions like "de BSNs van alle personen moeten uniek zijn"
+            ref = self.visitOnderwerpReferentie(ctx.ref)
+            if ref is None:
+                return None
+            
+            # Create a unary expression with MOETEN_UNIEK_ZIJN operator
+            return UnaryExpression(
+                operator=Operator.MOETEN_UNIEK_ZIJN,
+                operand=ref,
+                span=self.get_span(ctx)
+            )
+        
+        # TODO: Handle other unaryCondition alternatives
         logger.warning(f"Unhandled unary condition type: {type(ctx).__name__}")
         return None
 

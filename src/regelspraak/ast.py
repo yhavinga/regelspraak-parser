@@ -55,6 +55,9 @@ class Operator(Enum):
     ZIJN_EEN_DAGSOORT = "zijn een dagsoort"
     IS_GEEN_DAGSOORT = "is geen dagsoort"
     ZIJN_GEEN_DAGSOORT = "zijn geen dagsoort"
+    
+    # Uniqueness predicate
+    MOETEN_UNIEK_ZIJN = "moeten uniek zijn"
 
 
 # --- Expression Model ---

@@ -421,6 +421,32 @@ class SemanticAnalyzer:
                 # For uniqueness checks, validate the target expression
                 if resultaat.target:
                     self._analyze_expression(resultaat.target)
+                    
+                    # Additional validation for uniqueness pattern
+                    if isinstance(resultaat.target, AttributeReference):
+                        if len(resultaat.target.path) >= 3:
+                            # Expected pattern: ["attribute", "alle", "ObjectType"]
+                            attribute_name = resultaat.target.path[0]
+                            object_type_name = resultaat.target.path[-1]
+                            
+                            # Check if object type exists
+                            obj_type_symbol = self.symbol_table.lookup(object_type_name)
+                            if obj_type_symbol and obj_type_symbol.kind == SymbolKind.OBJECT_TYPE:
+                                # Check if attribute exists on object type
+                                obj_type_def = self.domain_model.objecttypes.get(object_type_name)
+                                if obj_type_def:
+                                    attr_exists = any(attr.naam == attribute_name 
+                                                     for attr in obj_type_def.attributen)
+                                    if not attr_exists:
+                                        self.errors.append(SemanticError(
+                                            f"Attribute '{attribute_name}' not found on object type '{object_type_name}'",
+                                            resultaat.target.span
+                                        ))
+                            else:
+                                self.errors.append(SemanticError(
+                                    f"Object type '{object_type_name}' not found for uniqueness check",
+                                    resultaat.target.span
+                                ))
             elif resultaat.criterium_type == "inconsistent":
                 # For inconsistency checks, the condition is at rule level
                 # No specific validation needed here
@@ -639,6 +665,10 @@ class SemanticAnalyzer:
         if op == Operator.MIN and operand_type == "Numeriek":
             return "Numeriek"
         if op == Operator.NIET:  # Assuming NIET is boolean negation
+            return "Boolean"
+        if op in [Operator.VOLDOET_AAN_DE_ELFPROEF, Operator.VOLDOET_NIET_AAN_DE_ELFPROEF]:
+            return "Boolean"
+        if op == Operator.MOETEN_UNIEK_ZIJN:
             return "Boolean"
         return None
     
