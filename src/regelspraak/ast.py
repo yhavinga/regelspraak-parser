@@ -46,6 +46,9 @@ class Operator(Enum):
     IS_NIET = "is niet" # For negated type/kenmerk checks
     HEEFT = "heeft" # For possession/bezittelijk kenmerk checks
     HEEFT_NIET = "heeft niet" # For negated possession checks
+    # Validation predicates
+    VOLDOET_AAN_DE_ELFPROEF = "voldoet aan de elfproef"
+    VOLDOET_NIET_AAN_DE_ELFPROEF = "voldoet niet aan de elfproef"
 
 
 # --- Expression Model ---

@@ -4,6 +4,7 @@ import logging
 
 # Import ANTLR generated files
 from ._antlr.RegelSpraakParser import RegelSpraakParser as AntlrParser
+from ._antlr.RegelSpraakLexer import RegelSpraakLexer as AntlrLexer
 from ._antlr.RegelSpraakVisitor import RegelSpraakVisitor
 from antlr4.ParserRuleContext import ParserRuleContext
 from antlr4.tree.Tree import TerminalNode
@@ -1937,6 +1938,37 @@ class RegelSpraakModelBuilder(RegelSpraakVisitor):
             return UnaryExpression(operator=Operator.NIET, operand=operand, span=self.get_span(ctx))
         
         # No unary operator matched
+        return None
+
+    def visitUnaryCondition(self, ctx: AntlrParser.UnaryConditionContext) -> Optional[Expression]:
+        """Visit unary condition expressions."""
+        logger.debug(f"Visiting unary condition: {safe_get_text(ctx)}")
+        
+        # Handle unaryCheckCondition alternative
+        if isinstance(ctx, AntlrParser.UnaryCheckConditionContext):
+            expr = self.visitPrimaryExpression(ctx.expr)
+            if expr is None:
+                return None
+            
+            # Map token to operator
+            op_token = ctx.op
+            if op_token.type == AntlrLexer.VOLDOET_AAN_DE_ELFPROEF:
+                operator = Operator.VOLDOET_AAN_DE_ELFPROEF
+            elif op_token.type == AntlrLexer.VOLDOET_NIET_AAN_DE_ELFPROEF:
+                operator = Operator.VOLDOET_NIET_AAN_DE_ELFPROEF
+            else:
+                # Handle other unary check operators if needed
+                logger.warning(f"Unhandled unary check operator: {op_token.text}")
+                return None
+            
+            return UnaryExpression(
+                operator=operator,
+                operand=expr,
+                span=self.get_span(ctx)
+            )
+        
+        # TODO: Handle other unaryCondition alternatives (dagsoort, uniek, etc.)
+        logger.warning(f"Unhandled unary condition type: {type(ctx).__name__}")
         return None
 
     def visitConcatenatieExpressie(self, ctx) -> Optional[FunctionCall]:

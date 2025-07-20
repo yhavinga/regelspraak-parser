@@ -10,7 +10,7 @@ from datetime import date, datetime
 from . import ast
 from .ast import (
     Expression, Literal, VariableReference, AttributeReference, ParameterReference, # Added ParameterReference
-    BinaryExpression, UnaryExpression, FunctionCall, Operator, DomainModel, Regel,
+    BinaryExpression, UnaryExpression, FunctionCall, Operator, DomainModel, Regel, SourceSpan,
     Gelijkstelling, KenmerkToekenning, ObjectCreatie, FeitCreatie, Consistentieregel, Initialisatie, Dagsoortdefinitie, # Added ResultaatDeel types
     Verdeling, VerdelingMethode, VerdelingGelijkeDelen, VerdelingNaarRato, VerdelingOpVolgorde,
     VerdelingTieBreak, VerdelingMaximum, VerdelingAfronding,
@@ -2302,6 +2302,12 @@ class Evaluator:
             return Value(value=result, datatype="Boolean", unit=None)
         elif op == Operator.MIN: # Handle unary minus
             return self.arithmetic.negate(operand_val)
+        elif op == Operator.VOLDOET_AAN_DE_ELFPROEF:
+            result = self._elfproef_check(operand_val, expr.operand.span)
+            return Value(value=result, datatype="Boolean", unit=None)
+        elif op == Operator.VOLDOET_NIET_AAN_DE_ELFPROEF:
+            result = not self._elfproef_check(operand_val, expr.operand.span)
+            return Value(value=result, datatype="Boolean", unit=None)
         else:
             raise RegelspraakError(f"Unsupported unary operator: {op.name}", span=expr.span)
 
@@ -3150,8 +3156,44 @@ class Evaluator:
             return Value(value=result, datatype="Boolean", unit=None)
         elif op == Operator.MIN: # Handle unary minus
             return self.arithmetic.negate(operand_val)
+        elif op == Operator.VOLDOET_AAN_DE_ELFPROEF:
+            result = self._elfproef_check(operand_val, expr.operand.span)
+            return Value(value=result, datatype="Boolean", unit=None)
+        elif op == Operator.VOLDOET_NIET_AAN_DE_ELFPROEF:
+            result = not self._elfproef_check(operand_val, expr.operand.span)
+            return Value(value=result, datatype="Boolean", unit=None)
         else:
             raise RegelspraakError(f"Unsupported unary operator: {op.name}", span=expr.span)
+
+    def _elfproef_check(self, value: Value, span: SourceSpan) -> bool:
+        """Check if a number satisfies the elfproef (eleven-proof) algorithm.
+        
+        The elfproef is a checksum validation commonly used in the Netherlands
+        for numbers like BSN (citizen service number).
+        
+        Algorithm:
+        - Must be exactly 9 digits
+        - Each digit is multiplied by its position (9 for first digit, 8 for second, etc.)
+        - The sum of these products must be divisible by 11
+        """
+        # Convert value to string
+        if value.value is None:
+            return False
+            
+        number_str = str(value.value).strip()
+        
+        # Check if it's exactly 9 digits
+        if not number_str.isdigit() or len(number_str) != 9:
+            return False
+        
+        # Calculate weighted sum
+        total = 0
+        for i, digit in enumerate(number_str):
+            weight = 9 - i  # 9 for first digit, 8 for second, etc.
+            total += int(digit) * weight
+        
+        # Check if divisible by 11
+        return total % 11 == 0
 
     def _resolve_collection_from_feittype(self, collection_name: str, base_instance: RuntimeObject) -> List[RuntimeObject]:
         """Resolve a collection name through feittype relationships.
