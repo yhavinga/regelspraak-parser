@@ -575,6 +575,32 @@ class RegelSpraakModelBuilder(RegelSpraakVisitor):
         logger.debug(f"    visitNaamwoordNoIs returning: '{final_noun}'")
         return final_noun
     
+    def visitSimpleNaamwoord(self, ctx: AntlrParser.SimpleNaamwoordContext) -> Optional[str]:
+        """Visit a simpleNaamwoord context - just a naamPhrase without prepositions."""
+        logger.debug(f"    Visiting SimpleNaamwoord: Text='{safe_get_text(ctx)}', Type={type(ctx).__name__}")
+        
+        # simpleNaamwoord : naamPhrase
+        if ctx.naamPhrase():
+            # Process naam phrase - extract text without articles
+            phrase_ctx = ctx.naamPhrase()
+            phrase_parts = []
+            
+            for child in phrase_ctx.children:
+                if isinstance(child, TerminalNode):
+                    # Skip articles at the beginning of phrases
+                    token_text = child.getText()
+                    if token_text not in ["de", "het", "een", "De", "Het", "Een", "zijn", "Zijn"]:
+                        phrase_parts.append(token_text)
+                else:
+                    # Non-terminal nodes (like identifierOrKeyword)
+                    phrase_parts.append(safe_get_text(child))
+            
+            result = " ".join(phrase_parts) if phrase_parts else safe_get_text(ctx)
+            logger.debug(f"    visitSimpleNaamwoord returning: '{result}'")
+            return result
+        
+        # Fallback
+        return safe_get_text(ctx)
 
     def visitKenmerkNaam(self, ctx: AntlrParser.KenmerkNaamContext) -> str:
         """Extract the name string from a kenmerkNaam context."""
@@ -2877,15 +2903,18 @@ class RegelSpraakModelBuilder(RegelSpraakVisitor):
             if object_ctx.objectAttributeInit():
                 # Parse initial attribute and its value
                 init_ctx = object_ctx.objectAttributeInit()
-                attr_name = self.visit(init_ctx.attribuut)
-                value_expr = self.visit(init_ctx.waarde)
-                attribute_inits.append((attr_name, value_expr))
+                # Now using simpleNaamwoord to avoid ambiguity
+                attr_name = self.visitSimpleNaamwoord(init_ctx.attribuut) if hasattr(init_ctx, 'attribuut') and init_ctx.attribuut else None
+                value_expr = self.visit(init_ctx.waarde) if hasattr(init_ctx, 'waarde') and init_ctx.waarde else None
+                if attr_name and value_expr:
+                    attribute_inits.append((attr_name, value_expr))
                 
                 # Parse additional attributes using EN connector
                 for vervolg in init_ctx.attributeInitVervolg():
-                    attr = self.visit(vervolg.attribuut)
-                    val = self.visit(vervolg.waarde)
-                    attribute_inits.append((attr, val))
+                    attr = self.visitSimpleNaamwoord(vervolg.attribuut) if hasattr(vervolg, 'attribuut') and vervolg.attribuut else None
+                    val = self.visit(vervolg.waarde) if hasattr(vervolg, 'waarde') and vervolg.waarde else None
+                    if attr and val:
+                        attribute_inits.append((attr, val))
             
             return ObjectCreatie(
                 object_type=object_type,
