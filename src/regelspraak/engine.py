@@ -1137,70 +1137,13 @@ class Evaluator:
         result = None
         try:
             if isinstance(expr, Literal):
-                # Wrap literal in Value object
-                # Use the datatype from the literal if it exists
-                if hasattr(expr, 'datatype') and expr.datatype:
-                    datatype = expr.datatype
-                    value = expr.value
-                    
-                    # Special handling for date literals
-                    if datatype == "Datum" and isinstance(value, str):
-                        # Parse date string to datetime
-                        from datetime import datetime
-                        # Handle various date formats: dd-mm-yyyy, dd.mm.yyyy, yyyy-mm-dd
-                        for fmt in ["%d-%m-%Y", "%d.%m.%Y", "%Y-%m-%d", "%d-%m-%Y %H:%M:%S.%f"]:
-                            try:
-                                value = datetime.strptime(value, fmt)
-                                break
-                            except ValueError:
-                                continue
-                        else:
-                            # If no format matched, keep as string and let downstream handle it
-                            pass
-                else:
-                    # Fallback: determine datatype from literal type
-                    value = expr.value
-                    if isinstance(expr.value, bool):
-                        datatype = "Boolean"
-                    elif isinstance(expr.value, (int, float, Decimal)):
-                        datatype = "Numeriek"
-                    elif isinstance(expr.value, str):
-                        datatype = "Tekst"
-                    else:
-                        datatype = "Onbekend"
-                    
-                # Check if literal has unit info (would need to be added to AST)
-                # Note: Literal AST node uses 'eenheid', Value uses 'unit'
-                unit = getattr(expr, 'eenheid', None)
-                result = Value(value=value, datatype=datatype, unit=unit)
+                result = self._evaluate_literal(expr)
 
             elif isinstance(expr, VariableReference):
-                value = self.context.get_variable(expr.variable_name)
-                
-                # Trace variable read
-                if self.context.trace_sink:
-                    self.context.trace_sink.variable_read(
-                        expr.variable_name, 
-                        value.value if isinstance(value, Value) else value, 
-                        expr=expr,
-                        instance_id=instance_id
-                    )
-                    
-                result = value
+                result = self._evaluate_variable_reference(expr, instance_id)
 
             elif isinstance(expr, ParameterReference):
-                value = self.context.get_parameter(expr.parameter_name)
-                
-                # Trace parameter read
-                if self.context.trace_sink:
-                    self.context.trace_sink.parameter_read(
-                        expr.parameter_name, 
-                        value.value if isinstance(value, Value) else value, 
-                        expr=expr,
-                        instance_id=instance_id
-                    )
-                    
-                result = value
+                result = self._evaluate_parameter_reference(expr, instance_id)
 
             elif isinstance(expr, DimensionedAttributeReference):
                 # Handle dimensioned attribute references like "bruto inkomen van huidig jaar"
@@ -1843,71 +1786,13 @@ class Evaluator:
         result = None
         try:
             if isinstance(expr, Literal):
-                # Wrap literal in Value object
-                # Use the datatype from the literal if it exists
-                if hasattr(expr, 'datatype') and expr.datatype:
-                    datatype = expr.datatype
-                    value = expr.value
-                    
-                    # Special handling for date literals
-                    if datatype == "Datum" and isinstance(value, str):
-                        # Parse date string to datetime
-                        from datetime import datetime
-                        # Handle various date formats: dd-mm-yyyy, dd.mm.yyyy, yyyy-mm-dd
-                        for fmt in ["%d-%m-%Y", "%d.%m.%Y", "%Y-%m-%d", "%d-%m-%Y %H:%M:%S.%f"]:
-                            try:
-                                value = datetime.strptime(value, fmt)
-                                break
-                            except ValueError:
-                                continue
-                        else:
-                            # If no format matched, keep as string and let downstream handle it
-                            pass
-                else:
-                    # Fallback: determine datatype from literal type
-                    value = expr.value
-                    if isinstance(expr.value, bool):
-                        datatype = "Boolean"
-                    elif isinstance(expr.value, (int, float, Decimal)):
-                        datatype = "Numeriek"
-                    elif isinstance(expr.value, str):
-                        datatype = "Tekst"
-                    else:
-                        datatype = "Onbekend"
-                    
-                # Check if literal has unit info (would need to be added to AST)
-                # Note: Literal AST node uses 'eenheid', Value uses 'unit'
-                unit = getattr(expr, 'eenheid', None)
-                result = Value(value=value, datatype=datatype, unit=unit)
+                result = self._evaluate_literal(expr)
 
             elif isinstance(expr, VariableReference):
-                value = self.context.get_variable(expr.variable_name)
-                
-                # Trace variable read
-                if self.context.trace_sink:
-                    self.context.trace_sink.variable_read(
-                        expr.variable_name, 
-                        value.value if isinstance(value, Value) else value, 
-                        expr=expr,
-                        instance_id=instance_id
-                    )
-                    
-                result = value
+                result = self._evaluate_variable_reference(expr, instance_id)
 
             elif isinstance(expr, ParameterReference):
-                # Always use context.get_parameter which now handles timeline empty values correctly
-                value = self.context.get_parameter(expr.parameter_name)
-                
-                # Trace parameter read
-                if self.context.trace_sink:
-                    self.context.trace_sink.parameter_read(
-                        expr.parameter_name, 
-                        value.value if isinstance(value, Value) else value, 
-                        expr=expr,
-                        instance_id=instance_id
-                    )
-                    
-                result = value
+                result = self._evaluate_parameter_reference(expr, instance_id)
 
             elif isinstance(expr, DimensionedAttributeReference):
                 # Handle dimensioned attribute references like "bruto inkomen van huidig jaar"
@@ -3277,6 +3162,75 @@ class Evaluator:
 
         else:
             raise RegelspraakError(f"Unsupported or unhandled binary operator: {op.name}", span=expr.span)
+
+    def _evaluate_variable_reference(self, expr: VariableReference, instance_id: Optional[str]) -> Value:
+        """Evaluate a variable reference - shared logic for timeline and non-timeline paths."""
+        value = self.context.get_variable(expr.variable_name)
+        
+        # Trace variable read
+        if self.context.trace_sink:
+            self.context.trace_sink.variable_read(
+                expr.variable_name, 
+                value.value if isinstance(value, Value) else value, 
+                expr=expr,
+                instance_id=instance_id
+            )
+            
+        return value
+    
+    def _evaluate_parameter_reference(self, expr: ParameterReference, instance_id: Optional[str]) -> Value:
+        """Evaluate a parameter reference - shared logic for timeline and non-timeline paths."""
+        # Always use context.get_parameter which handles timeline empty values correctly
+        value = self.context.get_parameter(expr.parameter_name)
+        
+        # Trace parameter read
+        if self.context.trace_sink:
+            self.context.trace_sink.parameter_read(
+                expr.parameter_name, 
+                value.value if isinstance(value, Value) else value, 
+                expr=expr,
+                instance_id=instance_id
+            )
+            
+        return value
+    
+    def _evaluate_literal(self, expr: Literal) -> Value:
+        """Evaluate a literal expression - shared logic for timeline and non-timeline paths."""
+        # Use the datatype from the literal if it exists
+        if hasattr(expr, 'datatype') and expr.datatype:
+            datatype = expr.datatype
+            value = expr.value
+            
+            # Special handling for date literals
+            if datatype == "Datum" and isinstance(value, str):
+                # Parse date string to datetime
+                from datetime import datetime
+                # Handle various date formats: dd-mm-yyyy, dd.mm.yyyy, yyyy-mm-dd
+                for fmt in ["%d-%m-%Y", "%d.%m.%Y", "%Y-%m-%d", "%d-%m-%Y %H:%M:%S.%f"]:
+                    try:
+                        value = datetime.strptime(value, fmt)
+                        break
+                    except ValueError:
+                        continue
+                else:
+                    # If no format matched, keep as string and let downstream handle it
+                    pass
+        else:
+            # Fallback: determine datatype from literal type
+            value = expr.value
+            if isinstance(expr.value, bool):
+                datatype = "Boolean"
+            elif isinstance(expr.value, (int, float, Decimal)):
+                datatype = "Numeriek"
+            elif isinstance(expr.value, str):
+                datatype = "Tekst"
+            else:
+                datatype = "Onbekend"
+            
+        # Check if literal has unit info
+        # Note: Literal AST node uses 'eenheid', Value uses 'unit'
+        unit = getattr(expr, 'eenheid', None)
+        return Value(value=value, datatype=datatype, unit=unit)
 
     def _handle_unary(self, expr: UnaryExpression) -> Value:
         """Handle unary operations, returning Value objects."""
