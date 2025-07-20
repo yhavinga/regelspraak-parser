@@ -179,6 +179,48 @@ class DatumPredicaat(VergelijkingsPredicaat):
     """Date comparison predicate."""
     pass
 
+@dataclass
+class SamengesteldPredicaat(Predicaat):
+    """Compound predicate with quantifier and nested conditions.
+    Example: "aan alle volgende voorwaarden voldoen: ..."
+    """
+    kwantificatie: 'Kwantificatie'
+    voorwaarden: List['GenesteVoorwaardeInPredicaat']
+
+@dataclass
+class Kwantificatie:
+    """Quantifier for compound conditions."""
+    type: 'KwantificatieType'  # ALLE, GEEN, TEN_MINSTE, TEN_HOOGSTE, PRECIES
+    aantal: Optional[int] = None  # For TEN_MINSTE etc.
+    span: SourceSpan = field(default_factory=lambda: SourceSpan())
+
+class KwantificatieType(Enum):
+    ALLE = "alle"
+    GEEN = "geen"
+    TEN_MINSTE = "ten_minste"
+    TEN_HOOGSTE = "ten_hoogste"  
+    PRECIES = "precies"
+
+@dataclass
+class GenesteVoorwaardeInPredicaat:
+    """Nested condition within a predicate with bullet level."""
+    niveau: int  # Number of bullets (nesting level)
+    voorwaarde: Union['VergelijkingInPredicaat', 'SamengesteldPredicaat']
+    span: SourceSpan = field(default_factory=lambda: SourceSpan())
+
+@dataclass
+class VergelijkingInPredicaat:
+    """Comparison within a compound predicate.
+    Can be attribute comparison or object/kenmerk check.
+    """
+    type: str  # "attribuut_vergelijking", "object_check", "kenmerk_check"
+    onderwerp: Optional[Expression] = None
+    attribuut: Optional[AttributeReference] = None
+    operator: Optional[Operator] = None
+    waarde: Optional[Expression] = None
+    kenmerk_naam: Optional[str] = None
+    span: SourceSpan = field(default_factory=lambda: SourceSpan())
+
 
 # --- Core Definitions ---
 
@@ -273,8 +315,15 @@ class PeriodDefinition(Expression):
 @dataclass
 class Voorwaarde:
     """Represents the condition part of a rule."""
-    expressie: Expression
+    expressie: Union[Expression, 'SamengesteldeVoorwaarde']
     span: SourceSpan
+
+@dataclass
+class SamengesteldeVoorwaarde:
+    """Compound condition with quantifier (alle, geen, ten minste N, etc)."""
+    kwantificatie: Kwantificatie
+    voorwaarden: List[Expression]
+    span: SourceSpan = field(default_factory=lambda: SourceSpan())
 
 @dataclass
 class ResultaatDeel:

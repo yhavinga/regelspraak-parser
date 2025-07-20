@@ -1,16 +1,16 @@
 ## Summary Report: RegelSpraak Parser Codebase Analysis
 
-**Last Updated: 2025-07-15** (Documentation updated to reflect actual implementation status)
+**Last Updated: 2025-07-16** (Timeline expression evaluation implemented)
 
 **IMPORTANT UPDATE**: This analysis has been maintained over time, and most issues listed below are now RESOLVED. The codebase has progressed significantly:
-- **~90% of specification implemented** (up from initial assessment)
-- **363 tests passing** with only 10 skipped
-- **Major features working**: All core rule types, decision tables, distribution rules, object relationships, aggregation functions, dimensions
-- **Primary gaps**: Timelines (Tijdlijnen) and a few advanced predicates
+- **~92% of specification implemented** (up from initial assessment)
+- **386 tests passing** with only 9 skipped
+- **Major features working**: All core rule types, decision tables, distribution rules, object relationships, aggregation functions, dimensions, timeline expressions
+- **Primary gaps**: Timeline period definitions (van/tot syntax) and a few advanced predicates
 
 **1. Overview of Codebase State and General Quality**
 
-The codebase implements a parser and execution engine for the RegelSpraak language using Python and ANTLR4, covering approximately **90% of the specification**. The implementation is no longer "rudimentary" - it handles complex rules, object relationships, decision tables, and distribution rules. The project structure is generally sound, following common Python packaging conventions (`src` layout, `setup.py`, `requirements.txt`, `Makefile`). It includes:
+The codebase implements a parser and execution engine for the RegelSpraak language using Python and ANTLR4, covering approximately **92% of the specification**. The implementation is no longer "rudimentary" - it handles complex rules, object relationships, decision tables, and distribution rules. The project structure is generally sound, following common Python packaging conventions (`src` layout, `setup.py`, `requirements.txt`, `Makefile`). It includes:
 
 *   ANTLR4 grammar files (`.g4`).
 *   Generated ANTLR parser/lexer/visitor code.
@@ -24,7 +24,7 @@ The codebase implements a parser and execution engine for the RegelSpraak langua
 
 **General Quality Assessment:**
 
-*   **Strengths:** Good use of ANTLR4, clear separation of concerns (parsing, AST, runtime, engine), use of `dataclasses` for AST/runtime models, inclusion of `SourceSpan` for error reporting, basic CLI and REPL functionality, comprehensive test suite. **Recent improvements (2025-06-20):** All tests pass, logical operators (EN/OF) implemented, expression evaluation fixed, parameter reference disambiguation resolved. **Unit system added (2025-01-21):** Comprehensive unit handling with `units.py` and `arithmetic.py`, fully integrated into engine. **Rule targeting verified (2025-01-22):** Investigation revealed `_deduce_rule_target_type` works correctly for all implemented rule types. **Semantic analysis added (2025-01-22):** Proper symbol table and two-pass semantic validation implemented. **Operator handling refactored (2025-06-22):** Removed redundant OPERATOR_TEXT_MAP, simplified to single operator mapping approach. **Feittype support added (2025-06-22):** Object relationships now supported with FeitType/Rol AST nodes and runtime ObjectReference datatype. **Operator semantics fixed (2025-06-25):** "verminderd met" now correctly handles empty values differently than "min". **ObjectCreatie implemented (2025-06-25):** Object creation rules fully functional. **FeitCreatie implemented (2025-12-27):** Relationship creation rules with complex navigation patterns now working.
+*   **Strengths:** Good use of ANTLR4, clear separation of concerns (parsing, AST, runtime, engine), use of `dataclasses` for AST/runtime models, inclusion of `SourceSpan` for error reporting, basic CLI and REPL functionality, comprehensive test suite. **Recent improvements (2025-06-20):** All tests pass, logical operators (EN/OF) implemented, expression evaluation fixed, parameter reference disambiguation resolved. **Unit system added (2025-01-21):** Comprehensive unit handling with `units.py` and `arithmetic.py`, fully integrated into engine. **Rule targeting verified (2025-01-22):** Investigation revealed `_deduce_rule_target_type` works correctly for all implemented rule types. **Semantic analysis added (2025-01-22):** Proper symbol table and two-pass semantic validation implemented. **Operator handling refactored (2025-06-22):** Removed redundant OPERATOR_TEXT_MAP, simplified to single operator mapping approach. **Feittype support added (2025-06-22):** Object relationships now supported with FeitType/Rol AST nodes and runtime ObjectReference datatype. **Operator semantics fixed (2025-06-25):** "verminderd met" now correctly handles empty values differently than "min". **ObjectCreatie implemented (2025-06-25):** Object creation rules fully functional. **FeitCreatie implemented (2025-12-27):** Relationship creation rules with complex navigation patterns now working. **Timeline expressions implemented (2025-07-16):** Timeline expression evaluation with empty value handling, compound path support, and timeline-aware rule execution.
 *   **Weaknesses:** The builder layer (`builder.py`) contains complex solutions (e.g., complex name extraction) that could be simplified. Error handling is present but inconsistent in places. Builder still uses hacky `parameter_names` tracking alongside new semantic analysis.
 *   **Architecture Note:** The original `parsing.py` has been refactored into a simple frontend (4KB) with all complex logic moved to `builder.py` (67KB), following better separation of concerns.
 
@@ -48,6 +48,7 @@ The codebase implements a parser and execution engine for the RegelSpraak langua
 | **RESOLVED**               | `engine.py`                 | `evaluate_expression`                                                    | Attribute path construction fixed. Engine can traverse nested objects via paths. Feittype/ObjectReference support now implemented (2025-06-22). | **Completed** |
 | **RESOLVED**               | `builder.py`                | `visitPrimaryExpression`                                                 | Refactored from 545-line monolith to 42-line dispatcher with 4 helper methods. Expression handling now organized by type. | **Completed** |
 | **RESOLVED**               | `ast.py`, `builder.py`, `runtime.py`, `engine.py`, `semantics.py` | Dimensions (Dimensies) implementation | Dimensions implemented as of 2025-07-15. AST nodes (Dimension, DimensionLabel, DimensionedAttributeReference), builder visitor (visitDimensieDefinition, enhanced visitAttribuutReferentie), runtime support (DimensionCoordinate, multi-dimensional storage), engine evaluation, and semantic validation all working. Both adjectival and prepositional dimension styles supported. | **Completed** |
+| **RESOLVED**               | `runtime.py`, `engine.py`    | Timeline expression evaluation | Timeline expressions implemented as of 2025-07-16. Empty timeline values return 0 for numeric types per spec. _is_timeline_expression and _collect_timeline_operands handle compound paths. Rules assigning to timeline attributes create TimelineValue results. | **Completed** |
 | **Poor Readability/Design**| `builder.py`                | `_extract_canonical_name`                                                | Helper function is overly complex, handling many specific node types; indicates potential inconsistency in grammar naming rules.           | **Medium**   |
 | **Inconsistent Error Handling** | `runtime.py`              | `get_kenmerk`, `check_is`                                                | Inconsistent handling of undefined kenmerks (returns `False` instead of raising error, unlike attributes/parameters).                       | **Medium**   |
 | **Design Concern**         | `runtime.py`, `engine.py`   | `check_is`, `check_in` methods                                           | Placement of `IS`/`IN` operator logic partly in `RuntimeContext` blurs responsibility with `Evaluator`.                                  | **Medium**   |
@@ -422,9 +423,12 @@ By following these steps, building upon the foundation laid by the initial refac
 - ~~Implement Verdeling (distribution rules)~~ ✓ COMPLETED
 - ~~Implement all aggregation functions~~ ✓ COMPLETED
 - ~~Implement Dimensions (Dimensies)~~ ✓ COMPLETED (2025-07-15)
-- Implement Timelines (Tijdlijnen) ← NEXT PRIORITY
+- Implement Timelines (Tijdlijnen) ← PARTIALLY COMPLETED (2025-07-16)
+  - ✓ Timeline expression evaluation with empty value handling
+  - ✓ Timeline-aware rule execution
+  - ✗ Timeline period definitions still needed
 - Enhance execution tracing for explainability
-- Status: ~90% of specification implemented, 363 tests passing
+- Status: ~92% of specification implemented, 386 tests passing
 
 ### Phase 2: Performance Optimization
 - Python AST code generation from IR
@@ -526,4 +530,4 @@ By following these steps, building upon the foundation laid by the initial refac
 - **ANTLR JAR**: Located at `lib/antlr-4.13.1-complete.jar`
 - **Python 3.7+**: Minimum version requirement
 - **Generated files**: `src/regelspraak/_antlr/` may not be in git
-- **Test count**: 363 tests must pass (10 skipped acceptable)
+- **Test count**: 386 tests must pass (9 skipped acceptable)

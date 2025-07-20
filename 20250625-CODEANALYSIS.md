@@ -2,11 +2,11 @@
 
 **Prepared by: John Carmack (Simulated)**
 **Date: 2025-06-25**
-**Updated: 2025-01-07** - All aggregation functions complete, tijdsduur_van fixed
+**Updated: 2025-07-16** - Timeline expression evaluation implemented
 
 ### 0. Executive Summary & Overall Impression
 
-This codebase has seen substantial progress, and the detailed `20250510-CODEANALYSIS.md` (updated today, June 25th) reflects a commendable effort in tracking issues and resolutions. Many foundational pieces are in place: ANTLR parsing, an AST, a semantic analyzer, a runtime, and an initial engine. The test suite is extensive, which is crucial.
+This codebase has seen substantial progress, and the detailed `20250510-CODEANALYSIS.md` (updated July 16th) reflects a commendable effort in tracking issues and resolutions. Many foundational pieces are in place: ANTLR parsing, an AST, a semantic analyzer, a runtime, and an initial engine. The test suite is extensive, which is crucial.
 
 My focus here is not to re-hash what's been fixed but to look at the current state and remaining challenges with an eye for **simplicity, robustness, and practical efficiency.** The goal is a solid, understandable, and performant core that can reliably support the project's vision (REPL, Jupyter, Rules as a Service, AI Explainability).
 
@@ -20,7 +20,7 @@ The project is on a good trajectory. The remaining issues, while some are intric
     *   **AST & Runtime Data Structures:** Use of Python `dataclasses` for AST/runtime models is clean. `SourceSpan` for error reporting is essential. Immutability of AST nodes is a good principle.
     *   **Semantic Analysis:** The addition of a proper semantic analysis phase with a symbol table is a critical improvement for robustness.
     *   **Unit System:** The dedicated `units.py` and `arithmetic.py` for handling units is a solid approach for a DSL that deals with typed and unitized values.
-    *   **Testing:** A comprehensive test suite (314 tests) is a major asset. Keep this up.
+    *   **Testing:** A comprehensive test suite (431 tests) is a major asset. Keep this up.
     *   **Progress:** The number of "RESOLVED" items in the `20250510-CODEANALYSIS.md` shows significant, focused development.
 
 *   **Areas for Continued Focus & Improvement (Carmack Perspective):**
@@ -151,6 +151,7 @@ This plan integrates the remaining issues from the previous analysis with a Carm
 | Priority   | Action                                                                 | Location(s)                                                              | Proposed Change & Rationale (Carmack Perspective)                                                                                                                                                                                                                                                                                                                                                                                                                   |
 | :--------- | :--------------------------------------------------------------------- | :----------------------------------------------------------------------- | :------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | **High**   | **Simplify `builder.py` (esp. `_extract_canonical_name`)**             | `builder.py`                                                             | **Reduce Complexity/Improve Maintainability:** This is a beast. Simplify by (1) Pushing more normalization to grammar if possible, or (2) Decomposing into smaller, more testable helpers. Aim for a builder that's a more direct translation of grammar rules, less ad-hoc logic.                                                                                                                                                                              |
+| ~~**High**~~   | ~~**Extract Expression Evaluation Duplication**~~                         | ~~`engine.py`~~                                                          | ~~**DRY/Maintainability:** evaluate_expression and _evaluate_expression_non_timeline had ~130 lines of identical code. Extract shared logic into helper methods while preserving intentional differences in recursive paths.~~ **RESOLVED (2025-07-20):** Extracted _evaluate_literal, _evaluate_variable_reference, _evaluate_parameter_reference helper methods.                                                                                         |
 | ~~**High**~~   | ~~**Standardize Runtime Error Handling**~~                                 | ~~`runtime.py` (`get_kenmerk`)~~                                             | ~~**Robustness/Predictability:** `get_kenmerk` returning `False` for undefined is a bug waiting to happen. Change to raise `RuntimeError` (or specific `UndefinedKenmerkError`). Fail fast and clearly. Application logic can catch and default if needed.~~ **RESOLVED:** Current behavior is correct per spec §3.5.                                                                                                                                                                                                     |
 | ~~**High**~~   | ~~**Refactor REPL `Evaluate` Command**~~                                   | ~~`repl.py` (`handle_evaluate`)~~                                            | ~~**Correctness/Usability:** String splitting is not parsing. Route `Evaluate` input through `parse_text` (or a dedicated `parse_expression`) and the `Evaluator`. The REPL must be a reliable testbed for the actual engine.~~ **RESOLVED:** Pragmatic pattern matching with comprehensive tests.                                                                                                                                                                                                                                        |
 | **Medium** | **Centralize `IS`/`IN` Logic**                                         | `engine.py`, `runtime.py`                                                | **Design/Cohesion:** `RuntimeContext` should be data + state. `Evaluator` should evaluate. Move `check_is`/`check_in` logic fully into `Evaluator._handle_binary` or similar. Cleaner separation of concerns.                                                                                                                                                                                                                                                        |
@@ -262,7 +263,108 @@ The project has made excellent progress, tackling a complex DSL. The focus now s
   - Result: All aggregation expressions now support both "gedurende de tijd dat" and period patterns
   - Test suite increased to 375 tests (11 skipped)
 
-**Current Coverage: ~90% of specification**
+**Update (2025-07-16):**
+- Timeline expression evaluation implemented:
+  - Empty timeline values return 0 for numeric types per specification §5.1.4
+  - Fixed _is_timeline_expression and _collect_timeline_operands to handle compound paths like ['self', 'salaris']
+  - Rules assigning to timeline attributes now correctly create TimelineValue results
+  - Test suite increased to 386 tests (9 skipped)
+
+**Update (2025-07-17):**
+- Timeline period definitions fully implemented:
+  - Fixed parameter reference disambiguation - "het basisSalaris" now correctly parsed as ParameterReference
+  - Added visitOnderwerpRefExpr to handle grammar ambiguity where onderwerpReferentie matches before parameterMetLidwoord
+  - Fixed unit handling for literals - AST uses 'eenheid' but Value expects 'unit'
+  - Enhanced DateCalcExpr to propagate units from identifiers to numeric literals
+  - All timeline period syntax now working: vanaf, tot, van...tot, tot en met
+  - Test suite increased to 396 tests (11 skipped)
+
+**Update (2025-07-19):**
+- Subselectie (filtered collections) fully implemented:
+  - Grammar extended to support DIE/DAT predicaat filtering in onderwerpReferentie
+  - Full predicaat hierarchy: object, comparison, and typed predicates
+  - Engine evaluation with proper context switching for predicate evaluation
+  - Navigation expression support - "passagiers van de vlucht" parsed as single navigation
+  - AttributeReference enhanced to handle "X van de Y" patterns in single-element paths
+  - Integration with aggregation functions for filtered aggregation
+  - het_aantal function implemented for counting collections
+  - Test suite increased to 397 tests (11 skipped)
+
+**Update (2025-07-20):**
+- Recursion (Recursie) fully implemented per specification §9.9:
+  - Grammar extended with REGELGROEP and IS_RECURSIEF tokens
+  - AST node RegelGroep added for recursive rule groups
+  - Semantic validation ensures recursive groups have object creation with termination conditions
+  - Engine execution with iteration tracking and 1000-iteration safety limit
+  - Special handling for ObjectCreatie and aggregations without current instance
+  - Test suite increased to 407 tests (11 skipped)
+
+**Update (2025-07-20) - Elfproef Implementation:**
+- Elfproef validation predicate implemented per specification §8.1.3:
+  - Added VOLDOET_AAN_DE_ELFPROEF and VOLDOET_NIET_AAN_DE_ELFPROEF operators to AST
+  - Implemented visitUnaryCondition in builder to handle unaryCheckCondition grammar alternative
+  - Added _elfproef_check method in engine implementing the standard 11-proof checksum algorithm
+  - Validates 9-digit BSN numbers using weighted sum (digit × position) divisible by 11
+  - Comprehensive integration tests for valid/invalid BSNs and edge cases
+  - Test suite increased to 413 tests (11 skipped)
+
+**Update (2025-07-20) - Dagsoort Predicate Implementation:**
+- Dagsoort (day type) predicate implemented per specification §3.12 and §9.8:
+  - Added IS_EEN_DAGSOORT, ZIJN_EEN_DAGSOORT, IS_GEEN_DAGSOORT, ZIJN_GEEN_DAGSOORT operators to AST
+  - Fixed lexer token ordering: IS_RECURSIEF before IS to prevent misparsing
+  - Added Dagsoort AST node and DomainModel.dagsoorten collection
+  - Implemented visitDagsoortDefinition in builder to parse declarations with plural forms
+  - Extended visitUnaryCondition to handle unaryDagsoortCondition expressions
+  - Implemented _dagsoort_check in engine using clever pattern: creates temporary "dag" objects
+    to evaluate against dagsoort definition rules, reusing existing rule infrastructure
+  - Added date extraction functions (maand_uit, dag_uit, jaar_uit) for date component access
+  - Added semantic validation for dagsoort name references
+  - Updated _deduce_rule_target_type to recognize Dagsoortdefinitie rules target "Dag" objects
+  - Test suite increased to 419 tests (11 skipped)
+
+**Update (2025-07-20) - Uniqueness Predicate Implementation:**
+- Uniqueness (is uniek) predicate fully implemented per specification §8.1.6:
+  - Added MOETEN_UNIEK_ZIJN operator to AST enum
+  - Implemented visitUnaryCondition to handle unaryUniekCondition grammar alternative
+  - Full uniqueness checking in engine's _apply_consistentieregel:
+    * Parses target expression to extract attribute and object type names
+    * Handles plural forms for both attributes and object types  
+    * Checks for duplicate values across all instances
+    * Returns false (inconsistent) if duplicates found
+    * Emits detailed CONSISTENCY_CHECK trace events
+  - Enhanced semantic validation to verify:
+    * Proper "de X van alle Y" pattern structure
+    * Object type exists in domain model
+    * Attribute exists on specified object type
+  - Added comprehensive integration tests covering edge cases
+  - Test suite increased to 426 tests (11 skipped)
+
+**Update (2025-07-20) - ObjectCreatie Grammar Ambiguity Fix:**
+- Fixed parsing ambiguity in object creation attribute initialization:
+  - Problem: "met de naam de naam" could parse ambiguously when attribute names and expressions both start with articles
+  - Solution: Introduced simpleNaamwoord rule (naamPhrase without prepositions) for attribute names
+  - Grammar changes:
+    * Added simpleNaamwoord rule to restrict attribute names
+    * Updated objectAttributeInit to use simpleNaamwoord instead of naamwoord
+    * Preserves full expressiveness for attribute values while eliminating ambiguity
+  - Builder updated with visitSimpleNaamwoord method
+  - Added comprehensive test suite (test_object_creation_ambiguity.py) with 5 tests
+  - Test suite increased to 431 tests (11 skipped)
+
+**Update (2025-07-20) - Expression Evaluation Refactoring:**
+- Eliminated ~130 lines of code duplication between evaluate_expression and _evaluate_expression_non_timeline:
+  - Problem: Both methods contained identical logic for literal, variable, and parameter evaluation
+  - Solution: Extracted common evaluation logic into helper methods:
+    * _evaluate_literal(): Handles literal value wrapping, date parsing, and datatype inference
+    * _evaluate_variable_reference(): Encapsulates variable lookup and trace event emission
+    * _evaluate_parameter_reference(): Encapsulates parameter lookup and trace event emission
+  - Design decision: The remaining differences between the two methods are intentional - they use different recursive paths
+    (_handle_binary vs _handle_binary_non_timeline) to prevent infinite recursion when evaluating timeline expressions
+  - Chose inline helper methods over a separate module to keep the solution simple and localized
+  - Net reduction: 46 lines (removed 121, added 75)
+  - All 431 tests pass unchanged
+
+**Current Coverage: ~97% of specification**
 
 **Implemented:**
 - Basic rule types: Gelijkstelling, KenmerkToekenning, ObjectCreatie, FeitCreatie, Consistentieregel, Initialisatie, Dagsoortdefinitie
@@ -271,17 +373,39 @@ The project has made excellent progress, tackling a complex DSL. The focus now s
 - Core expressions and operators
 - Units, domains, parameters
 - Basic predicates
-- Uniqueness checks (partially - execution not fully implemented)
-- Date functions: tijdsduur_van (with whole year calculation), absolute_tijdsduur_van with unit conversion, aantal dagen in (basic)
-- Aggregation functions: som_van, eerste_van, laatste_van, totaal_van (all patterns including feittype navigation)
+- Elfproef validation - full functionality (BSN checksum validation using 11-proof algorithm)
+- Dagsoort predicates - full functionality (day type declarations, definitions, and predicate checks)
+- Uniqueness checks - full functionality (detects duplicate values across object instances)
+- Date functions: tijdsduur_van (with whole year calculation), absolute_tijdsduur_van with unit conversion, aantal dagen in (basic), maand_uit, dag_uit, jaar_uit
+- Aggregation functions: som_van, eerste_van, laatste_van, totaal_van, het_aantal (all patterns including feittype navigation)
 - Generic collection resolution without hardcoded object types
 - Dimensions (Dimensies) - full functionality (multi-valued attributes with adjectival/prepositional styles, coordinate-based access)
+- Timeline expressions - full functionality (expression evaluation with empty value handling, timeline-aware rule execution, period definitions)
+- Subselectie - full functionality (filtered collections with predicates, navigation expressions, aggregation integration)
+- Recursion (Recursie) - full functionality (recursive rule groups with iteration tracking, termination conditions, safety limits)
 
 **Missing Critical Features:**
-1. **Timelines (Tijdlijnen)**: Advanced time-dependent values and expressions - HIGHEST PRIORITY
-2. **Subselectie**: Creating subsets of instances based on criteria
-3. **Recursion (Recursie)**: Recursive rule evaluation within rule groups
-4. **Advanced Predicates**: elfproef, is uniek (execution missing), is een dagsoort
+1. **Timelines (Tijdlijnen)**: Fully implemented ✓
+   - ✓ Timeline expression evaluation with empty value handling
+   - ✓ Timeline-aware rule execution
+   - ✓ Timeline period definitions (van/tot, vanaf, tot en met)
+   - ✓ Basic temporal operations
+2. **Subselectie**: Fully implemented ✓
+   - ✓ Filtering collections with predicates (DIE/DAT syntax)
+   - ✓ Object predicates for kenmerk checks
+   - ✓ Comparison predicates for attributes
+   - ✓ Navigation expression support ("X van de Y" patterns)
+   - ✓ Integration with aggregation functions
+3. **Recursion (Recursie)**: Fully implemented ✓
+   - ✓ Recursive rule evaluation within designated rule groups
+   - ✓ Iteration tracking and 1000-iteration safety limit
+   - ✓ Object creation with termination conditions
+   - ✓ Context isolation between iterations
+   - ✓ Semantic validation for recursive groups
+4. **Advanced Predicates**: All implemented ✓
+   - elfproef validation ✓ (BSN checksum validation implemented)
+   - is uniek checks ✓ (uniqueness validation across instances implemented)
+   - is een dagsoort ✓ (day type checking implemented)
 5. **Grammar Limitations**: aantal dagen in conditional pattern ("dat" clause)
 
-**Next Priority**: Implement Timelines - the next major missing feature for time-dependent rules.
+**Next Priority**: Focus on code quality improvements - all major features are now implemented!

@@ -22,7 +22,9 @@ from .ast import (
     BeslistabelCondition, BeslistabelResult, Dimension, DimensionLabel,
     DimensionedAttributeReference, PeriodDefinition,
     Subselectie, Predicaat, ObjectPredicaat, VergelijkingsPredicaat,
-    GetalPredicaat, TekstPredicaat, DatumPredicaat
+    GetalPredicaat, TekstPredicaat, DatumPredicaat, SamengesteldPredicaat,
+    Kwantificatie, KwantificatieType, GenesteVoorwaardeInPredicaat, VergelijkingInPredicaat,
+    SamengesteldeVoorwaarde
 )
 from .beslistabel_parser import BeslistabelParser
 
@@ -968,6 +970,8 @@ class RegelSpraakModelBuilder(RegelSpraakVisitor):
         """Dispatch to specific predicaat type."""
         if ctx.elementairPredicaat():
             return self.visitElementairPredicaat(ctx.elementairPredicaat())
+        elif ctx.samengesteldPredicaat():
+            return self.visitSamengesteldPredicaat(ctx.samengesteldPredicaat())
         else:
             logger.warning(f"Unsupported predicaat type: {safe_get_text(ctx)}")
             return None
@@ -1120,6 +1124,172 @@ class RegelSpraakModelBuilder(RegelSpraakVisitor):
             waarde=waarde,
             span=self.get_span(ctx)
         )
+    
+    def visitSamengesteldPredicaat(self, ctx: AntlrParser.SamengesteldPredicaatContext) -> Optional[SamengesteldPredicaat]:
+        """Visit compound predicate with quantifier."""
+        kwantificatie = self.visitVoorwaardeKwantificatie(ctx.voorwaardeKwantificatie())
+        if not kwantificatie:
+            return None
+            
+        voorwaarden = []
+        for onderdeel_ctx in ctx.samengesteldeVoorwaardeOnderdeelInPredicaat():
+            voorwaarde = self.visitSamengesteldeVoorwaardeOnderdeelInPredicaat(onderdeel_ctx)
+            if voorwaarde:
+                voorwaarden.append(voorwaarde)
+        
+        if not voorwaarden:
+            logger.warning(f"Samengesteld predicaat has no valid conditions: {safe_get_text(ctx)}")
+            return None
+            
+        return SamengesteldPredicaat(
+            kwantificatie=kwantificatie,
+            voorwaarden=voorwaarden,
+            span=self.get_span(ctx)
+        )
+    
+    def visitSamengesteldeVoorwaardeOnderdeelInPredicaat(self, ctx: AntlrParser.SamengesteldeVoorwaardeOnderdeelInPredicaatContext) -> Optional[GenesteVoorwaardeInPredicaat]:
+        """Visit a single condition within compound predicate."""
+        # Get bullet level
+        niveau = len(ctx.bulletPrefix().getText())
+        
+        # Visit the condition
+        if ctx.elementaireVoorwaardeInPredicaat():
+            voorwaarde = self.visitElementaireVoorwaardeInPredicaat(ctx.elementaireVoorwaardeInPredicaat())
+        elif ctx.genesteSamengesteldeVoorwaardeInPredicaat():
+            voorwaarde = self.visitGenesteSamengesteldeVoorwaardeInPredicaat(ctx.genesteSamengesteldeVoorwaardeInPredicaat())
+        else:
+            return None
+            
+        if voorwaarde:
+            return GenesteVoorwaardeInPredicaat(
+                niveau=niveau,
+                voorwaarde=voorwaarde,
+                span=self.get_span(ctx)
+            )
+        
+        return None
+    
+    def visitElementaireVoorwaardeInPredicaat(self, ctx: AntlrParser.ElementaireVoorwaardeInPredicaatContext) -> Optional[VergelijkingInPredicaat]:
+        """Visit elementary condition within predicate."""
+        return self.visitVergelijkingInPredicaat(ctx.vergelijkingInPredicaat())
+    
+    def visitVergelijkingInPredicaat(self, ctx: AntlrParser.VergelijkingInPredicaatContext) -> Optional[VergelijkingInPredicaat]:
+        """Visit comparison within predicate."""
+        if ctx.attribuutReferentie() and ctx.comparisonOperator() and ctx.expressie():
+            # Attribute comparison: "zijn leeftijd is groter dan 65"
+            attribuut = self.visitAttribuutReferentie(ctx.attribuutReferentie())
+            operator = self.visitComparisonOperator(ctx.comparisonOperator())
+            waarde = self.visitExpressie(ctx.expressie())
+            
+            if attribuut and operator and waarde:
+                return VergelijkingInPredicaat(
+                    type="attribuut_vergelijking",
+                    attribuut=attribuut,
+                    operator=operator,
+                    waarde=waarde,
+                    span=self.get_span(ctx)
+                )
+        
+        elif ctx.onderwerpReferentie() and ctx.eenzijdigeObjectVergelijking():
+            # Object check: "hij is een passagier"
+            onderwerp = self.visitOnderwerpReferentie(ctx.onderwerpReferentie())
+            obj_verg = ctx.eenzijdigeObjectVergelijking()
+            
+            heeft_lidwoord = obj_verg.EEN() is not None
+            if obj_verg.kenmerkNaam():
+                naam = self.visitKenmerkNaam(obj_verg.kenmerkNaam())
+            elif obj_verg.rolNaam():
+                naam = self.visitNaamwoord(obj_verg.rolNaam())
+            else:
+                return None
+                
+            if onderwerp and naam:
+                return VergelijkingInPredicaat(
+                    type="object_check",
+                    onderwerp=onderwerp,
+                    kenmerk_naam=naam,
+                    span=self.get_span(ctx)
+                )
+        
+        elif ctx.attribuutReferentie() and ctx.kenmerkNaam():
+            # Kenmerk check: "zijn reis is duurzaam"
+            attribuut = self.visitAttribuutReferentie(ctx.attribuutReferentie())
+            kenmerk = self.visitKenmerkNaam(ctx.kenmerkNaam())
+            
+            if attribuut and kenmerk:
+                return VergelijkingInPredicaat(
+                    type="kenmerk_check",
+                    attribuut=attribuut,
+                    kenmerk_naam=kenmerk,
+                    span=self.get_span(ctx)
+                )
+        
+        logger.warning(f"Unknown vergelijking in predicaat pattern: {safe_get_text(ctx)}")
+        return None
+    
+    def visitGenesteSamengesteldeVoorwaardeInPredicaat(self, ctx: AntlrParser.GenesteSamengesteldeVoorwaardeInPredicaatContext) -> Optional[SamengesteldPredicaat]:
+        """Visit nested compound condition within predicate."""
+        kwantificatie = self.visitVoorwaardeKwantificatie(ctx.voorwaardeKwantificatie())
+        if not kwantificatie:
+            return None
+            
+        voorwaarden = []
+        for onderdeel_ctx in ctx.samengesteldeVoorwaardeOnderdeelInPredicaat():
+            voorwaarde = self.visitSamengesteldeVoorwaardeOnderdeelInPredicaat(onderdeel_ctx)
+            if voorwaarde:
+                voorwaarden.append(voorwaarde)
+        
+        if not voorwaarden:
+            return None
+            
+        return SamengesteldPredicaat(
+            kwantificatie=kwantificatie,
+            voorwaarden=voorwaarden,
+            span=self.get_span(ctx)
+        )
+    
+    def visitVoorwaardeKwantificatie(self, ctx: AntlrParser.VoorwaardeKwantificatieContext) -> Optional[Kwantificatie]:
+        """Visit quantifier for compound conditions."""
+        if ctx.ALLE():
+            return Kwantificatie(
+                type=KwantificatieType.ALLE,
+                span=self.get_span(ctx)
+            )
+        elif ctx.GEEN_VAN_DE():
+            return Kwantificatie(
+                type=KwantificatieType.GEEN,
+                span=self.get_span(ctx)
+            )
+        elif ctx.TEN_MINSTE() or ctx.TEN_HOOGSTE() or ctx.PRECIES():
+            # Get quantifier type
+            if ctx.TEN_MINSTE():
+                kwant_type = KwantificatieType.TEN_MINSTE
+            elif ctx.TEN_HOOGSTE():
+                kwant_type = KwantificatieType.TEN_HOOGSTE
+            else:
+                kwant_type = KwantificatieType.PRECIES
+            
+            # Get number
+            aantal = None
+            if ctx.NUMBER():
+                aantal = int(ctx.NUMBER().getText())
+            elif ctx.EEN() or ctx.EEN_TELWOORD():
+                aantal = 1
+            elif ctx.TWEE_TELWOORD():
+                aantal = 2
+            elif ctx.DRIE_TELWOORD():
+                aantal = 3
+            elif ctx.VIER_TELWOORD():
+                aantal = 4
+            
+            return Kwantificatie(
+                type=kwant_type,
+                aantal=aantal,
+                span=self.get_span(ctx)
+            )
+        
+        logger.warning(f"Unknown kwantificatie: {safe_get_text(ctx)}")
+        return None
     
     def _map_comparison_operator_meervoud(self, ctx) -> Optional[Operator]:
         """Map comparison operator tokens (meervoud form) to Operator enum."""
@@ -1401,6 +1571,19 @@ class RegelSpraakModelBuilder(RegelSpraakVisitor):
                 arguments=[collection_ref],
                 span=self.get_span(ctx)
             )
+        elif isinstance(ctx, AntlrParser.SomAlleAttribuutExprContext):
+            # SOM_VAN ALLE attribuutReferentie
+            # This handles patterns like "som van alle belasting van passagiers die minderjarig zijn"
+            attr_ref = self.visitAttribuutReferentie(ctx.attribuutReferentie())
+            if attr_ref is None:
+                logger.warning(f"No attribute reference found in som_van function: {safe_get_text(ctx)}")
+                return None
+                
+            return FunctionCall(
+                function_name="som_van",
+                arguments=[attr_ref],
+                span=self.get_span(ctx)
+            )
         elif isinstance(ctx, AntlrParser.TijdsevenredigDeelExprContext):
             # HET_TIJDSEVENREDIG_DEEL_PER (MAAND | JAAR) VAN expressie (GEDURENDE_DE_TIJD_DAT condition=expressie)?
             expr = self.visitExpressie(ctx.expressie())
@@ -1473,6 +1656,22 @@ class RegelSpraakModelBuilder(RegelSpraakVisitor):
                 arguments=[subject_ref],
                 span=self.get_span(ctx)
             )
+            
+        elif isinstance(ctx, AntlrParser.AantalAttribuutExprContext):
+            # HET? AANTAL attribuutReferentie
+            # This handles patterns like "het aantal leden van de groep die minderjarig zijn"
+            attr_ref = self.visitAttribuutReferentie(ctx.attribuutReferentie())
+            if attr_ref is None:
+                logger.warning(f"No attribute reference found in aantal function: {safe_get_text(ctx)}")
+                return None
+                
+            # Build FunctionCall for aantal with attribute reference
+            func_call = FunctionCall(
+                function_name="het_aantal",
+                arguments=[attr_ref],
+                span=self.get_span(ctx)
+            )
+            return func_call
             
         elif isinstance(ctx, AntlrParser.PercentageFuncExprContext) or \
              isinstance(ctx, AntlrParser.WortelFuncExprContext) or \
@@ -1779,6 +1978,32 @@ class RegelSpraakModelBuilder(RegelSpraakVisitor):
                     span=self.get_span(ctx)
                 )
                 return func_call
+            
+        elif isinstance(ctx, AntlrParser.MinAlleAttribuutExprContext):
+            # DE_MINIMALE_WAARDE_VAN ALLE attribuutReferentie
+            attr_ref = self.visitAttribuutReferentie(ctx.attribuutReferentie())
+            if attr_ref is None:
+                logger.warning(f"No attribute reference found in min function: {safe_get_text(ctx)}")
+                return None
+                
+            return FunctionCall(
+                function_name="minimale_waarde_van",
+                arguments=[attr_ref],
+                span=self.get_span(ctx)
+            )
+            
+        elif isinstance(ctx, AntlrParser.MaxAlleAttribuutExprContext):
+            # DE_MAXIMALE_WAARDE_VAN ALLE attribuutReferentie
+            attr_ref = self.visitAttribuutReferentie(ctx.attribuutReferentie())
+            if attr_ref is None:
+                logger.warning(f"No attribute reference found in max function: {safe_get_text(ctx)}")
+                return None
+                
+            return FunctionCall(
+                function_name="maximale_waarde_van",
+                arguments=[attr_ref],
+                span=self.get_span(ctx)
+            )
             
             # For other aggregation types, we already returned in the specific handlers above
             logger.warning(f"Unhandled aggregation context type: {type(ctx).__name__}")
@@ -3106,122 +3331,32 @@ class RegelSpraakModelBuilder(RegelSpraakVisitor):
             
         return Voorwaarde(expressie=expressie, span=self.get_span(ctx))
 
-    def visitToplevelSamengesteldeVoorwaarde(self, ctx: AntlrParser.ToplevelSamengesteldeVoorwaardeContext) -> Optional[Expression]:
-        """Visit a compound condition and build a logical expression."""
-        # Extract the subject (onderwerpReferentie, HIJ, HET, ER, or ER_AAN)
-        subject = None
-        if ctx.onderwerpReferentie():
-            subject = self.visitOnderwerpReferentie(ctx.onderwerpReferentie())
-        elif ctx.HIJ():
-            subject = VariableReference(variable_name="hij", span=self.get_span(ctx.HIJ()))
-        elif ctx.HET():
-            subject = VariableReference(variable_name="het", span=self.get_span(ctx.HET()))
-        elif ctx.ER():
-            subject = VariableReference(variable_name="er", span=self.get_span(ctx.ER()))
-        elif ctx.ER_AAN():
-            subject = VariableReference(variable_name="er", span=self.get_span(ctx.ER_AAN()))
-        
-        # Extract the quantification (alle, geen van de, ten minste één van de, etc.)
-        quantifier = self.visitVoorwaardeKwantificatie(ctx.voorwaardeKwantificatie())
+    def visitToplevelSamengesteldeVoorwaarde(self, ctx: AntlrParser.ToplevelSamengesteldeVoorwaardeContext) -> Optional[SamengesteldeVoorwaarde]:
+        """Visit a compound condition and build a SamengesteldeVoorwaarde object."""
+        # Extract the quantification using the same method as for predicates
+        kwantificatie = self.visitVoorwaardeKwantificatie(ctx.voorwaardeKwantificatie())
+        if not kwantificatie:
+            logger.error("No quantification found in compound condition")
+            return None
         
         # Extract all the condition parts
-        conditions = []
+        voorwaarden = []
         for onderdeel_ctx in ctx.samengesteldeVoorwaardeOnderdeel():
             condition = self.visitSamengesteldeVoorwaardeOnderdeel(onderdeel_ctx)
             if condition:
-                conditions.append(condition)
+                voorwaarden.append(condition)
         
-        if not conditions:
+        if not voorwaarden:
             logger.error("No conditions found in compound condition")
             return None
         
-        # Build the appropriate logical expression based on quantifier
-        if quantifier == "alle":
-            # All conditions must be true - use AND
-            result = conditions[0]
-            for condition in conditions[1:]:
-                result = BinaryExpression(
-                    left=result,
-                    operator=Operator.EN,
-                    right=condition,
-                    span=self.get_span(ctx)
-                )
-            return result
-        elif quantifier == "geen van de":
-            # None of the conditions should be true - use NOT(OR)
-            result = conditions[0]
-            for condition in conditions[1:]:
-                result = BinaryExpression(
-                    left=result,
-                    operator=Operator.OF,
-                    right=condition,
-                    span=self.get_span(ctx)
-                )
-            # Wrap in NOT
-            return UnaryExpression(
-                operator=Operator.NOT,
-                operand=result,
-                span=self.get_span(ctx)
-            )
-        elif quantifier.startswith("ten minste"):
-            # At least one condition must be true - use OR
-            result = conditions[0]
-            for condition in conditions[1:]:
-                result = BinaryExpression(
-                    left=result,
-                    operator=Operator.OF,
-                    right=condition,
-                    span=self.get_span(ctx)
-                )
-            return result
-        else:
-            logger.warning(f"Unknown quantifier: {quantifier}")
-            return None
+        # Return a SamengesteldeVoorwaarde object that can handle all quantifier types
+        return SamengesteldeVoorwaarde(
+            kwantificatie=kwantificatie,
+            voorwaarden=voorwaarden,
+            span=self.get_span(ctx)
+        )
 
-    def visitVoorwaardeKwantificatie(self, ctx: AntlrParser.VoorwaardeKwantificatieContext) -> str:
-        """Extract the quantification type from the context."""
-        if ctx.ALLE():
-            return "alle"
-        elif ctx.GEEN() and ctx.VAN() and ctx.DE():
-            return "geen van de"
-        elif ctx.TEN_MINSTE() or ctx.TENMINSTE():
-            # Check which number is specified
-            if ctx.EEN() or ctx.EEN_TELWOORD():
-                return "ten minste één van de"
-            elif ctx.TWEE_TELWOORD():
-                return "ten minste twee van de"
-            elif ctx.DRIE_TELWOORD():
-                return "ten minste drie van de"
-            elif ctx.VIER_TELWOORD():
-                return "ten minste vier van de"
-            else:
-                return "ten minste één van de"  # Default
-        elif ctx.TEN_HOOGSTE():
-            # Similar logic for TEN_HOOGSTE
-            if ctx.EEN() or ctx.EEN_TELWOORD():
-                return "ten hoogste één van de"
-            elif ctx.TWEE_TELWOORD():
-                return "ten hoogste twee van de"
-            elif ctx.DRIE_TELWOORD():
-                return "ten hoogste drie van de"
-            elif ctx.VIER_TELWOORD():
-                return "ten hoogste vier van de"
-            else:
-                return "ten hoogste één van de"  # Default
-        elif ctx.PRECIES():
-            # Similar logic for PRECIES
-            if ctx.EEN() or ctx.EEN_TELWOORD():
-                return "precies één van de"
-            elif ctx.TWEE_TELWOORD():
-                return "precies twee van de"
-            elif ctx.DRIE_TELWOORD():
-                return "precies drie van de"
-            elif ctx.VIER_TELWOORD():
-                return "precies vier van de"
-            else:
-                return "precies één van de"  # Default
-        else:
-            return "unknown"
 
     def visitSamengesteldeVoorwaardeOnderdeel(self, ctx: AntlrParser.SamengesteldeVoorwaardeOnderdeelContext) -> Optional[Expression]:
         """Visit a single condition part (with bullet prefix)."""
@@ -3238,56 +3373,31 @@ class RegelSpraakModelBuilder(RegelSpraakVisitor):
         """Visit an elementary condition (just an expression)."""
         return self.visitExpressie(ctx.expressie())
 
-    def visitGenesteSamengesteldeVoorwaarde(self, ctx: AntlrParser.GenesteSamengesteldeVoorwaardeContext) -> Optional[Expression]:
-        """Visit a nested compound condition."""
-        # This is similar to toplevelSamengesteldeVoorwaarde but nested
-        # Extract the subject
-        subject = None
-        if ctx.onderwerpReferentie():
-            subject = self.visitOnderwerpReferentie(ctx.onderwerpReferentie())
-        elif ctx.HIJ():
-            subject = VariableReference(name="hij", span=self.get_span(ctx.HIJ()))
-        elif ctx.ER():
-            subject = VariableReference(name="er", span=self.get_span(ctx.ER()))
-        
-        # Extract the quantification
-        quantifier = self.visitVoorwaardeKwantificatie(ctx.voorwaardeKwantificatie())
+    def visitGenesteSamengesteldeVoorwaarde(self, ctx: AntlrParser.GenesteSamengesteldeVoorwaardeContext) -> Optional[SamengesteldeVoorwaarde]:
+        """Visit a nested compound condition and build a SamengesteldeVoorwaarde object."""
+        # Extract the quantification using the same method as for predicates
+        kwantificatie = self.visitVoorwaardeKwantificatie(ctx.voorwaardeKwantificatie())
+        if not kwantificatie:
+            logger.error("No quantification found in nested compound condition")
+            return None
         
         # Extract all the condition parts
-        conditions = []
+        voorwaarden = []
         for onderdeel_ctx in ctx.samengesteldeVoorwaardeOnderdeel():
             condition = self.visitSamengesteldeVoorwaardeOnderdeel(onderdeel_ctx)
             if condition:
-                conditions.append(condition)
+                voorwaarden.append(condition)
         
-        if not conditions:
+        if not voorwaarden:
             logger.error("No conditions found in nested compound condition")
             return None
         
-        # Build the appropriate logical expression based on quantifier
-        if quantifier == "alle":
-            result = conditions[0]
-            for condition in conditions[1:]:
-                result = BinaryExpression(
-                    left=result,
-                    operator=Operator.EN,
-                    right=condition,
-                    span=self.get_span(ctx)
-                )
-            return result
-        elif quantifier.startswith("ten minste"):
-            result = conditions[0]
-            for condition in conditions[1:]:
-                result = BinaryExpression(
-                    left=result,
-                    operator=Operator.OF,
-                    right=condition,
-                    span=self.get_span(ctx)
-                )
-            return result
-        else:
-            logger.warning(f"Unknown quantifier in nested condition: {quantifier}")
-            return None
+        # Return a SamengesteldeVoorwaarde object that can handle all quantifier types
+        return SamengesteldeVoorwaarde(
+            kwantificatie=kwantificatie,
+            voorwaarden=voorwaarden,
+            span=self.get_span(ctx)
+        )
 
     def visitVariabeleDeel(self, ctx: AntlrParser.VariabeleDeelContext) -> Dict[str, Expression]:
         """Visit a variable part and build a dictionary of variable assignments."""

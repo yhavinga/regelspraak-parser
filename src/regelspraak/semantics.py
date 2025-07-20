@@ -14,7 +14,9 @@ from .ast import (
     Attribuut, Kenmerk, Beslistabel, BeslistabelRow,
     SourceSpan, Dimension,
     Subselectie, Predicaat, ObjectPredicaat, VergelijkingsPredicaat,
-    GetalPredicaat, TekstPredicaat, DatumPredicaat
+    GetalPredicaat, TekstPredicaat, DatumPredicaat, SamengesteldPredicaat,
+    Kwantificatie, KwantificatieType, GenesteVoorwaardeInPredicaat, VergelijkingInPredicaat,
+    SamengesteldeVoorwaarde
 )
 from .errors import RegelspraakError
 
@@ -588,6 +590,11 @@ class SemanticAnalyzer:
             # Subselectie returns a list of the onderwerp type
             return "Lijst"
         
+        elif isinstance(expr, SamengesteldeVoorwaarde):
+            # Analyze compound condition
+            self._analyze_samengestelde_voorwaarde(expr)
+            return "Boolean"
+        
         return None
     
     def _analyze_attribute_reference(self, ref: AttributeReference) -> Optional[str]:
@@ -688,7 +695,81 @@ class SemanticAnalyzer:
             
             # TODO: Type check that the comparison is valid
             # (e.g., numeric comparison for GetalPredicaat)
+        
+        elif isinstance(predicaat, SamengesteldPredicaat):
+            # Analyze compound predicate
+            self._analyze_samengesteld_predicaat(predicaat)
 
+    def _analyze_samengesteld_predicaat(self, predicaat: SamengesteldPredicaat) -> None:
+        """Analyze a compound predicate for semantic correctness."""
+        # Validate quantifier
+        if predicaat.kwantificatie.type in [KwantificatieType.TEN_MINSTE, 
+                                           KwantificatieType.TEN_HOOGSTE, 
+                                           KwantificatieType.PRECIES]:
+            if predicaat.kwantificatie.aantal is None:
+                self.errors.append(SemanticError(
+                    f"Kwantificatie '{predicaat.kwantificatie.type.value}' requires a number",
+                    predicaat.kwantificatie.span
+                ))
+            elif predicaat.kwantificatie.aantal > len(predicaat.voorwaarden):
+                self.errors.append(SemanticError(
+                    f"Kwantificatie aantal ({predicaat.kwantificatie.aantal}) exceeds number of conditions ({len(predicaat.voorwaarden)})",
+                    predicaat.kwantificatie.span
+                ))
+        
+        # Analyze nested conditions
+        for geneste in predicaat.voorwaarden:
+            self._analyze_geneste_voorwaarde_in_predicaat(geneste)
+    
+    def _analyze_samengestelde_voorwaarde(self, voorwaarde: SamengesteldeVoorwaarde) -> None:
+        """Analyze a compound condition for semantic correctness."""
+        # Validate quantifier (same logic as for predicates)
+        if voorwaarde.kwantificatie.type in [KwantificatieType.TEN_MINSTE, 
+                                            KwantificatieType.TEN_HOOGSTE, 
+                                            KwantificatieType.PRECIES]:
+            if voorwaarde.kwantificatie.aantal is None:
+                self.errors.append(SemanticError(
+                    f"Kwantificatie '{voorwaarde.kwantificatie.type.value}' requires a number",
+                    voorwaarde.kwantificatie.span
+                ))
+            elif voorwaarde.kwantificatie.aantal > len(voorwaarde.voorwaarden):
+                self.errors.append(SemanticError(
+                    f"Kwantificatie aantal ({voorwaarde.kwantificatie.aantal}) exceeds number of conditions ({len(voorwaarde.voorwaarden)})",
+                    voorwaarde.kwantificatie.span
+                ))
+        
+        # Analyze nested conditions
+        for expr in voorwaarde.voorwaarden:
+            self._analyze_expression(expr)
+    
+    def _analyze_geneste_voorwaarde_in_predicaat(self, geneste: GenesteVoorwaardeInPredicaat) -> None:
+        """Analyze a nested condition within a predicate."""
+        if isinstance(geneste.voorwaarde, VergelijkingInPredicaat):
+            self._analyze_vergelijking_in_predicaat(geneste.voorwaarde)
+        elif isinstance(geneste.voorwaarde, SamengesteldPredicaat):
+            # Recursively analyze nested compound predicates
+            self._analyze_samengesteld_predicaat(geneste.voorwaarde)
+    
+    def _analyze_vergelijking_in_predicaat(self, vergelijking: VergelijkingInPredicaat) -> None:
+        """Analyze a comparison within a predicate."""
+        if vergelijking.type == "attribuut_vergelijking":
+            # Analyze attribute and value expressions
+            if vergelijking.attribuut:
+                self._analyze_expression(vergelijking.attribuut)
+            if vergelijking.waarde:
+                self._analyze_expression(vergelijking.waarde)
+        
+        elif vergelijking.type == "object_check":
+            # Analyze subject expression
+            if vergelijking.onderwerp:
+                self._analyze_expression(vergelijking.onderwerp)
+            # TODO: Validate kenmerk/role name exists
+        
+        elif vergelijking.type == "kenmerk_check":
+            # Analyze attribute expression
+            if vergelijking.attribuut:
+                self._analyze_expression(vergelijking.attribuut)
+            # TODO: Validate kenmerk name exists on the object type
 
     def _analyze_beslistabellen(self, model: DomainModel) -> None:
         """Analyze all decision tables in the model."""

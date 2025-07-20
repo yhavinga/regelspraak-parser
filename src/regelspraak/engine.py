@@ -18,7 +18,9 @@ from .ast import (
     DimensionedAttributeReference, DimensionLabel,
     PeriodDefinition, Period, Timeline,
     Subselectie, Predicaat, ObjectPredicaat, VergelijkingsPredicaat,
-    GetalPredicaat, TekstPredicaat, DatumPredicaat
+    GetalPredicaat, TekstPredicaat, DatumPredicaat, SamengesteldPredicaat,
+    Kwantificatie, KwantificatieType, GenesteVoorwaardeInPredicaat, VergelijkingInPredicaat,
+    SamengesteldeVoorwaarde
 )
 # Import Runtime components
 from .runtime import RuntimeContext, RuntimeObject, Value, DimensionCoordinate, TimelineValue # Import Value directly
@@ -476,7 +478,12 @@ class Evaluator:
                         instance_id=instance.instance_id if instance else None
                     )
                     
-                condition_value = self.evaluate_expression(rule.voorwaarde.expressie)
+                # Handle both simple expressions and compound conditions
+                if isinstance(rule.voorwaarde.expressie, SamengesteldeVoorwaarde):
+                    condition_met = self._evaluate_samengestelde_voorwaarde(rule.voorwaarde.expressie, instance)
+                    condition_value = Value(value=condition_met, datatype="Boolean")
+                else:
+                    condition_value = self.evaluate_expression(rule.voorwaarde.expressie)
                 
                 if condition_value.datatype != "Boolean":
                     error_msg = f"Rule '{rule.naam}' condition evaluated to non-boolean type: {condition_value.datatype}"
@@ -590,7 +597,12 @@ class Evaluator:
                                 if instances:
                                     # Use the last created instance for condition evaluation
                                     self.context.set_current_instance(instances[-1])
-                                    condition_met = self.evaluate_expression(regel.voorwaarde.expressie)
+                                    # Handle both expression and compound condition
+                                    if isinstance(regel.voorwaarde.expressie, SamengesteldeVoorwaarde):
+                                        condition_met = self._evaluate_samengestelde_voorwaarde(regel.voorwaarde.expressie, instances[-1])
+                                    else:
+                                        result = self.evaluate_expression(regel.voorwaarde.expressie)
+                                        condition_met = result.datatype == "Boolean" and result.value
                                     if not condition_met:
                                         # Termination condition reached
                                         results.append({
@@ -607,7 +619,12 @@ class Evaluator:
                                     # that they should handle empty collections
                                     self.context.set_current_instance(None)
                                     try:
-                                        condition_met = self.evaluate_expression(regel.voorwaarde.expressie)
+                                        # Handle both expression and compound condition
+                                        if isinstance(regel.voorwaarde.expressie, SamengesteldeVoorwaarde):
+                                            condition_met = self._evaluate_samengestelde_voorwaarde(regel.voorwaarde.expressie, None)
+                                        else:
+                                            result = self.evaluate_expression(regel.voorwaarde.expressie)
+                                            condition_met = result.datatype == "Boolean" and result.value
                                         if not condition_met:
                                             # Termination condition reached even with no objects
                                             results.append({
@@ -979,7 +996,12 @@ class Evaluator:
                     try:
                         logger.info(f"FeitCreatie: Evaluating condition for target {target_obj.object_type_naam} {target_obj.instance_id}")
                         logger.info(f"  Current instance: {self.context.current_instance}")
-                        condition_value = self.evaluate_expression(self._current_rule.voorwaarde.expressie)
+                        # Handle both expression and compound condition
+                        if isinstance(self._current_rule.voorwaarde.expressie, SamengesteldeVoorwaarde):
+                            condition_met = self._evaluate_samengestelde_voorwaarde(self._current_rule.voorwaarde.expressie, target_obj)
+                            condition_value = Value(value=condition_met, datatype="Boolean")
+                        else:
+                            condition_value = self.evaluate_expression(self._current_rule.voorwaarde.expressie)
                         logger.info(f"  Condition result: {condition_value}")
                         if condition_value.datatype != "Boolean" or not condition_value.value:
                             # Condition not met, skip this target
@@ -1599,6 +1621,11 @@ class Evaluator:
                 
             elif isinstance(expr, Subselectie):
                 result = self._evaluate_subselectie(expr)
+                
+            elif isinstance(expr, SamengesteldeVoorwaarde):
+                # Handle compound condition as expression
+                result_bool = self._evaluate_samengestelde_voorwaarde(expr, self.context.current_instance)
+                result = Value(value=result_bool, datatype="Boolean")
 
             else:
                 raise RegelspraakError(f"Unknown expression type: {type(expr)}", span=expr.span)
@@ -2065,6 +2092,11 @@ class Evaluator:
                 
             elif isinstance(expr, Subselectie):
                 result = self._evaluate_subselectie(expr)
+                
+            elif isinstance(expr, SamengesteldeVoorwaarde):
+                # Handle compound condition as expression
+                result_bool = self._evaluate_samengestelde_voorwaarde(expr, self.context.current_instance)
+                result = Value(value=result_bool, datatype="Boolean")
 
             else:
                 raise RegelspraakError(f"Unknown expression type: {type(expr)}", span=expr.span)
@@ -2112,6 +2144,61 @@ class Evaluator:
             right_raw = right_val.value if isinstance(right_val, Value) else right_val
             bool_result = self.context.check_in(left_raw, right_raw)
             return Value(value=bool_result, datatype="Boolean", unit=None)
+            
+        elif op == Operator.IS_NIET:
+            # Right side should be a kenmerk name (string) or type name (string)
+            right_val = self._evaluate_expression_non_timeline(expr.right)
+            if not isinstance(right_val.value, str):
+                raise RegelspraakError(f"Right side of 'IS_NIET' must evaluate to a string (kenmerk/type name), got {type(right_val.value)}", span=expr.right.span)
+            # Determine instance for IS_NIET check
+            instance = self.context.current_instance
+            if not instance:
+                raise RegelspraakError("Could not determine object instance for 'IS_NIET' check.", span=expr.left.span)
+            bool_result = not self.context.check_is(instance, right_val.value)
+            return Value(value=bool_result, datatype="Boolean", unit=None)
+            
+        elif op == Operator.HEEFT:
+            # HEEFT operator for bezittelijk kenmerken (possessive characteristics)
+            # Right side should be a kenmerk name
+            right_val = self._evaluate_expression_non_timeline(expr.right)
+            if not isinstance(right_val.value, str):
+                raise RegelspraakError(f"Right side of 'HEEFT' must evaluate to a string (kenmerk name), got {type(right_val.value)}", span=expr.right.span)
+            # Check if the current instance has this kenmerk set to true
+            # For bezittelijk kenmerken, we need to check both "heeft X" and "X" forms
+            kenmerk_name = right_val.value
+            # First try with "heeft " prefix
+            heeft_kenmerk_name = f"heeft {kenmerk_name}"
+            if self.context.current_instance.object_type_naam in self.context.domain_model.objecttypes:
+                obj_type = self.context.domain_model.objecttypes[self.context.current_instance.object_type_naam]
+                if heeft_kenmerk_name in obj_type.kenmerken:
+                    kenmerk_value = self.context.get_kenmerk(self.context.current_instance, heeft_kenmerk_name)
+                else:
+                    # Fall back to just the kenmerk name without "heeft"
+                    kenmerk_value = self.context.get_kenmerk(self.context.current_instance, kenmerk_name)
+            else:
+                kenmerk_value = self.context.get_kenmerk(self.context.current_instance, kenmerk_name)
+            return Value(value=kenmerk_value, datatype="Boolean")
+            
+        elif op == Operator.HEEFT_NIET:
+            # Negated version of HEEFT
+            right_val = self._evaluate_expression_non_timeline(expr.right)
+            if not isinstance(right_val.value, str):
+                raise RegelspraakError(f"Right side of 'HEEFT_NIET' must evaluate to a string (kenmerk name), got {type(right_val.value)}", span=expr.right.span)
+            # Check if the current instance has this kenmerk set to true
+            # For bezittelijk kenmerken, we need to check both "heeft X" and "X" forms
+            kenmerk_name = right_val.value
+            # First try with "heeft " prefix
+            heeft_kenmerk_name = f"heeft {kenmerk_name}"
+            if self.context.current_instance.object_type_naam in self.context.domain_model.objecttypes:
+                obj_type = self.context.domain_model.objecttypes[self.context.current_instance.object_type_naam]
+                if heeft_kenmerk_name in obj_type.kenmerken:
+                    kenmerk_value = self.context.get_kenmerk(self.context.current_instance, heeft_kenmerk_name)
+                else:
+                    # Fall back to just the kenmerk name without "heeft"
+                    kenmerk_value = self.context.get_kenmerk(self.context.current_instance, kenmerk_name)
+            else:
+                kenmerk_value = self.context.get_kenmerk(self.context.current_instance, kenmerk_name)
+            return Value(value=not kenmerk_value, datatype="Boolean")
         
         # Handle dagsoort operators
         elif op in [Operator.IS_EEN_DAGSOORT, Operator.ZIJN_EEN_DAGSOORT, 
@@ -2305,6 +2392,8 @@ class Evaluator:
             else:
                 # Generic VergelijkingsPredicaat - infer type from value
                 return self._evaluate_comparison_predicaat(predicaat, instance, None)
+        elif isinstance(predicaat, SamengesteldPredicaat):
+            return self._evaluate_samengesteld_predicaat(predicaat, instance)
         else:
             raise NotImplementedError(f"Predicaat type not implemented: {type(predicaat)}")
     
@@ -2363,6 +2452,199 @@ class Evaluator:
             return left_value >= right_value
         else:
             raise NotImplementedError(f"Comparison operator not implemented: {predicaat.operator}")
+
+    def _evaluate_samengesteld_predicaat(self, predicaat: SamengesteldPredicaat, 
+                                       instance: RuntimeObject) -> bool:
+        """Evaluate compound predicaat with quantifier logic."""
+        # Evaluate each condition and count how many are true
+        conditions_met = 0
+        total_conditions = len(predicaat.voorwaarden)
+        
+        for geneste_voorwaarde in predicaat.voorwaarden:
+            if self._evaluate_geneste_voorwaarde_in_predicaat(geneste_voorwaarde, instance):
+                conditions_met += 1
+        
+        # Apply quantifier logic
+        kwantificatie = predicaat.kwantificatie
+        
+        if kwantificatie.type == KwantificatieType.ALLE:
+            # All conditions must be true
+            return conditions_met == total_conditions
+        
+        elif kwantificatie.type == KwantificatieType.GEEN:
+            # No conditions must be true
+            return conditions_met == 0
+        
+        elif kwantificatie.type == KwantificatieType.TEN_MINSTE:
+            # At least N conditions must be true
+            if kwantificatie.aantal is None:
+                raise RegelspraakError(f"Kwantificatie 'ten minste' requires a number", 
+                                     span=kwantificatie.span)
+            return conditions_met >= kwantificatie.aantal
+        
+        elif kwantificatie.type == KwantificatieType.TEN_HOOGSTE:
+            # At most N conditions must be true
+            if kwantificatie.aantal is None:
+                raise RegelspraakError(f"Kwantificatie 'ten hoogste' requires a number", 
+                                     span=kwantificatie.span)
+            return conditions_met <= kwantificatie.aantal
+        
+        elif kwantificatie.type == KwantificatieType.PRECIES:
+            # Exactly N conditions must be true
+            if kwantificatie.aantal is None:
+                raise RegelspraakError(f"Kwantificatie 'precies' requires a number", 
+                                     span=kwantificatie.span)
+            return conditions_met == kwantificatie.aantal
+        
+        else:
+            raise RegelspraakError(f"Unknown quantifier type: {kwantificatie.type}", 
+                                 span=kwantificatie.span)
+    
+    def _evaluate_samengestelde_voorwaarde(self, voorwaarde: SamengesteldeVoorwaarde, 
+                                         instance: Optional[RuntimeObject]) -> bool:
+        """Evaluate compound condition with quantifier logic."""
+        # Evaluate each condition and count how many are true
+        conditions_met = 0
+        total_conditions = len(voorwaarde.voorwaarden)
+        
+        for expr in voorwaarde.voorwaarden:
+            # Evaluate the expression
+            result = self.evaluate_expression(expr)
+            if result.datatype == "Boolean" and result.value:
+                conditions_met += 1
+        
+        # Apply quantifier logic (same as for predicates)
+        kwantificatie = voorwaarde.kwantificatie
+        
+        if kwantificatie.type == KwantificatieType.ALLE:
+            # All conditions must be true
+            return conditions_met == total_conditions
+        
+        elif kwantificatie.type == KwantificatieType.GEEN:
+            # No conditions must be true
+            return conditions_met == 0
+        
+        elif kwantificatie.type == KwantificatieType.TEN_MINSTE:
+            # At least N conditions must be true
+            if kwantificatie.aantal is None:
+                raise RegelspraakError(f"Kwantificatie 'ten minste' requires a number", 
+                                     span=kwantificatie.span)
+            return conditions_met >= kwantificatie.aantal
+        
+        elif kwantificatie.type == KwantificatieType.TEN_HOOGSTE:
+            # At most N conditions must be true
+            if kwantificatie.aantal is None:
+                raise RegelspraakError(f"Kwantificatie 'ten hoogste' requires a number", 
+                                     span=kwantificatie.span)
+            return conditions_met <= kwantificatie.aantal
+        
+        elif kwantificatie.type == KwantificatieType.PRECIES:
+            # Exactly N conditions must be true
+            if kwantificatie.aantal is None:
+                raise RegelspraakError(f"Kwantificatie 'precies' requires a number", 
+                                     span=kwantificatie.span)
+            return conditions_met == kwantificatie.aantal
+        
+        else:
+            raise RegelspraakError(f"Unknown quantifier type: {kwantificatie.type}", 
+                                 span=kwantificatie.span)
+    
+    def _evaluate_geneste_voorwaarde_in_predicaat(self, geneste: GenesteVoorwaardeInPredicaat, 
+                                                 instance: RuntimeObject) -> bool:
+        """Evaluate a nested condition within a predicate."""
+        voorwaarde = geneste.voorwaarde
+        
+        if isinstance(voorwaarde, VergelijkingInPredicaat):
+            return self._evaluate_vergelijking_in_predicaat(voorwaarde, instance)
+        
+        elif isinstance(voorwaarde, SamengesteldPredicaat):
+            # Recursively evaluate nested compound predicates
+            return self._evaluate_samengesteld_predicaat(voorwaarde, instance)
+        
+        else:
+            raise RegelspraakError(f"Unknown voorwaarde type in predicaat: {type(voorwaarde)}", 
+                                 span=geneste.span)
+    
+    def _evaluate_vergelijking_in_predicaat(self, vergelijking: VergelijkingInPredicaat, 
+                                          instance: RuntimeObject) -> bool:
+        """Evaluate a comparison within a predicate."""
+        if vergelijking.type == "attribuut_vergelijking":
+            # Attribute comparison: attribute op value
+            if not vergelijking.attribuut or not vergelijking.waarde:
+                return False
+            
+            # Evaluate attribute (in context of current instance)
+            old_instance = self.context.current_instance
+            self.context.set_current_instance(instance)
+            try:
+                left_value = self.evaluate_expression(vergelijking.attribuut)
+                if isinstance(left_value, Value):
+                    left_value = left_value.value
+            except Exception:
+                left_value = None
+            finally:
+                self.context.set_current_instance(old_instance)
+            
+            if left_value is None:
+                return False
+            
+            # Evaluate comparison value
+            right_value = self.evaluate_expression(vergelijking.waarde)
+            if isinstance(right_value, Value):
+                right_value = right_value.value
+            
+            # Apply operator
+            if vergelijking.operator == Operator.GELIJK_AAN:
+                return left_value == right_value
+            elif vergelijking.operator == Operator.NIET_GELIJK_AAN:
+                return left_value != right_value
+            elif vergelijking.operator == Operator.KLEINER_DAN:
+                return left_value < right_value
+            elif vergelijking.operator == Operator.GROTER_DAN:
+                return left_value > right_value
+            elif vergelijking.operator == Operator.KLEINER_OF_GELIJK_AAN:
+                return left_value <= right_value
+            elif vergelijking.operator == Operator.GROTER_OF_GELIJK_AAN:
+                return left_value >= right_value
+            else:
+                return False
+        
+        elif vergelijking.type == "object_check":
+            # Object type/role check: onderwerp is een X
+            if not vergelijking.onderwerp or not vergelijking.kenmerk_naam:
+                return False
+            
+            # For object checks, we check if the instance has the specified role/type
+            # This is similar to ObjectPredicaat logic
+            return self.context.check_is(instance, vergelijking.kenmerk_naam)
+        
+        elif vergelijking.type == "kenmerk_check":
+            # Kenmerk check: attribute heeft kenmerk X
+            if not vergelijking.attribuut or not vergelijking.kenmerk_naam:
+                return False
+            
+            # Evaluate the attribute to get an object reference
+            old_instance = self.context.current_instance
+            self.context.set_current_instance(instance)
+            try:
+                obj_ref = self.evaluate_expression(vergelijking.attribuut)
+                if isinstance(obj_ref, Value) and obj_ref.value:
+                    # Check if the referenced object has the kenmerk
+                    if hasattr(obj_ref.value, 'instance_id'):
+                        # It's an object reference
+                        result = self.context.check_is(obj_ref.value, vergelijking.kenmerk_naam)
+                        self.context.set_current_instance(old_instance)
+                        return result
+            except Exception:
+                pass
+            finally:
+                self.context.set_current_instance(old_instance)
+            
+            return False
+        
+        else:
+            raise RegelspraakError(f"Unknown vergelijking type: {vergelijking.type}", 
+                                 span=vergelijking.span)
 
     def _collect_timeline_operands(self, expr: Expression) -> List[ast.Timeline]:
         """Recursively collect all timeline operands from an expression."""
@@ -3074,6 +3356,61 @@ class Evaluator:
             right_raw = right_val.value if isinstance(right_val, Value) else right_val
             bool_result = self.context.check_in(left_raw, right_raw)
             return Value(value=bool_result, datatype="Boolean", unit=None)
+            
+        elif op == Operator.IS_NIET:
+            # Right side should be a kenmerk name (string) or type name (string)
+            right_val = self.evaluate_expression(expr.right)
+            if not isinstance(right_val.value, str):
+                raise RegelspraakError(f"Right side of 'IS_NIET' must evaluate to a string (kenmerk/type name), got {type(right_val.value)}", span=expr.right.span)
+            # Determine instance for IS_NIET check
+            instance = self.context.current_instance
+            if not instance:
+                raise RegelspraakError("Could not determine object instance for 'IS_NIET' check.", span=expr.left.span)
+            bool_result = not self.context.check_is(instance, right_val.value)
+            return Value(value=bool_result, datatype="Boolean", unit=None)
+            
+        elif op == Operator.HEEFT:
+            # HEEFT operator for bezittelijk kenmerken (possessive characteristics)
+            # Right side should be a kenmerk name
+            right_val = self.evaluate_expression(expr.right)
+            if not isinstance(right_val.value, str):
+                raise RegelspraakError(f"Right side of 'HEEFT' must evaluate to a string (kenmerk name), got {type(right_val.value)}", span=expr.right.span)
+            # Check if the current instance has this kenmerk set to true
+            # For bezittelijk kenmerken, we need to check both "heeft X" and "X" forms
+            kenmerk_name = right_val.value
+            # First try with "heeft " prefix
+            heeft_kenmerk_name = f"heeft {kenmerk_name}"
+            if self.context.current_instance.object_type_naam in self.context.domain_model.objecttypes:
+                obj_type = self.context.domain_model.objecttypes[self.context.current_instance.object_type_naam]
+                if heeft_kenmerk_name in obj_type.kenmerken:
+                    kenmerk_value = self.context.get_kenmerk(self.context.current_instance, heeft_kenmerk_name)
+                else:
+                    # Fall back to just the kenmerk name without "heeft"
+                    kenmerk_value = self.context.get_kenmerk(self.context.current_instance, kenmerk_name)
+            else:
+                kenmerk_value = self.context.get_kenmerk(self.context.current_instance, kenmerk_name)
+            return Value(value=kenmerk_value, datatype="Boolean")
+            
+        elif op == Operator.HEEFT_NIET:
+            # Negated version of HEEFT
+            right_val = self.evaluate_expression(expr.right)
+            if not isinstance(right_val.value, str):
+                raise RegelspraakError(f"Right side of 'HEEFT_NIET' must evaluate to a string (kenmerk name), got {type(right_val.value)}", span=expr.right.span)
+            # Check if the current instance has this kenmerk set to true
+            # For bezittelijk kenmerken, we need to check both "heeft X" and "X" forms
+            kenmerk_name = right_val.value
+            # First try with "heeft " prefix
+            heeft_kenmerk_name = f"heeft {kenmerk_name}"
+            if self.context.current_instance.object_type_naam in self.context.domain_model.objecttypes:
+                obj_type = self.context.domain_model.objecttypes[self.context.current_instance.object_type_naam]
+                if heeft_kenmerk_name in obj_type.kenmerken:
+                    kenmerk_value = self.context.get_kenmerk(self.context.current_instance, heeft_kenmerk_name)
+                else:
+                    # Fall back to just the kenmerk name without "heeft"
+                    kenmerk_value = self.context.get_kenmerk(self.context.current_instance, kenmerk_name)
+            else:
+                kenmerk_value = self.context.get_kenmerk(self.context.current_instance, kenmerk_name)
+            return Value(value=not kenmerk_value, datatype="Boolean")
         
         # Handle dagsoort operators
         elif op in [Operator.IS_EEN_DAGSOORT, Operator.ZIJN_EEN_DAGSOORT, 
@@ -3354,7 +3691,12 @@ class Evaluator:
                 if regel.voorwaarde:
                     # Evaluate the rule condition
                     try:
-                        condition_result = self.evaluate_expression(regel.voorwaarde.expressie)
+                        # Handle both expression and compound condition
+                        if isinstance(regel.voorwaarde.expressie, SamengesteldeVoorwaarde):
+                            condition_met = self._evaluate_samengestelde_voorwaarde(regel.voorwaarde.expressie, None)
+                            condition_result = Value(value=condition_met, datatype="Boolean")
+                        else:
+                            condition_result = self.evaluate_expression(regel.voorwaarde.expressie)
                         if condition_result.datatype == "Boolean" and condition_result.value:
                             return True
                     except Exception as e:

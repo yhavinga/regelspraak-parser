@@ -460,10 +460,10 @@ toplevelSamengesteldeVoorwaarde
 
 voorwaardeKwantificatie
     : ALLE
-    | GEEN VAN DE
-    | (TEN_MINSTE | TENMINSTE) (EEN | EEN_TELWOORD | TWEE_TELWOORD | DRIE_TELWOORD | VIER_TELWOORD) VAN DE
-    | TEN_HOOGSTE (EEN | EEN_TELWOORD | TWEE_TELWOORD | DRIE_TELWOORD | VIER_TELWOORD) VAN DE
-    | PRECIES (EEN | EEN_TELWOORD | TWEE_TELWOORD | DRIE_TELWOORD | VIER_TELWOORD) VAN DE
+    | GEEN_VAN_DE
+    | (TEN_MINSTE | TENMINSTE) (NUMBER | EEN | EEN_TELWOORD | TWEE_TELWOORD | DRIE_TELWOORD | VIER_TELWOORD) VAN DE
+    | TEN_HOOGSTE (NUMBER | EEN | EEN_TELWOORD | TWEE_TELWOORD | DRIE_TELWOORD | VIER_TELWOORD) VAN DE
+    | PRECIES (NUMBER | EEN | EEN_TELWOORD | TWEE_TELWOORD | DRIE_TELWOORD | VIER_TELWOORD) VAN DE
     ;
 
 samengesteldeVoorwaardeOnderdeel
@@ -471,10 +471,7 @@ samengesteldeVoorwaardeOnderdeel
     ;
 
 bulletPrefix
-    : MINUS
-    | DOUBLE_DOT
-    | BULLET
-    | ASTERISK
+    : ( MINUS | DOUBLE_DOT | BULLET | ASTERISK )+
     ;
 
 elementaireVoorwaarde
@@ -520,7 +517,7 @@ bezieldeReferentie // Used in primaryExpression
 // --- Predicaat Rules (§5.6 and §13.4.14) ---
 predicaat
     : elementairPredicaat
-    // | samengesteldPredicaat // Deferred for minimal implementation
+    | samengesteldPredicaat
     ;
 
 elementairPredicaat
@@ -559,6 +556,32 @@ tekstPredicaat
 
 datumPredicaat
     : datumVergelijkingsOperatorMeervoud datumExpressie
+    ;
+
+// Samengesteld predicaat for compound conditions
+samengesteldPredicaat
+    : AAN voorwaardeKwantificatie VOLGENDE (VOORWAARDE | VOORWAARDEN) (VOLDOET | VOLDOEN) COLON
+      samengesteldeVoorwaardeOnderdeelInPredicaat+
+    ;
+
+samengesteldeVoorwaardeOnderdeelInPredicaat
+    : bulletPrefix elementaireVoorwaardeInPredicaat
+    | bulletPrefix genesteSamengesteldeVoorwaardeInPredicaat
+    ;
+
+elementaireVoorwaardeInPredicaat
+    : vergelijkingInPredicaat
+    ;
+
+vergelijkingInPredicaat
+    : attribuutReferentie comparisonOperator expressie    // "zijn leeftijd is groter dan 65"
+    | onderwerpReferentie eenzijdigeObjectVergelijking    // "hij is een passagier"
+    | attribuutReferentie (IS | ZIJN) kenmerkNaam        // "zijn reis is duurzaam"
+    ;
+
+genesteSamengesteldeVoorwaardeInPredicaat
+    : (VOLDOET | VOLDOEN | WORDT VOLDAAN) AAN voorwaardeKwantificatie VOLGENDE (VOORWAARDE | VOORWAARDEN) COLON
+      samengesteldeVoorwaardeOnderdeelInPredicaat+
     ;
 
 // Add comparison operators (meervoud for die/dat context)
@@ -669,7 +692,9 @@ primaryExpression : // Corresponds roughly to terminals/functions/references in 
     | TIJDSDUUR_VAN primaryExpression TOT primaryExpression (IN_HELE unitName=IDENTIFIER)?            # TijdsduurFuncExpr
     | SOM_VAN primaryExpression (COMMA primaryExpression)* EN primaryExpression                    # SomFuncExpr // Simple aggregation of comma-separated values
     | SOM_VAN ALLE naamwoord                                                                       # SomAlleExpr // Aggregate all instances of something
+    | SOM_VAN ALLE attribuutReferentie                                                            # SomAlleAttribuutExpr // Sum all attributes with filtering
     | HET? AANTAL (ALLE? onderwerpReferentie)                                                         # AantalFuncExpr // Made HET optional
+    | HET? AANTAL attribuutReferentie                                                              # AantalAttribuutExpr // Count attributes with filtering
     | NUMBER (PERCENT_SIGN | p=IDENTIFIER) VAN primaryExpression                                    # PercentageFuncExpr
     | primaryExpression afronding                                                                   # AfrondingExpr  // EBNF 13.4.16.21
     | primaryExpression COMMA begrenzing                                                            # BegrenzingExpr // EBNF 13.4.16.23
@@ -680,7 +705,9 @@ primaryExpression : // Corresponds roughly to terminals/functions/references in 
     | DE_WORTEL_VAN primaryExpression                                          # WortelFuncExpr // EBNF 13.4.16.13 (Simplified, no rounding yet)
     | DE_ABSOLUTE_WAARDE_VAN LPAREN primaryExpression RPAREN                   # AbsValFuncExpr // EBNF 13.4.16.17
     | DE_MINIMALE_WAARDE_VAN primaryExpression (COMMA primaryExpression)* EN primaryExpression # MinValFuncExpr // EBNF 13.4.16.15
+    | DE_MINIMALE_WAARDE_VAN ALLE attribuutReferentie                         # MinAlleAttribuutExpr // Min all attributes with filtering
     | DE_MAXIMALE_WAARDE_VAN primaryExpression (COMMA primaryExpression)* EN primaryExpression # MaxValFuncExpr // EBNF 13.4.16.16
+    | DE_MAXIMALE_WAARDE_VAN ALLE attribuutReferentie                         # MaxAlleAttribuutExpr // Max all attributes with filtering
     | HET JAAR UIT primaryExpression                                        # JaarUitFuncExpr // EBNF 13.4.16.18
     | DE MAAND UIT primaryExpression                                        # MaandUitFuncExpr // EBNF 13.4.16.19
     | DE DAG UIT primaryExpression                                          # DagUitFuncExpr // EBNF 13.4.16.20
