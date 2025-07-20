@@ -4,7 +4,7 @@ options { tokenVocab=RegelSpraakLexer; }
 
 // --- Start Rule ---
 regelSpraakDocument // Top level container
-    : ( definitie | regel | beslistabel | consistentieregel | eenheidsysteemDefinition )* EOF
+    : ( definitie | regel | regelGroep | beslistabel | consistentieregel | eenheidsysteemDefinition )* EOF
     ;
 
 // --- Top-Level Definitions ---
@@ -327,6 +327,12 @@ regel
       regelVersie
       resultaatDeel ( voorwaardeDeel DOT? | DOT )? // Adjusted termination logic
       ( variabeleDeel )? // Optional variable block
+    ;
+
+// --- RegelGroep Structure (§9.9) ---
+regelGroep
+    : REGELGROEP naamwoord isRecursive=IS_RECURSIEF?
+      ( regel | consistentieregel )+
     ;
 
 // Allow flexible rule naming for our tests

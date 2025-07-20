@@ -116,6 +116,7 @@ IS_INCONSISTENT: 'is inconsistent';
 // Top-Level & Definition Keywords
 CONSISTENTIEREGEL: 'Consistentieregel';
 REGEL: 'Regel';
+REGELGROEP: 'Regelgroep';
 BESLISTABEL: 'Beslistabel';
 OBJECTTYPE: 'Objecttype';
 DOMEIN: 'Domein';
@@ -133,6 +134,7 @@ HEBBEN: 'hebben';
 HEEFT: 'heeft';
 INDIEN: 'indien';
 IS: 'is';
+IS_RECURSIEF: 'is recursief';
 MOET: 'moet';
 MOETEN: 'moeten';
 WORDT_VERDEELD_OVER: 'wordt verdeeld over';

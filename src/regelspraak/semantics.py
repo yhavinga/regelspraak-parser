@@ -5,7 +5,7 @@ from enum import Enum
 import logging
 
 from .ast import (
-    DomainModel, ObjectType, Parameter, Regel, Expression, Literal,
+    DomainModel, ObjectType, Parameter, Regel, RegelGroep, Expression, Literal,
     AttributeReference, VariableReference, ParameterReference,
     BinaryExpression, UnaryExpression, FunctionCall, Operator,
     Gelijkstelling, KenmerkToekenning, ObjectCreatie, FeitCreatie, Consistentieregel, Initialisatie, Dagsoortdefinitie,
@@ -29,6 +29,7 @@ class SymbolKind(Enum):
     KENMERK = "kenmerk"
     VARIABLE = "variable"
     RULE = "rule"
+    REGELGROEP = "regelgroep"
     DOMAIN = "domain"
     FEITTYPE = "feittype"
     DIMENSION = "dimension"
@@ -235,11 +236,26 @@ class SemanticAnalyzer:
                 )
             except SemanticError as e:
                 self.errors.append(e)
+        
+        # Collect regel groups
+        for regelgroep in model.regelgroepen:
+            try:
+                self.symbol_table.define(
+                    regelgroep.naam,
+                    SymbolKind.REGELGROEP,
+                    definition=regelgroep
+                )
+            except SemanticError as e:
+                self.errors.append(e)
     
     def _analyze_rules(self, model: DomainModel) -> None:
         """Second pass: analyze each rule."""
         for regel in model.regels:
             self._analyze_rule(regel)
+        
+        # Analyze regel groups
+        for regelgroep in model.regelgroepen:
+            self._analyze_regelgroep(regelgroep)
     
     def _analyze_rule(self, regel: Regel) -> None:
         """Analyze a single rule."""
@@ -268,6 +284,47 @@ class SemanticAnalyzer:
             
         finally:
             self.symbol_table.exit_scope()
+    
+    def _analyze_regelgroep(self, regelgroep: RegelGroep) -> None:
+        """Analyze a rule group, especially validation for recursive groups."""
+        # If it's marked as recursive, apply specific validation rules
+        if regelgroep.is_recursive:
+            # Per specification §9.9, recursive groups must have:
+            # 1. An object creation rule
+            # 2. Termination conditions in the object creation rule
+            
+            has_object_creation = False
+            object_creation_rule = None
+            
+            # Check all rules in the group
+            for regel in regelgroep.regels:
+                if isinstance(regel.resultaat, ObjectCreatie):
+                    has_object_creation = True
+                    object_creation_rule = regel
+                    break
+            
+            if not has_object_creation:
+                self.errors.append(SemanticError(
+                    f"Recursive rule group '{regelgroep.naam}' must contain an object creation rule",
+                    regelgroep.span
+                ))
+            else:
+                # Check if the object creation rule has proper termination conditions
+                if not object_creation_rule.voorwaarde:
+                    self.errors.append(SemanticError(
+                        f"Object creation rule in recursive group '{regelgroep.naam}' must have termination conditions",
+                        object_creation_rule.span
+                    ))
+                else:
+                    # TODO: More sophisticated analysis to check for:
+                    # - Maximum/minimum value conditions
+                    # - Maximum iteration conditions
+                    # This would require deeper expression analysis
+                    pass
+        
+        # Analyze all rules in the group
+        for regel in regelgroep.regels:
+            self._analyze_rule(regel)
     
     def _analyze_resultaat(self, resultaat: Any) -> None:
         """Analyze rule result (Gelijkstelling, Initialisatie, or KenmerkToekenning)."""

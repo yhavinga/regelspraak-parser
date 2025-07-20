@@ -388,6 +388,17 @@ class Regel:
     # description: Optional[str] = None
     # metadata: Dict[str, Any] = field(default_factory=dict)
 
+@dataclass
+class RegelGroep:
+    """Represents a group of rules that can be marked as recursive (§9.9).
+    
+    Recursive rule groups allow deriving properties from other instances of
+    the same object type, with proper termination conditions."""
+    naam: str
+    is_recursive: bool
+    regels: List[Union[Regel, 'Consistentieregel']]
+    span: SourceSpan
+
 # --- Feittype Definitions ---
 
 @dataclass
@@ -463,6 +474,7 @@ class DomainModel:
     feittypen: Dict[str, FeitType] = field(default_factory=dict)
     dimensions: Dict[str, Dimension] = field(default_factory=dict)
     regels: List[Regel] = field(default_factory=list)
+    regelgroepen: List[RegelGroep] = field(default_factory=list)
     beslistabellen: List[Beslistabel] = field(default_factory=list)
     # description: Optional[str] = None
     # name: Optional[str] = None # If there's a top-level domain name 

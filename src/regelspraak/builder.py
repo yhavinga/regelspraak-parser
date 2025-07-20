@@ -10,7 +10,7 @@ from antlr4.tree.Tree import TerminalNode
 
 # Import AST nodes
 from .ast import (
-    DomainModel, ObjectType, Attribuut, Kenmerk, Regel, Parameter, Domein,
+    DomainModel, ObjectType, Attribuut, Kenmerk, Regel, RegelGroep, Parameter, Domein,
     FeitType, Rol, Voorwaarde, ResultaatDeel, Gelijkstelling, KenmerkToekenning,
     ObjectCreatie, FeitCreatie, Consistentieregel, Initialisatie, Dagsoortdefinitie, Verdeling,
     VerdelingMethode, VerdelingGelijkeDelen, VerdelingNaarRato, VerdelingOpVolgorde,
@@ -442,6 +442,10 @@ class RegelSpraakModelBuilder(RegelSpraakVisitor):
                 if consistentieregel:
                     # Consistentieregels are special types of rules, add to regels list
                     domain_model.regels.append(consistentieregel)
+            elif isinstance(child, AntlrParser.RegelGroepContext):
+                regelgroep = self.visitRegelGroep(child)
+                if regelgroep:
+                    domain_model.regelgroepen.append(regelgroep)
             elif isinstance(child, AntlrParser.BeslistabelContext):
                 beslistabel = self.visitBeslistabel(child)
                 if beslistabel:
@@ -2563,6 +2567,44 @@ class RegelSpraakModelBuilder(RegelSpraakVisitor):
             resultaat=resultaat,
             voorwaarde=voorwaarde,
             variabelen={},  # Consistency rules don't have variables
+            span=self.get_span(ctx)
+        )
+    
+    def visitRegelGroep(self, ctx: AntlrParser.RegelGroepContext) -> Optional[RegelGroep]:
+        """Visit a rule group definition and build a RegelGroep object."""
+        # Get the name of the group
+        naam_ctx = ctx.naamwoord()
+        if not naam_ctx:
+            logger.error(f"RegelGroep without name in {safe_get_text(ctx)}")
+            return None
+        
+        naam = self.visitNaamwoord(naam_ctx)
+        if not naam:
+            logger.error(f"Could not parse RegelGroep name from {safe_get_text(naam_ctx)}")
+            return None
+        
+        # Check if it's marked as recursive
+        is_recursive = ctx.isRecursive is not None
+        
+        # Collect all rules in the group
+        regels = []
+        for child in ctx.children:
+            if isinstance(child, AntlrParser.RegelContext):
+                regel = self.visitRegel(child)
+                if regel:
+                    regels.append(regel)
+            elif isinstance(child, AntlrParser.ConsistentieregelContext):
+                consistentieregel = self.visitConsistentieregel(child)
+                if consistentieregel:
+                    regels.append(consistentieregel)
+        
+        if not regels:
+            logger.warning(f"RegelGroep '{naam}' has no rules")
+        
+        return RegelGroep(
+            naam=naam,
+            is_recursive=is_recursive,
+            regels=regels,
             span=self.get_span(ctx)
         )
     

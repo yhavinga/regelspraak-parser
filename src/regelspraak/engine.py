@@ -181,6 +181,15 @@ class Evaluator:
                 finally:
                     self.context.set_current_instance(original_instance)
         
+        # Execute regel groups
+        for regelgroep in domain_model.regelgroepen:
+            try:
+                group_results = self.execute_regelgroep(regelgroep)
+                results[f"regelgroep:{regelgroep.naam}"] = group_results
+            except Exception as e:
+                print(f"Error executing regelgroep '{regelgroep.naam}': {e}")
+                results[f"regelgroep:{regelgroep.naam}"] = [{"status": "error", "message": str(e)}]
+        
         return results
 
     def _deduce_type_from_subject_ref(self, subject_ref: AttributeReference) -> Optional[str]:
@@ -419,13 +428,16 @@ class Evaluator:
         """Evaluates a single rule for the *current* instance in the context.
            Modifies the context directly, does not return a value.
         """
-        if self.context.current_instance is None:
-            raise RegelspraakError(f"Cannot evaluate rule '{rule.naam}': No current instance set in context.")
-
-        instance = self.context.current_instance
+        # Special handling for ObjectCreatie rules - they don't need a current instance
+        if isinstance(rule.resultaat, ObjectCreatie):
+            instance = self.context.current_instance  # May be None for first creation
+        else:
+            if self.context.current_instance is None:
+                raise RegelspraakError(f"Cannot evaluate rule '{rule.naam}': No current instance set in context.")
+            instance = self.context.current_instance
         
         # Trace the start of rule evaluation
-        if self.context.trace_sink:
+        if self.context.trace_sink and instance is not None:
             self.context.trace_sink.rule_eval_start(rule, instance)
             
         # 1. Setup variable scope for this rule execution
@@ -452,7 +464,7 @@ class Evaluator:
                     self.context.trace_sink.condition_eval_start(
                         rule.voorwaarde, 
                         rule_name=rule.naam, 
-                        instance_id=instance.instance_id
+                        instance_id=instance.instance_id if instance else None
                     )
                     
                 condition_value = self.evaluate_expression(rule.voorwaarde.expressie)
@@ -469,7 +481,7 @@ class Evaluator:
                         rule.voorwaarde, 
                         condition_met, 
                         rule_name=rule.naam, 
-                        instance_id=instance.instance_id
+                        instance_id=instance.instance_id if instance else None
                     )
 
             # 3. If condition met, apply result
@@ -480,7 +492,7 @@ class Evaluator:
                 self._apply_resultaat(rule.resultaat)
             else:
                 # Log rule skipped due to condition
-                if self.context.trace_sink:
+                if self.context.trace_sink and instance is not None:
                     self.context.trace_sink.rule_skipped(
                         rule, 
                         instance, 
@@ -503,19 +515,226 @@ class Evaluator:
             self._current_rule = None
             
             # Trace the end of rule evaluation
-            if self.context.trace_sink:
+            if self.context.trace_sink and instance is not None:
                 self.context.trace_sink.rule_eval_end(rule, instance, success, error_msg)
+
+    def execute_regelgroep(self, regelgroep: ast.RegelGroep) -> List[Dict[str, Any]]:
+        """Execute a rule group, handling recursive execution if marked as such.
+        
+        For recursive groups, rules are executed iteratively until termination
+        conditions are met. Per specification §9.9, recursive groups must have
+        an object creation rule with proper termination conditions.
+        """
+        results = []
+        
+        if not regelgroep.is_recursive:
+            # Non-recursive group: execute all rules once
+            for regel in regelgroep.regels:
+                # Determine target type and execute for relevant instances
+                target_type_name = self._deduce_rule_target_type(regel)
+                if not target_type_name:
+                    continue
+                
+                target_instances = self.context.find_objects_by_type(target_type_name)
+                for instance in target_instances:
+                    original_instance = self.context.current_instance
+                    self.context.set_current_instance(instance)
+                    try:
+                        self.evaluate_rule(regel)
+                        results.append({
+                            "regel": regel.naam,
+                            "instance_id": instance.instance_id,
+                            "status": "evaluated"
+                        })
+                    except Exception as e:
+                        results.append({
+                            "regel": regel.naam,
+                            "instance_id": instance.instance_id,
+                            "status": "error",
+                            "message": str(e)
+                        })
+                    finally:
+                        self.context.set_current_instance(original_instance)
+        else:
+            # Recursive group: execute with iteration tracking
+            max_iterations = 1000  # Safety limit to prevent infinite loops
+            iteration = 0
+            
+            # Track objects created in each iteration
+            objects_created_per_iteration = []
+            
+            while iteration < max_iterations:
+                iteration += 1
+                iteration_created = []
+                
+                # Execute all rules in the group for this iteration
+                for regel in regelgroep.regels:
+                    if isinstance(regel.resultaat, ast.ObjectCreatie):
+                        # Object creation rule - execute once per iteration
+                        original_instance = self.context.current_instance
+                        try:
+                            # Check termination conditions
+                            if regel.voorwaarde:
+                                # Use the most recent object of the type being created as context
+                                obj_type = regel.resultaat.object_type
+                                instances = self.context.find_objects_by_type(obj_type)
+                                if instances:
+                                    # Use the last created instance for condition evaluation
+                                    self.context.set_current_instance(instances[-1])
+                                    condition_met = self.evaluate_expression(regel.voorwaarde.expressie)
+                                    if not condition_met:
+                                        # Termination condition reached
+                                        results.append({
+                                            "iteration": iteration,
+                                            "regel": regel.naam,
+                                            "status": "terminated",
+                                            "message": "Termination condition met"
+                                        })
+                                        return results
+                                else:
+                                    # No instances yet - for aggregation functions on empty collections,
+                                    # we can still evaluate the condition
+                                    # Set current instance to None to signal aggregation functions
+                                    # that they should handle empty collections
+                                    self.context.set_current_instance(None)
+                                    try:
+                                        condition_met = self.evaluate_expression(regel.voorwaarde.expressie)
+                                        if not condition_met:
+                                            # Termination condition reached even with no objects
+                                            results.append({
+                                                "iteration": iteration,
+                                                "regel": regel.naam,
+                                                "status": "terminated",
+                                                "message": "Termination condition met (no objects)"
+                                            })
+                                            return results
+                                    except Exception as e:
+                                        # If evaluation fails with no instances, assume condition is met
+                                        # (allow first object to be created)
+                                        logger.debug(f"Condition evaluation failed with no instances: {e}")
+                                        pass
+                            
+                            # Count objects before creation
+                            obj_type = regel.resultaat.object_type
+                            before_count = len(self.context.find_objects_by_type(obj_type))
+                            
+                            # Set context to last created object of this type for attribute expressions
+                            instances = self.context.find_objects_by_type(obj_type)
+                            if instances:
+                                self.context.set_current_instance(instances[-1])
+                            
+                            # Execute object creation
+                            self.evaluate_rule(regel)
+                            
+                            # Count objects after creation
+                            after_count = len(self.context.find_objects_by_type(obj_type))
+                            created_count = after_count - before_count
+                            
+                            if created_count > 0:
+                                iteration_created.append({
+                                    "object_type": obj_type,
+                                    "count": created_count
+                                })
+                                results.append({
+                                    "iteration": iteration,
+                                    "regel": regel.naam,
+                                    "status": "object_created",
+                                    "count": created_count
+                                })
+                        except Exception as e:
+                            results.append({
+                                "iteration": iteration,
+                                "regel": regel.naam,
+                                "status": "error",
+                                "message": str(e)
+                            })
+                        finally:
+                            self.context.set_current_instance(original_instance)
+                    else:
+                        # Regular rule - execute for all relevant instances
+                        target_type_name = self._deduce_rule_target_type(regel)
+                        if not target_type_name:
+                            continue
+                        
+                        # In recursive groups, focus on objects created in previous iterations
+                        if iteration > 1 and objects_created_per_iteration:
+                            # Get objects created in the previous iteration
+                            target_instances = []
+                            for created in objects_created_per_iteration[-1]:
+                                if created["object_type"] == target_type_name:
+                                    # Find the newly created instances
+                                    all_instances = self.context.find_objects_by_type(target_type_name)
+                                    # Take the last N instances (newly created)
+                                    target_instances = all_instances[-created["count"]:]
+                                    break
+                            
+                            if not target_instances:
+                                # No new instances of this type in previous iteration
+                                continue
+                        else:
+                            # First iteration or no creation tracking
+                            target_instances = self.context.find_objects_by_type(target_type_name)
+                        
+                        for instance in target_instances:
+                            original_instance = self.context.current_instance
+                            self.context.set_current_instance(instance)
+                            try:
+                                self.evaluate_rule(regel)
+                                results.append({
+                                    "iteration": iteration,
+                                    "regel": regel.naam,
+                                    "instance_id": instance.instance_id,
+                                    "status": "evaluated"
+                                })
+                            except Exception as e:
+                                results.append({
+                                    "iteration": iteration,
+                                    "regel": regel.naam,
+                                    "instance_id": instance.instance_id,
+                                    "status": "error",
+                                    "message": str(e)
+                                })
+                            finally:
+                                self.context.set_current_instance(original_instance)
+                
+                # Check if any objects were created in this iteration
+                if not iteration_created:
+                    # No new objects created, stop iteration
+                    results.append({
+                        "iteration": iteration,
+                        "status": "completed",
+                        "message": "No new objects created"
+                    })
+                    break
+                
+                objects_created_per_iteration.append(iteration_created)
+            
+            if iteration >= max_iterations:
+                results.append({
+                    "status": "max_iterations_reached",
+                    "iterations": iteration
+                })
+        
+        return results
 
     def _apply_resultaat(self, res: ast.ResultaatDeel):
         """Applies the result of a rule (Gelijkstelling, Initialisatie, or KenmerkToekenning) 
            to the current instance in the context.
         """
-        instance = self.context.current_instance
-        if instance is None:
-            # This should ideally be caught earlier
-            raise RegelspraakError("Cannot apply result: No current instance.", span=res.span)
+        # ObjectCreatie doesn't need a current instance
+        if isinstance(res, ObjectCreatie):
+            # Handle object creation without needing current instance
+            # Jump to the ObjectCreatie handling code below
+            pass
+        else:
+            # Other result types need a current instance
+            instance = self.context.current_instance
+            if instance is None:
+                # This should ideally be caught earlier
+                raise RegelspraakError("Cannot apply result: No current instance.", span=res.span)
 
         if isinstance(res, Gelijkstelling):
+            instance = self.context.current_instance  # Already checked above
             # Check if the target is a timeline attribute or if the expression contains timeline operands
             target_is_timeline = False
             if hasattr(res.target, 'path') and res.target.path:
@@ -3308,6 +3527,17 @@ class Evaluator:
             # Single argument case: "som van alle bedragen" or "totaal van X"
             if len(expr.arguments) == 1:
                 arg = expr.arguments[0]
+                
+                # Special handling for het_aantal with object type reference
+                if func_name == "het_aantal" and isinstance(arg, AttributeReference) and len(arg.path) == 1:
+                    # Check if it's just an object type name (e.g., "Iteratie")
+                    potential_type = arg.path[0]
+                    for obj_type in self.context.domain_model.objecttypes.keys():
+                        if obj_type.lower() == potential_type.lower():
+                            # It's a direct object type reference - count all instances
+                            count = len(self.context.find_objects_by_type(obj_type))
+                            return Value(value=count, datatype="Numeriek", unit=None)
+                
                 if isinstance(arg, AttributeReference) and len(arg.path) == 1 and arg.path[0].endswith("en"):
                     # Handle the "functie van alle X" pattern specially
                     return self._handle_aggregation_alle_pattern(expr, base_func_name, arg.path[0])
@@ -3439,7 +3669,28 @@ class Evaluator:
                         attr_expr = AttributeReference(path=[full_expr.path[0]], span=full_expr.span)
                         collection_expr = AttributeReference(path=full_expr.path[1:], span=full_expr.span)
                     else:
-                        raise RegelspraakError(f"'som_van' with single element path '{full_expr.path}' not recognized as plural attribute reference", span=expr.span)
+                        # Check if it's "alle X" pattern where X is an object type
+                        single_path = full_expr.path[0]
+                        
+                        # First check if it matches an object type directly
+                        matched_type = None
+                        for obj_type in self.context.domain_model.objecttypes.keys():
+                            if obj_type.lower() == single_path.lower():
+                                matched_type = obj_type
+                                break
+                        
+                        if matched_type:
+                            # It's an object type - sum all attributes of all instances
+                            # But we need to know which attribute to sum
+                            # For "som van alle Iteratie", we don't know which attribute
+                            # This is likely an error in the test - should be "som van alle sommen" or similar
+                            raise RegelspraakError(
+                                f"'som_van' with object type '{single_path}' needs an attribute to sum. "
+                                f"Use 'som van [attribute] van alle {single_path}' instead.",
+                                span=expr.span
+                            )
+                        else:
+                            raise RegelspraakError(f"'som_van' with single element path '{full_expr.path}' not recognized as plural attribute reference", span=expr.span)
                     
                 elif len(expr.arguments) == 2:
                     # Two argument case (from DimensieAggExpr)
@@ -3627,7 +3878,37 @@ class Evaluator:
                     result = Value(value=total, datatype=datatype, unit=first_unit)
             elif func_name == "het_aantal":
                 # Count aggregation - return the number of items in the collection
-                # If there's a single argument, it should be a collection
+                # Handle special pattern for "het aantal alle X" or "het aantal X"
+                if len(expr.arguments) == 1 and isinstance(expr.arguments[0], AttributeReference):
+                    attr_ref = expr.arguments[0]
+                    if len(attr_ref.path) == 1:
+                        path_item = attr_ref.path[0]
+                        
+                        # Check if it starts with "alle "
+                        if path_item.startswith("alle "):
+                            collection_type = path_item[5:]  # Remove "alle "
+                        else:
+                            # Assume it's just the object type name
+                            collection_type = path_item
+                        
+                        # Find the actual object type (case-insensitive match)
+                        matched_type = None
+                        for obj_type in self.context.domain_model.objecttypes.keys():
+                            if obj_type.lower() == collection_type.lower():
+                                matched_type = obj_type
+                                break
+                        
+                        if matched_type:
+                            # Count all instances of this type
+                            instances = self.context.find_objects_by_type(matched_type)
+                            return Value(value=len(instances), datatype="Numeriek", unit=None)
+                        else:
+                            raise RegelspraakError(
+                                f"Unknown object type in 'het aantal van alle {collection_type}'",
+                                span=expr.span
+                            )
+                
+                # Otherwise, evaluate arguments normally
                 if len(args) == 1:
                     collection_value = args[0]
                     if isinstance(collection_value, Value):
@@ -4349,7 +4630,7 @@ class Evaluator:
         if base_func_name in ['aantal']:
             # For count, just return the number of objects in the collection
             count = len(collection_objects)
-            return Value(value=count, datatype="Numeriek")
+            return Value(value=count, datatype="Numeriek", unit=None)
         
         if base_func_name in ['som', 'totaal']:
             if not values:
