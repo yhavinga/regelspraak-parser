@@ -51,29 +51,39 @@ class Evaluator:
         self._in_timeline_evaluation = False  # Track if we're evaluating within a timeline
         
         # Function registry for cleaner function handling
+        # All functions registered without articles for consistent lookup
         self._function_registry = {
+            # Mathematical functions
             "abs": self._func_abs,
+            "absolute_waarde": self._func_abs,  # Dutch alias
             "max": self._func_max,
+            "maximale_waarde": self._func_max,  # Dutch alias
             "min": self._func_min,
+            "minimale_waarde": self._func_min,  # Dutch alias
+            
+            # Date/time functions
+            "tijdsduur": self._func_tijdsduur_van,
             "tijdsduur_van": self._func_tijdsduur_van,
+            "absolute_tijdsduur": self._func_absolute_tijdsduur_van,
             "absolute_tijdsduur_van": self._func_absolute_tijdsduur_van,
-            "som_van": self._func_som_van,
-            "gemiddelde_van": self._func_gemiddelde_van,
-            "eerste_van": self._func_eerste_van,
-            "laatste_van": self._func_laatste_van,
-            "totaal_van": self._func_totaal_van,
-            "aantal_dagen_in": self._func_aantal_dagen_in,
-            "het_aantal_dagen_in": self._func_aantal_dagen_in,
-            "de_eerste_van": self._func_eerste_van,
-            "de_laatste_van": self._func_laatste_van,
-            "het_gemiddelde_van": self._func_gemiddelde_van,
-            "het_totaal_van": self._func_totaal_van,
             "maand_uit": self._func_maand_uit,
             "dag_uit": self._func_dag_uit,
             "jaar_uit": self._func_jaar_uit,
-            "de_maand_uit": self._func_maand_uit,
-            "de_dag_uit": self._func_dag_uit,
-            "het_jaar_uit": self._func_jaar_uit,
+            
+            # Aggregation functions
+            "aantal": self._func_het_aantal,
+            "het_aantal": self._func_het_aantal,  # Also register with article
+            "som": self._func_som_van,
+            "som_van": self._func_som_van,
+            "gemiddelde": self._func_gemiddelde_van,
+            "gemiddelde_van": self._func_gemiddelde_van,
+            "eerste": self._func_eerste_van,
+            "eerste_van": self._func_eerste_van,
+            "laatste": self._func_laatste_van,
+            "laatste_van": self._func_laatste_van,
+            "totaal": self._func_totaal_van,
+            "totaal_van": self._func_totaal_van,
+            "aantal_dagen_in": self._func_aantal_dagen_in,
         }
 
     def execute_model(self, domain_model: DomainModel, evaluation_date: Optional[datetime] = None):
@@ -2311,24 +2321,19 @@ class Evaluator:
 
     def _handle_function_call_non_timeline(self, expr: FunctionCall) -> Value:
         """Handle function calls during timeline evaluation (non-recursive)."""
-        func_name = expr.function_name.lower()
+        # Normalize function name the same way as _handle_function_call
+        func_name = expr.function_name.lower().replace(' ', '_')
         
         # Check if this function is registered
         if func_name in self._function_registry:
-            return self._function_registry[func_name](expr)
+            # For non-timeline calls, pass None as args since we can't evaluate recursively
+            return self._function_registry[func_name](expr, None)
         else:
-            # Extract raw function name from "de functienaam van" pattern
-            if func_name.startswith("de ") and func_name.endswith(" van"):
-                core_func_name = func_name[3:-4]  # Remove "de " and " van"
-                if core_func_name in self._function_registry:
-                    return self._function_registry[core_func_name](expr)
-            
-            # Extract from "het functienaam van" pattern  
-            if func_name.startswith("het ") and func_name.endswith(" van"):
-                core_func_name = func_name[4:-4]  # Remove "het " and " van"
-                if core_func_name in self._function_registry:
-                    return self._function_registry[core_func_name](expr)
-            
+            # Debug logging
+            logger.error(f"Function lookup failed in non-timeline context")
+            logger.error(f"  Original name: '{expr.function_name}'")
+            logger.error(f"  Normalized name: '{func_name}'")
+            logger.error(f"  Available functions: {sorted(self._function_registry.keys())}")
             raise RegelspraakError(f"Unknown function: {expr.function_name}", span=expr.span)
     
     # --- Subselectie Evaluation ---
@@ -4087,19 +4092,12 @@ class Evaluator:
             if len(expr.arguments) == 1:
                 arg = expr.arguments[0]
                 
-                # Special handling for het_aantal with object type reference
-                if func_name == "het_aantal" and isinstance(arg, AttributeReference) and len(arg.path) == 1:
-                    # Check if it's just an object type name (e.g., "Iteratie")
-                    potential_type = arg.path[0]
-                    for obj_type in self.context.domain_model.objecttypes.keys():
-                        if obj_type.lower() == potential_type.lower():
-                            # It's a direct object type reference - count all instances
-                            count = len(self.context.find_objects_by_type(obj_type))
-                            return Value(value=count, datatype="Numeriek", unit=None)
-                
                 if isinstance(arg, AttributeReference) and len(arg.path) == 1 and arg.path[0].endswith("en"):
                     # Handle the "functie van alle X" pattern specially
                     return self._handle_aggregation_alle_pattern(expr, base_func_name, arg.path[0])
+                elif base_func_name == "aantal" or func_name == "het_aantal":
+                    # Don't evaluate arguments for het_aantal - let the registry function handle it
+                    pass
                 else:
                     # Single argument that's not "alle" pattern - evaluate normally
                     args = [self.evaluate_expression(arg) for arg in expr.arguments]
@@ -4133,9 +4131,16 @@ class Evaluator:
         result = None
         try:
             # Use function registry for cleaner dispatch
-            if func_name in self._function_registry and func_name != "som_van":
-                # Special case: som_van has complex handling below, skip registry
-                result = self._function_registry[func_name](expr, args if 'args' in locals() else None)
+            if func_name in self._function_registry:
+                # For aggregation functions, pass None for args if they haven't been evaluated yet
+                # This allows the function to handle special patterns before evaluation
+                if func_name in ["som_van", "aantal", "het_aantal"] and 'args' not in locals():
+                    result = self._function_registry[func_name](expr, None)
+                else:
+                    result = self._function_registry[func_name](expr, args if 'args' in locals() else None)
+                
+                # If registry function returns a value, we're done
+                # If it returns None, fall through to special handling below
                 
             elif func_name == "len": # Example: length of list/string
                 if len(args) != 1: 
@@ -4146,7 +4151,9 @@ class Evaluator:
                 length = len(arg.value)
                 result = Value(value=length, datatype="Numeriek", unit=None)
                 
-            elif func_name == "som_van":
+            if result is None and func_name == "som_van" and 'args' not in locals():
+                # TODO: This special handling should be moved to _func_som_van
+                # Currently kept here due to complex argument evaluation patterns
                 # Sum aggregation - handles multiple patterns:
                 # 1. Concatenation: som_van(X, Y, Z) - sum individual values
                 # 2. Collection with single arg: som_van(path_with_collection) 
@@ -4435,60 +4442,8 @@ class Evaluator:
                 else:
                     total = sum(values_to_sum)
                     result = Value(value=total, datatype=datatype, unit=first_unit)
-            elif func_name == "het_aantal":
-                # Count aggregation - return the number of items in the collection
-                # Handle special pattern for "het aantal alle X" or "het aantal X"
-                if len(expr.arguments) == 1 and isinstance(expr.arguments[0], AttributeReference):
-                    attr_ref = expr.arguments[0]
-                    if len(attr_ref.path) == 1:
-                        path_item = attr_ref.path[0]
-                        
-                        # Check if it starts with "alle "
-                        if path_item.startswith("alle "):
-                            collection_type = path_item[5:]  # Remove "alle "
-                        else:
-                            # Assume it's just the object type name
-                            collection_type = path_item
-                        
-                        # Find the actual object type (case-insensitive match)
-                        matched_type = None
-                        for obj_type in self.context.domain_model.objecttypes.keys():
-                            if obj_type.lower() == collection_type.lower():
-                                matched_type = obj_type
-                                break
-                        
-                        if matched_type:
-                            # Count all instances of this type
-                            instances = self.context.find_objects_by_type(matched_type)
-                            return Value(value=len(instances), datatype="Numeriek", unit=None)
-                        else:
-                            raise RegelspraakError(
-                                f"Unknown object type in 'het aantal van alle {collection_type}'",
-                                span=expr.span
-                            )
-                
-                # Otherwise, evaluate arguments normally
-                if len(args) == 1:
-                    collection_value = args[0]
-                    if isinstance(collection_value, Value):
-                        collection = collection_value.value
-                    else:
-                        collection = collection_value
-                    
-                    # Handle different types
-                    if isinstance(collection, list):
-                        count = len(collection)
-                    elif collection is None:
-                        count = 0
-                    else:
-                        # Single item counts as 1
-                        count = 1
-                    
-                    result = Value(value=count, datatype="Numeriek")
-                else:
-                    raise RegelspraakError(f"Function '{expr.function_name}' expects 1 argument, got {len(args)}", span=expr.span)
             # ... other functions like 'gemiddelde van', etc.
-            else:
+            elif result is None:
                 # Check context for user-defined functions? TBD
                 raise RegelspraakError(f"Unknown function: {expr.function_name}", span=expr.span)
                 
@@ -4505,8 +4460,13 @@ class Evaluator:
         return result
 
     # Function implementations for the registry
-    def _func_abs(self, expr: FunctionCall, args: List[Value]) -> Value:
+    def _func_abs(self, expr: FunctionCall, args: Optional[List[Value]]) -> Value:
         """Absolute value function."""
+        if args is None:
+            if self._in_timeline_evaluation:
+                raise RegelspraakError("abs cannot be evaluated in timeline context", span=expr.span)
+            args = [self.evaluate_expression(arg) for arg in expr.arguments]
+            
         if len(args) != 1: 
             raise RegelspraakError(f"Function 'abs' expects 1 argument, got {len(args)}", span=expr.span)
         arg = args[0]
@@ -4515,8 +4475,13 @@ class Evaluator:
         abs_val = abs(arg.to_decimal())
         return Value(value=abs_val, datatype=arg.datatype, unit=arg.unit)
     
-    def _func_max(self, expr: FunctionCall, args: List[Value]) -> Value:
+    def _func_max(self, expr: FunctionCall, args: Optional[List[Value]]) -> Value:
         """Maximum value function."""
+        if args is None:
+            if self._in_timeline_evaluation:
+                raise RegelspraakError("max cannot be evaluated in timeline context", span=expr.span)
+            args = [self.evaluate_expression(arg) for arg in expr.arguments]
+            
         if not args: 
             raise RegelspraakError("Function 'max' requires at least one argument", span=expr.span)
         
@@ -4541,8 +4506,13 @@ class Evaluator:
         
         return max_val
     
-    def _func_min(self, expr: FunctionCall, args: List[Value]) -> Value:
+    def _func_min(self, expr: FunctionCall, args: Optional[List[Value]]) -> Value:
         """Minimum value function."""
+        if args is None:
+            if self._in_timeline_evaluation:
+                raise RegelspraakError("min cannot be evaluated in timeline context", span=expr.span)
+            args = [self.evaluate_expression(arg) for arg in expr.arguments]
+            
         if not args: 
             raise RegelspraakError("Function 'min' requires at least one argument", span=expr.span)
         
@@ -4567,8 +4537,16 @@ class Evaluator:
         
         return min_val
     
-    def _func_tijdsduur_van(self, expr: FunctionCall, args: List[Value]) -> Value:
+    def _func_tijdsduur_van(self, expr: FunctionCall, args: Optional[List[Value]]) -> Value:
         """Calculate duration between two dates."""
+        # Handle case where args haven't been evaluated yet (timeline context)
+        if args is None:
+            # In timeline context, we can't evaluate recursively
+            if self._in_timeline_evaluation:
+                raise RegelspraakError("tijdsduur_van cannot be evaluated in timeline context", span=expr.span)
+            # Evaluate arguments
+            args = [self.evaluate_expression(arg) for arg in expr.arguments]
+            
         if len(args) != 2:
             raise RegelspraakError(f"Function 'tijdsduur_van' expects 2 arguments (from date, to date), got {len(args)}", span=expr.span)
         
@@ -4647,7 +4625,7 @@ class Evaluator:
         
         return Value(value=value, datatype="Numeriek", unit=unit)
     
-    def _func_absolute_tijdsduur_van(self, expr: FunctionCall, args: List[Value]) -> Value:
+    def _func_absolute_tijdsduur_van(self, expr: FunctionCall, args: Optional[List[Value]]) -> Value:
         """Calculate absolute duration between two dates."""
         # Use tijdsduur_van and take absolute value
         result = self._func_tijdsduur_van(expr, args)
@@ -4655,53 +4633,113 @@ class Evaluator:
             result = Value(value=abs(result.value), datatype=result.datatype, unit=result.unit)
         return result
     
-    def _func_som_van(self, expr: FunctionCall, args: List[Value]) -> Value:
-        """Sum aggregation function - handled specially in _handle_function_call."""
-        # This is a placeholder - the actual implementation is in _handle_function_call
-        # due to special argument evaluation requirements
-        # If we reach here, it means it's being called from the registry with already evaluated args
-        # This would be the simple concatenation case (3+ args)
+    def _func_het_aantal(self, expr: FunctionCall, args: Optional[List[Value]]) -> Value:
+        """Count aggregation function - counts objects or non-empty values."""
+        # Special handling when args haven't been evaluated yet
         if args is None:
-            # Special case: som_van with special patterns is handled in _handle_function_call
-            # This should not be reached
-            raise RegelspraakError("som_van special patterns should be handled in _handle_function_call", span=expr.span)
             
-        if not args:
-            raise RegelspraakError("Function 'som_van' requires at least one argument", span=expr.span)
+            # Check for direct object type counting pattern
+            if len(expr.arguments) == 1 and isinstance(expr.arguments[0], AttributeReference):
+                attr_ref = expr.arguments[0]
+                if len(attr_ref.path) == 1:
+                    path_item = attr_ref.path[0]
+                    
+                    # Remove "alle " prefix if present
+                    if path_item.startswith("alle "):
+                        collection_type = path_item[5:]
+                    else:
+                        collection_type = path_item
+                    
+                    # Check if it's an object type name
+                    matched_type = None
+                    for obj_type in self.context.domain_model.objecttypes.keys():
+                        if obj_type.lower() == collection_type.lower():
+                            matched_type = obj_type
+                            break
+                    
+                    if matched_type:
+                        # Count all instances of this type
+                        instances = self.context.find_objects_by_type(matched_type)
+                        return Value(value=len(instances), datatype="Numeriek", unit=None)
+            
+            # Fall back to evaluating arguments
+            args = [self.evaluate_expression(arg) for arg in expr.arguments]
         
-        # Filter out None values
-        non_none_values = []
-        datatype = None
-        unit = None
-        
-        for arg in args:
-            if arg.value is not None:
-                if datatype is None:
-                    datatype = arg.datatype
-                    unit = arg.unit
-                elif arg.datatype != datatype:
-                    raise RegelspraakError(f"Cannot sum values of different types: {datatype} and {arg.datatype}", span=expr.span)
-                
-                # Check unit compatibility
-                if unit != arg.unit:
-                    if not self.arithmetic._check_units_compatible(Value(0, datatype, unit), arg, "som_van"):
-                        raise RegelspraakError(f"Cannot sum values with incompatible units: {unit} and {arg.unit}", span=expr.span)
-                
-                non_none_values.append(arg)
-        
-        if not non_none_values:
-            # All values were None - return 0
-            return Value(value=Decimal(0), datatype=datatype or "Numeriek", unit=unit)
-        
-        # Sum all values using arithmetic operations
-        result = non_none_values[0]
-        for val in non_none_values[1:]:
-            result = self.arithmetic.add(result, val)
-        
-        return result
+        # Handle evaluated arguments
+        if len(args) == 1:
+            collection_value = args[0]
+            if isinstance(collection_value, Value):
+                collection = collection_value.value
+            else:
+                collection = collection_value
+            
+            # Handle different types
+            if isinstance(collection, list):
+                count = len(collection)
+            elif collection is None:
+                count = 0
+            else:
+                # Single item counts as 1
+                count = 1
+            
+            return Value(value=count, datatype="Numeriek", unit=None)
+        else:
+            # Multiple arguments - count non-None values
+            count = sum(1 for arg in args if arg.value is not None)
+            return Value(value=count, datatype="Numeriek", unit=None)
     
-    def _func_gemiddelde_van(self, expr: FunctionCall, args: List[Value]) -> Value:
+    def _func_som_van(self, expr: FunctionCall, args: Optional[List[Value]]) -> Value:
+        """Sum aggregation function - handles multiple patterns."""
+        # Handle different patterns based on number of arguments
+        
+        # Pattern 1: Concatenation (3+ args) - already evaluated
+        if args is not None and len(args) >= 3:
+            # Simple sum of multiple values
+            if not args:
+                raise RegelspraakError("Function 'som_van' requires at least one argument", span=expr.span)
+            
+            # Filter out None values
+            non_none_values = []
+            datatype = None
+            unit = None
+            
+            for arg in args:
+                if arg.value is not None:
+                    if datatype is None:
+                        datatype = arg.datatype
+                        unit = arg.unit
+                    elif arg.datatype != datatype:
+                        raise RegelspraakError(f"Cannot sum values of different types: {datatype} and {arg.datatype}", span=expr.span)
+                    
+                    # Check unit compatibility
+                    if unit != arg.unit:
+                        if not self.arithmetic._check_units_compatible(Value(0, datatype, unit), arg, "som_van"):
+                            raise RegelspraakError(f"Cannot sum values with incompatible units: {unit} and {arg.unit}", span=expr.span)
+                    
+                    non_none_values.append(arg)
+            
+            if not non_none_values:
+                # All values were None - return 0
+                return Value(value=Decimal(0), datatype=datatype or "Numeriek", unit=unit)
+            
+            # Sum all values using arithmetic operations
+            result = non_none_values[0]
+            for val in non_none_values[1:]:
+                result = self.arithmetic.add(result, val)
+            
+            return result
+        
+        # For patterns with 1-2 args, return None to indicate special handling needed
+        # This tells _handle_function_call to use its existing complex logic
+        # TODO: Eventually move all the complex som_van logic here
+        return None
+    
+    def _func_gemiddelde_van(self, expr: FunctionCall, args: Optional[List[Value]]) -> Value:
         """Average aggregation function."""
+        if args is None:
+            # For complex patterns, return None to use special handling
+            return None
+            
         # Similar patterns to som_van but calculates average
         if not args:
             raise RegelspraakError("Function 'gemiddelde_van' requires at least one argument", span=expr.span)
@@ -4815,7 +4853,7 @@ class Evaluator:
         total_value = sum(non_none_values)
         return Value(value=Decimal(total_value), datatype=datatype, unit=unit)
     
-    def _func_aantal_dagen_in(self, expr: FunctionCall, args: List[Value]) -> Value:
+    def _func_aantal_dagen_in(self, expr: FunctionCall, args: Optional[List[Value]]) -> Value:
         """Count number of days in a month or year where a condition is true.
         
         According to spec: "het aantal dagen in" ("de maand" | "het jaar") "dat" <expressie>
@@ -4824,6 +4862,24 @@ class Evaluator:
         - expr.arguments[0]: Literal with period type ("maand" or "jaar")
         - expr.arguments[1]: Condition expression (unevaluated)
         """
+        # This function handles its own argument evaluation due to special pattern
+        if args is not None:
+            # If args are pre-evaluated, it's a simple case (not the spec pattern)
+            if len(args) == 1:
+                # Just return the number of days in the period
+                period_val = args[0]
+                if period_val.datatype != "Datum":
+                    raise RegelspraakError(f"Function 'aantal_dagen_in' requires date argument, got {period_val.datatype}", span=expr.span)
+                
+                date_val = self._to_date(period_val)
+                if date_val is None:
+                    return Value(value=None, datatype="Numeriek", unit=None)
+                
+                # Get days in month
+                import calendar
+                days_in_month = calendar.monthrange(date_val.year, date_val.month)[1]
+                return Value(value=days_in_month, datatype="Numeriek", unit=None)
+        
         # Handle the specification pattern with expression arguments
         if len(expr.arguments) == 2:
             # First argument should be the period type literal
@@ -4927,10 +4983,15 @@ class Evaluator:
         
         return None
 
-    def _func_maand_uit(self, expr: FunctionCall, args: List[Value]) -> Value:
+    def _func_maand_uit(self, expr: FunctionCall, args: Optional[List[Value]]) -> Value:
         """Extract month from a date value.
         Returns the month number (1-12) from a date.
         """
+        if args is None:
+            if self._in_timeline_evaluation:
+                raise RegelspraakError("maand_uit cannot be evaluated in timeline context", span=expr.span)
+            args = [self.evaluate_expression(arg) for arg in expr.arguments]
+            
         if len(args) != 1:
             raise RegelspraakError(f"Function 'maand uit' expects 1 argument, got {len(args)}", span=expr.span)
         
@@ -4946,10 +5007,15 @@ class Evaluator:
         # Extract month (1-12)
         return Value(value=Decimal(date_val.month), datatype="Numeriek", unit=None)
     
-    def _func_dag_uit(self, expr: FunctionCall, args: List[Value]) -> Value:
+    def _func_dag_uit(self, expr: FunctionCall, args: Optional[List[Value]]) -> Value:
         """Extract day of month from a date value.
         Returns the day number (1-31) from a date.
         """
+        if args is None:
+            if self._in_timeline_evaluation:
+                raise RegelspraakError("dag_uit cannot be evaluated in timeline context", span=expr.span)
+            args = [self.evaluate_expression(arg) for arg in expr.arguments]
+            
         if len(args) != 1:
             raise RegelspraakError(f"Function 'dag uit' expects 1 argument, got {len(args)}", span=expr.span)
         
@@ -4965,10 +5031,15 @@ class Evaluator:
         # Extract day (1-31)
         return Value(value=Decimal(date_val.day), datatype="Numeriek", unit=None)
     
-    def _func_jaar_uit(self, expr: FunctionCall, args: List[Value]) -> Value:
+    def _func_jaar_uit(self, expr: FunctionCall, args: Optional[List[Value]]) -> Value:
         """Extract year from a date value.
         Returns the year number from a date.
         """
+        if args is None:
+            if self._in_timeline_evaluation:
+                raise RegelspraakError("jaar_uit cannot be evaluated in timeline context", span=expr.span)
+            args = [self.evaluate_expression(arg) for arg in expr.arguments]
+            
         if len(args) != 1:
             raise RegelspraakError(f"Function 'jaar uit' expects 1 argument, got {len(args)}", span=expr.span)
         
