@@ -6,3 +6,4 @@ export * from './value';
 export * from './runtime';
 export * from './result';
 export * from './engine';
+export * from './rule-executor';
