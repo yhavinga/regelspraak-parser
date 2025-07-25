@@ -299,22 +299,40 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
 
   // Rule parsing visitor methods
   visitRegel(ctx: any): any {
-    // Extract rule name from regelName
-    const nameCtx = ctx.regelName();
-    const name = this.extractText(nameCtx);
-    
-    // Get version info
-    const version = this.visit(ctx.regelVersie());
-    
-    // Get result part (gelijkstelling)
-    const result = this.visit(ctx.resultaatDeel());
-    
-    return {
-      type: 'Rule',
-      name,
-      version,
-      result
-    };
+    try {
+      // Extract rule name from regelName
+      const nameCtx = ctx.regelName();
+      if (!nameCtx) {
+        throw new Error('Expected rule name');
+      }
+      const name = this.extractText(nameCtx);
+      
+      // Get version info
+      const versionCtx = ctx.regelVersie();
+      if (!versionCtx) {
+        throw new Error('Expected "geldig" keyword');
+      }
+      const version = this.visit(versionCtx);
+      
+      // Get result part
+      const resultCtx = ctx.resultaatDeel();
+      if (!resultCtx) {
+        throw new Error('Expected result part');
+      }
+      const result = this.visit(resultCtx);
+      
+      return {
+        type: 'Rule',
+        name,
+        version,
+        result
+      };
+    } catch (e) {
+      if (e instanceof Error) {
+        throw e;
+      }
+      throw new Error('Failed to parse rule');
+    }
   }
 
   visitAttribuutReferentie(ctx: any): string {
@@ -344,6 +362,25 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
       return 'tot';
     }
     return 'altijd'; // default
+  }
+
+  visitResultaatDeel(ctx: any): any {
+    // The grammar has labeled alternatives, so we check the context type
+    if (ctx.constructor.name === 'GelijkstellingResultaatContext') {
+      return this.visitGelijkstellingResultaat(ctx);
+    } else if (ctx.constructor.name === 'DagsoortdefinitieResultaatContext') {
+      throw new Error('DagsoortdefinitieResultaat not implemented');
+    } else if (ctx.constructor.name === 'FeitCreatieResultaatContext') {
+      throw new Error('FeitCreatieResultaat not implemented');
+    } else if (ctx.constructor.name === 'KenmerkFeitResultaatContext') {
+      // This is for patterns like "Het resultaat is 42"
+      throw new Error('Expected gelijkstelling pattern (moet berekend worden als)');
+    } else if (ctx.constructor.name === 'ObjectCreatieResultaatContext') {
+      throw new Error('ObjectCreatieResultaat not implemented');
+    }
+    
+    // Fallback to visitChildren
+    return this.visitChildren(ctx);
   }
 
   visitGelijkstellingResultaat(ctx: any): any {
@@ -431,6 +468,15 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
       return null;
     }
     
+    // Special case for ResultaatDeelContext - provide helpful error
+    if (node.constructor.name === 'ResultaatDeelContext') {
+      // Try to provide a more helpful error message
+      const text = this.extractText(node).trim();
+      if (text.includes(' is ')) {
+        throw new Error('Expected gelijkstelling pattern (moet berekend worden als)');
+      }
+      throw new Error('Invalid result pattern');
+    }
     
     // If only one child, visit it
     if (node.children.length === 1) {

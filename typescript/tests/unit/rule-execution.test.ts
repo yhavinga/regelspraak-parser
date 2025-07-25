@@ -126,7 +126,7 @@ geldig altijd
 
     test('should fail on missing geldig keyword', () => {
       const rule = `Regel test
-    Het resultaat moet berekend worden als 42.`;
+    Het resultaat van een berekening moet berekend worden als 42.`;
       
       const result = engine.run(rule);
       
@@ -137,7 +137,7 @@ geldig altijd
     test('should fail on invalid gelijkstelling pattern', () => {
       const rule = `Regel test
 geldig altijd
-    Het resultaat is 42.`;
+    Het resultaat van een berekening is 42.`;
       
       const result = engine.run(rule);
       
@@ -148,7 +148,7 @@ geldig altijd
     test('should fail on undefined variable in rule expression', () => {
       const rule = `Regel test
 geldig altijd
-    Het resultaat moet berekend worden als x + y.`;
+    Het resultaat van een berekening moet berekend worden als x plus y.`;
       
       const context = new Context();
       context.setVariable('x', { type: 'number', value: 5 });
@@ -165,15 +165,15 @@ geldig altijd
     test('should extract simple target names', () => {
       const testCases = [
         {
-          rule: `Regel test\ngeldig altijd\n    Het resultaat moet berekend worden als 1.`,
+          rule: `Regel test\ngeldig altijd\n    Het resultaat van een berekening moet berekend worden als 1.`,
           expectedTarget: 'resultaat'
         },
         {
-          rule: `Regel test\ngeldig altijd\n    De leeftijd moet berekend worden als 25.`,
+          rule: `Regel test\ngeldig altijd\n    De leeftijd van een persoon moet berekend worden als 25.`,
           expectedTarget: 'leeftijd'
         },
         {
-          rule: `Regel test\ngeldig altijd\n    Een aantal moet berekend worden als 10.`,
+          rule: `Regel test\ngeldig altijd\n    Het aantal van een groep moet berekend worden als 10.`,
           expectedTarget: 'aantal'
         }
       ];
