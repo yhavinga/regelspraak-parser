@@ -1,5 +1,5 @@
 import { IEvaluator, Value, RuntimeContext } from '../interfaces';
-import { Expression, NumberLiteral, BinaryExpression, VariableReference, FunctionCall } from '../ast/expressions';
+import { Expression, NumberLiteral, StringLiteral, BinaryExpression, VariableReference, FunctionCall } from '../ast/expressions';
 
 /**
  * Evaluator for expression nodes
@@ -14,6 +14,8 @@ export class ExpressionEvaluator implements IEvaluator {
     switch (expr.type) {
       case 'NumberLiteral':
         return this.evaluateNumberLiteral(expr as NumberLiteral);
+      case 'StringLiteral':
+        return this.evaluateStringLiteral(expr as StringLiteral);
       case 'BinaryExpression':
         return this.evaluateBinaryExpression(expr as BinaryExpression, context);
       case 'VariableReference':
@@ -28,6 +30,13 @@ export class ExpressionEvaluator implements IEvaluator {
   private evaluateNumberLiteral(expr: NumberLiteral): Value {
     return {
       type: 'number',
+      value: expr.value
+    };
+  }
+
+  private evaluateStringLiteral(expr: StringLiteral): Value {
+    return {
+      type: 'string',
       value: expr.value
     };
   }

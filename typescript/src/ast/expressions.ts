@@ -11,6 +11,11 @@ export interface NumberLiteral extends Expression {
   value: number;
 }
 
+export interface StringLiteral extends Expression {
+  type: 'StringLiteral';
+  value: string;
+}
+
 export interface BinaryExpression extends Expression {
   type: 'BinaryExpression';
   operator: '+' | '-' | '*' | '/';

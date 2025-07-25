@@ -4,6 +4,8 @@ import { ExpressionEvaluator } from '../evaluators/expression-evaluator';
 import { Expression, NumberLiteral, BinaryExpression, VariableReference, FunctionCall } from '../ast/expressions';
 import { RuleParser } from '../parsers/rule-parser';
 import { RuleExecutor } from '../executors/rule-executor';
+import { DecisionTableParser } from '../parsers/decision-table-parser';
+import { DecisionTableExecutor } from '../executors/decision-table-executor';
 
 /**
  * Main RegelSpraak engine
@@ -11,15 +13,23 @@ import { RuleExecutor } from '../executors/rule-executor';
 export class Engine implements IEngine {
   private expressionEvaluator = new ExpressionEvaluator();
   private ruleExecutor = new RuleExecutor();
+  private decisionTableExecutor = new DecisionTableExecutor();
 
   parse(source: string): ParseResult {
     const trimmed = source.trim();
     
     try {
-      // Check if this is a rule or just an expression
+      // Check if this is a rule, decision table, or just an expression
       if (trimmed.startsWith('Regel ')) {
         const ruleParser = new RuleParser(trimmed);
         const ast = ruleParser.parseRule();
+        return {
+          success: true,
+          ast
+        };
+      } else if (trimmed.startsWith('Beslistabel ')) {
+        const dtParser = new DecisionTableParser(trimmed);
+        const ast = dtParser.parseDecisionTable();
         return {
           success: true,
           ast
@@ -49,7 +59,7 @@ export class Engine implements IEngine {
     const ctx = context || new Context();
     
     try {
-      // Check if this is a rule or expression
+      // Check if this is a rule, decision table, or expression
       if (program.type === 'Rule') {
         const result = this.ruleExecutor.execute(program, ctx);
         if (result.success && result.value) {
@@ -61,6 +71,19 @@ export class Engine implements IEngine {
           return {
             success: false,
             error: result.error || new Error('Rule execution failed')
+          };
+        }
+      } else if (program.type === 'DecisionTable') {
+        const result = this.decisionTableExecutor.execute(program, ctx);
+        if (result.success && result.value) {
+          return {
+            success: true,
+            value: result.value
+          };
+        } else {
+          return {
+            success: false,
+            error: result.error || new Error('Decision table execution failed')
           };
         }
       } else {
