@@ -147,18 +147,24 @@ All initial phases completed with basic features. Performance shows 1000x+ impro
   - Function keywords must match exactly (no extra whitespace)
   - Operator precedence requires parentheses for complex arguments
 
-### ✅ Phase 9: Rule & Object Support - BASIC RULES COMPLETE
+### ✅ Phase 9: Rule & Object Support - RULES, OBJECTS, AND PARAMETERS COMPLETE ✓
 
 **Completed**:
 - ✅ **Rule parsing via ANTLR** 
   - visitRegel, visitRegelVersie, visitGelijkstellingResultaat
   - Gelijkstelling patterns (X moet berekend worden als Y)
   - Rule execution with proper target extraction
-  - Tests: 138/149 passing (92.6%)
+- ✅ **Object type definitions**
+  - visitObjectTypeDefinition with kenmerk and attribute parsing
+  - Fixed ANTLR4 TypeScript list accessor patterns (_list() methods)
+  - Support for units, dimensions, timelines, data types
+- ✅ **Parameter definitions**
+  - visitParameterDefinition with domain and data type support
+  - Proper space preservation in multi-word parameter names
+  - Unit specifications including complex units via eenheidExpressie
+  - Tests: 166/172 passing (96.5%)
 
 **Still TODO**:
-- Object type definitions (visitObjectTypeDefinition, kenmerk)
-- Parameter definitions with domains
 - Conditional rules (indien X dan Y)
 - Better error messages for invalid syntax
 

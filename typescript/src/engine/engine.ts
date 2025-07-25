@@ -34,6 +34,13 @@ export class Engine implements IEngine {
           success: true,
           ast
         };
+      } else if (trimmed.startsWith('Parameter ')) {
+        // Use ANTLR parser for parameters
+        const ast = this.antlrParser.parseParameter(trimmed);
+        return {
+          success: true,
+          ast
+        };
       } else if (trimmed.startsWith('Beslistabel ')) {
         const dtParser = new DecisionTableParser(trimmed);
         const ast = dtParser.parseDecisionTable();
@@ -86,6 +93,13 @@ export class Engine implements IEngine {
         return {
           success: true,
           value: { type: 'string', value: 'Object type registered' }
+        };
+      } else if (ast.type === 'ParameterDefinition') {
+        // For now, parameter definitions don't execute - they just register
+        // In a full implementation, this would register the parameter in the context
+        return {
+          success: true,
+          value: { type: 'string', value: 'Parameter registered' }
         };
       } else {
         // It's an expression

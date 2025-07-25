@@ -28,6 +28,7 @@ import {
 } from '../ast/expressions';
 import { Rule } from '../ast/rules';
 import { ObjectTypeDefinition, KenmerkSpecification, AttributeSpecification, DataType, DomainReference } from '../ast/object-types';
+import { ParameterDefinition } from '../ast/parameters';
 
 /**
  * Implementation of ANTLR4 visitor that builds our AST
@@ -580,7 +581,7 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
     // Get dimensions if specified
     const dimensions: string[] = [];
     if (ctx.GEDIMENSIONEERD_MET && ctx.GEDIMENSIONEERD_MET()) {
-      const dimensionRefs = ctx.dimensieRef ? ctx.dimensieRef() : [];
+      const dimensionRefs = ctx.dimensieRef_list ? ctx.dimensieRef_list() : [];
       for (const dimRef of dimensionRefs) {
         dimensions.push(this.extractText(dimRef));
       }
@@ -643,6 +644,100 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
       type: 'DomainReference',
       domain
     };
+  }
+
+  // Parameter parsing visitor methods
+  visitParameterDefinition(ctx: any): ParameterDefinition {
+    // Get parameter name phrase (with article)
+    const namePhrase = ctx.parameterNamePhrase();
+    
+    // Extract the full text with spaces preserved
+    let nameText = '';
+    if (namePhrase) {
+      // Get the text with spaces from the original input stream
+      const startToken = namePhrase.start;
+      const stopToken = namePhrase.stop;
+      
+      if (startToken && stopToken && startToken.source) {
+        // Access the input stream through the token's source
+        const inputStream = startToken.source[1]; // TokenSource tuple: [lexer, inputStream]
+        if (inputStream) {
+          const startIndex = startToken.start;
+          const stopIndex = stopToken.stop;
+          nameText = inputStream.getText(startIndex, stopIndex);
+        }
+      }
+      
+      if (!nameText) {
+        // Fallback to extractText
+        nameText = this.extractText(namePhrase);
+      }
+    }
+    
+    // Extract name without article
+    const name = this.extractParameterName(nameText);
+    
+    // Get data type or domain reference
+    let dataType: DataType | DomainReference;
+    const datatypeCtx = ctx.datatype();
+    if (datatypeCtx) {
+      dataType = this.visitDatatype(datatypeCtx);
+    } else {
+      const domainRefCtx = ctx.domeinRef();
+      dataType = this.visitDomeinRef(domainRefCtx);
+    }
+    
+    // Get unit if specified
+    let unit: string | undefined;
+    if (ctx.MET_EENHEID && ctx.MET_EENHEID()) {
+      // Use eenheidExpressie which supports complex units
+      const unitExpr = ctx.eenheidExpressie();
+      if (unitExpr) {
+        unit = this.extractText(unitExpr);
+      }
+    }
+    
+    // Check for timeline
+    const timeline = ctx.tijdlijn && ctx.tijdlijn() ? true : undefined;
+    
+    const result: ParameterDefinition = {
+      type: 'ParameterDefinition',
+      name,
+      dataType
+    };
+    
+    if (unit) {
+      result.unit = unit;
+    }
+    
+    if (timeline) {
+      result.timeline = timeline;
+    }
+    
+    return result;
+  }
+  
+  // Helper to extract parameter name from full reference with article
+  private extractParameterName(fullReference: string): string {
+    const trimmed = fullReference.trim();
+    
+    // First try to split by spaces
+    const words = trimmed.split(/\s+/);
+    
+    // If multiple words and first is an article, remove it
+    if (words.length > 1 && /^(de|het)$/i.test(words[0])) {
+      return words.slice(1).join(' ').toLowerCase();
+    }
+    
+    // Check if article is concatenated with the name (no space)
+    const concatenatedMatch = trimmed.match(/^(de|het)(.+)$/i);
+    if (concatenatedMatch && concatenatedMatch[2]) {
+      // Extract the part after the article and convert first letter to lowercase
+      const nameWithoutArticle = concatenatedMatch[2];
+      return nameWithoutArticle.charAt(0).toLowerCase() + nameWithoutArticle.slice(1);
+    }
+    
+    return trimmed.toLowerCase();
   }
 
   // Default visitor - fall back to visitChildren

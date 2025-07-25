@@ -134,7 +134,7 @@ describe('Engine - Object Type Definitions', () => {
       // However, attribuutSpecificatie uses a simplified unit form (single IDENTIFIER)
       // For now, test with simple unit until we update the grammar
       const source = `Objecttype auto
-  snelheid Numeriek (getal) met eenheid meter;`;
+  snelheid Numeriek (getal) met eenheid km;`;
       
       const result = engine.parse(source);
       
@@ -143,7 +143,7 @@ describe('Engine - Object Type Definitions', () => {
         type: 'AttributeSpecification',
         name: 'snelheid',
         dataType: { type: 'Numeriek', specification: 'getal' },
-        unit: 'meter'
+        unit: 'km'
       });
     });
 
