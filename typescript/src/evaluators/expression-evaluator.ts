@@ -1,5 +1,6 @@
 import { IEvaluator, Value, RuntimeContext } from '../interfaces';
-import { Expression, NumberLiteral, StringLiteral, BinaryExpression, VariableReference, FunctionCall } from '../ast/expressions';
+import { Expression, NumberLiteral, StringLiteral, BinaryExpression, VariableReference, FunctionCall, AggregationExpression } from '../ast/expressions';
+import { AggregationEngine } from './aggregation-engine';
 
 /**
  * Evaluator for expression nodes
@@ -9,6 +10,11 @@ export class ExpressionEvaluator implements IEvaluator {
     'sqrt': this.sqrt.bind(this),
     'abs': this.abs.bind(this)
   };
+  private aggregationEngine: AggregationEngine;
+
+  constructor() {
+    this.aggregationEngine = new AggregationEngine(this);
+  }
 
   evaluate(expr: Expression, context: RuntimeContext): Value {
     switch (expr.type) {
@@ -22,6 +28,8 @@ export class ExpressionEvaluator implements IEvaluator {
         return this.evaluateVariableReference(expr as VariableReference, context);
       case 'FunctionCall':
         return this.evaluateFunctionCall(expr as FunctionCall, context);
+      case 'AggregationExpression':
+        return this.aggregationEngine.evaluate(expr as AggregationExpression, context);
       default:
         throw new Error(`Unknown expression type: ${expr.type}`);
     }

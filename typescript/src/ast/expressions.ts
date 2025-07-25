@@ -33,3 +33,14 @@ export interface FunctionCall extends Expression {
   functionName: string;
   arguments: Expression[];
 }
+
+export interface AggregationExpression extends Expression {
+  type: 'AggregationExpression';
+  aggregationType: 'som' | 'aantal' | 'maximum' | 'minimum' | 'eerste' | 'laatste';
+  target: Expression | Expression[];
+  dimensionRange?: {
+    dimension: string;
+    from: string;
+    to: string;
+  };
+}
