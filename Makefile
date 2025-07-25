@@ -5,6 +5,7 @@ PYTHON = python
 PROJECT_ROOT = $(shell git rev-parse --show-toplevel)
 ANTLR4 = java -jar $(PROJECT_ROOT)/lib/antlr-4.13.1-complete.jar
 PARSER_OUT_DIR = src/regelspraak/_antlr
+TS_PARSER_OUT_DIR = typescript/src/generated/antlr
 GRAMMAR_DIR = grammar
 TEST_DIR = tests
 
@@ -27,6 +28,21 @@ parser:
 	          RegelSpraakLexer.g4 RegelSpraak.g4 && \
 	cd ..
 	@echo "Parser generation complete."
+
+# Target to generate TypeScript parser files
+.PHONY: parser-ts
+parser-ts:
+	@echo "Cleaning existing TypeScript parser files..."
+	@rm -rf $(TS_PARSER_OUT_DIR)
+	@echo "Generating ANTLR TypeScript parser files..."
+	@mkdir -p $(TS_PARSER_OUT_DIR)
+	@cd $(GRAMMAR_DIR) && \
+	$(ANTLR4) -Dlanguage=TypeScript \
+	          -visitor -listener \
+	          -o ../$(TS_PARSER_OUT_DIR) \
+	          RegelSpraakLexer.g4 RegelSpraak.g4 && \
+	cd ..
+	@echo "TypeScript parser generation complete."
 
 # Target to run unit tests
 .PHONY: test
