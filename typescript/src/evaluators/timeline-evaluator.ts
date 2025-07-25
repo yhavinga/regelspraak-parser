@@ -64,12 +64,12 @@ export class TimelineEvaluator {
   evaluateTimelineBinaryOp(
     leftTimeline: Timeline,
     rightTimeline: Timeline,
-    operator: '+' | '-' | '*' | '/' | '==' | '!=' | '>' | '<' | '>=' | '<=',
+    operator: '+' | '-' | '*' | '/' | '==' | '!=' | '>' | '<' | '>=' | '<=' | '&&' | '||',
     context: RuntimeContext
   ): TimelineValue {
     // Check if operator is valid for timeline operations
-    if (['==', '!=', '>', '<', '>=', '<='].includes(operator)) {
-      throw new Error(`Comparison operator ${operator} not supported for timeline operations`);
+    if (['==', '!=', '>', '<', '>=', '<=', '&&', '||'].includes(operator)) {
+      throw new Error(`Operator ${operator} not supported for timeline operations`);
     }
     // Get all knips from both timelines
     const knips = this.mergeKnips(leftTimeline, rightTimeline);

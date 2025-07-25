@@ -13,13 +13,16 @@ import RegelSpraakParser, {
   NumberLiteralExprContext,
   IdentifierExprContext,
   ParenExprContext,
-  IdentifierContext
+  IdentifierContext,
+  UnaryNietExprContext,
+  UnaryMinusExprContext
 } from '../generated/antlr/RegelSpraakParser';
 import { 
   Expression, 
   NumberLiteral, 
   StringLiteral, 
   BinaryExpression,
+  UnaryExpression,
   VariableReference,
   FunctionCall 
 } from '../ast/expressions';
@@ -51,13 +54,35 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
   }
 
   visitLogicalExpr(ctx: LogicalExprContext): Expression {
-    // For now, just pass through to comparison
-    const comparisonExpr = ctx.comparisonExpression();
-    if (ctx.logicalExpression()) {
-      // Has logical operator, not supported yet
-      throw new Error('Logical operators not yet supported');
+    // Get the left comparison expression
+    const left = this.visit(ctx.comparisonExpression());
+    
+    // Check if there's a logical operator
+    const logicalExpr = ctx.logicalExpression();
+    if (!logicalExpr) {
+      // No logical operator, just return the comparison expression
+      return left;
     }
-    return this.visit(comparisonExpr);
+    
+    // Get the right logical expression
+    const right = this.visit(logicalExpr);
+    
+    // Get the logical operator (EN or OF)
+    const opToken = ctx.EN() || ctx.OF();
+    if (!opToken) {
+      throw new Error('Expected logical operator EN or OF');
+    }
+    
+    // Map Dutch operators to standard operators
+    const opText = opToken.getText();
+    const operator = opText.toLowerCase() === 'en' ? '&&' : '||';
+    
+    return {
+      type: 'BinaryExpression',
+      operator: operator as any,
+      left,
+      right
+    } as BinaryExpression;
   }
 
   visitBinaryComparisonExpr(ctx: BinaryComparisonExprContext): Expression {
@@ -226,6 +251,28 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
       type: 'VariableReference',
       variableName: text
     } as VariableReference;
+  }
+
+  visitUnaryNietExpr(ctx: UnaryNietExprContext): Expression {
+    // Get the operand expression
+    const operand = this.visit(ctx.primaryExpression());
+    
+    return {
+      type: 'UnaryExpression',
+      operator: '!',
+      operand
+    } as UnaryExpression;
+  }
+
+  visitUnaryMinusExpr(ctx: UnaryMinusExprContext): Expression {
+    // Get the operand expression
+    const operand = this.visit(ctx.primaryExpression());
+    
+    return {
+      type: 'UnaryExpression',
+      operator: '-',
+      operand
+    } as UnaryExpression;
   }
 
   // Default visitor - fall back to visitChildren

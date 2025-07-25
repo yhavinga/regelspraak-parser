@@ -1,5 +1,5 @@
 import { IEvaluator, Value, RuntimeContext } from '../interfaces';
-import { Expression, NumberLiteral, StringLiteral, BinaryExpression, VariableReference, FunctionCall, AggregationExpression } from '../ast/expressions';
+import { Expression, NumberLiteral, StringLiteral, BinaryExpression, UnaryExpression, VariableReference, FunctionCall, AggregationExpression } from '../ast/expressions';
 import { AggregationEngine } from './aggregation-engine';
 import { TimelineEvaluator } from './timeline-evaluator';
 import { TimelineExpression, TimelineValue } from '../ast/timelines';
@@ -28,6 +28,8 @@ export class ExpressionEvaluator implements IEvaluator {
         return this.evaluateStringLiteral(expr as StringLiteral);
       case 'BinaryExpression':
         return this.evaluateBinaryExpression(expr as BinaryExpression, context);
+      case 'UnaryExpression':
+        return this.evaluateUnaryExpression(expr as UnaryExpression, context);
       case 'VariableReference':
         return this.evaluateVariableReference(expr as VariableReference, context);
       case 'FunctionCall':
@@ -56,6 +58,11 @@ export class ExpressionEvaluator implements IEvaluator {
   }
 
   private evaluateBinaryExpression(expr: BinaryExpression, context: RuntimeContext): Value {
+    // Check if this is a logical operator
+    if (expr.operator === '&&' || expr.operator === '||') {
+      return this.evaluateLogicalExpression(expr, context);
+    }
+
     const left = this.evaluate(expr.left, context);
     const right = this.evaluate(expr.right, context);
 
@@ -142,6 +149,100 @@ export class ExpressionEvaluator implements IEvaluator {
       type: 'boolean',
       value: result
     };
+  }
+
+  private evaluateLogicalExpression(expr: BinaryExpression, context: RuntimeContext): Value {
+    // For && operator, implement short-circuit evaluation
+    if (expr.operator === '&&') {
+      const left = this.evaluate(expr.left, context);
+      
+      // Type check - must be boolean
+      if (left.type !== 'boolean') {
+        throw new Error(`Left operand of && must be boolean, got ${left.type}`);
+      }
+      
+      // Short-circuit: if left is false, don't evaluate right
+      if (!(left.value as boolean)) {
+        return {
+          type: 'boolean',
+          value: false
+        };
+      }
+      
+      // Left is true, evaluate right
+      const right = this.evaluate(expr.right, context);
+      
+      if (right.type !== 'boolean') {
+        throw new Error(`Right operand of && must be boolean, got ${right.type}`);
+      }
+      
+      return {
+        type: 'boolean',
+        value: right.value as boolean
+      };
+    } 
+    // For || operator, implement short-circuit evaluation
+    else if (expr.operator === '||') {
+      const left = this.evaluate(expr.left, context);
+      
+      // Type check - must be boolean
+      if (left.type !== 'boolean') {
+        throw new Error(`Left operand of || must be boolean, got ${left.type}`);
+      }
+      
+      // Short-circuit: if left is true, don't evaluate right
+      if (left.value as boolean) {
+        return {
+          type: 'boolean',
+          value: true
+        };
+      }
+      
+      // Left is false, evaluate right
+      const right = this.evaluate(expr.right, context);
+      
+      if (right.type !== 'boolean') {
+        throw new Error(`Right operand of || must be boolean, got ${right.type}`);
+      }
+      
+      return {
+        type: 'boolean',
+        value: right.value as boolean
+      };
+    } else {
+      throw new Error(`Unknown logical operator: ${expr.operator}`);
+    }
+  }
+
+  private evaluateUnaryExpression(expr: UnaryExpression, context: RuntimeContext): Value {
+    // Evaluate the operand
+    const operand = this.evaluate(expr.operand, context);
+    
+    switch (expr.operator) {
+      case '-':
+        // Unary minus - operand must be a number
+        if (operand.type !== 'number') {
+          throw new Error(`Cannot apply unary minus to ${operand.type}`);
+        }
+        return {
+          type: 'number',
+          value: -(operand.value as number),
+          unit: operand.unit
+        };
+        
+      case '!':
+        // Logical NOT - operand must be boolean
+        if (operand.type !== 'boolean') {
+          throw new Error(`Cannot apply logical NOT to ${operand.type}`);
+        }
+        return {
+          type: 'boolean',
+          value: !(operand.value as boolean)
+        };
+        
+      default:
+        throw new Error(`Unknown unary operator: ${expr.operator}`);
+    }
   }
 
   private evaluateTimelineBinaryExpression(

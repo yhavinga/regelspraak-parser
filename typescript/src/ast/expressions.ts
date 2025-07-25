@@ -18,7 +18,7 @@ export interface StringLiteral extends Expression {
 
 export interface BinaryExpression extends Expression {
   type: 'BinaryExpression';
-  operator: '+' | '-' | '*' | '/' | '==' | '!=' | '>' | '<' | '>=' | '<=';
+  operator: '+' | '-' | '*' | '/' | '==' | '!=' | '>' | '<' | '>=' | '<=' | '&&' | '||';
   left: Expression;
   right: Expression;
 }
@@ -32,6 +32,12 @@ export interface FunctionCall extends Expression {
   type: 'FunctionCall';
   functionName: string;
   arguments: Expression[];
+}
+
+export interface UnaryExpression extends Expression {
+  type: 'UnaryExpression';
+  operator: '-' | '!';
+  operand: Expression;
 }
 
 export interface AggregationExpression extends Expression {
