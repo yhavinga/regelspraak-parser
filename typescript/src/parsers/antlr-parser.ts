@@ -5,6 +5,7 @@ import { RegelSpraakVisitorImpl } from '../visitors/regelspraak-visitor-impl';
 import { Expression } from '../ast/expressions';
 import { Rule } from '../ast/rules';
 import { DecisionTable } from '../ast/decision-tables';
+import { ObjectTypeDefinition } from '../ast/object-types';
 
 /**
  * Custom error listener to capture parse errors
@@ -118,6 +119,40 @@ export class AntlrParser {
            error.message.includes('Expected gelijkstelling pattern'))) {
         throw error;
       }
+      throw new Error(`Parse error: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  }
+
+  /**
+   * Parse an object type definition
+   */
+  parseObjectType(source: string): ObjectTypeDefinition {
+    try {
+      const chars = new CharStream(source);
+      const lexer = new RegelSpraakLexer(chars);
+      const tokens = new CommonTokenStream(lexer);
+      const parser = new RegelSpraakParser(tokens);
+      
+      // Set up custom error listener
+      const errorListener = new CustomErrorListener();
+      parser.removeErrorListeners();
+      parser.addErrorListener(errorListener);
+      
+      // Parse an objectTypeDefinition
+      const tree = parser.objectTypeDefinition();
+      
+      // Check for parse errors
+      const errors = errorListener.getErrors();
+      if (errors.length > 0) {
+        throw new Error(errors[0]);
+      }
+      
+      if (!tree) {
+        throw new Error('Failed to parse object type: parser returned null');
+      }
+      
+      return this.visitor.visit(tree);
+    } catch (error) {
       throw new Error(`Parse error: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
   }

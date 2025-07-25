@@ -27,6 +27,7 @@ import {
   FunctionCall 
 } from '../ast/expressions';
 import { Rule } from '../ast/rules';
+import { ObjectTypeDefinition, KenmerkSpecification, AttributeSpecification, DataType, DomainReference } from '../ast/object-types';
 
 /**
  * Implementation of ANTLR4 visitor that builds our AST
@@ -460,6 +461,166 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
     }
     
     return '';
+  }
+
+  // Object type definition visitor methods
+  visitObjectTypeDefinition(ctx: any): ObjectTypeDefinition {
+    // Get the name (naamwoordNoIs)
+    const nameCtx = ctx.naamwoordNoIs();
+    const name = this.extractText(nameCtx).trim();
+    
+    
+    // Check for plural form (in parentheses)
+    const plural: string[] = [];
+    if (ctx.MV_START()) {
+      // The grammar uses plural+=IDENTIFIER+ which creates a list
+      // In ANTLR4 TypeScript, this is accessed via ctx._plural
+      const pluralList = ctx._plural || [];
+      for (const identifier of pluralList) {
+        // In ANTLR4 TypeScript, tokens are TerminalNode objects
+        plural.push(identifier.text || identifier.getText());
+      }
+    }
+    
+    // Check if animated (bezield)
+    const animated = !!ctx.BEZIELD();
+    
+    // Get all members
+    const members = [];
+    const memberCtxs = ctx.objectTypeMember() || [];
+    for (const memberCtx of memberCtxs) {
+      members.push(this.visit(memberCtx));
+    }
+    
+    return {
+      type: 'ObjectTypeDefinition',
+      name,
+      plural: plural.length > 0 ? plural : undefined,
+      animated,
+      members
+    };
+  }
+
+  visitObjectTypeMember(ctx: any): KenmerkSpecification | AttributeSpecification {
+    // Check if it has kenmerkSpecificatie or attribuutSpecificatie
+    const kenmerkCtx = ctx.kenmerkSpecificatie();
+    if (kenmerkCtx) {
+      return this.visit(kenmerkCtx);
+    }
+    
+    const attribuutCtx = ctx.attribuutSpecificatie();
+    if (attribuutCtx) {
+      return this.visit(attribuutCtx);
+    }
+    
+    throw new Error('Expected kenmerk or attribuut specification');
+  }
+
+  visitKenmerkSpecificatie(ctx: any): KenmerkSpecification {
+    // Get the name - can be identifier or naamwoord
+    let name: string;
+    if (ctx.identifier()) {
+      name = ctx.identifier().getText();
+    } else {
+      const naamwoordCtx = ctx.naamwoord();
+      name = this.extractText(naamwoordCtx);
+    }
+    
+    // Check for type (bijvoeglijk or bezittelijk)
+    let kenmerkType: 'bijvoeglijk' | 'bezittelijk' | undefined;
+    if (ctx.BIJVOEGLIJK()) {
+      kenmerkType = 'bijvoeglijk';
+    } else if (ctx.BEZITTELIJK()) {
+      kenmerkType = 'bezittelijk';
+    }
+    
+    return {
+      type: 'KenmerkSpecification',
+      name,
+      kenmerkType
+    };
+  }
+
+  visitAttribuutSpecificatie(ctx: any): AttributeSpecification {
+    // Get the name
+    const nameCtx = ctx.naamwoord();
+    const name = this.extractText(nameCtx);
+    
+    // Get data type or domain reference
+    let dataType: DataType | DomainReference;
+    const datatypeCtx = ctx.datatype();
+    if (datatypeCtx) {
+      dataType = this.visitDatatype(datatypeCtx);
+    } else {
+      const domainRefCtx = ctx.domeinRef();
+      dataType = this.visitDomeinRef(domainRefCtx);
+    }
+    
+    // Get unit if specified
+    let unit: string | undefined;
+    if (ctx.MET_EENHEID()) {
+      if (ctx.unitName) {
+        unit = ctx.unitName.getText();
+      } else if (ctx.PERCENT_SIGN()) {
+        unit = '%';
+      } else if (ctx.EURO_SYMBOL()) {
+        unit = '€';
+      } else if (ctx.DOLLAR_SYMBOL()) {
+        unit = '$';
+      }
+    }
+    
+    // Get dimensions if specified
+    const dimensions: string[] = [];
+    if (ctx.GEDIMENSIONEERD_MET()) {
+      const dimensionRefs = ctx.dimensieRef() || [];
+      for (const dimRef of dimensionRefs) {
+        dimensions.push(this.extractText(dimRef));
+      }
+    }
+    
+    // Check for timeline
+    const timeline = !!ctx.tijdlijn();
+    
+    return {
+      type: 'AttributeSpecification',
+      name,
+      dataType,
+      unit,
+      dimensions: dimensions.length > 0 ? dimensions : undefined,
+      timeline: timeline || undefined
+    };
+  }
+
+  visitDatatype(ctx: any): DataType {
+    const text = this.extractText(ctx).toLowerCase();
+    
+    switch (text) {
+      case 'tekst':
+        return { type: 'tekst' };
+      case 'geheel getal':
+        return { type: 'geheel getal' };
+      case 'getal':
+        return { type: 'getal' };
+      case 'bedrag':
+        return { type: 'bedrag' };
+      case 'datum':
+        return { type: 'datum' };
+      case 'percentage':
+        return { type: 'percentage' };
+      case 'waarheidswaarde':
+        return { type: 'waarheidswaarde' };
+      default:
+        throw new Error(`Unknown data type: ${text}`);
+    }
+  }
+
+  visitDomeinRef(ctx: any): DomainReference {
+    const domain = this.extractText(ctx);
+    return {
+      type: 'DomainReference',
+      domain
+    };
   }
 
   // Default visitor - fall back to visitChildren

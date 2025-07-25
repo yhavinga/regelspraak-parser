@@ -183,9 +183,9 @@ VOORWAARDE: 'voorwaarde';
 VOORWAARDEN: 'voorwaarden';
 
 // GegevensSpraak Detail Keywords
-BEZIELD: '(bezield)';
 BEZITTELIJK: '(bezittelijk)';
 BIJVOEGLIJK: '(bijvoeglijk)';
+BEZIELD: 'bezield';
 BOOLEAN: 'Boolean';
 CIJFERS: 'cijfers';
 DATUM_IN_DAGEN: 'Datum in dagen';

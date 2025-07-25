@@ -19,10 +19,17 @@ export class Engine implements IEngine {
     const trimmed = source.trim();
     
     try {
-      // Check if this is a rule, decision table, or just an expression
+      // Check if this is a rule, object type, decision table, or just an expression
       if (trimmed.startsWith('Regel ')) {
         // Use ANTLR parser for rules
         const ast = this.antlrParser.parseRule(trimmed);
+        return {
+          success: true,
+          ast
+        };
+      } else if (trimmed.startsWith('Objecttype ') || trimmed.startsWith('objecttype ')) {
+        // Use ANTLR parser for object types
+        const ast = this.antlrParser.parseObjectType(trimmed);
         return {
           success: true,
           ast
@@ -73,6 +80,13 @@ export class Engine implements IEngine {
         }
       } else if (ast.type === 'DecisionTable') {
         return this.decisionTableExecutor.execute(ast, context);
+      } else if (ast.type === 'ObjectTypeDefinition') {
+        // For now, object type definitions don't execute - they just register
+        // In a full implementation, this would register the type in the context
+        return {
+          success: true,
+          value: { type: 'string', value: 'Object type registered' }
+        };
       } else {
         // It's an expression
         const value = this.expressionEvaluator.evaluate(ast, context);
