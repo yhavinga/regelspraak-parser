@@ -485,9 +485,10 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
     // Check if animated (bezield)
     const animated = !!ctx.BEZIELD();
     
-    // Get all members
+    // Get all members using the _list() method
     const members = [];
-    const memberCtxs = ctx.objectTypeMember() || [];
+    const memberCtxs = ctx.objectTypeMember_list();
+    
     for (const memberCtx of memberCtxs) {
       members.push(this.visit(memberCtx));
     }
@@ -528,17 +529,22 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
     
     // Check for type (bijvoeglijk or bezittelijk)
     let kenmerkType: 'bijvoeglijk' | 'bezittelijk' | undefined;
-    if (ctx.BIJVOEGLIJK()) {
+    if (ctx.BIJVOEGLIJK && ctx.BIJVOEGLIJK()) {
       kenmerkType = 'bijvoeglijk';
-    } else if (ctx.BEZITTELIJK()) {
+    } else if (ctx.BEZITTELIJK && ctx.BEZITTELIJK()) {
       kenmerkType = 'bezittelijk';
     }
     
-    return {
+    const result: KenmerkSpecification = {
       type: 'KenmerkSpecification',
-      name,
-      kenmerkType
+      name
     };
+    
+    if (kenmerkType) {
+      result.kenmerkType = kenmerkType;
+    }
+    
+    return result;
   }
 
   visitAttribuutSpecificatie(ctx: any): AttributeSpecification {
@@ -558,29 +564,30 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
     
     // Get unit if specified
     let unit: string | undefined;
-    if (ctx.MET_EENHEID()) {
-      if (ctx.unitName) {
-        unit = ctx.unitName.getText();
-      } else if (ctx.PERCENT_SIGN()) {
+    if (ctx.MET_EENHEID && ctx.MET_EENHEID()) {
+      // Check for named unit (ctx._unitName is the captured IDENTIFIER)
+      if (ctx._unitName) {
+        unit = ctx._unitName.text || ctx._unitName.getText();
+      } else if (ctx.PERCENT_SIGN && ctx.PERCENT_SIGN()) {
         unit = '%';
-      } else if (ctx.EURO_SYMBOL()) {
+      } else if (ctx.EURO_SYMBOL && ctx.EURO_SYMBOL()) {
         unit = '€';
-      } else if (ctx.DOLLAR_SYMBOL()) {
+      } else if (ctx.DOLLAR_SYMBOL && ctx.DOLLAR_SYMBOL()) {
         unit = '$';
       }
     }
     
     // Get dimensions if specified
     const dimensions: string[] = [];
-    if (ctx.GEDIMENSIONEERD_MET()) {
-      const dimensionRefs = ctx.dimensieRef() || [];
+    if (ctx.GEDIMENSIONEERD_MET && ctx.GEDIMENSIONEERD_MET()) {
+      const dimensionRefs = ctx.dimensieRef ? ctx.dimensieRef() : [];
       for (const dimRef of dimensionRefs) {
         dimensions.push(this.extractText(dimRef));
       }
     }
     
     // Check for timeline
-    const timeline = !!ctx.tijdlijn();
+    const timeline = ctx.tijdlijn && ctx.tijdlijn() ? true : undefined;
     
     return {
       type: 'AttributeSpecification',
@@ -593,26 +600,41 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
   }
 
   visitDatatype(ctx: any): DataType {
-    const text = this.extractText(ctx).toLowerCase();
-    
-    switch (text) {
-      case 'tekst':
-        return { type: 'tekst' };
-      case 'geheel getal':
-        return { type: 'geheel getal' };
-      case 'getal':
-        return { type: 'getal' };
-      case 'bedrag':
-        return { type: 'bedrag' };
-      case 'datum':
-        return { type: 'datum' };
-      case 'percentage':
-        return { type: 'percentage' };
-      case 'waarheidswaarde':
-        return { type: 'waarheidswaarde' };
-      default:
-        throw new Error(`Unknown data type: ${text}`);
+    // Check which specific datatype it is
+    if (ctx.tekstDatatype && ctx.tekstDatatype()) {
+      return { type: 'Tekst' };
+    } else if (ctx.numeriekDatatype && ctx.numeriekDatatype()) {
+      return this.visitNumeriekDatatype(ctx.numeriekDatatype());
+    } else if (ctx.booleanDatatype && ctx.booleanDatatype()) {
+      return { type: 'Boolean' };
+    } else if (ctx.datumTijdDatatype && ctx.datumTijdDatatype()) {
+      return this.visitDatumTijdDatatype(ctx.datumTijdDatatype());
     }
+    
+    // Try to determine from text as fallback
+    const text = this.extractText(ctx);
+    throw new Error(`Unknown data type: ${text}`);
+  }
+  
+  visitNumeriekDatatype(ctx: any): DataType {
+    // numeriekDatatype : NUMERIEK ( LPAREN getalSpecificatie RPAREN )?
+    const result: DataType = { type: 'Numeriek' };
+    
+    if (ctx.getalSpecificatie && ctx.getalSpecificatie()) {
+      const spec = this.extractText(ctx.getalSpecificatie());
+      result.specification = spec;
+    }
+    
+    return result;
+  }
+  
+  visitDatumTijdDatatype(ctx: any): DataType {
+    // Check if it's DATUM or DATUM_TIJD
+    const text = this.extractText(ctx);
+    if (text.toLowerCase().includes('tijd')) {
+      return { type: 'DatumTijd' };
+    }
+    return { type: 'Datum' };
   }
 
   visitDomeinRef(ctx: any): DomainReference {

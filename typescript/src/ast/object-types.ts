@@ -28,13 +28,11 @@ export interface AttributeSpecification {
 }
 
 export type DataType = 
-  | { type: 'tekst' }
-  | { type: 'geheel getal' }
-  | { type: 'getal' }
-  | { type: 'bedrag' }
-  | { type: 'datum' }
-  | { type: 'percentage' }
-  | { type: 'waarheidswaarde' };
+  | { type: 'Tekst' }
+  | { type: 'Numeriek'; specification?: string }
+  | { type: 'Boolean' }
+  | { type: 'Datum' }
+  | { type: 'DatumTijd' };
 
 export interface DomainReference {
   type: 'DomainReference';

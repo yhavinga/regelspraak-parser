@@ -11,8 +11,8 @@ import {
 	Token, TokenStream,
 	Interval, IntervalSet
 } from 'antlr4';
-import RegelSpraakListener from "./RegelSpraakListener";
-import RegelSpraakVisitor from "./RegelSpraakVisitor";
+import RegelSpraakListener from "./RegelSpraakListener.js";
+import RegelSpraakVisitor from "./RegelSpraakVisitor.js";
 
 // for running tests with parameters, TODO: discuss strategy for typed parameters in CI
 // eslint-disable-next-line no-unused-vars
@@ -175,9 +175,9 @@ export default class RegelSpraakParser extends Parser {
 	public static readonly PRECIES = 154;
 	public static readonly VOORWAARDE = 155;
 	public static readonly VOORWAARDEN = 156;
-	public static readonly BEZIELD = 157;
-	public static readonly BEZITTELIJK = 158;
-	public static readonly BIJVOEGLIJK = 159;
+	public static readonly BEZITTELIJK = 157;
+	public static readonly BIJVOEGLIJK = 158;
+	public static readonly BEZIELD = 159;
 	public static readonly BOOLEAN = 160;
 	public static readonly CIJFERS = 161;
 	public static readonly DATUM_IN_DAGEN = 162;
@@ -589,9 +589,9 @@ export default class RegelSpraakParser extends Parser {
                                                             "'precies'", 
                                                             "'voorwaarde'", 
                                                             "'voorwaarden'", 
-                                                            "'(bezield)'", 
                                                             "'(bezittelijk)'", 
                                                             "'(bijvoeglijk)'", 
+                                                            "'bezield'", 
                                                             "'Boolean'", 
                                                             "'cijfers'", 
                                                             "'Datum in dagen'", 
@@ -809,9 +809,9 @@ export default class RegelSpraakParser extends Parser {
                                                              "PRECIES", 
                                                              "VOORWAARDE", 
                                                              "VOORWAARDEN", 
-                                                             "BEZIELD", 
                                                              "BEZITTELIJK", 
                                                              "BIJVOEGLIJK", 
+                                                             "BEZIELD", 
                                                              "BOOLEAN", 
                                                              "CIJFERS", 
                                                              "DATUM_IN_DAGEN", 
@@ -2360,7 +2360,7 @@ export default class RegelSpraakParser extends Parser {
 			this.state = 539;
 			this._errHandler.sync(this);
 			_la = this._input.LA(1);
-			if (_la===157) {
+			if (_la===159) {
 				{
 				this.state = 538;
 				this.match(RegelSpraakParser.BEZIELD);
@@ -2479,11 +2479,11 @@ export default class RegelSpraakParser extends Parser {
 			this.state = 562;
 			this._errHandler.sync(this);
 			_la = this._input.LA(1);
-			if (_la===158 || _la===159) {
+			if (_la===157 || _la===158) {
 				{
 				this.state = 561;
 				_la = this._input.LA(1);
-				if(!(_la===158 || _la===159)) {
+				if(!(_la===157 || _la===158)) {
 				this._errHandler.recoverInline(this);
 				}
 				else {
@@ -10148,7 +10148,7 @@ export default class RegelSpraakParser extends Parser {
 	224,240,240,253,253,11,0,95,95,109,109,119,119,127,127,155,155,184,184,
 	203,204,215,217,224,224,240,240,253,253,4,0,116,116,206,206,209,209,211,
 	211,9,0,140,140,170,170,202,202,210,210,214,214,222,223,230,230,232,232,
-	236,236,1,0,158,159,2,0,3,3,162,162,2,0,173,174,177,177,9,0,132,132,203,
+	236,236,1,0,157,158,2,0,3,3,162,162,2,0,173,174,177,177,9,0,132,132,203,
 	204,215,215,217,217,219,219,228,228,231,231,238,238,240,253,1,0,181,183,
 	2,0,206,206,211,211,2,0,184,184,253,253,5,0,27,27,94,95,97,99,101,105,267,
 	267,2,0,142,142,229,229,2,0,109,109,112,112,3,0,206,206,209,209,211,211,
@@ -10264,7 +10264,7 @@ export default class RegelSpraakParser extends Parser {
 	0,524,35,1,0,0,0,525,526,5,253,0,0,526,37,1,0,0,0,527,528,5,98,0,0,528,
 	536,3,30,15,0,529,531,5,172,0,0,530,532,5,253,0,0,531,530,1,0,0,0,532,533,
 	1,0,0,0,533,531,1,0,0,0,533,534,1,0,0,0,534,535,1,0,0,0,535,537,5,261,0,
-	0,536,529,1,0,0,0,536,537,1,0,0,0,537,539,1,0,0,0,538,540,5,157,0,0,539,
+	0,536,529,1,0,0,0,536,537,1,0,0,0,537,539,1,0,0,0,538,540,5,159,0,0,539,
 	538,1,0,0,0,539,540,1,0,0,0,540,544,1,0,0,0,541,543,3,40,20,0,542,541,1,
 	0,0,0,543,546,1,0,0,0,544,542,1,0,0,0,544,545,1,0,0,0,545,39,1,0,0,0,546,
 	544,1,0,0,0,547,550,3,42,21,0,548,550,3,44,22,0,549,547,1,0,0,0,549,548,
