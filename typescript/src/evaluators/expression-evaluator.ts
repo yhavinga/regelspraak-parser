@@ -1,10 +1,15 @@
 import { IEvaluator, Value, RuntimeContext } from '../interfaces';
-import { Expression, NumberLiteral, BinaryExpression, VariableReference } from '../ast/expressions';
+import { Expression, NumberLiteral, BinaryExpression, VariableReference, FunctionCall } from '../ast/expressions';
 
 /**
  * Evaluator for expression nodes
  */
 export class ExpressionEvaluator implements IEvaluator {
+  private builtInFunctions: Record<string, (args: Value[]) => Value> = {
+    'sqrt': this.sqrt.bind(this),
+    'abs': this.abs.bind(this)
+  };
+
   evaluate(expr: Expression, context: RuntimeContext): Value {
     switch (expr.type) {
       case 'NumberLiteral':
@@ -13,6 +18,8 @@ export class ExpressionEvaluator implements IEvaluator {
         return this.evaluateBinaryExpression(expr as BinaryExpression, context);
       case 'VariableReference':
         return this.evaluateVariableReference(expr as VariableReference, context);
+      case 'FunctionCall':
+        return this.evaluateFunctionCall(expr as FunctionCall, context);
       default:
         throw new Error(`Unknown expression type: ${expr.type}`);
     }
@@ -70,5 +77,57 @@ export class ExpressionEvaluator implements IEvaluator {
       throw new Error(`Undefined variable: ${expr.variableName}`);
     }
     return value;
+  }
+
+  private evaluateFunctionCall(expr: FunctionCall, context: RuntimeContext): Value {
+    // Evaluate all arguments first
+    const evaluatedArgs = expr.arguments.map(arg => this.evaluate(arg, context));
+    
+    // Check if it's a built-in function
+    const builtInFunc = this.builtInFunctions[expr.functionName];
+    if (builtInFunc) {
+      return builtInFunc(evaluatedArgs);
+    }
+    
+    // Unknown function
+    throw new Error(`Unknown function: ${expr.functionName}`);
+  }
+
+  // Built-in function implementations
+  private sqrt(args: Value[]): Value {
+    if (args.length !== 1) {
+      throw new Error('sqrt expects exactly 1 argument');
+    }
+    
+    const arg = args[0];
+    if (arg.type !== 'number') {
+      throw new Error('sqrt expects a number argument');
+    }
+    
+    const value = arg.value as number;
+    if (value < 0) {
+      throw new Error('sqrt of negative number');
+    }
+    
+    return {
+      type: 'number',
+      value: Math.sqrt(value)
+    };
+  }
+
+  private abs(args: Value[]): Value {
+    if (args.length !== 1) {
+      throw new Error('abs expects exactly 1 argument');
+    }
+    
+    const arg = args[0];
+    if (arg.type !== 'number') {
+      throw new Error('abs expects a number argument');
+    }
+    
+    return {
+      type: 'number',
+      value: Math.abs(arg.value as number)
+    };
   }
 }

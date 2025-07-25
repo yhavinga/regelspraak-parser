@@ -1,7 +1,7 @@
 import { IEngine, ParseResult, RuntimeContext, ExecutionResult } from '../interfaces';
 import { Context } from '../runtime/context';
 import { ExpressionEvaluator } from '../evaluators/expression-evaluator';
-import { Expression, NumberLiteral, BinaryExpression, VariableReference } from '../ast/expressions';
+import { Expression, NumberLiteral, BinaryExpression, VariableReference, FunctionCall } from '../ast/expressions';
 
 /**
  * Main RegelSpraak engine
@@ -215,10 +215,49 @@ class ExpressionParser {
       this.position++;
     }
     
-    const variableName = this.input.substring(start, this.position);
+    const name = this.input.substring(start, this.position);
+    
+    // Check if this is a function call
+    this.skipWhitespace();
+    if (this.position < this.input.length && this.input[this.position] === '(') {
+      this.position++; // consume '('
+      const args: Expression[] = [];
+      
+      this.skipWhitespace();
+      
+      // Parse arguments
+      if (this.input[this.position] !== ')') {
+        args.push(this.parseExpression());
+        
+        while (this.position < this.input.length) {
+          this.skipWhitespace();
+          if (this.input[this.position] === ',') {
+            this.position++; // consume ','
+            this.skipWhitespace();
+            args.push(this.parseExpression());
+          } else {
+            break;
+          }
+        }
+      }
+      
+      this.skipWhitespace();
+      if (this.input[this.position] !== ')') {
+        throw new Error('Expected closing parenthesis in function call');
+      }
+      this.position++; // consume ')'
+      
+      return {
+        type: 'FunctionCall',
+        functionName: name,
+        arguments: args
+      } as FunctionCall;
+    }
+    
+    // Just a variable reference
     return {
       type: 'VariableReference',
-      variableName
+      variableName: name
     } as VariableReference;
   }
 
