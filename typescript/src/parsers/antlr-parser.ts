@@ -60,8 +60,8 @@ export class AntlrParser {
     const tokens = new CommonTokenStream(lexer);
     const parser = new RegelSpraakParser(tokens);
     
-    // Parse a regel definition
-    const tree = parser.regelDefinition();
+    // Parse a regel reference
+    const tree = parser.regelReferentie();
     
     return this.visitor.visit(tree);
   }

@@ -17,7 +17,7 @@ describe('ANTLR Parser Integration', () => {
     });
 
     test('should parse simple addition', () => {
-      const expr = parser.parseExpression('10 + 20');
+      const expr = parser.parseExpression('10 plus 20');
       expect(expr).toEqual({
         type: 'BinaryExpression',
         operator: '+',
@@ -41,7 +41,7 @@ describe('ANTLR Parser Integration', () => {
     });
 
     test('should parse complex expression', () => {
-      const expr = parser.parseExpression('x + 10 * 2');
+      const expr = parser.parseExpression('x plus 10 maal 2');
       expect(expr).toEqual({
         type: 'BinaryExpression',
         operator: '+',

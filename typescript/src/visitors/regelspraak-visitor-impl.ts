@@ -275,6 +275,28 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
     } as UnaryExpression;
   }
 
+  visitWortelFuncExpr(ctx: any): Expression {
+    // Get the argument expression 
+    const arg = this.visit(ctx.primaryExpression());
+    
+    return {
+      type: 'FunctionCall',
+      functionName: 'sqrt',
+      arguments: [arg]
+    } as FunctionCall;
+  }
+
+  visitAbsValFuncExpr(ctx: any): Expression {
+    // Get the argument expression (inside parentheses)
+    const arg = this.visit(ctx.primaryExpression());
+    
+    return {
+      type: 'FunctionCall',
+      functionName: 'abs',
+      arguments: [arg]
+    } as FunctionCall;
+  }
+
   // Default visitor - fall back to visitChildren
   visitChildren(node: any): any {
     if (!node.children || node.children.length === 0) {
