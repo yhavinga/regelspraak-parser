@@ -64,6 +64,12 @@ export class ExpressionEvaluator implements IEvaluator {
       return this.evaluateTimelineBinaryExpression(expr, left, right, context);
     }
 
+    // Check if this is a comparison operator
+    const comparisonOps = ['==', '!=', '>', '<', '>=', '<='];
+    if (comparisonOps.includes(expr.operator)) {
+      return this.evaluateComparisonExpression(expr, left, right);
+    }
+
     // Type check - both must be numbers for arithmetic
     if (left.type !== 'number' || right.type !== 'number') {
       throw new Error(`Cannot apply ${expr.operator} to ${left.type} and ${right.type}`);
@@ -95,6 +101,45 @@ export class ExpressionEvaluator implements IEvaluator {
 
     return {
       type: 'number',
+      value: result
+    };
+  }
+
+  private evaluateComparisonExpression(expr: BinaryExpression, left: Value, right: Value): Value {
+    // For now, only support comparing numbers
+    if (left.type !== 'number' || right.type !== 'number') {
+      throw new Error(`Cannot compare ${left.type} with ${right.type}`);
+    }
+
+    const leftVal = left.value as number;
+    const rightVal = right.value as number;
+    let result: boolean;
+
+    switch (expr.operator) {
+      case '==':
+        result = leftVal === rightVal;
+        break;
+      case '!=':
+        result = leftVal !== rightVal;
+        break;
+      case '>':
+        result = leftVal > rightVal;
+        break;
+      case '<':
+        result = leftVal < rightVal;
+        break;
+      case '>=':
+        result = leftVal >= rightVal;
+        break;
+      case '<=':
+        result = leftVal <= rightVal;
+        break;
+      default:
+        throw new Error(`Unknown comparison operator: ${expr.operator}`);
+    }
+
+    return {
+      type: 'boolean',
       value: result
     };
   }

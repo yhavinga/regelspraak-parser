@@ -4,11 +4,15 @@ import RegelSpraakParser, {
   RegelSpraakDocumentContext,
   RegelContext,
   ExpressieContext,
+  LogicalExprContext,
+  BinaryComparisonExprContext,
   AdditiveExpressionContext,
   MultiplicativeExpressionContext,
+  PowerExpressionContext,
   PrimaryExpressionContext,
-  NumberLiteralContext,
-  StringLiteralContext,
+  NumberLiteralExprContext,
+  IdentifierExprContext,
+  ParenExprContext,
   IdentifierContext
 } from '../generated/antlr/RegelSpraakParser';
 import { 
@@ -46,22 +50,77 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
     return this.visit(ctx.logicalExpression());
   }
 
-  visitLogicalExpr(ctx: any): Expression {
+  visitLogicalExpr(ctx: LogicalExprContext): Expression {
     // For now, just pass through to comparison
-    if (ctx.right) {
+    const comparisonExpr = ctx.comparisonExpression();
+    if (ctx.logicalExpression()) {
       // Has logical operator, not supported yet
       throw new Error('Logical operators not yet supported');
     }
-    return this.visit(ctx.left);
+    return this.visit(comparisonExpr);
   }
 
-  visitBinaryComparisonExpr(ctx: any): Expression {
-    // For simple expressions without comparison, just return the additive expression
-    if (!ctx.right) {
-      return this.visit(ctx.left);
+  visitBinaryComparisonExpr(ctx: BinaryComparisonExprContext): Expression {
+    // Get the additive expressions
+    const additiveExprs = ctx.additiveExpression_list();
+    
+    if (additiveExprs.length === 1) {
+      // No comparison operator, just return the single expression
+      return this.visit(additiveExprs[0]);
     }
-    // Comparison not supported yet
-    throw new Error('Comparison operators not yet supported');
+    
+    // Get the left and right expressions
+    const left = this.visit(additiveExprs[0]);
+    const right = this.visit(additiveExprs[1]);
+    
+    // Get the comparison operator
+    const compOp = ctx.comparisonOperator();
+    
+    // Map Dutch operators to standard operators
+    const opText = compOp.getText();
+    let operator: string;
+    
+    switch(opText) {
+      case 'gelijk aan':
+      case 'is gelijk aan':
+      case 'zijn gelijk aan':
+        operator = '==';
+        break;
+      case 'ongelijk aan':
+      case 'is ongelijk aan':
+      case 'zijn ongelijk aan':
+        operator = '!=';
+        break;
+      case 'groter dan':
+      case 'is groter dan':
+      case 'zijn groter dan':
+        operator = '>';
+        break;
+      case 'groter of gelijk aan':
+      case 'is groter of gelijk aan':
+      case 'zijn groter of gelijk aan':
+        operator = '>=';
+        break;
+      case 'kleiner dan':
+      case 'is kleiner dan':
+      case 'zijn kleiner dan':
+        operator = '<';
+        break;
+      case 'kleiner of gelijk aan':
+      case 'is kleiner of gelijk aan':
+      case 'zijn kleiner of gelijk aan':
+        operator = '<=';
+        break;
+      default:
+        throw new Error(`Unknown comparison operator: ${opText}`);
+    }
+    
+    return {
+      type: 'BinaryExpression',
+      operator: operator as any,
+      left,
+      right
+    } as BinaryExpression;
   }
 
   visitAdditiveExpression(ctx: AdditiveExpressionContext): Expression {
@@ -79,7 +138,8 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
     const operators = ctx.additiveOperator_list();
     
     for (let i = 0; i < operators.length; i++) {
-      const operator = operators[i].getText() === '+' ? '+' : '-';
+      const opText = operators[i].getText();
+      const operator = opText === 'plus' ? '+' : '-';
       const right = this.visit(multiplicativeExprs[i + 1]);
       
       result = {
@@ -109,7 +169,7 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
     
     for (let i = 0; i < operators.length; i++) {
       const opText = operators[i].getText();
-      const operator = opText === '*' || opText === 'maal' ? '*' : '/';
+      const operator = opText === 'maal' ? '*' : '/';
       const right = this.visit(powerExprs[i + 1]);
       
       result = {
@@ -123,7 +183,7 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
     return result;
   }
 
-  visitPowerExpression(ctx: any): Expression {
+  visitPowerExpression(ctx: PowerExpressionContext): Expression {
     // For now, just pass through to primary
     const primaryExprs = ctx.primaryExpression_list();
     if (primaryExprs.length > 1) {
@@ -133,29 +193,39 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
   }
 
   visitPrimaryExpression(ctx: PrimaryExpressionContext): Expression {
-    // Handle literals
-    if (ctx.getalLiteral()) {
-      const value = parseFloat(ctx.getalLiteral().getText());
-      return {
-        type: 'NumberLiteral',
-        value
-      } as NumberLiteral;
-    }
-    
-    // Handle identifier
-    if (ctx.identifier()) {
-      return {
-        type: 'VariableReference',
-        variableName: ctx.identifier().getText()
-      } as VariableReference;
-    }
-    
-    // Handle parentheses
-    if (ctx.expressie()) {
-      return this.visit(ctx.expressie());
-    }
-    
-    throw new Error(`Unsupported primary expression: ${ctx.getText()}`);
+    // This should not be called directly - specific context types should be handled
+    throw new Error(`Generic visitPrimaryExpression called - should use specific visitor method for ${ctx.constructor.name}`);
+  }
+
+  visitNumberLiteralExpr(ctx: NumberLiteralExprContext): Expression {
+    const text = ctx.NUMBER().getText();
+    // Convert Dutch decimal notation (comma) to JavaScript notation (dot)
+    const normalizedText = text.replace(',', '.');
+    const value = parseFloat(normalizedText);
+    return {
+      type: 'NumberLiteral',
+      value
+    } as NumberLiteral;
+  }
+
+  visitIdentifierExpr(ctx: IdentifierExprContext): Expression {
+    return {
+      type: 'VariableReference',
+      variableName: ctx.identifier().getText()
+    } as VariableReference;
+  }
+
+  visitParenExpr(ctx: ParenExprContext): Expression {
+    return this.visit(ctx.expressie());
+  }
+
+  visitOnderwerpRefExpr(ctx: any): Expression {
+    // For now, treat simple onderwerp references as variable references
+    const text = ctx.getText();
+    return {
+      type: 'VariableReference',
+      variableName: text
+    } as VariableReference;
   }
 
   // Default visitor - fall back to visitChildren
@@ -163,6 +233,7 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
     if (!node.children || node.children.length === 0) {
       return null;
     }
+    
     
     // If only one child, visit it
     if (node.children.length === 1) {

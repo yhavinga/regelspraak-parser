@@ -22,7 +22,7 @@ describe('Engine - Variable References', () => {
   test('should evaluate variable in expression', () => {
     context.setVariable('a', { type: 'number', value: 10 });
     context.setVariable('b', { type: 'number', value: 5 });
-    const result = engine.run('a + b', context);
+    const result = engine.run('a plus b', context);
     expect(result.success).toBe(true);
     expect(result.value).toEqual({
       type: 'number',
@@ -33,7 +33,7 @@ describe('Engine - Variable References', () => {
   test('should evaluate complex expression with variables', () => {
     context.setVariable('x', { type: 'number', value: 3 });
     context.setVariable('y', { type: 'number', value: 4 });
-    const result = engine.run('(x + y) * 2', context);
+    const result = engine.run('(x plus y) maal 2', context);
     expect(result.success).toBe(true);
     expect(result.value).toEqual({
       type: 'number',
@@ -49,14 +49,14 @@ describe('Engine - Variable References', () => {
 
   test('should handle mixed literals and variables', () => {
     context.setVariable('pi', { type: 'number', value: 3.14 });
-    const result = engine.run('2 * pi * 5', context);
+    const result = engine.run('2 maal pi maal 5', context);
     expect(result.success).toBe(true);
     expect(result.value?.value).toBeCloseTo(31.4, 5);
   });
 
   test('should handle variable names with underscores', () => {
     context.setVariable('my_var', { type: 'number', value: 100 });
-    const result = engine.run('my_var / 4', context);
+    const result = engine.run('my_var gedeeld door 4', context);
     expect(result.success).toBe(true);
     expect(result.value).toEqual({
       type: 'number',

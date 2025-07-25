@@ -1,4 +1,4 @@
-import { CharStream, CommonTokenStream } from 'antlr4';
+import { CharStream, CommonTokenStream, ErrorListener } from 'antlr4';
 import RegelSpraakLexer from '../generated/antlr/RegelSpraakLexer';
 import RegelSpraakParser from '../generated/antlr/RegelSpraakParser';
 import { RegelSpraakVisitorImpl } from '../visitors/regelspraak-visitor-impl';
@@ -32,15 +32,23 @@ export class AntlrParser {
    * Parse just an expression
    */
   parseExpression(source: string): Expression {
-    const chars = new CharStream(source);
-    const lexer = new RegelSpraakLexer(chars);
-    const tokens = new CommonTokenStream(lexer);
-    const parser = new RegelSpraakParser(tokens);
-    
-    // Parse just an expression
-    const tree = parser.expressie();
-    
-    return this.visitor.visit(tree);
+    try {
+      const chars = new CharStream(source);
+      const lexer = new RegelSpraakLexer(chars);
+      const tokens = new CommonTokenStream(lexer);
+      const parser = new RegelSpraakParser(tokens);
+      
+      // Parse just an expression
+      const tree = parser.expressie();
+      
+      if (!tree) {
+        throw new Error('Failed to parse expression: parser returned null');
+      }
+      
+      return this.visitor.visit(tree);
+    } catch (error) {
+      throw new Error(`Parse error: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
   }
 
   /**

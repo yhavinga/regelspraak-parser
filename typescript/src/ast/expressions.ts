@@ -18,7 +18,7 @@ export interface StringLiteral extends Expression {
 
 export interface BinaryExpression extends Expression {
   type: 'BinaryExpression';
-  operator: '+' | '-' | '*' | '/';
+  operator: '+' | '-' | '*' | '/' | '==' | '!=' | '>' | '<' | '>=' | '<=';
   left: Expression;
   right: Expression;
 }
