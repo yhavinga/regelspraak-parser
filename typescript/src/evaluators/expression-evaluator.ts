@@ -1,6 +1,8 @@
 import { IEvaluator, Value, RuntimeContext } from '../interfaces';
 import { Expression, NumberLiteral, StringLiteral, BinaryExpression, VariableReference, FunctionCall, AggregationExpression } from '../ast/expressions';
 import { AggregationEngine } from './aggregation-engine';
+import { TimelineEvaluator } from './timeline-evaluator';
+import { TimelineExpression, TimelineValue } from '../ast/timelines';
 
 /**
  * Evaluator for expression nodes
@@ -11,9 +13,11 @@ export class ExpressionEvaluator implements IEvaluator {
     'abs': this.abs.bind(this)
   };
   private aggregationEngine: AggregationEngine;
+  private timelineEvaluator: TimelineEvaluator;
 
   constructor() {
     this.aggregationEngine = new AggregationEngine(this);
+    this.timelineEvaluator = new TimelineEvaluator(this);
   }
 
   evaluate(expr: Expression, context: RuntimeContext): Value {
@@ -30,6 +34,8 @@ export class ExpressionEvaluator implements IEvaluator {
         return this.evaluateFunctionCall(expr as FunctionCall, context);
       case 'AggregationExpression':
         return this.aggregationEngine.evaluate(expr as AggregationExpression, context);
+      case 'TimelineExpression':
+        return this.timelineEvaluator.evaluate(expr as TimelineExpression, context);
       default:
         throw new Error(`Unknown expression type: ${expr.type}`);
     }
@@ -52,6 +58,11 @@ export class ExpressionEvaluator implements IEvaluator {
   private evaluateBinaryExpression(expr: BinaryExpression, context: RuntimeContext): Value {
     const left = this.evaluate(expr.left, context);
     const right = this.evaluate(expr.right, context);
+
+    // Check if either operand is a timeline
+    if (left.type === 'timeline' || right.type === 'timeline') {
+      return this.evaluateTimelineBinaryExpression(expr, left, right, context);
+    }
 
     // Type check - both must be numbers for arithmetic
     if (left.type !== 'number' || right.type !== 'number') {
@@ -86,6 +97,28 @@ export class ExpressionEvaluator implements IEvaluator {
       type: 'number',
       value: result
     };
+  }
+
+  private evaluateTimelineBinaryExpression(
+    expr: BinaryExpression,
+    left: Value,
+    right: Value,
+    context: RuntimeContext
+  ): Value {
+    // Both must be timelines, or one timeline and one scalar
+    if (left.type === 'timeline' && right.type === 'timeline') {
+      const leftTimeline = (left as any as TimelineValue).timeline;
+      const rightTimeline = (right as any as TimelineValue).timeline;
+      return this.timelineEvaluator.evaluateTimelineBinaryOp(
+        leftTimeline,
+        rightTimeline,
+        expr.operator,
+        context
+      );
+    } else {
+      // One timeline and one scalar - not yet implemented
+      throw new Error('Timeline-scalar operations not yet implemented');
+    }
   }
 
   private evaluateVariableReference(expr: VariableReference, context: RuntimeContext): Value {

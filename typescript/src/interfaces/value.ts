@@ -1,7 +1,7 @@
 /**
  * Value types in RegelSpraak
  */
-export type ValueType = 'number' | 'string' | 'boolean' | 'date' | 'object' | 'list' | 'null';
+export type ValueType = 'number' | 'string' | 'boolean' | 'date' | 'object' | 'list' | 'null' | 'timeline';
 
 /**
  * Unit information for numeric values
