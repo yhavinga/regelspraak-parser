@@ -12,10 +12,10 @@
 - **Phase 8c**: Function calls (Dutch syntax) COMPLETE ✓
 
 ### 🎯 Progress Update
-The TypeScript implementation is now **~25% complete** compared to Python:
-- ✅ Has: ANTLR4 parser, all arithmetic/comparison/logical/unary operators, parentheses, numbers/variables, Dutch function syntax (sqrt, abs)
-- ✅ Tests: 143/149 passing (96.0%) - excellent progress!
-- ❌ Missing: Objects, semantic validation, rules, decision tables, 65% of features
+The TypeScript implementation is now **~30% complete** compared to Python:
+- ✅ Has: ANTLR4 parser, all operators, parentheses, numbers/variables, Dutch functions, **rule parsing & execution**
+- ✅ Tests: 149/155 passing (96.1%) - excellent progress!
+- ❌ Missing: Objects, semantic validation, decision tables, 60% of features
 
 ### 📊 Key Achievements (Session 3) 
 - ✅ **Logical operators (en, of) fully implemented**:
@@ -147,25 +147,20 @@ All initial phases completed with basic features. Performance shows 1000x+ impro
   - Function keywords must match exactly (no extra whitespace)
   - Operator precedence requires parentheses for complex arguments
 
-### 📋 Phase 9: Rule & Object Support (1 week)
+### ✅ Phase 9: Rule & Object Support - BASIC RULES COMPLETE
 
-**Goal**: Parse and execute basic rules with object references
+**Completed**:
+- ✅ **Rule parsing via ANTLR** 
+  - visitRegel, visitRegelVersie, visitGelijkstellingResultaat
+  - Gelijkstelling patterns (X moet berekend worden als Y)
+  - Rule execution with proper target extraction
+  - Tests: 138/149 passing (92.6%)
 
-**Tasks**:
-1. **Rule parsing** (regelDefinition visitor)
-   - Gelijkstelling patterns (X is Y)
-   - Conditional rules (indien X dan Y)
-   - Rule metadata (geldig van/tot)
-
-2. **Object type definitions**
-   - visitObjectTypeDefinition
-   - Attribute definitions (kenmerk)
-   - Basic type system
-
-3. **Parameter definitions**
-   - Parameter with domains
-   - Default values
-   - Type constraints
+**Still TODO**:
+- Object type definitions (visitObjectTypeDefinition, kenmerk)
+- Parameter definitions with domains
+- Conditional rules (indien X dan Y)
+- Better error messages for invalid syntax
 
 ### 📋 Phase 10: Advanced Features (2-3 weeks)
 

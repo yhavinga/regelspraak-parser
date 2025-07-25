@@ -33,7 +33,7 @@ geldig altijd
     test('should execute rule with arithmetic expression', () => {
       const rule = `Regel bereken_som
 geldig altijd
-    Het totaal moet berekend worden als 10 + 20.`;
+    Het totaal van een berekening moet berekend worden als 10 plus 20.`;
       
       const context = new Context();
       const result = engine.run(rule, context);
@@ -70,7 +70,7 @@ geldig altijd
     test('should execute rule with variable reference', () => {
       const rule = `Regel bereken_dubbel
 geldig altijd
-    Het dubbele moet berekend worden als x * 2.`;
+    Het dubbele van een berekening moet berekend worden als x maal 2.`;
       
       const context = new Context();
       context.setVariable('x', { type: 'number', value: 5 });
@@ -86,7 +86,7 @@ geldig altijd
     test('should execute rule with function call', () => {
       const rule = `Regel bereken_wortel
 geldig altijd
-    De wortel moet berekend worden als sqrt(16).`;
+    De uitkomst van een berekening moet berekend worden als de wortel van 16.`;
       
       const context = new Context();
       const result = engine.run(rule, context);
@@ -101,7 +101,7 @@ geldig altijd
     test('should execute rule with complex expression', () => {
       const rule = `Regel bereken_complex
 geldig altijd
-    Het resultaat moet berekend worden als (10 + 5) * 2 verminderd met 3.`;
+    Het resultaat van een berekening moet berekend worden als (10 plus 5) maal 2 verminderd met 3.`;
       
       const context = new Context();
       const result = engine.run(rule, context);

@@ -1,7 +1,6 @@
 import { IEngine, ParseResult, RuntimeContext, ExecutionResult } from '../interfaces';
 import { Context } from '../runtime/context';
 import { ExpressionEvaluator } from '../evaluators/expression-evaluator';
-import { RuleParser } from '../parsers/rule-parser';
 import { RuleExecutor } from '../executors/rule-executor';
 import { DecisionTableParser } from '../parsers/decision-table-parser';
 import { DecisionTableExecutor } from '../executors/decision-table-executor';
@@ -22,8 +21,8 @@ export class Engine implements IEngine {
     try {
       // Check if this is a rule, decision table, or just an expression
       if (trimmed.startsWith('Regel ')) {
-        const ruleParser = new RuleParser(trimmed);
-        const ast = ruleParser.parseRule();
+        // Use ANTLR parser for rules
+        const ast = this.antlrParser.parseRule(trimmed);
         return {
           success: true,
           ast
@@ -59,7 +58,19 @@ export class Engine implements IEngine {
     try {
       // Handle different AST types
       if (ast.type === 'Rule') {
-        return this.ruleExecutor.execute(ast, context);
+        const result = this.ruleExecutor.execute(ast, context);
+        // Convert RuleExecutionResult to ExecutionResult
+        if (result.success) {
+          return {
+            success: true,
+            value: result.value!
+          };
+        } else {
+          return {
+            success: false,
+            error: result.error
+          };
+        }
       } else if (ast.type === 'DecisionTable') {
         return this.decisionTableExecutor.execute(ast, context);
       } else {

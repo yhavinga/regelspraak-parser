@@ -297,6 +297,134 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
     } as FunctionCall;
   }
 
+  // Rule parsing visitor methods
+  visitRegel(ctx: any): any {
+    // Extract rule name from regelName
+    const nameCtx = ctx.regelName();
+    const name = this.extractText(nameCtx);
+    
+    // Get version info
+    const version = this.visit(ctx.regelVersie());
+    
+    // Get result part (gelijkstelling)
+    const result = this.visit(ctx.resultaatDeel());
+    
+    return {
+      type: 'Rule',
+      name,
+      version,
+      result
+    };
+  }
+
+  visitAttribuutReferentie(ctx: any): string {
+    // Get the attribute with article
+    const attrCtx = ctx.attribuutMetLidwoord();
+    const attrText = this.extractText(attrCtx);
+    
+    // For now, just return the full text
+    return attrText;
+  }
+
+  visitRegelVersie(ctx: any): any {
+    const geldigheid = this.visit(ctx.versieGeldigheid());
+    
+    return {
+      type: 'RuleVersion',
+      validity: geldigheid
+    };
+  }
+
+  visitVersieGeldigheid(ctx: any): string {
+    if (ctx.ALTIJD()) {
+      return 'altijd';
+    } else if (ctx.VANAF()) {
+      return 'vanaf';
+    } else if (ctx.TOT()) {
+      return 'tot';
+    }
+    return 'altijd'; // default
+  }
+
+  visitGelijkstellingResultaat(ctx: any): any {
+    // Get the target attribute reference
+    const targetCtx = ctx.attribuutReferentie();
+    
+    // Visit the attribute reference to get its parts
+    const attrRefCtx = targetCtx.attribuutMetLidwoord();
+    
+    // Get the naamwoord context which contains the attribute name
+    const naamwoordCtx = attrRefCtx.naamwoord();
+    
+    // The naamwoord might have a naamPhrase with an article and identifier
+    // Let's try to extract just the identifier part
+    let target = 'unknown';
+    
+    // Get the text and parse it
+    const fullText = naamwoordCtx.getText();
+    target = this.extractTargetName(fullText);
+    
+    // Get the expression - check which operator is used
+    let expression;
+    if (ctx.WORDT_BEREKEND_ALS()) {
+      expression = this.visit(ctx.expressie());
+    } else if (ctx.WORDT_GESTELD_OP()) {
+      expression = this.visit(ctx.expressie());
+    } else if (ctx.WORDT_GEINITIALISEERD_OP()) {
+      expression = this.visit(ctx.expressie());
+    } else {
+      throw new Error('Expected gelijkstelling operator');
+    }
+    
+    return {
+      type: 'Gelijkstelling',
+      target,
+      expression
+    };
+  }
+
+  // Helper to extract target attribute name from full reference
+  private extractTargetName(fullReference: string): string {
+    // Handle case where article is concatenated with the attribute (e.g., "Hetresultaat")
+    const articlePrefixes = /^(het|de|een)/i;
+    const match = fullReference.match(articlePrefixes);
+    
+    if (match) {
+      // Remove the article prefix and return the rest
+      const withoutArticle = fullReference.substring(match[0].length);
+      return withoutArticle.toLowerCase();
+    }
+    
+    // If there are spaces, try the original logic
+    const words = fullReference.split(/\s+/);
+    if (words.length > 1 && /^(het|de|een)$/i.test(words[0])) {
+      return words[1].toLowerCase();
+    }
+    
+    return fullReference.toLowerCase();
+  }
+
+  // Helper to extract text from a context
+  private extractText(ctx: any): string {
+    if (!ctx) return '';
+    
+    // Use getText() method if available
+    if (ctx.getText) {
+      return ctx.getText();
+    }
+    
+    // Fallback for contexts without getText
+    const start = ctx.start?.start ?? 0;
+    const stop = ctx.stop?.stop ?? 0;
+    const inputStream = ctx.parser?.inputStream;
+    
+    if (inputStream && start <= stop) {
+      return inputStream.getText(start, stop);
+    }
+    
+    return '';
+  }
+
   // Default visitor - fall back to visitChildren
   visitChildren(node: any): any {
     if (!node.children || node.children.length === 0) {
