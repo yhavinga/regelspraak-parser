@@ -35,7 +35,7 @@ export interface PeriodDefinition extends Expression {
  */
 export interface TimelineValue {
   type: 'timeline';
-  timeline: Timeline;
+  value: Timeline;
 }
 
 /**

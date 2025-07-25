@@ -107,8 +107,8 @@ export class ExpressionEvaluator implements IEvaluator {
   ): Value {
     // Both must be timelines, or one timeline and one scalar
     if (left.type === 'timeline' && right.type === 'timeline') {
-      const leftTimeline = (left as any as TimelineValue).timeline;
-      const rightTimeline = (right as any as TimelineValue).timeline;
+      const leftTimeline = (left as any as TimelineValue).value;
+      const rightTimeline = (right as any as TimelineValue).value;
       return this.timelineEvaluator.evaluateTimelineBinaryOp(
         leftTimeline,
         rightTimeline,

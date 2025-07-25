@@ -38,7 +38,7 @@ describe('Timeline', () => {
       };
       const salaryValue: TimelineValue = {
         type: 'timeline',
-        timeline: salaryTimeline
+        value: salaryTimeline
       };
       context.setVariable('salary', salaryValue as any);
 
@@ -66,7 +66,7 @@ describe('Timeline', () => {
       };
       const bonusValue: TimelineValue = {
         type: 'timeline',
-        timeline: bonusTimeline
+        value: bonusTimeline
       };
       context.setVariable('bonus', bonusValue as any);
 
@@ -81,7 +81,7 @@ describe('Timeline', () => {
       const result = evaluator.evaluate(expr, context);
       expect(result.type).toBe('timeline');
       
-      const resultTimeline = (result as any).timeline;
+      const resultTimeline = (result as any).value;
       expect(resultTimeline.periods.length).toBe(3);
       expect(resultTimeline.periods[0].value.value).toBe(3500); // 3000 + 500
       expect(resultTimeline.periods[1].value.value).toBe(3700); // 3100 + 600
@@ -106,7 +106,7 @@ describe('Timeline', () => {
         periods: timeline1Periods,
         granularity: 'maand'
       };
-      context.setVariable('t1', { type: 'timeline', timeline: timeline1 } as any);
+      context.setVariable('t1', { type: 'timeline', value: timeline1 } as any);
 
       // Timeline 2: changes at Jan 1, Feb 1, and Apr 1
       const timeline2Periods: Period[] = [
@@ -130,7 +130,7 @@ describe('Timeline', () => {
         periods: timeline2Periods,
         granularity: 'maand'
       };
-      context.setVariable('t2', { type: 'timeline', timeline: timeline2 } as any);
+      context.setVariable('t2', { type: 'timeline', value: timeline2 } as any);
 
       const expr: BinaryExpression = {
         type: 'BinaryExpression',
@@ -140,7 +140,7 @@ describe('Timeline', () => {
       };
 
       const result = evaluator.evaluate(expr, context);
-      const resultTimeline = (result as any).timeline;
+      const resultTimeline = (result as any).value;
       
       // Should have 4 periods due to knip merging
       expect(resultTimeline.periods.length).toBe(4);
@@ -183,7 +183,7 @@ describe('Timeline', () => {
         periods,
         granularity: 'maand'
       };
-      context.setVariable('monthly', { type: 'timeline', timeline } as any);
+      context.setVariable('monthly', { type: 'timeline', value: timeline } as any);
 
       const expr: TimelineExpression = {
         type: 'TimelineExpression',
@@ -225,7 +225,7 @@ describe('Timeline', () => {
         ],
         granularity: 'maand'
       };
-      context.setVariable('revenue', { type: 'timeline', timeline: revenue } as any);
+      context.setVariable('revenue', { type: 'timeline', value: revenue } as any);
 
       const costs: Timeline = {
         periods: [
@@ -242,7 +242,7 @@ describe('Timeline', () => {
         ],
         granularity: 'maand'
       };
-      context.setVariable('costs', { type: 'timeline', timeline: costs } as any);
+      context.setVariable('costs', { type: 'timeline', value: costs } as any);
 
       const expr: BinaryExpression = {
         type: 'BinaryExpression',
@@ -252,7 +252,7 @@ describe('Timeline', () => {
       };
 
       const result = evaluator.evaluate(expr, context);
-      const resultTimeline = (result as any).timeline;
+      const resultTimeline = (result as any).value;
       
       expect(resultTimeline.periods[0].value.value).toBe(2000); // 5000 - 3000
       expect(resultTimeline.periods[1].value.value).toBe(2500); // 6000 - 3500
@@ -279,8 +279,8 @@ describe('Timeline', () => {
         granularity: 'maand'
       };
 
-      context.setVariable('daily', { type: 'timeline', timeline: daily } as any);
-      context.setVariable('monthly', { type: 'timeline', timeline: monthly } as any);
+      context.setVariable('daily', { type: 'timeline', value: daily } as any);
+      context.setVariable('monthly', { type: 'timeline', value: monthly } as any);
 
       const expr: BinaryExpression = {
         type: 'BinaryExpression',
@@ -290,7 +290,7 @@ describe('Timeline', () => {
       };
 
       const result = evaluator.evaluate(expr, context);
-      const resultTimeline = (result as any).timeline;
+      const resultTimeline = (result as any).value;
       
       // Result should have daily granularity (finest)
       expect(resultTimeline.granularity).toBe('dag');

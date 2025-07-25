@@ -1,0 +1,11 @@
+{
+  "name": "Steelthread Example",
+  "iterations": 100,
+  "avg_parse_time": 10.165610759577248,
+  "avg_build_time": 0,
+  "avg_exec_time": 0.04439227966940962,
+  "avg_total_time": 10.23909688970889,
+  "min_time": 9.87448099476751,
+  "max_time": 16.355712999938987,
+  "std_dev": 0.6744962840874386
+}

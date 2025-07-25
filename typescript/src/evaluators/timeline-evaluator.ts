@@ -29,7 +29,7 @@ export class TimelineEvaluator {
    * Get value at a specific date from a timeline value
    */
   getValueAt(timelineValue: TimelineValue, date: Date): Value | null {
-    const timeline = timelineValue.timeline;
+    const timeline = timelineValue.value;
     
     for (const period of timeline.periods) {
       if (date >= period.startDate && date < period.endDate) {
@@ -99,7 +99,7 @@ export class TimelineEvaluator {
     
     return {
       type: 'timeline',
-      timeline: {
+      value: {
         periods,
         granularity
       }
@@ -115,7 +115,7 @@ export class TimelineEvaluator {
     }
     
     const timelineValue = targetValue as any as TimelineValue;
-    const timeline = timelineValue.timeline;
+    const timeline = timelineValue.value;
     
     // Sum all values in the timeline
     let total = 0;
