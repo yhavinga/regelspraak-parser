@@ -37,6 +37,6 @@ describe('Engine - Number Literal', () => {
   test('should fail on invalid input', () => {
     const result = engine.run('not a number');
     expect(result.success).toBe(false);
-    expect(result.error?.message).toBe('Unexpected character: n');
+    expect(result.error?.message).toBe('Undefined variable: not');
   });
 });

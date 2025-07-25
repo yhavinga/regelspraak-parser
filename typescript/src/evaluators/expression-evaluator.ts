@@ -1,5 +1,5 @@
 import { IEvaluator, Value, RuntimeContext } from '../interfaces';
-import { Expression, NumberLiteral, BinaryExpression } from '../ast/expressions';
+import { Expression, NumberLiteral, BinaryExpression, VariableReference } from '../ast/expressions';
 
 /**
  * Evaluator for expression nodes
@@ -11,6 +11,8 @@ export class ExpressionEvaluator implements IEvaluator {
         return this.evaluateNumberLiteral(expr as NumberLiteral);
       case 'BinaryExpression':
         return this.evaluateBinaryExpression(expr as BinaryExpression, context);
+      case 'VariableReference':
+        return this.evaluateVariableReference(expr as VariableReference, context);
       default:
         throw new Error(`Unknown expression type: ${expr.type}`);
     }
@@ -60,5 +62,13 @@ export class ExpressionEvaluator implements IEvaluator {
       type: 'number',
       value: result
     };
+  }
+
+  private evaluateVariableReference(expr: VariableReference, context: RuntimeContext): Value {
+    const value = context.getVariable(expr.variableName);
+    if (value === undefined) {
+      throw new Error(`Undefined variable: ${expr.variableName}`);
+    }
+    return value;
   }
 }

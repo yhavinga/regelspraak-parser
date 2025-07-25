@@ -1,7 +1,7 @@
 import { IEngine, ParseResult, RuntimeContext, ExecutionResult } from '../interfaces';
 import { Context } from '../runtime/context';
 import { ExpressionEvaluator } from '../evaluators/expression-evaluator';
-import { Expression, NumberLiteral, BinaryExpression } from '../ast/expressions';
+import { Expression, NumberLiteral, BinaryExpression, VariableReference } from '../ast/expressions';
 
 /**
  * Main RegelSpraak engine
@@ -145,6 +145,11 @@ class ExpressionParser {
       return expr;
     }
 
+    // Try to parse identifier first
+    if (this.isLetter(this.input[this.position])) {
+      return this.parseIdentifier();
+    }
+
     // Parse number
     const start = this.position;
     let hasDigit = false;
@@ -192,5 +197,36 @@ class ExpressionParser {
             this.input[this.position] === '\r')) {
       this.position++;
     }
+  }
+
+  private parseIdentifier(): Expression {
+    const start = this.position;
+    
+    // First character must be letter
+    if (!this.isLetter(this.input[this.position])) {
+      throw new Error(`Expected identifier at position ${this.position}`);
+    }
+    
+    // Continue with letters, digits, underscore
+    while (this.position < this.input.length && 
+           (this.isLetter(this.input[this.position]) || 
+            this.isDigit(this.input[this.position]) || 
+            this.input[this.position] === '_')) {
+      this.position++;
+    }
+    
+    const variableName = this.input.substring(start, this.position);
+    return {
+      type: 'VariableReference',
+      variableName
+    } as VariableReference;
+  }
+
+  private isLetter(ch: string): boolean {
+    return (ch >= 'a' && ch <= 'z') || (ch >= 'A' && ch <= 'Z');
+  }
+
+  private isDigit(ch: string): boolean {
+    return ch >= '0' && ch <= '9';
   }
 }

@@ -17,3 +17,8 @@ export interface BinaryExpression extends Expression {
   left: Expression;
   right: Expression;
 }
+
+export interface VariableReference extends Expression {
+  type: 'VariableReference';
+  variableName: string;
+}
