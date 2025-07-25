@@ -22,3 +22,7 @@ build/
 .vscode/
 .idea/
 *.swp
+
+# Project-specific files
+CLAUDE.md
+CLAUDE_USE_GEMINI.md

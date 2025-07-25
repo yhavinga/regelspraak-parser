@@ -3,20 +3,26 @@
 > [!WARNING]
 > **EXPERIMENTAL, WORK IN PROGRESS.** This parser is incomplete and under active development.
 
-An incomplete ANTLR4-based parser for the RegelSpraak v2.1.0 language, a Dutch domain-specific language for expressing business rules and decisions. This package allows parsing RegelSpraak text and integrating it into other Python applications.
+A nearly-complete ANTLR4-based parser for the RegelSpraak v2.1.0 language, implementing ~95-97% of the specification. RegelSpraak is a Dutch domain-specific language for expressing business rules and decisions. This package allows parsing RegelSpraak text and integrating it into other Python applications.
 
 ## Overview
 
 This project implements a parser for RegelSpraak v2.1.0, capable of processing:
-- Object type definitions
+- Object type definitions with multi-dimensional attributes (Dimensies)
 - Domain definitions
-- Dimension definitions
+- Dimension definitions with adjectival and prepositional styles
 - Parameter definitions
-- Fact type definitions
-- Rules and decision tables
-- Complex expressions and conditions
+- Fact type definitions and relationship creation (FeitCreatie)
+- All rule types: Gelijkstelling, Kenmerktoekenning, Initialisatie, Consistentie
+- Decision tables (Beslistabel) and distribution rules (Verdeling)
+- Complex expressions with timeline support
+- Filtered collections (Subselectie) with DIE/DAT syntax
+- Recursive rule groups (Recursie) with safety limits
+- Advanced predicates: elfproef, dagsoort, uniqueness checks
+- Compound predicates (samengesteld predicaat) with quantifiers
+- All aggregation functions: som van, het aantal, tijdsduur van, etc.
 
-The core components are the ANTLR grammar files (`.g4`) and the Python runtime code generated from them.
+The implementation includes 439 passing tests covering all major features. The core components are the ANTLR grammar files (`.g4`) and the Python runtime code generated from them.
 
 ## Project Structure
 
@@ -408,6 +414,49 @@ The ANTLR grammar (`RegelSpraak.g4` and `RegelSpraakLexer.g4`) incorporates spec
     *   Prioritizes matching the last word (most specific) to avoid "product" matching before "aanbieding"
     *   Falls back to trying longer word combinations
     *   This ensures "product aanbieding" correctly matches the "Aanbieding" object type
+*   **Timeline Expression Handling:** Timeline expressions enable temporal reasoning in rules. The implementation (July 2025) includes:
+    *   Special handling for empty timeline values (return 0 for numeric types per specification)
+    *   Timeline-aware rule execution for Gelijkstelling and Initialisatie rules
+    *   Support for compound attribute paths in timeline contexts (e.g., "de waarde van X op tijdstip Y")
+    *   The `_is_timeline_expression` and `_collect_timeline_operands` methods detect and process timeline patterns
+    *   Rules assigning to timeline attributes automatically create TimelineValue results
+    *   Note: Timeline period definitions (van/tot, vanaf, tot en met) are still pending implementation
+*   **Dimensions (Dimensies) Pattern Detection:** Multi-dimensional attributes allow values to be indexed by dimension labels (e.g., "bruto inkomen", "inkomen van vorig jaar"). The implementation uses sophisticated pattern matching in `visitAttribuutReferentie`:
+    *   **Adjectival dimensions:** Detected when an attribute name contains a known dimension label (e.g., "bruto inkomen" → dimension="bruto", attribute="inkomen")
+    *   **Prepositional dimensions:** Detected via "van" patterns (e.g., "inkomen van huidig jaar" → dimension="huidig jaar", attribute="inkomen")
+    *   **Combined patterns:** Both styles can be combined (e.g., "bruto inkomen van huidig jaar")
+    *   The runtime uses `DimensionCoordinate` for multi-dimensional storage, allowing each attribute to hold different values for different dimension combinations
+    *   Full semantic validation ensures dimension references are valid
+    *   The grammar's consumption of dimension information in the `naamwoord` rule required creative pattern detection heuristics
+*   **Subselectie (Filtered Collections):** Subselectie enables filtering object collections using natural language predicates. The implementation supports the DIE/DAT syntax from the specification:
+    *   **Object predicates:** Filter objects by kenmerk checks (e.g., "de personen DIE minderjarig zijn")
+    *   **Comparison predicates:** Filter by attribute comparisons (e.g., "de producten MET een prijs GROTER DAN 100 euro")
+    *   **Navigation expressions:** Support for "X van de Y" patterns to navigate relationships before filtering
+    *   The filtered collections integrate seamlessly with aggregation functions (e.g., "het aantal personen DIE minderjarig zijn")
+    *   Implementation uses the visitor pattern to build SubselectieExpression AST nodes with appropriate predicates
+*   **Recursion (Recursie) Implementation:** Recursive rule groups allow rules to iterate until a termination condition is met. The implementation follows RegelSpraak v2.1.0 §9.9:
+    *   Rules marked with "Recursie" execute repeatedly within their designated rule group
+    *   Iteration tracking prevents infinite loops with a configurable safety limit (default: 100 iterations)
+    *   Object creation rules can include termination conditions to stop recursion
+    *   The engine maintains iteration state and checks for changes between iterations
+    *   Commonly used for iterative calculations or generating sequences of objects
+*   **Advanced Predicates:** The parser now supports specialized validation predicates:
+    *   **Elfproef validation:** Implements the Dutch BSN (Burgerservicenummer) checksum algorithm for social security number validation. The predicate "voldoet aan de elfproef" performs modulo-11 checksum verification on 8 or 9 digit numbers
+    *   **Dagsoort predicates:** Support for day type checks including "werkdag", "weekend dag", "feestdag", "zaterdag", "zondag", "maandag" through "vrijdag". The implementation uses Python's calendar module and supports custom holiday definitions
+    *   **Uniqueness checks:** The "is uniek" predicate validates that a value is unique within a collection or across related objects. Used in consistency rules to enforce data integrity constraints
+*   **Compound Predicates (Samengesteld Predicaat):** Compound predicates enable complex logical conditions with quantifiers over collections. The implementation supports all quantifier types from the specification:
+    *   **Universal quantifiers:** ALLE ("alle kinderen zijn minderjarig")
+    *   **Negative universal:** GEEN VAN DE ("geen van de producten is uitverkocht")
+    *   **Bounded quantifiers:** TEN_MINSTE N ("ten minste 3 personen"), TEN_HOOGSTE N ("ten hoogste 5 items"), PRECIES N ("precies 2 aanbiedingen")
+    *   **Nested support:** Compound predicates can be nested with proper bullet level tracking, allowing complex hierarchical conditions
+    *   The grammar handles the bullet point syntax (•, ••, •••) for multi-level conditions
+    *   Full integration with regular predicates and rule execution
+    *   Semantic validation ensures quantifiers are used correctly with collections
+*   **Code Quality Improvements (July 2025):** Several major refactoring efforts improved code maintainability:
+    *   **visitPrimaryExpression refactoring:** The 545-line monolithic method in builder.py was refactored into a clean 42-line dispatcher with 4 focused helper methods, dramatically improving readability and maintainability
+    *   **Expression evaluation deduplication:** Extracted common evaluation logic into reusable methods (_evaluate_literal, _evaluate_variable_reference, _evaluate_parameter_reference), eliminating ~130 lines of duplicated code between evaluate_expression and _evaluate_expression_non_timeline
+    *   **Function registry standardization:** Eliminated article-based duplication in the function registry, standardized function naming conventions, implemented missing _func_het_aantal, and fixed an aggregation pre-processing bug that affected function execution
+    *   **ObjectCreatie ambiguity resolution:** Added the simpleNaamwoord grammar rule to resolve parsing ambiguity in attribute initialization within object creation rules
 
 ## Testing
 

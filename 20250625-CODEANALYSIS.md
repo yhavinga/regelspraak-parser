@@ -49,9 +49,10 @@ The `20250510-CODEANALYSIS.md` is quite current. I'll comment on the outstanding
     *   **Carmack's Take:** The `RuntimeContext` should primarily be a data container. Evaluation logic, including how operators like `IS` or `IN` behave, belongs in the `Evaluator`. Mixing this blurs responsibilities and makes both components harder to reason about.
     *   **Recommendation:** Move the core logic of `check_is` and `check_in` from `RuntimeContext` into the `Evaluator`'s expression handling (e.g., `_handle_binary`). The context can provide data access, but the `Evaluator` should interpret it.
 
-*   **Incompleteness - `engine.py` - `_handle_function_call` (Medium Priority):**
-    *   **Carmack's Take:** A "rudimentary" function handling without a registry is a temporary state. For a usable DSL engine, this needs to be robust.
-    *   **Recommendation:** Implement a proper function registry (e.g., a dictionary mapping function names to callable implementations). This makes adding new functions cleaner and the `_handle_function_call` method simpler (dispatch based on lookup). Prioritize implementing the core RegelSpraak functions.
+*   ~~**Incompleteness - `engine.py` - `_handle_function_call` (Medium Priority):**~~
+    *   ~~**Carmack's Take:** A "rudimentary" function handling without a registry is a temporary state. For a usable DSL engine, this needs to be robust.~~
+    *   ~~**Recommendation:** Implement a proper function registry (e.g., a dictionary mapping function names to callable implementations). This makes adding new functions cleaner and the `_handle_function_call` method simpler (dispatch based on lookup). Prioritize implementing the core RegelSpraak functions.~~
+    *   **RESOLVED (2025-07-21):** Function registry implemented with clean dispatch. All core functions registered without article duplication. Missing _func_het_aantal implemented. Aggregation pre-processing fixed to prevent eager evaluation errors.
 
 *   **Incompleteness - `cli.py` - Data Loading Type Checking (Medium Priority):**
     *   **Carmack's Take:** The "TODO" for type checking loaded data is important. Garbage-in, garbage-out is bad, but garbage-in, crash-later-mysteriously is worse. Validate inputs as early as possible.
@@ -155,7 +156,7 @@ This plan integrates the remaining issues from the previous analysis with a Carm
 | ~~**High**~~   | ~~**Standardize Runtime Error Handling**~~                                 | ~~`runtime.py` (`get_kenmerk`)~~                                             | ~~**Robustness/Predictability:** `get_kenmerk` returning `False` for undefined is a bug waiting to happen. Change to raise `RuntimeError` (or specific `UndefinedKenmerkError`). Fail fast and clearly. Application logic can catch and default if needed.~~ **RESOLVED:** Current behavior is correct per spec §3.5.                                                                                                                                                                                                     |
 | ~~**High**~~   | ~~**Refactor REPL `Evaluate` Command**~~                                   | ~~`repl.py` (`handle_evaluate`)~~                                            | ~~**Correctness/Usability:** String splitting is not parsing. Route `Evaluate` input through `parse_text` (or a dedicated `parse_expression`) and the `Evaluator`. The REPL must be a reliable testbed for the actual engine.~~ **RESOLVED:** Pragmatic pattern matching with comprehensive tests.                                                                                                                                                                                                                                        |
 | **Medium** | **Centralize `IS`/`IN` Logic**                                         | `engine.py`, `runtime.py`                                                | **Design/Cohesion:** `RuntimeContext` should be data + state. `Evaluator` should evaluate. Move `check_is`/`check_in` logic fully into `Evaluator._handle_binary` or similar. Cleaner separation of concerns.                                                                                                                                                                                                                                                        |
-| **Medium** | **Implement Full Function Registry & Execution**                       | `engine.py` (`_handle_function_call`)                                    | **Functionality/Extensibility:** Current function handling is too basic. Implement a proper registry (dict mapping names to callables). Define and implement core RegelSpraak functions. Makes the engine more powerful and easier to extend.                                                                                                                                                                                                                |
+| ~~**Medium**~~ | ~~**Implement Full Function Registry & Execution**~~                       | ~~`engine.py` (`_handle_function_call`)~~                                    | ~~**Functionality/Extensibility:** Current function handling is too basic. Implement a proper registry (dict mapping names to callables). Define and implement core RegelSpraak functions. Makes the engine more powerful and easier to extend.~~ **RESOLVED (2025-07-21):** Registry implemented, functions standardized, missing implementations added.                                                                                                                                                                                                                |
 | **Medium** | **Add Type Checking to CLI Data Loading**                                | `cli.py` (`run` command)                                                 | **Robustness:** Validate data from `--data` JSON against `DomainModel` definitions *before* execution. Convert types where safe (e.g., string "10" to int for Numeriek), error out on mismatches. Prevents runtime surprises.                                                                                                                                                                                                                                   |
 | **Medium** | **Enhance Tracing Consistency & Granularity**                          | `engine.py`, `runtime.py`                                                | **Debugging/Explainability:** Good tracing is gold. Review evaluation paths and context modifications; add more `TraceSink` calls for intermediate steps, value reads/writes, function entry/exit. Structured events are key for any future AI explainability.                                                                                                                                                                                                  |
 | **Low**    | **Review `parameter_names` hack in `builder.py` (if time permits)**    | `builder.py`, `semantics.py`                                             | **Design Purity/Robustness:** While deferred, this stateful parsing hack is non-ideal. If a refactoring opportunity arises (e.g., major grammar work or semantic analyzer changes), revisit if this can be eliminated by making symbol resolution purely a semantic phase concern or by more explicit grammar rules.                                                                                                                                                   |
@@ -364,6 +365,53 @@ The project has made excellent progress, tackling a complex DSL. The focus now s
   - Net reduction: 46 lines (removed 121, added 75)
   - All 431 tests pass unchanged
 
+**Update (2025-07-21) - Compound Predicate Implementation:**
+- Implemented samengesteld predicaat (compound predicates) per specification §5.6:
+  - Grammar changes:
+    * Added samengesteldPredicaat rule tree for compound conditions in predicates
+    * Fixed voorwaardeKwantificatie to accept NUMBER tokens alongside word numbers
+    * Changed GEEN VAN DE to single GEEN_VAN_DE token to resolve parse ambiguity
+    * Allow multiple bulletPrefix tokens for nested condition hierarchies
+  - AST additions:
+    * SamengesteldPredicaat: compound predicate with quantifier logic
+    * Kwantificatie/KwantificatieType: quantifier representation (ALLE/GEEN/TEN_MINSTE/etc)
+    * GenesteVoorwaardeInPredicaat: nested condition with bullet level tracking
+    * VergelijkingInPredicaat: comparison expressions within predicates
+    * SamengesteldeVoorwaarde: compound conditions in regular rules (not just predicates)
+  - Builder implementation:
+    * Full visitor support for compound predicate parse tree
+    * Proper NUMBER token handling in quantifiers
+    * Correct GEEN_VAN_DE token detection
+    * Bullet level counting for nested conditions
+  - Engine execution:
+    * _evaluate_samengesteld_predicaat: implements quantifier logic for predicates
+    * _evaluate_samengestelde_voorwaarde: handles compound conditions in rules
+    * Support in all rule contexts: regular rules, recursive rules, FeitCreatie
+  - Semantic validation:
+    * Validates quantifier counts don't exceed condition counts
+    * Ensures quantifiers requiring numbers have them
+  - Discovery: bezittelijk kenmerken store with "heeft" prefix in their names
+  - Test suite increased to 439 tests (11 skipped)
+
+**Update (2025-07-21) - Function Registry Refactoring:**
+- Refactored function registry to eliminate article-based duplication:
+  - Problem: Registry contained redundant entries for Dutch articles ("de", "het") complicating dispatch
+  - Solution: Standardized function registration by removing articles from keys
+  - Registry organization:
+    * Mathematical functions: abs, max, min (with Dutch aliases)
+    * Date/time functions: tijdsduur_van, maand_uit, dag_uit, jaar_uit
+    * Aggregation functions: som_van, eerste_van, laatste_van, totaal_van, het_aantal
+  - Fixed missing _func_het_aantal implementation:
+    * Function was referenced in registry but not implemented
+    * Now handles object type counting ("het aantal alle Iteratie")
+    * Special pattern recognition before expression evaluation
+  - Fixed aggregation pre-processing bug:
+    * "het aantal alle X" pattern was eagerly evaluating arguments
+    * Now correctly defers to registry function for special handling
+    * Prevents "No current instance" errors in recursive contexts
+  - Normalized function name handling in _handle_function_call_non_timeline
+  - All 439 tests pass with cleaner, more maintainable function dispatch
+
 **Current Coverage: ~97% of specification**
 
 **Implemented:**
@@ -383,6 +431,7 @@ The project has made excellent progress, tackling a complex DSL. The focus now s
 - Timeline expressions - full functionality (expression evaluation with empty value handling, timeline-aware rule execution, period definitions)
 - Subselectie - full functionality (filtered collections with predicates, navigation expressions, aggregation integration)
 - Recursion (Recursie) - full functionality (recursive rule groups with iteration tracking, termination conditions, safety limits)
+- Compound predicates (Samengesteld Predicaat) - full functionality (all quantifiers, nested predicates, rule integration)
 
 **Missing Critical Features:**
 1. **Timelines (Tijdlijnen)**: Fully implemented ✓
@@ -406,6 +455,11 @@ The project has made excellent progress, tackling a complex DSL. The focus now s
    - elfproef validation ✓ (BSN checksum validation implemented)
    - is uniek checks ✓ (uniqueness validation across instances implemented)
    - is een dagsoort ✓ (day type checking implemented)
-5. **Grammar Limitations**: aantal dagen in conditional pattern ("dat" clause)
+5. **Compound Predicates (Samengesteld Predicaat)**: Fully implemented ✓
+   - ✓ All quantifiers (ALLE, GEEN VAN DE, TEN_MINSTE, TEN_HOOGSTE, PRECIES)
+   - ✓ Nested compound predicates with bullet level tracking
+   - ✓ Integration with subselectie and aggregation functions
+   - ✓ Full semantic validation
+6. **Grammar Limitations**: aantal dagen in conditional pattern ("dat" clause)
 
 **Next Priority**: Focus on code quality improvements - all major features are now implemented!
