@@ -59,10 +59,21 @@ export interface NavigationExpression extends Expression {
   object: Expression;
 }
 
+export interface AttributeReference extends Expression {
+  type: 'AttributeReference';
+  path: string[];
+}
+
 export interface SubselectieExpression extends Expression {
   type: 'SubselectieExpression';
   collection: Expression;
   predicaat: Predicaat;
+}
+
+export interface AllAttributesExpression extends Expression {
+  type: 'AllAttributesExpression';
+  attribute: string;  // e.g., "burgerservicenummer"
+  objectType: string; // e.g., "Persoon"
 }
 
 // Predicaat types for filtering

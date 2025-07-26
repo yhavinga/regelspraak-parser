@@ -1,5 +1,5 @@
 import { IEvaluator, Value, RuntimeContext } from '../interfaces';
-import { Expression, NumberLiteral, StringLiteral, BinaryExpression, UnaryExpression, VariableReference, FunctionCall, AggregationExpression, NavigationExpression, SubselectieExpression, Predicaat, KenmerkPredicaat, AttributeComparisonPredicaat } from '../ast/expressions';
+import { Expression, NumberLiteral, StringLiteral, BinaryExpression, UnaryExpression, VariableReference, FunctionCall, AggregationExpression, NavigationExpression, SubselectieExpression, AllAttributesExpression, Predicaat, KenmerkPredicaat, AttributeComparisonPredicaat, AttributeReference } from '../ast/expressions';
 import { AggregationEngine } from './aggregation-engine';
 import { TimelineEvaluator } from './timeline-evaluator';
 import { TimelineExpression, TimelineValue } from '../ast/timelines';
@@ -43,8 +43,10 @@ export class ExpressionEvaluator implements IEvaluator {
         return this.evaluateNavigationExpression(expr as NavigationExpression, context);
       case 'SubselectieExpression':
         return this.evaluateSubselectieExpression(expr as SubselectieExpression, context);
-      case 'UnaryExpression':
-        return this.evaluateUnaryExpression(expr as UnaryExpression, context);
+      case 'AttributeReference':
+        return this.evaluateAttributeReference(expr as AttributeReference, context);
+      case 'AllAttributesExpression':
+        return this.evaluateAllAttributesExpression(expr as AllAttributesExpression, context);
       default:
         throw new Error(`Unknown expression type: ${expr.type}`);
     }
@@ -437,11 +439,48 @@ export class ExpressionEvaluator implements IEvaluator {
     const attributeValue = objectData[expr.attribute];
     
     if (attributeValue === undefined) {
-      // Return a null/empty value if attribute is missing
-      return { type: 'null', value: null };
+      // Throw an error when attribute is not found
+      throw new Error(`Attribute "${expr.attribute}" not found`);
     }
     
     return attributeValue;
+  }
+
+  private evaluateAttributeReference(expr: AttributeReference, context: RuntimeContext): Value {
+    // Check if this is the special "alle" pattern for uniqueness checks
+    if (expr.path.length === 3 && expr.path[1] === 'alle') {
+      // Pattern: ["attributeName", "alle", "objectType"]
+      const attributeName = expr.path[0];
+      const objectType = expr.path[2];
+      
+      // Get all objects of the specified type from context
+      const ctx = context as any;  // Cast to access implementation-specific methods
+      if (ctx.getObjectsByType) {
+        const objects = ctx.getObjectsByType(objectType);
+        
+        // Extract the specified attribute from each object
+        const values: Value[] = [];
+        for (const obj of objects) {
+          if (obj.type === 'object') {
+            const objectData = obj.value as Record<string, Value>;
+            const attrValue = objectData[attributeName];
+            if (attrValue !== undefined) {
+              values.push(attrValue);
+            }
+          }
+        }
+        
+        // Return as array for uniqueness checking
+        return {
+          type: 'array',
+          value: values
+        };
+      }
+    }
+    
+    // For other attribute reference patterns, we need more context
+    // This might be a navigation pattern or other reference
+    throw new Error(`Unsupported AttributeReference pattern: ${expr.path.join(' -> ')}`);
   }
 
   private evaluateSubselectieExpression(expr: SubselectieExpression, context: RuntimeContext): Value {
@@ -739,5 +778,35 @@ export class ExpressionEvaluator implements IEvaluator {
     }
     // For other types, non-null is truthy
     return value.value != null;
+  }
+  
+  private evaluateAllAttributesExpression(expr: AllAttributesExpression, context: RuntimeContext): Value {
+    // This is similar to AttributeReference with the "alle" pattern
+    // Pattern is more structured here: specific attribute from all objects of a type
+    
+    const ctx = context as any;  // Cast to access implementation-specific methods
+    if (!ctx.getObjectsByType) {
+      throw new Error('Context does not support getObjectsByType');
+    }
+    
+    const objects = ctx.getObjectsByType(expr.objectType);
+    
+    // Extract the specified attribute from each object
+    const values: Value[] = [];
+    for (const obj of objects) {
+      if (obj.type === 'object') {
+        const objectData = obj.value as Record<string, Value>;
+        const attrValue = objectData[expr.attribute];
+        if (attrValue !== undefined) {
+          values.push(attrValue);
+        }
+      }
+    }
+    
+    // Return as array for uniqueness checking or other aggregations
+    return {
+      type: 'array',
+      value: values
+    };
   }
 }

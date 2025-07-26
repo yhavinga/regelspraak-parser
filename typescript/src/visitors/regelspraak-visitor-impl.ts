@@ -30,9 +30,10 @@ import {
   KenmerkPredicaat,
   AttributeComparisonPredicaat
 } from '../ast/expressions';
-import { Voorwaarde, ObjectCreation } from '../ast/rules';
+import { Voorwaarde, ObjectCreation, Consistentieregel } from '../ast/rules';
 import { ObjectTypeDefinition, KenmerkSpecification, AttributeSpecification, DataType, DomainReference } from '../ast/object-types';
 import { ParameterDefinition } from '../ast/parameters';
+import { AttributeReference } from '../ast/expressions';
 
 /**
  * Implementation of ANTLR4 visitor that builds our AST
@@ -64,6 +65,14 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
     // Visit rules
     for (const rule of rules) {
       const result = this.visit(rule);
+      if (result) {
+        results.push(result);
+      }
+    }
+    
+    // Visit consistency rules
+    for (const consistentieregel of consistentieregels) {
+      const result = this.visit(consistentieregel);
       if (result) {
         results.push(result);
       }
@@ -995,7 +1004,8 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
   visitObjectTypeDefinition(ctx: any): ObjectTypeDefinition {
     // Get the name (naamwoordNoIs)
     const nameCtx = ctx.naamwoordNoIs();
-    const name = this.extractText(nameCtx).trim();
+    const rawName = this.extractText(nameCtx).trim();
+    const name = this.extractParameterName(rawName);
     
     
     // Check for plural form (in parentheses)
@@ -1078,7 +1088,8 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
   visitAttribuutSpecificatie(ctx: any): AttributeSpecification {
     // Get the name
     const nameCtx = ctx.naamwoord();
-    const name = this.extractText(nameCtx);
+    const rawName = this.extractText(nameCtx);
+    const name = this.extractParameterName(rawName);
     
     // Get data type or domain reference
     let dataType: DataType | DomainReference;
@@ -1393,5 +1404,89 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
     
     // Multiple children - not sure what to do
     throw new Error(`Don't know how to handle ${node.constructor.name} with ${node.children.length} children`);
+  }
+  
+  visitConsistentieregel(ctx: any): any {
+    // Get the rule name
+    const naam = ctx.naamwoord() ? this.extractText(ctx.naamwoord()) : '<unknown_consistentieregel>';
+    
+    // Determine which type of consistency result we have
+    let resultaat = null;
+    let voorwaarde = undefined;
+    
+    if (ctx.uniekzijnResultaat()) {
+      // Handle uniqueness check
+      resultaat = this.visitUniekzijnResultaat(ctx.uniekzijnResultaat());
+    } else if (ctx.inconsistentResultaat()) {
+      // Handle inconsistency check
+      resultaat = this.visitInconsistentResultaat(ctx.inconsistentResultaat());
+      // Check if there's a condition
+      if (ctx.voorwaardeDeel()) {
+        voorwaarde = this.visit(ctx.voorwaardeDeel());
+      }
+    }
+    
+    if (!resultaat) {
+      throw new Error(`Could not parse consistency rule result for '${naam}'`);
+    }
+    
+    // Return as a Rule with Consistentieregel as the result
+    return {
+      type: 'Rule',
+      name: naam,
+      version: { type: 'RuleVersion', validity: 'altijd' },
+      result: resultaat,
+      condition: voorwaarde
+    };
+  }
+  
+  visitUniekzijnResultaat(ctx: any): Consistentieregel {
+    // Get the target expression (what must be unique)
+    const alleAttrCtx = ctx.alleAttributenVanObjecttype();
+    if (!alleAttrCtx) {
+      throw new Error('Failed to parse uniqueness target');
+    }
+    
+    const target = this.visitAlleAttributenVanObjecttype(alleAttrCtx);
+    if (!target) {
+      throw new Error('Failed to parse uniqueness target');
+    }
+    
+    return {
+      type: 'Consistentieregel',
+      criteriumType: 'uniek',
+      target: target
+    };
+  }
+  
+  visitAlleAttributenVanObjecttype(ctx: any): AttributeReference {
+    // Pattern: DE naamwoord VAN ALLE naamwoord
+    // Extract the attribute name (plural form)
+    const attrPlural = ctx.naamwoord(0) ? this.extractText(ctx.naamwoord(0)) : null;
+    // Extract the object type name
+    const objType = ctx.naamwoord(1) ? this.extractText(ctx.naamwoord(1)) : null;
+    
+    if (!attrPlural || !objType) {
+      throw new Error('Failed to parse alle attributen pattern');
+    }
+    
+    // Extract canonical names (remove articles)
+    const attrName = this.extractParameterName(attrPlural);
+    const objTypeName = this.extractParameterName(objType);
+    
+    // Create an AttributeReference that represents "attribute of all ObjectType"
+    // The path structure represents the navigation: [attribute, "alle", object_type]
+    return {
+      type: 'AttributeReference',
+      path: [attrName, 'alle', objTypeName]
+    };
+  }
+  
+  visitInconsistentResultaat(ctx: any): Consistentieregel {
+    // Handle inconsistency check
+    return {
+      type: 'Consistentieregel',
+      criteriumType: 'inconsistent'
+    };
   }
 }

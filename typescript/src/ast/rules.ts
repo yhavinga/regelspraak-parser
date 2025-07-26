@@ -17,7 +17,7 @@ export interface RuleVersion {
   validity: 'altijd' | 'vanaf' | 'tot'; // Simplified for now
 }
 
-export type ResultPart = Gelijkstelling | ObjectCreation | MultipleResults | Kenmerktoekenning;
+export type ResultPart = Gelijkstelling | ObjectCreation | MultipleResults | Kenmerktoekenning | Consistentieregel;
 
 export interface Gelijkstelling {
   type: 'Gelijkstelling';
@@ -48,4 +48,11 @@ export interface Kenmerktoekenning {
 export interface Voorwaarde {
   type: 'Voorwaarde';
   expression: Expression; // The condition expression
+}
+
+export interface Consistentieregel {
+  type: 'Consistentieregel';
+  criteriumType: 'uniek' | 'inconsistent';
+  target?: Expression;  // For uniqueness checks (e.g., "de BSN")
+  condition?: Expression;  // For conditional inconsistency
 }

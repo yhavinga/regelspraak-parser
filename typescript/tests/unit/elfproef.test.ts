@@ -91,8 +91,8 @@ describe('Elfproef Predicate', () => {
             // 396 % 11 = 0 (valid!)
             const personId = context.generateObjectId('Natuurlijkpersoon');
             context.createObject('Natuurlijkpersoon', personId, {
-                burgerservicenummer: { type: 'string', value: '999999990' },
-                BSNgeldig: { type: 'boolean', value: false } // Initialize as false
+                burgerservicenummer: { type: 'string', value: '999999990' }
+                // Note: don't initialize BSNgeldig - it's a kenmerk, not an attribute
             });
             
             const result = engine.run(modelText, context);
@@ -100,7 +100,8 @@ describe('Elfproef Predicate', () => {
             expect(result.success).toBe(true);
             const persons = context.getObjectsByType('Natuurlijkpersoon');
             expect(persons.length).toBe(1);
-            expect(persons[0].value.BSNgeldig).toEqual({ type: 'boolean', value: true });
+            // Check the kenmerk, not an attribute
+            expect(persons[0].value['is BSNgeldig']).toEqual({ type: 'boolean', value: true });
         });
 
         test('should invalidate invalid BSN (111111111)', () => {
@@ -130,7 +131,8 @@ describe('Elfproef Predicate', () => {
             expect(result.success).toBe(true);
             const persons = context.getObjectsByType('Natuurlijkpersoon');
             expect(persons.length).toBe(1);
-            expect(persons[0].value.BSNgeldig).toBeFalsy();
+            // For invalid BSN, the kenmerk should not be set (undefined)
+            expect(persons[0].value['is BSNgeldig']).toBeUndefined();
         });
 
         test('should handle non-numeric BSN', () => {
@@ -158,7 +160,8 @@ describe('Elfproef Predicate', () => {
             expect(result.success).toBe(true);
             const persons = context.getObjectsByType('Natuurlijkpersoon');
             expect(persons.length).toBe(1);
-            expect(persons[0].value.BSNgeldig).toBeFalsy();
+            // For invalid BSN, the kenmerk should not be set (undefined)
+            expect(persons[0].value['is BSNgeldig']).toBeUndefined();
         });
 
         test('should handle wrong length BSN', () => {
@@ -186,7 +189,8 @@ describe('Elfproef Predicate', () => {
             expect(result.success).toBe(true);
             const persons = context.getObjectsByType('Natuurlijkpersoon');
             expect(persons.length).toBe(1);
-            expect(persons[0].value.BSNgeldig).toBeFalsy();
+            // For invalid BSN, the kenmerk should not be set (undefined)
+            expect(persons[0].value['is BSNgeldig']).toBeUndefined();
         });
 
         test('should handle empty BSN', () => {
@@ -214,7 +218,8 @@ describe('Elfproef Predicate', () => {
             expect(result.success).toBe(true);
             const persons = context.getObjectsByType('Natuurlijkpersoon');
             expect(persons.length).toBe(1);
-            expect(persons[0].value.BSNgeldig).toBeFalsy();
+            // For invalid BSN, the kenmerk should not be set (undefined)
+            expect(persons[0].value['is BSNgeldig']).toBeUndefined();
         });
 
         test('should handle negative elfproef check', () => {
@@ -242,7 +247,8 @@ describe('Elfproef Predicate', () => {
             expect(result.success).toBe(true);
             const persons = context.getObjectsByType('Natuurlijkpersoon');
             expect(persons.length).toBe(1);
-            expect(persons[0].value.BSNongeldig).toEqual({ type: 'boolean', value: true });
+            // Check the negative kenmerk
+            expect(persons[0].value['is BSNongeldig']).toEqual({ type: 'boolean', value: true });
         });
 
         test('should validate another valid BSN (123456782)', () => {
@@ -273,7 +279,8 @@ describe('Elfproef Predicate', () => {
             expect(result.success).toBe(true);
             const persons = context.getObjectsByType('Natuurlijkpersoon');
             expect(persons.length).toBe(1);
-            expect(persons[0].value.BSNgeldig).toEqual({ type: 'boolean', value: true });
+            // Check the kenmerk, not an attribute
+            expect(persons[0].value['is BSNgeldig']).toEqual({ type: 'boolean', value: true });
         });
     });
 });
