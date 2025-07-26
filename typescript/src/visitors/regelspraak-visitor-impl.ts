@@ -21,7 +21,8 @@ import {
   BinaryExpression,
   UnaryExpression,
   VariableReference,
-  FunctionCall 
+  FunctionCall,
+  NavigationExpression
 } from '../ast/expressions';
 import { Voorwaarde } from '../ast/rules';
 import { ObjectTypeDefinition, KenmerkSpecification, AttributeSpecification, DataType, DomainReference } from '../ast/object-types';
@@ -250,10 +251,35 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
 
   visitOnderwerpRefExpr(ctx: any): Expression {
     // For now, treat simple onderwerp references as variable references
-    const text = ctx.getText();
+    // The grammar structure is: onderwerpReferentie -> onderwerpBasis -> basisOnderwerp
+    const onderwerpRef = ctx.onderwerpReferentie ? ctx.onderwerpReferentie() : ctx;
+    const onderwerpBasis = onderwerpRef.onderwerpBasis ? onderwerpRef.onderwerpBasis() : onderwerpRef;
+    const basisOnderwerp = onderwerpBasis.basisOnderwerp ? onderwerpBasis.basisOnderwerp() : onderwerpBasis;
     
-    // Extract the actual variable name without article
-    const variableName = this.extractParameterName(text);
+    // basisOnderwerp : (DE | HET | EEN | ZIJN | ALLE)? identifierOrKeyword+
+    if (basisOnderwerp && basisOnderwerp.identifierOrKeyword) {
+      // Collect all identifier tokens (skip article)
+      const identifiers = basisOnderwerp.identifierOrKeyword();
+      if (Array.isArray(identifiers)) {
+        // Join multiple identifiers with space, preserving case
+        const variableName = identifiers.map(id => id.getText()).join(' ');
+        return {
+          type: 'VariableReference',
+          variableName
+        } as VariableReference;
+      } else if (identifiers) {
+        // Single identifier
+        return {
+          type: 'VariableReference',
+          variableName: identifiers.getText()
+        } as VariableReference;
+      }
+    }
+    
+    // Fallback: extract text without article, preserving case
+    const text = ctx.getText();
+    const match = text.match(/^(?:de|het|een|zijn|alle)?\s*(.+)$/i);
+    const variableName = match ? match[1] : text;
     
     return {
       type: 'VariableReference',
@@ -363,13 +389,138 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
     }
   }
 
-  visitAttribuutReferentie(ctx: any): string {
-    // Get the attribute with article
+  visitAttribuutReferentie(ctx: any): NavigationExpression {
+    // attribuutReferentie : attribuutMetLidwoord VAN onderwerpReferentie
     const attrCtx = ctx.attribuutMetLidwoord();
-    const attrText = this.extractText(attrCtx);
+    const attrText = this.extractTextWithSpaces(attrCtx);
     
-    // For now, just return the full text
-    return attrText;
+    // Check if this is actually a nested navigation that was parsed incorrectly
+    // Due to grammar ambiguity, "de straat van het adres" might be parsed as a single naamwoord
+    if (attrText.includes(' van ')) {
+      // This is a nested navigation expression
+      // We need to recursively parse it
+      // For now, just take the first part before "van"
+      const parts = attrText.split(' van ');
+      const actualAttr = this.extractParameterName(parts[0]);
+      
+      // The rest after "van" should be combined with the onderwerpReferentie
+      // This is a workaround for the grammar ambiguity
+      const onderwerpCtx = ctx.onderwerpReferentie();
+      const baseObjectExpr = this.visit(onderwerpCtx);
+      
+      // Create a nested navigation if we have multiple parts
+      if (parts.length > 1) {
+        // For "de straat van het adres", parts = ["de straat", "het adres"]
+        // We need to create: { attribute: "straat", object: { attribute: "adres", object: persoon } }
+        
+        // Start with the base object (persoon)
+        let currentObject = baseObjectExpr;
+        
+        // Process middle parts from right to left
+        // Skip the first part (actualAttr) as it will be the outermost attribute
+        for (let i = parts.length - 1; i >= 1; i--) {
+          const nestedAttr = this.extractParameterName(parts[i]);
+          currentObject = {
+            type: 'NavigationExpression',
+            attribute: nestedAttr,
+            object: currentObject
+          } as NavigationExpression;
+        }
+        
+        return {
+          type: 'NavigationExpression',
+          attribute: actualAttr,
+          object: currentObject
+        } as NavigationExpression;
+      }
+      
+      return {
+        type: 'NavigationExpression',
+        attribute: actualAttr,
+        object: baseObjectExpr
+      } as NavigationExpression;
+    }
+    
+    // Simple case: no nested navigation in attribute
+    const attrName = this.extractParameterName(attrText);
+    
+    // Get the object expression (onderwerpReferentie)
+    const onderwerpCtx = ctx.onderwerpReferentie();
+    const objectExpr = this.visit(onderwerpCtx);
+    
+    return {
+      type: 'NavigationExpression',
+      attribute: attrName,
+      object: objectExpr
+    } as NavigationExpression;
+  }
+  
+  visitAttrRefExpr(ctx: any): Expression {
+    // AttrRefExpr wraps attribuutReferentie in primaryExpression
+    const attrRefCtx = ctx.attribuutReferentie();
+    return this.visit(attrRefCtx);
+  }
+  
+  visitOnderwerpReferentie(ctx: any): Expression {
+    // onderwerpReferentie : onderwerpBasis ( (DIE | DAT) predicaat )?
+    // For now, ignore the optional predicaat (subselectie) part
+    const onderwerpBasisCtx = ctx.onderwerpBasis();
+    
+    if (!onderwerpBasisCtx) {
+      // Fallback to simple text extraction
+      const text = ctx.getText();
+      const variableName = text.replace(/^(de|het|een|zijn|alle)\s*/i, '');
+      return {
+        type: 'VariableReference',
+        variableName
+      } as VariableReference;
+    }
+    
+    // onderwerpBasis : basisOnderwerp ( voorzetsel basisOnderwerp )*
+    // For now, just handle the simple case without voorzetsel chaining
+    const basisOnderwerpList = onderwerpBasisCtx.basisOnderwerp();
+    if (!basisOnderwerpList || basisOnderwerpList.length === 0) {
+      // Fallback
+      const text = ctx.getText();
+      const variableName = text.replace(/^(de|het|een|zijn|alle)\s*/i, '');
+      return {
+        type: 'VariableReference',
+        variableName
+      } as VariableReference;
+    }
+    
+    const basisOnderwerpCtx = basisOnderwerpList[0];
+    
+    // basisOnderwerp : (DE | HET | EEN | ZIJN | ALLE)? identifierOrKeyword+
+    // Extract the identifier(s) without article
+    const identifiers = basisOnderwerpCtx.identifierOrKeyword ? basisOnderwerpCtx.identifierOrKeyword() : [];
+    
+    if (identifiers.length > 0) {
+      const variableName = Array.isArray(identifiers) 
+        ? identifiers.map(id => id.getText()).join(' ')
+        : identifiers.getText();
+        
+      return {
+        type: 'VariableReference',
+        variableName
+      } as VariableReference;
+    }
+    
+    // Check for HIJ pronoun
+    if (basisOnderwerpCtx.HIJ && basisOnderwerpCtx.HIJ()) {
+      return {
+        type: 'VariableReference',
+        variableName: 'hij'
+      } as VariableReference;
+    }
+    
+    // Fallback
+    const text = ctx.getText();
+    const variableName = text.replace(/^(de|het|een|zijn|alle)\s*/i, '');
+    return {
+      type: 'VariableReference',
+      variableName
+    } as VariableReference;
   }
 
   visitRegelVersie(ctx: any): any {
@@ -782,18 +933,18 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
     
     // If multiple words and first is an article, remove it
     if (words.length > 1 && /^(de|het)$/i.test(words[0])) {
-      return words.slice(1).join(' ').toLowerCase();
+      // Join remaining words with space, preserving multi-word attributes
+      return words.slice(1).join(' ');
     }
     
     // Check if article is concatenated with the name (no space)
     const concatenatedMatch = trimmed.match(/^(de|het)(.+)$/i);
     if (concatenatedMatch && concatenatedMatch[2]) {
-      // Extract the part after the article and convert first letter to lowercase
-      const nameWithoutArticle = concatenatedMatch[2];
-      return nameWithoutArticle.charAt(0).toLowerCase() + nameWithoutArticle.slice(1);
+      // Extract the part after the article
+      return concatenatedMatch[2].trim();
     }
     
-    return trimmed.toLowerCase();
+    return trimmed;
   }
 
   // Conditional rule support

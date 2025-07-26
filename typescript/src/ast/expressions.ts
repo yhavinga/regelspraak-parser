@@ -50,3 +50,9 @@ export interface AggregationExpression extends Expression {
     to: string;
   };
 }
+
+export interface NavigationExpression extends Expression {
+  type: 'NavigationExpression';
+  attribute: string;
+  object: Expression;
+}

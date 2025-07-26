@@ -1,5 +1,5 @@
 import { IEvaluator, Value, RuntimeContext } from '../interfaces';
-import { Expression, NumberLiteral, StringLiteral, BinaryExpression, UnaryExpression, VariableReference, FunctionCall, AggregationExpression } from '../ast/expressions';
+import { Expression, NumberLiteral, StringLiteral, BinaryExpression, UnaryExpression, VariableReference, FunctionCall, AggregationExpression, NavigationExpression } from '../ast/expressions';
 import { AggregationEngine } from './aggregation-engine';
 import { TimelineEvaluator } from './timeline-evaluator';
 import { TimelineExpression, TimelineValue } from '../ast/timelines';
@@ -38,6 +38,8 @@ export class ExpressionEvaluator implements IEvaluator {
         return this.aggregationEngine.evaluate(expr as AggregationExpression, context);
       case 'TimelineExpression':
         return this.timelineEvaluator.evaluate(expr as TimelineExpression, context);
+      case 'NavigationExpression':
+        return this.evaluateNavigationExpression(expr as NavigationExpression, context);
       default:
         throw new Error(`Unknown expression type: ${expr.type}`);
     }
@@ -338,5 +340,27 @@ export class ExpressionEvaluator implements IEvaluator {
       type: 'number',
       value: Math.abs(arg.value as number)
     };
+  }
+
+  private evaluateNavigationExpression(expr: NavigationExpression, context: RuntimeContext): Value {
+    // First evaluate the object expression
+    const objectValue = this.evaluate(expr.object, context);
+    
+    // Check if the object is actually an object
+    if (objectValue.type !== 'object') {
+      throw new Error(`Cannot navigate into non-object type: ${objectValue.type}`);
+    }
+    
+    // Get the object's attributes
+    const objectData = objectValue.value as Record<string, Value>;
+    
+    // Look up the attribute
+    const attributeValue = objectData[expr.attribute];
+    
+    if (attributeValue === undefined) {
+      throw new Error(`Attribute "${expr.attribute}" not found in object`);
+    }
+    
+    return attributeValue;
   }
 }

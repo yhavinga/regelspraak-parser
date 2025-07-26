@@ -1,6 +1,6 @@
 # RegelSpraak TypeScript Implementation Plan (Revised)
 
-## Current Status (2025-01-26 - Session 4)
+## Current Status (2025-01-26 - Session 6)
 
 ### ✅ Completed Phases
 - **Phase 0-4**: Basic architecture and expression evaluation complete
@@ -175,33 +175,58 @@ All initial phases completed with basic features. Performance shows 1000x+ impro
   - Unit specifications including complex units via eenheidExpressie
   - Tests: 166/172 passing (96.5%)
 
-**Still TODO**:
-- Conditional rules (indien X dan Y)
-- Better error messages for invalid syntax
+### ✅ Phase 10a: Navigation Expressions - COMPLETE ✓
 
-### 📋 Phase 10: Advanced Features (2-3 weeks)
+**Session 6 Achievements**:
+- ✅ Fixed case sensitivity bug in variable references
+- ✅ Implemented NavigationExpression AST node
+- ✅ Added visitAttribuutReferentie and visitAttrRefExpr methods
+- ✅ Implemented navigation expression evaluation
+- ✅ Added visitOnderwerpReferentie for object references
+- ✅ Handled nested navigation expressions (workaround for grammar ambiguity)
+- ✅ Support for multi-word attributes preserving spaces
+- ✅ All 12 navigation expression tests passing
 
-**Major Features to Implement**:
-1. **Dutch language patterns**
-   - "de X van Y" navigation expressions
-   - Article handling (de/het)
-   - Plural forms and conjugations
+**Current Test Status**: 187/193 passing (96.9%)
+- 0 failing tests
+- 6 skipped tests: function validation/error handling
 
-2. **Complex predicates**
-   - Validation predicates (elfproef, dagsoort)
-   - Compound predicates (ALLE, GEEN VAN DE)
-   - Subselectie (filtered collections)
+### 📋 Phase 10b: Remaining Core Features
 
-3. **Advanced rule types**
-   - Distribution rules (Verdeling)
-   - Recursion (Recursie)
-   - Decision tables (already partially done)
+**Priority Implementation Order**:
+1. **Navigation Expressions** ("de X van Y") - ✅ COMPLETE
 
-4. **System features**
-   - Real timeline support (not stubs)
-   - Unit system with conversions
-   - Semantic validation layer
-   - Tracing infrastructure
+2. **Subselectie** (DIE/DAT/MET filtering) - Builds on navigation
+   - Filter collections with predicates
+   - ~2 days
+
+3. **Object/Fact Creation** - Rule actions
+   - Create new instances in rules
+   - ~3 days
+
+4. **Advanced Predicates**
+   - elfproef (BSN validation)
+   - dagsoort (day type checking)
+   - is uniek (uniqueness)
+   - ~2 days
+
+5. **Verdeling** (distribution rules)
+   - Complex business rules for distribution
+   - ~3 days
+
+6. **ANTLR Integration for Remaining Parsers**
+   - Replace toy decision table parser
+   - Replace toy aggregation parser
+   - ~2 days
+
+7. **Unit System & Dimensions**
+   - Units with conversions
+   - Dimensional attributes
+   - ~3 days
+
+8. **Semantic Validation**
+   - Type checking at parse time
+   - ~2 days
 
 ### 🏁 Phase 11: Polish & Production Ready (1 week)
 
@@ -223,11 +248,11 @@ All initial phases completed with basic features. Performance shows 1000x+ impro
 ## Next Session Checklist
 
 When continuing, start with:
-1. Run `npm test` to see current state (132/149 passing, 88.6%)
-2. Focus on failing tests: 15 failures in function-calls.test.ts
-3. Implement Dutch function call syntax (de wortel van, de absolute waarde van)
-4. Check grammar for function call patterns (visitWortelFuncExpr, etc.)
-5. The visitor pattern is established - follow same approach as other operators
+1. Run `npm test` to see current state (187/193 passing, 96.9%)
+2. All tests are passing! 
+3. Next: Implement Subselectie (DIE/DAT/MET filtering)
+4. Or: Replace toy parsers (decision table, aggregation) with ANTLR
+5. Or: Implement advanced predicates (elfproef, dagsoort, uniek)
 
 ## Technical Notes from ANTLR4 Integration
 
