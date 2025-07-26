@@ -1,6 +1,6 @@
 # RegelSpraak TypeScript Implementation Plan (Revised)
 
-## Current Status (2025-07-25 - Session 3)
+## Current Status (2025-01-26 - Session 4)
 
 ### ✅ Completed Phases
 - **Phase 0-4**: Basic architecture and expression evaluation complete
@@ -10,12 +10,23 @@
 - **Phase 8a**: Comparison operators COMPLETE ✓
 - **Phase 8b**: Logical operators, parentheses, unary operators COMPLETE ✓
 - **Phase 8c**: Function calls (Dutch syntax) COMPLETE ✓
+- **Phase 9**: Conditional rules (indien X dan Y) COMPLETE ✓
 
 ### 🎯 Progress Update
-The TypeScript implementation is now **~30% complete** compared to Python:
-- ✅ Has: ANTLR4 parser, all operators, parentheses, numbers/variables, Dutch functions, **rule parsing & execution**
-- ✅ Tests: 149/155 passing (96.1%) - excellent progress!
-- ❌ Missing: Objects, semantic validation, decision tables, 60% of features
+The TypeScript implementation is now **~35% complete** compared to Python:
+- ✅ Has: ANTLR4 parser, all operators, parentheses, numbers/variables, Dutch functions, **rule parsing & execution**, **conditional rules**
+- ✅ Tests: 174/181 passing (96.1%) - excellent progress!
+- ❌ Missing: Objects, semantic validation, decision tables, 55% of features
+
+### 📊 Key Achievements (Session 4)
+- ✅ **Conditional rules fully implemented**:
+  - Added Voorwaarde interface to AST
+  - Implemented visitVoorwaardeDeel visitor method  
+  - Support for logical operators (en/of) in conditions
+  - Support for all comparison operators in conditions
+  - Fixed Dutch operator mapping issues ("groter is dan" variations)
+  - Rule execution with proper condition evaluation and skipping
+  - 9 new tests all passing
 
 ### 📊 Key Achievements (Session 3) 
 - ✅ **Logical operators (en, of) fully implemented**:

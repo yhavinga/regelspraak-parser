@@ -1,8 +1,7 @@
 import { ParseTreeVisitor } from 'antlr4';
 import RegelSpraakVisitor from '../generated/antlr/RegelSpraakVisitor';
-import RegelSpraakParser, {
+import {
   RegelSpraakDocumentContext,
-  RegelContext,
   ExpressieContext,
   LogicalExprContext,
   BinaryComparisonExprContext,
@@ -13,20 +12,18 @@ import RegelSpraakParser, {
   NumberLiteralExprContext,
   IdentifierExprContext,
   ParenExprContext,
-  IdentifierContext,
   UnaryNietExprContext,
   UnaryMinusExprContext
 } from '../generated/antlr/RegelSpraakParser';
 import { 
   Expression, 
   NumberLiteral, 
-  StringLiteral, 
   BinaryExpression,
   UnaryExpression,
   VariableReference,
   FunctionCall 
 } from '../ast/expressions';
-import { Rule } from '../ast/rules';
+import { Voorwaarde } from '../ast/rules';
 import { ObjectTypeDefinition, KenmerkSpecification, AttributeSpecification, DataType, DomainReference } from '../ast/object-types';
 import { ParameterDefinition } from '../ast/parameters';
 
@@ -109,6 +106,7 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
     
     switch(opText) {
       case 'gelijk aan':
+      case 'gelijk is aan':
       case 'is gelijk aan':
       case 'zijn gelijk aan':
         operator = '==';
@@ -119,21 +117,25 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
         operator = '!=';
         break;
       case 'groter dan':
+      case 'groter is dan':
       case 'is groter dan':
       case 'zijn groter dan':
         operator = '>';
         break;
       case 'groter of gelijk aan':
+      case 'groter of gelijk is aan':
       case 'is groter of gelijk aan':
       case 'zijn groter of gelijk aan':
         operator = '>=';
         break;
       case 'kleiner dan':
+      case 'kleiner is dan':
       case 'is kleiner dan':
       case 'zijn kleiner dan':
         operator = '<';
         break;
       case 'kleiner of gelijk aan':
+      case 'kleiner of gelijk is aan':
       case 'is kleiner of gelijk aan':
       case 'zijn kleiner of gelijk aan':
         operator = '<=';
@@ -249,10 +251,27 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
   visitOnderwerpRefExpr(ctx: any): Expression {
     // For now, treat simple onderwerp references as variable references
     const text = ctx.getText();
+    
+    // Extract the actual variable name without article
+    const variableName = this.extractParameterName(text);
+    
     return {
       type: 'VariableReference',
-      variableName: text
+      variableName
     } as VariableReference;
+  }
+
+  visitStringLiteralExpr(ctx: any): Expression {
+    // Get the string literal token
+    const text = ctx.STRING_LITERAL().getText();
+    
+    // Remove surrounding quotes
+    const value = text.slice(1, -1);
+    
+    return {
+      type: 'StringLiteral',
+      value
+    } as Expression;
   }
 
   visitUnaryNietExpr(ctx: UnaryNietExprContext): Expression {
@@ -307,7 +326,7 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
       if (!nameCtx) {
         throw new Error('Expected rule name');
       }
-      const name = this.extractText(nameCtx);
+      const name = this.extractTextWithSpaces(nameCtx).trim();
       
       // Get version info
       const versionCtx = ctx.regelVersie();
@@ -323,11 +342,18 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
       }
       const result = this.visit(resultCtx);
       
+      // Check for optional condition (voorwaardeDeel)
+      let condition: Voorwaarde | undefined;
+      if (ctx.voorwaardeDeel && ctx.voorwaardeDeel()) {
+        condition = this.visitVoorwaardeDeel(ctx.voorwaardeDeel());
+      }
+      
       return {
         type: 'Rule',
         name,
         version,
-        result
+        result,
+        condition
       };
     } catch (e) {
       if (e instanceof Error) {
@@ -462,6 +488,36 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
     }
     
     return '';
+  }
+  
+  // Helper to extract text with spaces preserved between tokens
+  private extractTextWithSpaces(ctx: any): string {
+    if (!ctx) return '';
+    
+    // If it's a terminal node, just return its text
+    if (ctx.symbol) {
+      return ctx.getText();
+    }
+    
+    // For parser rule contexts, reconstruct with spaces
+    const parts: string[] = [];
+    const childCount = ctx.getChildCount ? ctx.getChildCount() : 0;
+    
+    for (let i = 0; i < childCount; i++) {
+      const child = ctx.getChild(i);
+      if (child.symbol) {
+        // Terminal node
+        parts.push(child.getText());
+      } else {
+        // Recursively get text from child contexts
+        const childText = this.extractTextWithSpaces(child);
+        if (childText) {
+          parts.push(childText);
+        }
+      }
+    }
+    
+    return parts.join(' ');
   }
 
   // Object type definition visitor methods
@@ -738,6 +794,28 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
     }
     
     return trimmed.toLowerCase();
+  }
+
+  // Conditional rule support
+  visitVoorwaardeDeel(ctx: any): Voorwaarde {
+    // voorwaardeDeel : INDIEN ( expressie | toplevelSamengesteldeVoorwaarde )
+    
+    // For now, we only support simple expressions
+    // Complex compound conditions (toplevelSamengesteldeVoorwaarde) can be added later
+    if (ctx.expressie && ctx.expressie()) {
+      const expression = this.visit(ctx.expressie());
+      return {
+        type: 'Voorwaarde',
+        expression
+      };
+    }
+    
+    // TODO: Support toplevelSamengesteldeVoorwaarde for compound conditions
+    if (ctx.toplevelSamengesteldeVoorwaarde && ctx.toplevelSamengesteldeVoorwaarde()) {
+      throw new Error('Compound conditions (samengestelde voorwaarde) not yet supported');
+    }
+    
+    throw new Error('Expected expression in voorwaardeDeel');
   }
 
   // Default visitor - fall back to visitChildren

@@ -9,6 +9,7 @@ export interface Rule {
   name: string;
   version: RuleVersion;
   result: ResultPart;
+  condition?: Voorwaarde; // Optional condition (indien X)
 }
 
 export interface RuleVersion {
@@ -22,4 +23,9 @@ export interface Gelijkstelling {
   type: 'Gelijkstelling';
   target: string; // Simplified: just the attribute name for now
   expression: Expression;
+}
+
+export interface Voorwaarde {
+  type: 'Voorwaarde';
+  expression: Expression; // The condition expression
 }

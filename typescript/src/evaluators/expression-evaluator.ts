@@ -113,36 +113,49 @@ export class ExpressionEvaluator implements IEvaluator {
   }
 
   private evaluateComparisonExpression(expr: BinaryExpression, left: Value, right: Value): Value {
-    // For now, only support comparing numbers
-    if (left.type !== 'number' || right.type !== 'number') {
+    // Check if types are compatible for comparison
+    if (left.type !== right.type && 
+        !(left.type === 'null' || right.type === 'null')) {
       throw new Error(`Cannot compare ${left.type} with ${right.type}`);
     }
 
-    const leftVal = left.value as number;
-    const rightVal = right.value as number;
     let result: boolean;
 
-    switch (expr.operator) {
-      case '==':
-        result = leftVal === rightVal;
-        break;
-      case '!=':
-        result = leftVal !== rightVal;
-        break;
-      case '>':
-        result = leftVal > rightVal;
-        break;
-      case '<':
-        result = leftVal < rightVal;
-        break;
-      case '>=':
-        result = leftVal >= rightVal;
-        break;
-      case '<=':
-        result = leftVal <= rightVal;
-        break;
-      default:
-        throw new Error(`Unknown comparison operator: ${expr.operator}`);
+    // Handle equality/inequality for all types
+    if (expr.operator === '==' || expr.operator === '!=') {
+      const equal = left.value === right.value;
+      result = expr.operator === '==' ? equal : !equal;
+    } 
+    // Handle ordering comparisons
+    else if (expr.operator === '>' || expr.operator === '<' || 
+             expr.operator === '>=' || expr.operator === '<=') {
+      
+      // Only numbers and strings support ordering
+      if (left.type !== 'number' && left.type !== 'string') {
+        throw new Error(`Cannot use ${expr.operator} with ${left.type}`);
+      }
+      
+      const leftVal = left.value as number | string;
+      const rightVal = right.value as number | string;
+      
+      switch (expr.operator) {
+        case '>':
+          result = leftVal > rightVal;
+          break;
+        case '<':
+          result = leftVal < rightVal;
+          break;
+        case '>=':
+          result = leftVal >= rightVal;
+          break;
+        case '<=':
+          result = leftVal <= rightVal;
+          break;
+        default:
+          throw new Error(`Unknown comparison operator: ${expr.operator}`);
+      }
+    } else {
+      throw new Error(`Unknown comparison operator: ${expr.operator}`);
     }
 
     return {

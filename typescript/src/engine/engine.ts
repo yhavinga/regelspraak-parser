@@ -1,4 +1,4 @@
-import { IEngine, ParseResult, RuntimeContext, ExecutionResult } from '../interfaces';
+import { IEngine, ParseResult, RuntimeContext, ExecutionResult, Value } from '../interfaces';
 import { Context } from '../runtime/context';
 import { ExpressionEvaluator } from '../evaluators/expression-evaluator';
 import { RuleExecutor } from '../executors/rule-executor';
@@ -75,6 +75,16 @@ export class Engine implements IEngine {
         const result = this.ruleExecutor.execute(ast, context);
         // Convert RuleExecutionResult to ExecutionResult
         if (result.success) {
+          if (result.skipped) {
+            // Rule was skipped due to condition
+            return {
+              success: true,
+              value: {
+                type: 'string',
+                value: `Rule skipped: ${result.reason || 'condition not met'}`
+              }
+            };
+          }
           return {
             success: true,
             value: result.value!
@@ -137,10 +147,30 @@ export class Engine implements IEngine {
     // Initialize context with provided data
     if (data) {
       for (const [key, value] of Object.entries(data)) {
-        context.setVariable(key, value);
+        // Convert JavaScript values to Value objects
+        const valueObj = this.convertToValue(value);
+        context.setVariable(key, valueObj);
       }
     }
     
     return this.run(source, context);
+  }
+  
+  private convertToValue(value: any): Value {
+    if (typeof value === 'number') {
+      return { type: 'number', value };
+    } else if (typeof value === 'string') {
+      return { type: 'string', value };
+    } else if (typeof value === 'boolean') {
+      return { type: 'boolean', value };
+    } else if (value instanceof Date) {
+      return { type: 'date', value };
+    } else if (value === null || value === undefined) {
+      return { type: 'null', value: null };
+    } else if (Array.isArray(value)) {
+      return { type: 'list', value };
+    } else {
+      return { type: 'object', value };
+    }
   }
 }

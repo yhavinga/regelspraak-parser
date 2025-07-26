@@ -6,6 +6,8 @@ export interface RuleExecutionResult {
   target?: string;
   value?: Value;
   error?: Error;
+  skipped?: boolean;
+  reason?: string;
 }
 
 export interface IRuleExecutor {

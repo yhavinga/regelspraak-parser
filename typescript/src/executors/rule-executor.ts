@@ -10,6 +10,22 @@ export class RuleExecutor implements IRuleExecutor {
 
   execute(rule: Rule, context: RuntimeContext): RuleExecutionResult {
     try {
+      // Check if there's a condition
+      if (rule.condition) {
+        // Evaluate the condition
+        const conditionResult = this.expressionEvaluator.evaluate(rule.condition.expression, context);
+        
+        // Check if condition is truthy
+        if (!this.isTruthy(conditionResult)) {
+          // Condition is false, skip rule execution
+          return {
+            success: true,
+            skipped: true,
+            reason: 'Condition evaluated to false'
+          };
+        }
+      }
+      
       // For now, we only handle Gelijkstelling (assignment)
       if (rule.result.type !== 'Gelijkstelling') {
         throw new Error(`Unsupported result type: ${rule.result.type}`);
@@ -34,5 +50,20 @@ export class RuleExecutor implements IRuleExecutor {
         error: error as Error
       };
     }
+  }
+  
+  private isTruthy(value: Value): boolean {
+    // Check if a value is considered true in a conditional context
+    if (value.type === 'boolean') {
+      return value.value === true;
+    }
+    if (value.type === 'number') {
+      return value.value !== 0;
+    }
+    if (value.type === 'string') {
+      return value.value !== '';
+    }
+    // For other types, consider non-null as truthy
+    return value.value != null;
   }
 }
