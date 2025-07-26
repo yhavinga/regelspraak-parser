@@ -56,3 +56,24 @@ export interface NavigationExpression extends Expression {
   attribute: string;
   object: Expression;
 }
+
+export interface SubselectieExpression extends Expression {
+  type: 'SubselectieExpression';
+  collection: Expression;
+  predicaat: Predicaat;
+}
+
+// Predicaat types for filtering
+export type Predicaat = KenmerkPredicaat | AttributeComparisonPredicaat;
+
+export interface KenmerkPredicaat {
+  type: 'KenmerkPredicaat';
+  kenmerk: string;
+}
+
+export interface AttributeComparisonPredicaat {
+  type: 'AttributeComparisonPredicaat';
+  attribute: string;
+  operator: string;
+  value: Expression;
+}

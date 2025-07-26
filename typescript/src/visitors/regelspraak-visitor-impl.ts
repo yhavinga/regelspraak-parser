@@ -22,7 +22,11 @@ import {
   UnaryExpression,
   VariableReference,
   FunctionCall,
-  NavigationExpression
+  NavigationExpression,
+  SubselectieExpression,
+  Predicaat,
+  KenmerkPredicaat,
+  AttributeComparisonPredicaat
 } from '../ast/expressions';
 import { Voorwaarde } from '../ast/rules';
 import { ObjectTypeDefinition, KenmerkSpecification, AttributeSpecification, DataType, DomainReference } from '../ast/object-types';
@@ -343,6 +347,26 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
       arguments: [arg]
     } as FunctionCall;
   }
+  
+  visitAantalFuncExpr(ctx: any): Expression {
+    // HET? AANTAL (ALLE? onderwerpReferentie)
+    // Get the onderwerp reference (which might include subselectie)
+    const onderwerpCtx = ctx.onderwerpReferentie();
+    
+    if (!onderwerpCtx) {
+      throw new Error('Expected onderwerpReferentie in aantal expression');
+    }
+    
+    const onderwerpExpr = this.visit(onderwerpCtx);
+    
+    // For now, just return a function call expression
+    // We'll need to enhance this to handle subselectie properly
+    return {
+      type: 'FunctionCall',
+      functionName: 'aantal',
+      arguments: [onderwerpExpr]
+    } as FunctionCall;
+  }
 
   // Rule parsing visitor methods
   visitRegel(ctx: any): any {
@@ -463,22 +487,33 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
   
   visitOnderwerpReferentie(ctx: any): Expression {
     // onderwerpReferentie : onderwerpBasis ( (DIE | DAT) predicaat )?
-    // For now, ignore the optional predicaat (subselectie) part
-    const onderwerpBasisCtx = ctx.onderwerpBasis();
     
-    if (!onderwerpBasisCtx) {
-      // Fallback to simple text extraction
-      const text = ctx.getText();
-      const variableName = text.replace(/^(de|het|een|zijn|alle)\s*/i, '');
+    // Check if there's a subselectie (DIE/DAT predicaat)
+    const predicaatCtx = ctx.predicaat ? ctx.predicaat() : null;
+    if (predicaatCtx && (ctx.DIE && ctx.DIE() || ctx.DAT && ctx.DAT())) {
+      // We have a subselectie!
+      const baseExpression = this.visitOnderwerpBasis(ctx.onderwerpBasis());
+      const predicaat = this.visitPredicaat(predicaatCtx);
+      
       return {
-        type: 'VariableReference',
-        variableName
-      } as VariableReference;
+        type: 'SubselectieExpression',
+        collection: baseExpression,
+        predicaat
+      } as SubselectieExpression;
+    }
+    
+    // No subselectie, just process the onderwerpBasis
+    return this.visitOnderwerpBasis(ctx.onderwerpBasis());
+  }
+  
+  visitOnderwerpBasis(ctx: any): Expression {
+    if (!ctx) {
+      throw new Error('Expected onderwerpBasis context');
     }
     
     // onderwerpBasis : basisOnderwerp ( voorzetsel basisOnderwerp )*
     // For now, just handle the simple case without voorzetsel chaining
-    const basisOnderwerpList = onderwerpBasisCtx.basisOnderwerp();
+    const basisOnderwerpList = ctx.basisOnderwerp();
     if (!basisOnderwerpList || basisOnderwerpList.length === 0) {
       // Fallback
       const text = ctx.getText();
@@ -521,6 +556,104 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
       type: 'VariableReference',
       variableName
     } as VariableReference;
+  }
+  
+  visitPredicaat(ctx: any): Predicaat {
+    // predicaat : elementairPredicaat | samengesteldPredicaat
+    
+    // First check if we have elementairPredicaat
+    const elementairPredicaatCtx = ctx.elementairPredicaat ? ctx.elementairPredicaat() : null;
+    if (elementairPredicaatCtx) {
+      return this.visitElementairPredicaat(elementairPredicaatCtx);
+    }
+    
+    // Try to get text and check if it's a simple kenmerk
+    const text = this.extractTextWithSpaces(ctx);
+    
+    // Simple kenmerk pattern like "minderjarig zijn"
+    if (text.endsWith(' zijn')) {
+      const kenmerk = text.replace(/ zijn$/, '').trim();
+      return {
+        type: 'KenmerkPredicaat',
+        kenmerk
+      } as KenmerkPredicaat;
+    }
+    
+    // TODO: Handle samengesteldPredicaat
+    throw new Error(`Unsupported predicate type: ${text}`);
+  }
+  
+  visitElementairPredicaat(ctx: any): Predicaat {
+    // elementairPredicaat : objectPredicaat | attribuutVergelijkingsPredicaat
+    
+    // Check for attribuutVergelijkingsPredicaat first
+    const attrVergelijkingCtx = ctx.attribuutVergelijkingsPredicaat ? ctx.attribuutVergelijkingsPredicaat() : null;
+    if (attrVergelijkingCtx) {
+      return this.visitAttribuutVergelijkingsPredicaat(attrVergelijkingCtx);
+    }
+    
+    // Check for objectPredicaat
+    const objectPredicaatCtx = ctx.objectPredicaat ? ctx.objectPredicaat() : null;
+    if (objectPredicaatCtx) {
+      return this.visitObjectPredicaat(objectPredicaatCtx);
+    }
+    
+    throw new Error('Expected objectPredicaat or attribuutVergelijkingsPredicaat in elementairPredicaat');
+  }
+  
+  visitAttribuutVergelijkingsPredicaat(ctx: any): AttributeComparisonPredicaat {
+    // attribuutVergelijkingsPredicaat : EEN? attribuutNaam=naamwoord HEBBEN comparisonOperator expressie
+    
+    // Get attribute name
+    const attrNaamCtx = ctx.naamwoord ? ctx.naamwoord() : ctx._attribuutNaam;
+    const attrName = this.extractTextWithSpaces(attrNaamCtx).trim();
+    
+    // Get comparison operator
+    const compOpCtx = ctx.comparisonOperator();
+    const opText = compOpCtx.getText();
+    
+    // Map operator text to standard operator
+    let operator: string;
+    switch(opText) {
+      case 'kleiner dan':
+      case 'kleiner is dan':
+        operator = '<';
+        break;
+      case 'groter dan':
+      case 'groter is dan':
+        operator = '>';
+        break;
+      case 'gelijk aan':
+      case 'is gelijk aan':
+        operator = '==';
+        break;
+      default:
+        throw new Error(`Unsupported comparison operator in predicaat: ${opText}`);
+    }
+    
+    // Get the expression
+    const exprCtx = ctx.expressie();
+    const expr = this.visit(exprCtx);
+    
+    return {
+      type: 'AttributeComparisonPredicaat',
+      attribute: attrName,
+      operator,
+      value: expr
+    } as AttributeComparisonPredicaat;
+  }
+  
+  visitObjectPredicaat(ctx: any): KenmerkPredicaat {
+    // For now, treat object predicates as kenmerk predicates
+    const text = this.extractTextWithSpaces(ctx);
+    
+    // Remove trailing "zijn" if present
+    const kenmerk = text.replace(/ zijn$/, '').trim();
+    
+    return {
+      type: 'KenmerkPredicaat',
+      kenmerk
+    } as KenmerkPredicaat;
   }
 
   visitRegelVersie(ctx: any): any {

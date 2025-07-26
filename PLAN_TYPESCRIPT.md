@@ -1,6 +1,6 @@
 # RegelSpraak TypeScript Implementation Plan (Revised)
 
-## Current Status (2025-01-26 - Session 6)
+## Current Status (2025-01-26 - Session 7)
 
 ### ✅ Completed Phases
 - **Phase 0-4**: Basic architecture and expression evaluation complete
@@ -13,10 +13,10 @@
 - **Phase 9**: Conditional rules (indien X dan Y) COMPLETE ✓
 
 ### 🎯 Progress Update
-The TypeScript implementation is now **~35% complete** compared to Python:
-- ✅ Has: ANTLR4 parser, all operators, parentheses, numbers/variables, Dutch functions, **rule parsing & execution**, **conditional rules**
-- ✅ Tests: 174/181 passing (96.1%) - excellent progress!
-- ❌ Missing: Objects, semantic validation, decision tables, 55% of features
+The TypeScript implementation is now **~45% complete** compared to Python:
+- ✅ Has: ANTLR4 parser, all operators, parentheses, numbers/variables, Dutch functions, **rule parsing & execution**, **conditional rules**, **navigation expressions**, **subselectie (DIE/DAT filtering)**
+- ✅ Tests: 191/198 passing (96.5%) - excellent progress!
+- ❌ Missing: Object creation, advanced predicates, verdeling, dimensions, 55% of features
 
 ### 📊 Key Achievements (Session 4)
 - ✅ **Conditional rules fully implemented**:
@@ -187,18 +187,28 @@ All initial phases completed with basic features. Performance shows 1000x+ impro
 - ✅ Support for multi-word attributes preserving spaces
 - ✅ All 12 navigation expression tests passing
 
-**Current Test Status**: 187/193 passing (96.9%)
+**Current Test Status**: 191/198 passing (96.5%)
 - 0 failing tests
-- 6 skipped tests: function validation/error handling
+- 7 skipped tests: function validation/error handling + som aggregation
 
-### 📋 Phase 10b: Remaining Core Features
+### ✅ Phase 10b: Subselectie - COMPLETE ✓
+
+**Session 7 Achievements**:
+- ✅ Implemented SubselectieExpression AST node with Predicaat types
+- ✅ Added visitPredicaat, visitElementairPredicaat, visitAttribuutVergelijkingsPredicaat
+- ✅ Implemented subselectie evaluation with predicate filtering
+- ✅ Support for kenmerk predicates: "die minderjarig zijn"
+- ✅ Support for attribute comparison: "die een leeftijd hebben kleiner dan X"
+- ✅ Support for text equality: "die een nationaliteit hebben gelijk aan 'Nederlandse'"
+- ✅ Empty result sets handled correctly
+- ✅ Added aantal function for counting filtered collections
+- ✅ All 4 subselectie tests passing
+
+### 📋 Phase 10c: Remaining Core Features
 
 **Priority Implementation Order**:
 1. **Navigation Expressions** ("de X van Y") - ✅ COMPLETE
-
-2. **Subselectie** (DIE/DAT/MET filtering) - Builds on navigation
-   - Filter collections with predicates
-   - ~2 days
+2. **Subselectie** (DIE/DAT/MET filtering) - ✅ COMPLETE
 
 3. **Object/Fact Creation** - Rule actions
    - Create new instances in rules
@@ -248,11 +258,11 @@ All initial phases completed with basic features. Performance shows 1000x+ impro
 ## Next Session Checklist
 
 When continuing, start with:
-1. Run `npm test` to see current state (187/193 passing, 96.9%)
+1. Run `npm test` to see current state (191/198 passing, 96.5%)
 2. All tests are passing! 
-3. Next: Implement Subselectie (DIE/DAT/MET filtering)
-4. Or: Replace toy parsers (decision table, aggregation) with ANTLR
-5. Or: Implement advanced predicates (elfproef, dagsoort, uniek)
+3. Next: Implement Object/Fact Creation (create new instances in rules)
+4. Or: Implement advanced predicates (elfproef, dagsoort, uniek)
+5. Or: Replace toy parsers (decision table, aggregation) with ANTLR
 
 ## Technical Notes from ANTLR4 Integration
 

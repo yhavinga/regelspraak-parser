@@ -1,5 +1,5 @@
 import { IEvaluator, Value, RuntimeContext } from '../interfaces';
-import { Expression, NumberLiteral, StringLiteral, BinaryExpression, UnaryExpression, VariableReference, FunctionCall, AggregationExpression, NavigationExpression } from '../ast/expressions';
+import { Expression, NumberLiteral, StringLiteral, BinaryExpression, UnaryExpression, VariableReference, FunctionCall, AggregationExpression, NavigationExpression, SubselectieExpression, Predicaat, KenmerkPredicaat, AttributeComparisonPredicaat } from '../ast/expressions';
 import { AggregationEngine } from './aggregation-engine';
 import { TimelineEvaluator } from './timeline-evaluator';
 import { TimelineExpression, TimelineValue } from '../ast/timelines';
@@ -10,7 +10,8 @@ import { TimelineExpression, TimelineValue } from '../ast/timelines';
 export class ExpressionEvaluator implements IEvaluator {
   private builtInFunctions: Record<string, (args: Value[]) => Value> = {
     'sqrt': this.sqrt.bind(this),
-    'abs': this.abs.bind(this)
+    'abs': this.abs.bind(this),
+    'aantal': this.aantal.bind(this)
   };
   private aggregationEngine: AggregationEngine;
   private timelineEvaluator: TimelineEvaluator;
@@ -40,6 +41,8 @@ export class ExpressionEvaluator implements IEvaluator {
         return this.timelineEvaluator.evaluate(expr as TimelineExpression, context);
       case 'NavigationExpression':
         return this.evaluateNavigationExpression(expr as NavigationExpression, context);
+      case 'SubselectieExpression':
+        return this.evaluateSubselectieExpression(expr as SubselectieExpression, context);
       default:
         throw new Error(`Unknown expression type: ${expr.type}`);
     }
@@ -341,6 +344,23 @@ export class ExpressionEvaluator implements IEvaluator {
       value: Math.abs(arg.value as number)
     };
   }
+  
+  private aantal(args: Value[]): Value {
+    if (args.length !== 1) {
+      throw new Error('aantal expects exactly 1 argument');
+    }
+    
+    const arg = args[0];
+    if (arg.type !== 'array') {
+      throw new Error('aantal expects an array argument');
+    }
+    
+    const items = arg.value as Value[];
+    return {
+      type: 'number',
+      value: items.length
+    };
+  }
 
   private evaluateNavigationExpression(expr: NavigationExpression, context: RuntimeContext): Value {
     // First evaluate the object expression
@@ -362,5 +382,92 @@ export class ExpressionEvaluator implements IEvaluator {
     }
     
     return attributeValue;
+  }
+
+  private evaluateSubselectieExpression(expr: SubselectieExpression, context: RuntimeContext): Value {
+    // First evaluate the collection expression
+    const collectionValue = this.evaluate(expr.collection, context);
+    
+    // Check if it's an array
+    if (collectionValue.type !== 'array') {
+      throw new Error(`Cannot filter non-array type: ${collectionValue.type}`);
+    }
+    
+    const items = collectionValue.value as Value[];
+    
+    // Filter the items based on the predicaat
+    const filteredItems = items.filter(item => {
+      return this.evaluatePredicaat(expr.predicaat, item, context);
+    });
+    
+    return {
+      type: 'array',
+      value: filteredItems
+    };
+  }
+  
+  private evaluatePredicaat(predicaat: Predicaat, item: Value, context: RuntimeContext): boolean {
+    switch (predicaat.type) {
+      case 'KenmerkPredicaat':
+        return this.evaluateKenmerkPredicaat(predicaat as KenmerkPredicaat, item);
+        
+      case 'AttributeComparisonPredicaat':
+        return this.evaluateAttributeComparisonPredicaat(predicaat as AttributeComparisonPredicaat, item, context);
+        
+      default:
+        throw new Error(`Unknown predicaat type: ${(predicaat as any).type}`);
+    }
+  }
+  
+  private evaluateKenmerkPredicaat(predicaat: KenmerkPredicaat, item: Value): boolean {
+    // Check if the item is an object
+    if (item.type !== 'object') {
+      return false;
+    }
+    
+    const objectData = item.value as Record<string, Value>;
+    
+    // Check if the kenmerk exists and is true
+    const kenmerkKey = `is ${predicaat.kenmerk}`;
+    const kenmerkValue = objectData[kenmerkKey];
+    
+    if (kenmerkValue && kenmerkValue.type === 'boolean') {
+      return kenmerkValue.value as boolean;
+    }
+    
+    return false;
+  }
+  
+  private evaluateAttributeComparisonPredicaat(predicaat: AttributeComparisonPredicaat, item: Value, context: RuntimeContext): boolean {
+    // Check if the item is an object
+    if (item.type !== 'object') {
+      return false;
+    }
+    
+    const objectData = item.value as Record<string, Value>;
+    const attributeValue = objectData[predicaat.attribute];
+    
+    if (!attributeValue) {
+      return false;
+    }
+    
+    // Create a comparison expression and evaluate it
+    const comparisonExpr: BinaryExpression = {
+      type: 'BinaryExpression',
+      operator: predicaat.operator as any,
+      left: { type: 'VariableReference', variableName: '_temp' } as Expression,
+      right: predicaat.value
+    };
+    
+    // Create temporary context with the attribute value
+    const tempContext = context;
+    (tempContext as any).setVariable('_temp', attributeValue);
+    
+    const result = this.evaluateBinaryExpression(comparisonExpr, tempContext);
+    
+    // Clean up temporary variable
+    (tempContext as any).setVariable('_temp', undefined);
+    
+    return result.type === 'boolean' && result.value === true;
   }
 }

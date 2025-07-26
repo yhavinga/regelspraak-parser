@@ -19,6 +19,21 @@ export class Engine implements IEngine {
     const trimmed = source.trim();
     
     try {
+      // Check if this contains multiple definitions (has newlines and multiple keywords)
+      const lines = trimmed.split('\n');
+      const hasMultipleDefinitions = lines.some(l => l.trim().startsWith('Parameter ')) &&
+                                     (lines.some(l => l.trim().startsWith('Objecttype ')) ||
+                                      lines.some(l => l.trim().startsWith('Regel ')));
+      
+      if (hasMultipleDefinitions) {
+        // Parse as a full document
+        const definitions = this.antlrParser.parse(trimmed);
+        return {
+          success: true,
+          ast: definitions
+        };
+      }
+      
       // Check if this is a rule, object type, decision table, or just an expression
       if (trimmed.startsWith('Regel ')) {
         // Use ANTLR parser for rules
@@ -70,6 +85,24 @@ export class Engine implements IEngine {
 
   execute(ast: any, context: RuntimeContext): ExecutionResult {
     try {
+      // Handle array of definitions
+      if (Array.isArray(ast)) {
+        let lastResult: ExecutionResult = {
+          success: true,
+          value: { type: 'null', value: null }
+        };
+        
+        for (const definition of ast) {
+          const result = this.execute(definition, context);
+          if (!result.success) {
+            return result; // Return first error
+          }
+          lastResult = result;
+        }
+        
+        return lastResult;
+      }
+      
       // Handle different AST types
       if (ast.type === 'Rule') {
         const result = this.ruleExecutor.execute(ast, context);
