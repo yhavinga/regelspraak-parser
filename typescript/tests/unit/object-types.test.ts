@@ -38,7 +38,7 @@ describe('Engine - Object Type Definitions', () => {
     });
 
     test('should parse animated object type', () => {
-      const source = `Objecttype persoon bezield`;
+      const source = `Objecttype persoon (bezield)`;
       
       const result = engine.parse(source);
       
@@ -197,7 +197,7 @@ describe('Engine - Object Type Definitions', () => {
 
   describe('complex object types', () => {
     test('should parse object type with multiple members', () => {
-      const source = `Objecttype persoon (mv:personen) bezield
+      const source = `Objecttype persoon (mv:personen) (bezield)
   aanwezig kenmerk;
   naam Tekst;
   leeftijd Numeriek (geheel getal);

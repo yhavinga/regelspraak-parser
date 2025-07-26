@@ -35,9 +35,20 @@ export class Engine implements IEngine {
       if (hasMultipleDefinitions) {
         // Parse as a full document
         const definitions = this.antlrParser.parse(trimmed);
+        
+        // Wrap definitions in a Model object
+        const rules = definitions.filter((def: any) => def.type === 'Rule');
+        const objectTypes = definitions.filter((def: any) => def.type === 'ObjectTypeDefinition');
+        const parameters = definitions.filter((def: any) => def.type === 'ParameterDefinition');
+        
         return {
           success: true,
-          ast: definitions
+          ast: {
+            type: 'Model',
+            rules,
+            objectTypes,
+            parameters
+          }
         };
       }
       
@@ -111,7 +122,33 @@ export class Engine implements IEngine {
       }
       
       // Handle different AST types
-      if (ast.type === 'Rule') {
+      if (ast.type === 'Model') {
+        // Execute all rules in the model
+        let lastResult: ExecutionResult = {
+          success: true,
+          value: { type: 'string', value: 'Model executed' }
+        };
+        
+        // Execute each rule in sequence
+        for (const rule of (ast as any).rules || []) {
+          const result = this.ruleExecutor.execute(rule, context);
+          if (!result.success) {
+            return {
+              success: false,
+              error: result.error
+            };
+          }
+          // Keep track of the last result
+          if (result.value) {
+            lastResult = {
+              success: true,
+              value: result.value
+            };
+          }
+        }
+        
+        return lastResult;
+      } else if (ast.type === 'Rule') {
         const result = this.ruleExecutor.execute(ast, context);
         // Convert RuleExecutionResult to ExecutionResult
         if (result.success) {

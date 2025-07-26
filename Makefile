@@ -13,12 +13,17 @@ TEST_DIR = tests
 .PHONY: all
 all: parser test
 
-# Target to generate ANTLR parser files
+# Target to generate ANTLR parser files for both Python and TypeScript
 .PHONY: parser
-parser:
-	@echo "Cleaning existing parser files..."
+parser: parser-python parser-ts
+	@echo "All parsers generated successfully."
+
+# Target to generate Python parser files
+.PHONY: parser-python
+parser-python:
+	@echo "Cleaning existing Python parser files..."
 	@rm -rf $(PARSER_OUT_DIR)
-	@echo "Generating ANTLR parser files..."
+	@echo "Generating ANTLR Python parser files..."
 	@mkdir -p $(PARSER_OUT_DIR)
 	@cd $(GRAMMAR_DIR) && \
 	$(ANTLR4) -Dlanguage=Python3 \
@@ -27,7 +32,7 @@ parser:
 	          -o ../$(PARSER_OUT_DIR) \
 	          RegelSpraakLexer.g4 RegelSpraak.g4 && \
 	cd ..
-	@echo "Parser generation complete."
+	@echo "Python parser generation complete."
 
 # Target to generate TypeScript parser files
 .PHONY: parser-ts

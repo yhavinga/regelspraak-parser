@@ -1,6 +1,8 @@
 import { IRuleExecutor, RuleExecutionResult, RuntimeContext, Value } from '../interfaces';
 import { Rule, Gelijkstelling, ObjectCreation, MultipleResults, ResultPart, Kenmerktoekenning, Voorwaarde } from '../ast/rules';
+import { VariableReference } from '../ast/expressions';
 import { ExpressionEvaluator } from '../evaluators/expression-evaluator';
+import { Context } from '../runtime/context';
 
 /**
  * Executes RegelSpraak rules
@@ -151,7 +153,7 @@ export class RuleExecutor implements IRuleExecutor {
       
       return {
         success: true,
-        message: `Set characteristic ${kenmerktoekenning.characteristic} on object`
+        // Successfully set characteristic
       };
     } else if (subjectValue.type === 'array') {
       // Collection of objects - set characteristic on all
@@ -170,7 +172,7 @@ export class RuleExecutor implements IRuleExecutor {
       
       return {
         success: true,
-        message: `Set characteristic ${kenmerktoekenning.characteristic} on ${count} objects`
+        // Successfully set characteristic on multiple objects
       };
     } else {
       throw new Error(`Cannot set characteristic on value of type ${subjectValue.type}`);
@@ -187,10 +189,11 @@ export class RuleExecutor implements IRuleExecutor {
     const subjectExpr = kenmerktoekenning.subject;
     
     if (subjectExpr.type === 'VariableReference') {
-      const objectType = subjectExpr.variableName;
+      const varRef = subjectExpr as VariableReference;
+      const objectType = varRef.variableName;
       
       // Get all objects of this type
-      const objects = context.getObjectsByType(objectType);
+      const objects = (context as Context).getObjectsByType(objectType);
       
       let assignedCount = 0;
       
@@ -222,7 +225,7 @@ export class RuleExecutor implements IRuleExecutor {
       
       return {
         success: true,
-        message: `Set characteristic ${kenmerktoekenning.characteristic} on ${assignedCount} objects`
+        // Successfully set characteristic with condition
       };
     }
     

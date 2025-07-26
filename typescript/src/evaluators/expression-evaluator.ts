@@ -241,11 +241,12 @@ export class ExpressionEvaluator implements IEvaluator {
   }
 
   private evaluateUnaryExpression(expr: UnaryExpression, context: RuntimeContext): Value {
-    // Evaluate the operand
-    const operand = this.evaluate(expr.operand, context);
+    const { operator, operand: operandExpr } = expr;
     
-    switch (expr.operator) {
-      case '-':
+    switch (operator) {
+      case '-': {
+        // Evaluate operand for unary minus
+        const operand = this.evaluate(operandExpr, context);
         // Unary minus - operand must be a number
         if (operand.type !== 'number') {
           throw new Error(`Cannot apply unary minus to ${operand.type}`);
@@ -255,8 +256,12 @@ export class ExpressionEvaluator implements IEvaluator {
           value: -(operand.value as number),
           unit: operand.unit
         };
+      }
         
       case '!':
+      case 'niet': {
+        // Evaluate operand for logical NOT
+        const operand = this.evaluate(operandExpr, context);
         // Logical NOT - operand must be boolean
         if (operand.type !== 'boolean') {
           throw new Error(`Cannot apply logical NOT to ${operand.type}`);
@@ -265,9 +270,12 @@ export class ExpressionEvaluator implements IEvaluator {
           type: 'boolean',
           value: !(operand.value as boolean)
         };
+      }
         
       case 'voldoet aan de elfproef':
-      case 'voldoen aan de elfproef':
+      case 'voldoen aan de elfproef': {
+        // Evaluate operand for elfproef
+        const operand = this.evaluate(operandExpr, context);
         // Elfproef validation - handle null/missing values
         if (operand.type === 'null' || operand.value === null || operand.value === undefined) {
           return {
@@ -283,9 +291,12 @@ export class ExpressionEvaluator implements IEvaluator {
           type: 'boolean',
           value: this.checkElfproef(operand.value)
         };
+      }
         
       case 'voldoet niet aan de elfproef':
-      case 'voldoen niet aan de elfproef':
+      case 'voldoen niet aan de elfproef': {
+        // Evaluate operand for negative elfproef
+        const operand = this.evaluate(operandExpr, context);
         // Negative elfproef validation - handle null/missing values
         if (operand.type === 'null' || operand.value === null || operand.value === undefined) {
           return {
@@ -301,9 +312,13 @@ export class ExpressionEvaluator implements IEvaluator {
           type: 'boolean',
           value: !this.checkElfproef(operand.value)
         };
+      }
+      
+      case 'moeten uniek zijn':
+        return this.evaluateUniekExpression(operandExpr, context);
         
       default:
-        throw new Error(`Unknown unary operator: ${expr.operator}`);
+        throw new Error(`Unknown unary operator: ${operator}`);
     }
   }
 
@@ -320,7 +335,7 @@ export class ExpressionEvaluator implements IEvaluator {
       return this.timelineEvaluator.evaluateTimelineBinaryOp(
         leftTimeline,
         rightTimeline,
-        expr.operator,
+        expr.operator as ('+' | '-' | '*' | '/' | '==' | '!=' | '>' | '<' | '>=' | '<=' | '&&' | '||'),
         context
       );
     } else {
@@ -646,20 +661,7 @@ export class ExpressionEvaluator implements IEvaluator {
     return false;
   }
 
-  private evaluateUnaryExpression(expr: UnaryExpression, context: RuntimeContext): Value {
-    const { operator, operand } = expr;
-    
-    switch (operator) {
-      case 'moeten uniek zijn':
-        return this.evaluateUniekExpression(operand, context);
-      case '!':
-      case 'niet':
-        const operandValue = this.evaluate(operand, context);
-        return this.evaluateNot(operandValue);
-      default:
-        throw new Error(`Unknown unary operator: ${operator}`);
-    }
-  }
+  // Removed duplicate evaluateUnaryExpression - merged into the one above
 
   private evaluateUniekExpression(operand: Expression, context: RuntimeContext): Value {
     // Evaluate the operand to get the collection of values to check

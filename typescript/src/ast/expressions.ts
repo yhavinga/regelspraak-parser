@@ -18,7 +18,8 @@ export interface StringLiteral extends Expression {
 
 export interface BinaryExpression extends Expression {
   type: 'BinaryExpression';
-  operator: '+' | '-' | '*' | '/' | '==' | '!=' | '>' | '<' | '>=' | '<=' | '&&' | '||';
+  operator: '+' | '-' | '*' | '/' | '==' | '!=' | '>' | '<' | '>=' | '<=' | '&&' | '||' |
+            'is een dagsoort' | 'zijn een dagsoort' | 'is geen dagsoort' | 'zijn geen dagsoort';
   left: Expression;
   right: Expression;
 }
@@ -36,7 +37,8 @@ export interface FunctionCall extends Expression {
 
 export interface UnaryExpression extends Expression {
   type: 'UnaryExpression';
-  operator: '-' | '!';
+  operator: '-' | '!' | 'niet' | 'voldoet aan de elfproef' | 'voldoen aan de elfproef' | 
+            'voldoet niet aan de elfproef' | 'voldoen niet aan de elfproef' | 'moeten uniek zijn';
   operand: Expression;
 }
 

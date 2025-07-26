@@ -591,7 +591,7 @@ export default class RegelSpraakParser extends Parser {
                                                             "'voorwaarden'", 
                                                             "'(bezittelijk)'", 
                                                             "'(bijvoeglijk)'", 
-                                                            "'bezield'", 
+                                                            "'(bezield)'", 
                                                             "'Boolean'", 
                                                             "'cijfers'", 
                                                             "'Datum in dagen'", 
