@@ -1,5 +1,22 @@
 import { IRuleExecutor, RuleExecutionResult, RuntimeContext, Value } from '../interfaces';
-import { Rule, Gelijkstelling, ObjectCreation, MultipleResults, ResultPart, Kenmerktoekenning, Voorwaarde, Consistentieregel } from '../ast/rules';
+import { 
+  Rule, 
+  Gelijkstelling, 
+  ObjectCreation, 
+  MultipleResults, 
+  ResultPart, 
+  Kenmerktoekenning, 
+  Voorwaarde, 
+  Consistentieregel,
+  Verdeling,
+  VerdelingMethode,
+  VerdelingGelijkeDelen,
+  VerdelingNaarRato,
+  VerdelingOpVolgorde,
+  VerdelingTieBreak,
+  VerdelingMaximum,
+  VerdelingAfronding
+} from '../ast/rules';
 import { VariableReference } from '../ast/expressions';
 import { ExpressionEvaluator } from '../evaluators/expression-evaluator';
 import { Context } from '../runtime/context';
@@ -73,6 +90,9 @@ export class RuleExecutor implements IRuleExecutor {
       
       case 'Consistentieregel':
         return this.executeConsistentieregel(result as Consistentieregel, context);
+      
+      case 'Verdeling':
+        return this.executeVerdeling(result as Verdeling, context);
       
       default:
         throw new Error(`Unsupported result type: ${(result as any).type}`);
@@ -324,5 +344,82 @@ export class RuleExecutor implements IRuleExecutor {
     }
     
     throw new Error(`Unknown consistency criterion type: ${consistentieregel.criteriumType}`);
+  }
+  
+  private executeVerdeling(verdeling: Verdeling, context: RuntimeContext): RuleExecutionResult {
+    // Evaluate the source amount to get the total to distribute
+    const sourceValue = this.expressionEvaluator.evaluate(verdeling.sourceAmount, context);
+    
+    if (sourceValue.type !== 'number') {
+      throw new Error('Distribution source must be a number');
+    }
+    
+    const totalAmount = sourceValue.value as number;
+    
+    // Evaluate the target collection to get all objects to distribute to
+    const collectionValue = this.expressionEvaluator.evaluate(verdeling.targetCollection, context);
+    
+    if (collectionValue.type !== 'array') {
+      throw new Error('Distribution target must be a collection');
+    }
+    
+    const targetObjects = collectionValue.value as Value[];
+    
+    if (targetObjects.length === 0) {
+      // Nothing to distribute to
+      return {
+        success: true,
+        message: 'No targets for distribution'
+      };
+    }
+    
+    // For now, implement only equal distribution
+    const hasEqualDistribution = verdeling.distributionMethods.some(
+      method => method.type === 'VerdelingGelijkeDelen'
+    );
+    
+    if (hasEqualDistribution) {
+      // Distribute equally
+      const amountPerTarget = totalAmount / targetObjects.length;
+      
+      // Update each target object's attribute
+      for (const targetObj of targetObjects) {
+        if (targetObj.type !== 'object') {
+          continue;
+        }
+        
+        // Assuming the target expression was something like "de ontvangen aantal van alle personen"
+        // We need to extract the attribute name from the target collection expression
+        // For now, we'll use a simplified approach
+        const attributeName = this.extractAttributeNameFromTargetCollection(verdeling.targetCollection);
+        
+        const objectData = targetObj.value as Record<string, Value>;
+        objectData[attributeName] = {
+          type: 'number',
+          value: amountPerTarget
+        };
+      }
+      
+      return {
+        success: true,
+        distributedAmount: totalAmount,
+        targetCount: targetObjects.length
+      };
+    }
+    
+    // TODO: Implement other distribution methods (ratio, ordered, etc.)
+    throw new Error('Only equal distribution is currently implemented');
+  }
+  
+  private extractAttributeNameFromTargetCollection(expr: any): string {
+    // This is a simplified extraction - in reality we'd need to properly parse
+    // navigation expressions like "de ontvangen aantal van alle personen"
+    // For now, assume it's a NavigationExpression with the attribute as the first part
+    if (expr.type === 'NavigationExpression') {
+      return expr.attribute;
+    }
+    
+    // Fallback
+    return 'ontvangen aantal';
   }
 }

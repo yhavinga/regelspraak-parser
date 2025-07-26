@@ -30,7 +30,19 @@ import {
   KenmerkPredicaat,
   AttributeComparisonPredicaat
 } from '../ast/expressions';
-import { Voorwaarde, ObjectCreation, Consistentieregel } from '../ast/rules';
+import { 
+  Voorwaarde, 
+  ObjectCreation, 
+  Consistentieregel,
+  Verdeling,
+  VerdelingMethode,
+  VerdelingGelijkeDelen,
+  VerdelingNaarRato,
+  VerdelingOpVolgorde,
+  VerdelingTieBreak,
+  VerdelingMaximum,
+  VerdelingAfronding
+} from '../ast/rules';
 import { ObjectTypeDefinition, KenmerkSpecification, AttributeSpecification, DataType, DomainReference } from '../ast/object-types';
 import { ParameterDefinition } from '../ast/parameters';
 import { AttributeReference } from '../ast/expressions';
@@ -811,6 +823,9 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
       return this.visitKenmerkFeitResultaat(ctx);
     } else if (ctx.constructor.name === 'ObjectCreatieResultaatContext') {
       return this.visitObjectCreatieResultaat(ctx);
+    } else if (ctx.constructor.name === 'VerdelingContext') {
+      // The generated context is named after the label
+      return this.visitVerdelingResultaat(ctx);
     }
     
     // Fallback to visitChildren
@@ -1391,8 +1406,14 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
     if (node.constructor.name === 'ResultaatDeelContext') {
       // Try to provide a more helpful error message
       const text = this.extractText(node).trim();
+      console.log('ResultaatDeelContext text:', text);
+      console.log('ResultaatDeelContext children:', node.children?.length);
       if (text.includes(' is ')) {
         throw new Error('Expected gelijkstelling pattern (moet berekend worden als)');
+      }
+      if (text.includes('wordt verdeeld over')) {
+        // This is a verdeling pattern, but we shouldn't be in visitChildren
+        throw new Error('Verdeling pattern not being handled correctly in visitResultaatDeel');
       }
       throw new Error('Invalid result pattern');
     }
@@ -1488,5 +1509,117 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
       type: 'Consistentieregel',
       criteriumType: 'inconsistent'
     };
+  }
+  
+  visitVerdelingResultaat(ctx: any): any {
+    // Parse source amount expression
+    const sourceAmount = this.visit(ctx._sourceAmount);
+    
+    // Parse target collection expression
+    const targetCollection = this.visit(ctx._targetCollection);
+    
+    // Parse distribution methods
+    const distributionMethods: any[] = [];
+    
+    // Check for simple single-line format
+    if (ctx.verdelingMethodeSimple && ctx.verdelingMethodeSimple()) {
+      const simpleCtx = ctx.verdelingMethodeSimple();
+      if (simpleCtx.verdelingMethode && simpleCtx.verdelingMethode()) {
+        const method = this.visitVerdelingMethode(simpleCtx.verdelingMethode());
+        if (method) {
+          distributionMethods.push(method);
+        }
+      }
+    }
+    
+    // Check for multi-line format with bullet points
+    else if (ctx.verdelingMethodeMultiLine && ctx.verdelingMethodeMultiLine()) {
+      const multiCtx = ctx.verdelingMethodeMultiLine();
+      if (multiCtx.verdelingMethodeBulletList && multiCtx.verdelingMethodeBulletList()) {
+        const bulletListCtx = multiCtx.verdelingMethodeBulletList();
+        const bulletContexts = bulletListCtx.verdelingMethodeBullet_list ? bulletListCtx.verdelingMethodeBullet_list() : [];
+        for (const bulletCtx of bulletContexts) {
+          if (bulletCtx.verdelingMethode && bulletCtx.verdelingMethode()) {
+            const method = this.visitVerdelingMethode(bulletCtx.verdelingMethode());
+            if (method) {
+              distributionMethods.push(method);
+            }
+          }
+        }
+      }
+    }
+    
+    // Parse remainder target if present
+    let remainderTarget = undefined;
+    if (ctx.verdelingRest && ctx.verdelingRest()) {
+      const restCtx = ctx.verdelingRest();
+      if (restCtx._remainderTarget) {
+        remainderTarget = this.visit(restCtx._remainderTarget);
+      }
+    }
+    
+    return {
+      type: 'Verdeling',
+      sourceAmount,
+      targetCollection,
+      distributionMethods,
+      remainderTarget
+    };
+  }
+  
+  visitVerdelingMethode(ctx: any): any {
+    // Check the context type to determine which method it is
+    const ctxName = ctx.constructor.name;
+    
+    if (ctxName === 'VerdelingGelijkeDelenContext') {
+      return { type: 'VerdelingGelijkeDelen' };
+    }
+    else if (ctxName === 'VerdelingNaarRatoContext') {
+      const ratioExpression = this.visit(ctx.ratioExpression);
+      return {
+        type: 'VerdelingNaarRato',
+        ratioExpression
+      };
+    }
+    else if (ctxName === 'VerdelingOpVolgordeContext') {
+      const orderDirection = ctx.orderDirection?.text || 'toenemende';
+      const orderExpression = this.visit(ctx.orderExpression);
+      return {
+        type: 'VerdelingOpVolgorde',
+        orderDirection: orderDirection as 'toenemende' | 'afnemende',
+        orderExpression
+      };
+    }
+    else if (ctxName === 'VerdelingTieBreakContext') {
+      const tieBreakMethod = this.visitVerdelingMethode(ctx.tieBreakMethod);
+      return {
+        type: 'VerdelingTieBreak',
+        tieBreakMethod
+      };
+    }
+    else if (ctxName === 'VerdelingMaximumContext') {
+      const maxExpression = this.visit(ctx.maxExpression);
+      return {
+        type: 'VerdelingMaximum',
+        maxExpression
+      };
+    }
+    else if (ctxName === 'VerdelingAfrondingContext') {
+      const decimals = ctx.decimals ? parseInt(ctx.decimals.text) : 0;
+      const roundDirection = ctx.roundDirection?.text || 'naar beneden';
+      return {
+        type: 'VerdelingAfronding',
+        decimals,
+        roundDirection: roundDirection as 'naar beneden' | 'naar boven'
+      };
+    }
+    
+    // Handle comma-separated methods
+    if (ctx.verdelingMethode && ctx.verdelingMethode()) {
+      return this.visitVerdelingMethode(ctx.verdelingMethode());
+    }
+    
+    console.warn(`Unknown verdeling method type: ${ctxName}`);
+    return null;
   }
 }

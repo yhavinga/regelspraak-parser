@@ -21,7 +21,7 @@ export class Engine implements IEngine {
     try {
       // Check if this contains multiple definitions (has newlines and multiple keywords)
       const lines = trimmed.split('\n');
-      const definitionKeywords = ['Parameter ', 'Objecttype ', 'Regel ', 'Beslistabel ', 'Consistentieregel '];
+      const definitionKeywords = ['Parameter ', 'Objecttype ', 'Regel ', 'Beslistabel ', 'Consistentieregel ', 'Verdeling '];
       let definitionCount = 0;
       for (const line of lines) {
         const trimmedLine = line.trim();
