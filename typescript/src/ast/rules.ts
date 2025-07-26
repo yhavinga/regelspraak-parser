@@ -17,7 +17,7 @@ export interface RuleVersion {
   validity: 'altijd' | 'vanaf' | 'tot'; // Simplified for now
 }
 
-export type ResultPart = Gelijkstelling | ObjectCreation | MultipleResults;
+export type ResultPart = Gelijkstelling | ObjectCreation | MultipleResults | Kenmerktoekenning;
 
 export interface Gelijkstelling {
   type: 'Gelijkstelling';
@@ -37,6 +37,12 @@ export interface ObjectCreation {
 export interface MultipleResults {
   type: 'MultipleResults';
   results: ResultPart[];
+}
+
+export interface Kenmerktoekenning {
+  type: 'Kenmerktoekenning';
+  subject: Expression; // The object to assign the characteristic to
+  characteristic: string; // The kenmerk name
 }
 
 export interface Voorwaarde {

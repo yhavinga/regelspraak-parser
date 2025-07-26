@@ -258,6 +258,28 @@ export class ExpressionEvaluator implements IEvaluator {
           value: !(operand.value as boolean)
         };
         
+      case 'voldoet aan de elfproef':
+      case 'voldoen aan de elfproef':
+        // Elfproef validation - operand must be string or number
+        if (operand.type !== 'string' && operand.type !== 'number') {
+          throw new Error(`Cannot apply elfproef to ${operand.type}`);
+        }
+        return {
+          type: 'boolean',
+          value: this.checkElfproef(operand.value)
+        };
+        
+      case 'voldoet niet aan de elfproef':
+      case 'voldoen niet aan de elfproef':
+        // Negative elfproef validation
+        if (operand.type !== 'string' && operand.type !== 'number') {
+          throw new Error(`Cannot apply elfproef to ${operand.type}`);
+        }
+        return {
+          type: 'boolean',
+          value: !this.checkElfproef(operand.value)
+        };
+        
       default:
         throw new Error(`Unknown unary operator: ${expr.operator}`);
     }
@@ -469,5 +491,32 @@ export class ExpressionEvaluator implements IEvaluator {
     (tempContext as any).setVariable('_temp', undefined);
     
     return result.type === 'boolean' && result.value === true;
+  }
+
+  private checkElfproef(value: string | number): boolean {
+    // Convert to string if number
+    const bsn = value.toString();
+    
+    // BSN must be exactly 9 digits
+    if (!/^\d{9}$/.test(bsn)) {
+      return false;
+    }
+    
+    // Check if all digits are the same (not allowed)
+    if (/^(\d)\1{8}$/.test(bsn)) {
+      return false;
+    }
+    
+    // Apply the elfproef algorithm
+    // Weights are: 9, 8, 7, 6, 5, 4, 3, 2, -1
+    const weights = [9, 8, 7, 6, 5, 4, 3, 2, -1];
+    let sum = 0;
+    
+    for (let i = 0; i < 9; i++) {
+      sum += parseInt(bsn[i]) * weights[i];
+    }
+    
+    // Valid if sum is divisible by 11
+    return sum % 11 === 0;
   }
 }

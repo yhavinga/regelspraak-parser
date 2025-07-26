@@ -1,5 +1,5 @@
 import { IRuleExecutor, RuleExecutionResult, RuntimeContext, Value } from '../interfaces';
-import { Rule, Gelijkstelling, ObjectCreation, MultipleResults, ResultPart } from '../ast/rules';
+import { Rule, Gelijkstelling, ObjectCreation, MultipleResults, ResultPart, Kenmerktoekenning } from '../ast/rules';
 import { ExpressionEvaluator } from '../evaluators/expression-evaluator';
 
 /**
@@ -46,6 +46,9 @@ export class RuleExecutor implements IRuleExecutor {
       
       case 'MultipleResults':
         return this.executeMultipleResults(result as MultipleResults, context);
+      
+      case 'Kenmerktoekenning':
+        return this.executeKenmerktoekenning(result as Kenmerktoekenning, context);
       
       default:
         throw new Error(`Unsupported result type: ${(result as any).type}`);
@@ -122,6 +125,44 @@ export class RuleExecutor implements IRuleExecutor {
       success: true,
       multipleResults: results
     };
+  }
+  
+  private executeKenmerktoekenning(kenmerktoekenning: Kenmerktoekenning, context: RuntimeContext): RuleExecutionResult {
+    // Evaluate the subject expression to get the object(s)
+    const subjectValue = this.expressionEvaluator.evaluate(kenmerktoekenning.subject, context);
+    
+    // The subject should reference an object or collection of objects
+    if (subjectValue.type === 'object') {
+      // Single object - set the characteristic
+      const objectData = subjectValue.value as Record<string, Value>;
+      const characteristicKey = `is ${kenmerktoekenning.characteristic}`;
+      objectData[characteristicKey] = { type: 'boolean', value: true };
+      
+      return {
+        success: true,
+        message: `Set characteristic ${kenmerktoekenning.characteristic} on object`
+      };
+    } else if (subjectValue.type === 'array') {
+      // Collection of objects - set characteristic on all
+      const objects = subjectValue.value as Value[];
+      let count = 0;
+      
+      for (const obj of objects) {
+        if (obj.type === 'object') {
+          const objectData = obj.value as Record<string, Value>;
+          const characteristicKey = `is ${kenmerktoekenning.characteristic}`;
+          objectData[characteristicKey] = { type: 'boolean', value: true };
+          count++;
+        }
+      }
+      
+      return {
+        success: true,
+        message: `Set characteristic ${kenmerktoekenning.characteristic} on ${count} objects`
+      };
+    } else {
+      throw new Error(`Cannot set characteristic on value of type ${subjectValue.type}`);
+    }
   }
   
   private isTruthy(value: Value): boolean {

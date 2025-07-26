@@ -708,8 +708,7 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
     } else if (ctx.constructor.name === 'FeitCreatieResultaatContext') {
       throw new Error('FeitCreatieResultaat not implemented');
     } else if (ctx.constructor.name === 'KenmerkFeitResultaatContext') {
-      // This is for patterns like "Het resultaat is 42"
-      throw new Error('Expected gelijkstelling pattern (moet berekend worden als)');
+      return this.visitKenmerkFeitResultaat(ctx);
     } else if (ctx.constructor.name === 'ObjectCreatieResultaatContext') {
       return this.visitObjectCreatieResultaat(ctx);
     }
@@ -1197,6 +1196,71 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
     }
     
     throw new Error('Expected expression in voorwaardeDeel');
+  }
+
+  visitUnaryCheckCondition(ctx: any): any {
+    // Visit the expression - it might be called expr or primaryExpression
+    const exprCtx = ctx.expr || ctx.primaryExpression();
+    if (!exprCtx) {
+      throw new Error('No expression found in unaryCheckCondition');
+    }
+    
+    const operand = this.visit(exprCtx);
+    
+    // Get the operator token
+    const operatorToken = ctx.op;
+    const operator = operatorToken.getText();
+    
+    return {
+      type: 'UnaryExpression',
+      operator: operator,
+      operand: operand
+    };
+  }
+
+  visitBezieldeRefExpr(ctx: any): any {
+    // This handles patterns like "zijn burgerservicenummer"
+    const bezieldeRef = ctx.bezieldeReferentie();
+    
+    // Extract the possessive (e.g., "zijn")
+    const possessive = bezieldeRef.BEZITTELIJK_VNW ? bezieldeRef.BEZITTELIJK_VNW().getText() : 'zijn';
+    
+    // Extract the attribute name (e.g., "burgerservicenummer")
+    const attribute = bezieldeRef.naamwoord ? this.extractTextWithSpaces(bezieldeRef.naamwoord()) : 
+                     bezieldeRef.IDENTIFIER ? bezieldeRef.IDENTIFIER().getText() : 'unknown';
+    
+    // For now, we'll return a navigation expression that references the attribute
+    // of the current object in scope
+    return {
+      type: 'NavigationExpression',
+      object: {
+        type: 'VariableReference',
+        variableName: '_subject' // This will need to be resolved to the actual subject
+      },
+      attribute: attribute
+    };
+  }
+
+  visitKenmerkFeitResultaat(ctx: any): any {
+    // Extract subject (onderwerpReferentie)
+    const onderwerpCtx = ctx.onderwerpReferentie();
+    const subject = this.visit(onderwerpCtx);
+    
+    // Extract characteristic name (kenmerkNaam)
+    const kenmerkCtx = ctx.kenmerkNaam();
+    let characteristic: string;
+    
+    if (kenmerkCtx) {
+      characteristic = this.extractTextWithSpaces(kenmerkCtx);
+    } else {
+      throw new Error('Could not extract characteristic from kenmerktoekenning');
+    }
+    
+    return {
+      type: 'Kenmerktoekenning',
+      subject,
+      characteristic
+    };
   }
 
   // Default visitor - fall back to visitChildren
