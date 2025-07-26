@@ -21,9 +21,16 @@ export class Engine implements IEngine {
     try {
       // Check if this contains multiple definitions (has newlines and multiple keywords)
       const lines = trimmed.split('\n');
-      const hasMultipleDefinitions = lines.some(l => l.trim().startsWith('Parameter ')) &&
-                                     (lines.some(l => l.trim().startsWith('Objecttype ')) ||
-                                      lines.some(l => l.trim().startsWith('Regel ')));
+      const definitionKeywords = ['Parameter ', 'Objecttype ', 'Regel ', 'Beslistabel '];
+      let definitionCount = 0;
+      for (const line of lines) {
+        const trimmedLine = line.trim();
+        if (definitionKeywords.some(kw => trimmedLine.startsWith(kw))) {
+          definitionCount++;
+          if (definitionCount >= 2) break;
+        }
+      }
+      const hasMultipleDefinitions = definitionCount >= 2;
       
       if (hasMultipleDefinitions) {
         // Parse as a full document

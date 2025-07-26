@@ -6,6 +6,8 @@ import { RuntimeContext, Value } from '../interfaces';
 export class Context implements RuntimeContext {
   private scopes: Map<string, Value>[] = [new Map()];
   private objects: Map<string, Map<string, any>> = new Map();
+  private executionTrace: string[] = [];
+  private objectCounter: number = 0;
 
   getVariable(name: string): Value | undefined {
     // Search from innermost to outermost scope
@@ -48,5 +50,36 @@ export class Context implements RuntimeContext {
       this.objects.set(type, new Map());
     }
     this.objects.get(type)!.set(id, attributes);
+  }
+
+  getObjectsByType(type: string): Value[] {
+    const typeMap = this.objects.get(type);
+    if (!typeMap) {
+      return [];
+    }
+    
+    const result: Value[] = [];
+    for (const [id, attributes] of typeMap.entries()) {
+      result.push({
+        type: 'object',
+        objectType: type,
+        objectId: id,
+        value: attributes
+      } as any);
+    }
+    return result;
+  }
+
+  addExecutionTrace(message: string): void {
+    this.executionTrace.push(message);
+  }
+
+  getExecutionTrace(): string[] {
+    return [...this.executionTrace];
+  }
+
+  generateObjectId(type: string): string {
+    this.objectCounter++;
+    return `${type}_${this.objectCounter}`;
   }
 }

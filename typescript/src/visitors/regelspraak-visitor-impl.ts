@@ -28,7 +28,7 @@ import {
   KenmerkPredicaat,
   AttributeComparisonPredicaat
 } from '../ast/expressions';
-import { Voorwaarde } from '../ast/rules';
+import { Voorwaarde, ObjectCreation } from '../ast/rules';
 import { ObjectTypeDefinition, KenmerkSpecification, AttributeSpecification, DataType, DomainReference } from '../ast/object-types';
 import { ParameterDefinition } from '../ast/parameters';
 
@@ -38,16 +38,37 @@ import { ParameterDefinition } from '../ast/parameters';
 export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements RegelSpraakVisitor<any> {
   
   visitRegelSpraakDocument(ctx: RegelSpraakDocumentContext): any {
-    // Visit all definitions in the document
-    const definitions = ctx.definitie_list();
+    // Visit all top-level elements (definitions, rules, etc.)
     const results = [];
     
+    // Get all top-level elements
+    const definitions = ctx.definitie_list() || [];
+    const rules = ctx.regel_list() || [];
+    const regelGroups = ctx.regelGroep_list() || [];
+    const beslistabels = ctx.beslistabel_list() || [];
+    const consistentieregels = ctx.consistentieregel_list() || [];
+    const eenheidsystems = ctx.eenheidsysteemDefinition_list() || [];
+    
+    // console.log('Document has', definitions.length, 'definitions and', rules.length, 'rules');
+    
+    // Visit definitions
     for (const def of definitions) {
       const result = this.visit(def);
       if (result) {
         results.push(result);
       }
     }
+    
+    // Visit rules
+    for (const rule of rules) {
+      const result = this.visit(rule);
+      if (result) {
+        results.push(result);
+      }
+    }
+    
+    // Visit other top-level elements as needed
+    // TODO: Add support for regelGroep, beslistabel, etc.
     
     return results;
   }
@@ -371,11 +392,13 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
   // Rule parsing visitor methods
   visitRegel(ctx: any): any {
     try {
-      // Extract rule name from regelName
+      // Extract rule name - regelName returns a naamwoord
       const nameCtx = ctx.regelName();
       if (!nameCtx) {
         throw new Error('Expected rule name');
       }
+      
+      // Get the text with spaces preserved
       const name = this.extractTextWithSpaces(nameCtx).trim();
       
       // Get version info
@@ -688,7 +711,7 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
       // This is for patterns like "Het resultaat is 42"
       throw new Error('Expected gelijkstelling pattern (moet berekend worden als)');
     } else if (ctx.constructor.name === 'ObjectCreatieResultaatContext') {
-      throw new Error('ObjectCreatieResultaat not implemented');
+      return this.visitObjectCreatieResultaat(ctx);
     }
     
     // Fallback to visitChildren
@@ -730,6 +753,67 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
       target,
       expression
     };
+  }
+
+  visitObjectCreatieResultaat(ctx: any): any {
+    // Get the objectCreatie context
+    const objectCreatieCtx = ctx.objectCreatie();
+    
+    // Get the object type name
+    const objectTypeCtx = objectCreatieCtx.objectType ? objectCreatieCtx.objectType() : objectCreatieCtx._objectType;
+    if (!objectTypeCtx) {
+      throw new Error('Expected object type in object creation');
+    }
+    const objectType = this.extractObjectTypeName(objectTypeCtx.getText());
+    
+    // Parse attribute initializations if present
+    const attributeInits = [];
+    const objectAttrInitCtx = objectCreatieCtx.objectAttributeInit();
+    
+    if (objectAttrInitCtx) {
+      // Get the first attribute
+      const firstAttrCtx = objectAttrInitCtx.attribuut ? objectAttrInitCtx.attribuut() : objectAttrInitCtx._attribuut;
+      const firstValueCtx = objectAttrInitCtx.waarde ? objectAttrInitCtx.waarde() : objectAttrInitCtx._waarde;
+      
+      if (firstAttrCtx && firstValueCtx) {
+        const firstAttr = this.extractAttributeName(firstAttrCtx.getText());
+        const firstValue = this.visit(firstValueCtx);
+        attributeInits.push({ attribute: firstAttr, value: firstValue });
+      }
+      
+      // Get additional attributes (EN syntax)
+      const vervolgList = objectAttrInitCtx.attributeInitVervolg_list();
+      for (const vervolg of vervolgList) {
+        const attrCtx = vervolg.attribuut ? vervolg.attribuut() : vervolg._attribuut;
+        const valueCtx = vervolg.waarde ? vervolg.waarde() : vervolg._waarde;
+        
+        if (attrCtx && valueCtx) {
+          const attr = this.extractAttributeName(attrCtx.getText());
+          const value = this.visit(valueCtx);
+          attributeInits.push({ attribute: attr, value });
+        }
+      }
+    }
+    
+    return {
+      type: 'ObjectCreation',
+      objectType,
+      attributeInits
+    };
+  }
+
+  extractObjectTypeName(text: string): string {
+    // Remove any articles and clean up the text
+    const words = text.split(/\s+/);
+    const cleaned = words.filter(w => !['de', 'het', 'een'].includes(w.toLowerCase()));
+    return cleaned.join(' ');
+  }
+
+  extractAttributeName(text: string): string {
+    // Clean up attribute name, removing articles if present
+    const words = text.split(/\s+/);
+    const cleaned = words.filter(w => !['de', 'het', 'een'].includes(w.toLowerCase()));
+    return cleaned.join(' ');
   }
 
   // Helper to extract target attribute name from full reference
@@ -786,12 +870,25 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
     // For parser rule contexts, reconstruct with spaces
     const parts: string[] = [];
     const childCount = ctx.getChildCount ? ctx.getChildCount() : 0;
+    // console.log('extractTextWithSpaces childCount:', childCount);
     
     for (let i = 0; i < childCount; i++) {
       const child = ctx.getChild(i);
+      // console.log('Child', i, ':', child ? child.constructor.name : 'null');
+      if (!child) {
+        // console.log('Child is null!');
+        continue;
+      }
       if (child.symbol) {
         // Terminal node
-        parts.push(child.getText());
+        try {
+          const text = child.getText();
+          // console.log('Terminal node text:', text);
+          parts.push(text);
+        } catch (e) {
+          // console.log('Error getting terminal node text:', e);
+          throw e;
+        }
       } else {
         // Recursively get text from child contexts
         const childText = this.extractTextWithSpaces(child);

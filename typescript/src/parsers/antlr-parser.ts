@@ -42,7 +42,13 @@ export class AntlrParser {
     const tree = parser.regelSpraakDocument();
     
     // Visit the tree to build our AST
-    return this.visitor.visit(tree);
+    try {
+      return this.visitor.visit(tree);
+    } catch (error) {
+      console.error('Visitor error:', error);
+      console.error('Stack:', (error as Error).stack);
+      throw error;
+    }
   }
 
   /**

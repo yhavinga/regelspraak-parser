@@ -204,15 +204,28 @@ All initial phases completed with basic features. Performance shows 1000x+ impro
 - ✅ Added aantal function for counting filtered collections
 - ✅ All 4 subselectie tests passing
 
-### 📋 Phase 10c: Remaining Core Features
+### ✅ Phase 10c: Object/Fact Creation - COMPLETE ✓
+
+**Session 8 Achievements**:
+- ✅ Implemented ObjectCreation AST node type
+- ✅ Added visitObjectCreatieResultaat visitor method
+- ✅ Fixed multi-definition parsing in engine
+- ✅ Extended Context class with object storage and retrieval
+- ✅ Implemented object creation execution logic
+- ✅ Support for computed attribute values referencing other attributes
+- ✅ Fixed rule name extraction to preserve spaces
+- ✅ All 4 object creation tests passing
+
+**Current Test Status**: 195/203 passing (96.1%)
+- 0 failing tests
+- 8 skipped tests (function validation + aggregation edge case)
+
+### 📋 Phase 11: Remaining Core Features
 
 **Priority Implementation Order**:
 1. **Navigation Expressions** ("de X van Y") - ✅ COMPLETE
 2. **Subselectie** (DIE/DAT/MET filtering) - ✅ COMPLETE
-
-3. **Object/Fact Creation** - Rule actions
-   - Create new instances in rules
-   - ~3 days
+3. **Object/Fact Creation** - ✅ COMPLETE
 
 4. **Advanced Predicates**
    - elfproef (BSN validation)

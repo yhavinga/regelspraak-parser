@@ -17,12 +17,26 @@ export interface RuleVersion {
   validity: 'altijd' | 'vanaf' | 'tot'; // Simplified for now
 }
 
-export type ResultPart = Gelijkstelling;
+export type ResultPart = Gelijkstelling | ObjectCreation | MultipleResults;
 
 export interface Gelijkstelling {
   type: 'Gelijkstelling';
   target: string; // Simplified: just the attribute name for now
   expression: Expression;
+}
+
+export interface ObjectCreation {
+  type: 'ObjectCreation';
+  objectType: string;
+  attributeInits: Array<{
+    attribute: string;
+    value: Expression;
+  }>;
+}
+
+export interface MultipleResults {
+  type: 'MultipleResults';
+  results: ResultPart[];
 }
 
 export interface Voorwaarde {

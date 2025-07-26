@@ -8,6 +8,10 @@ export interface RuleExecutionResult {
   error?: Error;
   skipped?: boolean;
   reason?: string;
+  objectType?: string;
+  objectId?: string;
+  attributes?: Record<string, Value>;
+  multipleResults?: RuleExecutionResult[];
 }
 
 export interface IRuleExecutor {
