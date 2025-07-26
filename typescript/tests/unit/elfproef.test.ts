@@ -89,8 +89,8 @@ describe('Elfproef Predicate', () => {
             // Create person with valid BSN 999999990
             // Validation: 9*9 + 9*8 + 9*7 + 9*6 + 9*5 + 9*4 + 9*3 + 9*2 + 0*(-1) = 396
             // 396 % 11 = 0 (valid!)
-            const personId = context.generateObjectId('Natuurlijk persoon');
-            context.createObject('Natuurlijk persoon', personId, {
+            const personId = context.generateObjectId('Natuurlijkpersoon');
+            context.createObject('Natuurlijkpersoon', personId, {
                 burgerservicenummer: { type: 'string', value: '999999990' },
                 BSNgeldig: { type: 'boolean', value: false } // Initialize as false
             });
@@ -98,9 +98,9 @@ describe('Elfproef Predicate', () => {
             const result = engine.run(modelText, context);
             
             expect(result.success).toBe(true);
-            const persons = context.getObjectsByType('Natuurlijk persoon');
+            const persons = context.getObjectsByType('Natuurlijkpersoon');
             expect(persons.length).toBe(1);
-            expect(persons[0].value.BSNgeldig).toBe(true);
+            expect(persons[0].value.BSNgeldig).toEqual({ type: 'boolean', value: true });
         });
 
         test('should invalidate invalid BSN (111111111)', () => {
@@ -120,15 +120,15 @@ describe('Elfproef Predicate', () => {
             // Create person with invalid BSN
             // 1*9 + 1*8 + 1*7 + 1*6 + 1*5 + 1*4 + 1*3 + 1*2 + 1*(-1) = 44
             // 44 % 11 = 0 (but all same digits not allowed)
-            const personId = context.generateObjectId('Natuurlijk persoon');
-            context.createObject('Natuurlijk persoon', personId, {
+            const personId = context.generateObjectId('Natuurlijkpersoon');
+            context.createObject('Natuurlijkpersoon', personId, {
                 burgerservicenummer: { type: 'string', value: '111111111' }
             });
             
             const result = engine.run(modelText, context);
             
             expect(result.success).toBe(true);
-            const persons = context.getObjectsByType('Natuurlijk persoon');
+            const persons = context.getObjectsByType('Natuurlijkpersoon');
             expect(persons.length).toBe(1);
             expect(persons[0].value.BSNgeldig).toBeFalsy();
         });
@@ -148,15 +148,15 @@ describe('Elfproef Predicate', () => {
             const context = new Context();
             
             // Create person with non-numeric BSN
-            const personId = context.generateObjectId('Natuurlijk persoon');
-            context.createObject('Natuurlijk persoon', personId, {
+            const personId = context.generateObjectId('Natuurlijkpersoon');
+            context.createObject('Natuurlijkpersoon', personId, {
                 burgerservicenummer: { type: 'string', value: 'ABC123DEF' }
             });
             
             const result = engine.run(modelText, context);
             
             expect(result.success).toBe(true);
-            const persons = context.getObjectsByType('Natuurlijk persoon');
+            const persons = context.getObjectsByType('Natuurlijkpersoon');
             expect(persons.length).toBe(1);
             expect(persons[0].value.BSNgeldig).toBeFalsy();
         });
@@ -176,15 +176,15 @@ describe('Elfproef Predicate', () => {
             const context = new Context();
             
             // Create person with too short BSN (only 7 digits)
-            const personId = context.generateObjectId('Natuurlijk persoon');
-            context.createObject('Natuurlijk persoon', personId, {
+            const personId = context.generateObjectId('Natuurlijkpersoon');
+            context.createObject('Natuurlijkpersoon', personId, {
                 burgerservicenummer: { type: 'string', value: '1234567' }
             });
             
             const result = engine.run(modelText, context);
             
             expect(result.success).toBe(true);
-            const persons = context.getObjectsByType('Natuurlijk persoon');
+            const persons = context.getObjectsByType('Natuurlijkpersoon');
             expect(persons.length).toBe(1);
             expect(persons[0].value.BSNgeldig).toBeFalsy();
         });
@@ -204,15 +204,15 @@ describe('Elfproef Predicate', () => {
             const context = new Context();
             
             // Create person without BSN
-            const personId = context.generateObjectId('Natuurlijk persoon');
-            context.createObject('Natuurlijk persoon', personId, {
+            const personId = context.generateObjectId('Natuurlijkpersoon');
+            context.createObject('Natuurlijkpersoon', personId, {
                 // Don't set burgerservicenummer
             });
             
             const result = engine.run(modelText, context);
             
             expect(result.success).toBe(true);
-            const persons = context.getObjectsByType('Natuurlijk persoon');
+            const persons = context.getObjectsByType('Natuurlijkpersoon');
             expect(persons.length).toBe(1);
             expect(persons[0].value.BSNgeldig).toBeFalsy();
         });
@@ -232,17 +232,17 @@ describe('Elfproef Predicate', () => {
             const context = new Context();
             
             // Create person with invalid BSN
-            const personId = context.generateObjectId('Natuurlijk persoon');
-            context.createObject('Natuurlijk persoon', personId, {
+            const personId = context.generateObjectId('Natuurlijkpersoon');
+            context.createObject('Natuurlijkpersoon', personId, {
                 burgerservicenummer: { type: 'string', value: '111111111' }
             });
             
             const result = engine.run(modelText, context);
             
             expect(result.success).toBe(true);
-            const persons = context.getObjectsByType('Natuurlijk persoon');
+            const persons = context.getObjectsByType('Natuurlijkpersoon');
             expect(persons.length).toBe(1);
-            expect(persons[0].value.BSNongeldig).toBe(true);
+            expect(persons[0].value.BSNongeldig).toEqual({ type: 'boolean', value: true });
         });
 
         test('should validate another valid BSN (123456782)', () => {
@@ -263,17 +263,17 @@ describe('Elfproef Predicate', () => {
             // Validation: 1*9 + 2*8 + 3*7 + 4*6 + 5*5 + 6*4 + 7*3 + 8*2 + 2*(-1)
             // = 9 + 16 + 21 + 24 + 25 + 24 + 21 + 16 - 2 = 154
             // 154 % 11 = 0 (valid!)
-            const personId = context.generateObjectId('Natuurlijk persoon');
-            context.createObject('Natuurlijk persoon', personId, {
+            const personId = context.generateObjectId('Natuurlijkpersoon');
+            context.createObject('Natuurlijkpersoon', personId, {
                 burgerservicenummer: { type: 'string', value: '123456782' }
             });
             
             const result = engine.run(modelText, context);
             
             expect(result.success).toBe(true);
-            const persons = context.getObjectsByType('Natuurlijk persoon');
+            const persons = context.getObjectsByType('Natuurlijkpersoon');
             expect(persons.length).toBe(1);
-            expect(persons[0].value.BSNgeldig).toBe(true);
+            expect(persons[0].value.BSNgeldig).toEqual({ type: 'boolean', value: true });
         });
     });
 });

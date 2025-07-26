@@ -43,6 +43,8 @@ export class ExpressionEvaluator implements IEvaluator {
         return this.evaluateNavigationExpression(expr as NavigationExpression, context);
       case 'SubselectieExpression':
         return this.evaluateSubselectieExpression(expr as SubselectieExpression, context);
+      case 'UnaryExpression':
+        return this.evaluateUnaryExpression(expr as UnaryExpression, context);
       default:
         throw new Error(`Unknown expression type: ${expr.type}`);
     }
@@ -66,6 +68,12 @@ export class ExpressionEvaluator implements IEvaluator {
     // Check if this is a logical operator
     if (expr.operator === '&&' || expr.operator === '||') {
       return this.evaluateLogicalExpression(expr, context);
+    }
+
+    // Check if this is a dagsoort operator
+    const dagsoortOps = ['is een dagsoort', 'zijn een dagsoort', 'is geen dagsoort', 'zijn geen dagsoort'];
+    if (dagsoortOps.includes(expr.operator)) {
+      return this.evaluateDagsoortExpression(expr, context);
     }
 
     const left = this.evaluate(expr.left, context);
@@ -260,7 +268,14 @@ export class ExpressionEvaluator implements IEvaluator {
         
       case 'voldoet aan de elfproef':
       case 'voldoen aan de elfproef':
-        // Elfproef validation - operand must be string or number
+        // Elfproef validation - handle null/missing values
+        if (operand.type === 'null' || operand.value === null || operand.value === undefined) {
+          return {
+            type: 'boolean',
+            value: false
+          };
+        }
+        // Operand must be string or number
         if (operand.type !== 'string' && operand.type !== 'number') {
           throw new Error(`Cannot apply elfproef to ${operand.type}`);
         }
@@ -271,7 +286,14 @@ export class ExpressionEvaluator implements IEvaluator {
         
       case 'voldoet niet aan de elfproef':
       case 'voldoen niet aan de elfproef':
-        // Negative elfproef validation
+        // Negative elfproef validation - handle null/missing values
+        if (operand.type === 'null' || operand.value === null || operand.value === undefined) {
+          return {
+            type: 'boolean',
+            value: true  // null/missing doesn't meet elfproef, so "not meets" is true
+          };
+        }
+        // Operand must be string or number
         if (operand.type !== 'string' && operand.type !== 'number') {
           throw new Error(`Cannot apply elfproef to ${operand.type}`);
         }
@@ -400,7 +422,8 @@ export class ExpressionEvaluator implements IEvaluator {
     const attributeValue = objectData[expr.attribute];
     
     if (attributeValue === undefined) {
-      throw new Error(`Attribute "${expr.attribute}" not found in object`);
+      // Return a null/empty value if attribute is missing
+      return { type: 'null', value: null };
     }
     
     return attributeValue;
@@ -518,5 +541,201 @@ export class ExpressionEvaluator implements IEvaluator {
     
     // Valid if sum is divisible by 11
     return sum % 11 === 0;
+  }
+
+  private evaluateDagsoortExpression(expr: BinaryExpression, context: RuntimeContext): Value {
+    // Evaluate the date expression (left side)
+    const dateValue = this.evaluate(expr.left, context);
+    
+    // Handle null/missing values
+    if (dateValue.type === 'null' || dateValue.value === null || dateValue.value === undefined) {
+      // For positive checks (is een dagsoort), null returns false
+      // For negative checks (is geen dagsoort), null returns true
+      const isNegativeCheck = expr.operator.includes('geen');
+      return {
+        type: 'boolean',
+        value: isNegativeCheck
+      };
+    }
+    
+    // Date must be a Date type
+    if (dateValue.type !== 'date') {
+      throw new Error(`Cannot apply dagsoort check to ${dateValue.type}`);
+    }
+    
+    // Get the dagsoort name from the right side
+    const dagsoortExpr = expr.right;
+    if (dagsoortExpr.type !== 'StringLiteral') {
+      throw new Error('Expected dagsoort name to be a string literal');
+    }
+    const dagsoortName = (dagsoortExpr as StringLiteral).value;
+    
+    
+    // For now, implement hardcoded dagsoort checks
+    // In a full implementation, this would look up dagsoort definitions in the model
+    const date = dateValue.value as Date;
+    let isDagsoort = false;
+    
+    switch (dagsoortName.toLowerCase()) {
+      case 'werkdag':
+        isDagsoort = this.isWerkdag(date);
+        break;
+      case 'weekend':
+        isDagsoort = this.isWeekend(date);
+        break;
+      case 'feestdag':
+        isDagsoort = this.isFeestdag(date);
+        break;
+      default:
+        // Unknown dagsoort - would normally look up in model
+        isDagsoort = false;
+        break;
+    }
+    
+    // Apply negation if needed
+    const isPositiveCheck = expr.operator === 'is een dagsoort' || expr.operator === 'zijn een dagsoort';
+    const result = isPositiveCheck ? isDagsoort : !isDagsoort;
+    
+    return {
+      type: 'boolean',
+      value: result
+    };
+  }
+
+  private isWerkdag(date: Date): boolean {
+    // First check if it's a holiday
+    if (this.isFeestdag(date)) {
+      return false;
+    }
+    
+    // Check if it's a weekend
+    const dayOfWeek = date.getDay();
+    // Sunday = 0, Saturday = 6
+    return dayOfWeek !== 0 && dayOfWeek !== 6;
+  }
+
+  private isWeekend(date: Date): boolean {
+    const dayOfWeek = date.getDay();
+    // Sunday = 0, Saturday = 6
+    return dayOfWeek === 0 || dayOfWeek === 6;
+  }
+
+  private isFeestdag(date: Date): boolean {
+    // Dutch national holidays (fixed dates)
+    const month = date.getMonth() + 1; // JavaScript months are 0-indexed
+    const day = date.getDate();
+    
+    // Fixed holidays
+    const fixedHolidays = [
+      { month: 1, day: 1 },   // New Year's Day
+      { month: 4, day: 27 },  // King's Day (Koningsdag)
+      { month: 12, day: 25 }, // Christmas Day
+      { month: 12, day: 26 }  // Boxing Day (Tweede Kerstdag)
+    ];
+    
+    // Check if the date matches any fixed holiday
+    for (const holiday of fixedHolidays) {
+      if (month === holiday.month && day === holiday.day) {
+        return true;
+      }
+    }
+    
+    // TODO: Implement movable holidays (Easter, Pentecost, etc.)
+    // For now, we'll just check fixed holidays
+    
+    return false;
+  }
+
+  private evaluateUnaryExpression(expr: UnaryExpression, context: RuntimeContext): Value {
+    const { operator, operand } = expr;
+    
+    switch (operator) {
+      case 'moeten uniek zijn':
+        return this.evaluateUniekExpression(operand, context);
+      case '!':
+      case 'niet':
+        const operandValue = this.evaluate(operand, context);
+        return this.evaluateNot(operandValue);
+      default:
+        throw new Error(`Unknown unary operator: ${operator}`);
+    }
+  }
+
+  private evaluateUniekExpression(operand: Expression, context: RuntimeContext): Value {
+    // Evaluate the operand to get the collection of values to check
+    const collectionValue = this.evaluate(operand, context);
+    
+    // Handle null/missing values
+    if (collectionValue.type === 'null' || collectionValue.value === null) {
+      // Empty collection is considered unique
+      return { type: 'boolean', value: true };
+    }
+    
+    // Must be an array
+    if (collectionValue.type !== 'array') {
+      throw new Error(`Cannot check uniqueness of non-array type: ${collectionValue.type}`);
+    }
+    
+    const values = collectionValue.value as Value[];
+    
+    // Filter out null/missing values
+    const nonNullValues = values.filter(v => v.type !== 'null' && v.value !== null && v.value !== undefined);
+    
+    // Empty or single-item collections are always unique
+    if (nonNullValues.length <= 1) {
+      return { type: 'boolean', value: true };
+    }
+    
+    // Check for duplicates
+    const seen = new Set<any>();
+    for (const val of nonNullValues) {
+      const key = this.getValueKey(val);
+      if (seen.has(key)) {
+        // Found a duplicate
+        return { type: 'boolean', value: false };
+      }
+      seen.add(key);
+    }
+    
+    // All values are unique
+    return { type: 'boolean', value: true };
+  }
+
+  private getValueKey(value: Value): string {
+    // Create a unique key for the value to use in duplicate detection
+    if (value.type === 'string' || value.type === 'number' || value.type === 'boolean') {
+      return `${value.type}:${value.value}`;
+    } else if (value.type === 'date') {
+      return `date:${(value.value as Date).toISOString()}`;
+    } else {
+      // For complex types, use JSON serialization
+      return JSON.stringify(value);
+    }
+  }
+
+  private evaluateNot(value: Value): Value {
+    if (value.type === 'boolean') {
+      return { type: 'boolean', value: !value.value };
+    }
+    // For other types, apply truthiness check then negate
+    const isTruthy = this.isTruthy(value);
+    return { type: 'boolean', value: !isTruthy };
+  }
+
+  private isTruthy(value: Value): boolean {
+    if (value.type === 'boolean') {
+      return value.value === true;
+    }
+    if (value.type === 'number') {
+      return value.value !== 0;
+    }
+    if (value.type === 'string') {
+      return value.value !== '';
+    }
+    if (value.type === 'null') {
+      return false;
+    }
+    // For other types, non-null is truthy
+    return value.value != null;
   }
 }

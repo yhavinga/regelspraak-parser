@@ -5,6 +5,7 @@ import {
   ExpressieContext,
   LogicalExprContext,
   BinaryComparisonExprContext,
+  UnaryConditionExprContext,
   AdditiveExpressionContext,
   MultiplicativeExpressionContext,
   PowerExpressionContext,
@@ -15,6 +16,7 @@ import {
   UnaryNietExprContext,
   UnaryMinusExprContext
 } from '../generated/antlr/RegelSpraakParser';
+import RegelSpraakLexer from '../generated/antlr/RegelSpraakLexer';
 import { 
   Expression, 
   NumberLiteral, 
@@ -80,7 +82,7 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
 
   visitLogicalExpr(ctx: LogicalExprContext): Expression {
     // Get the left comparison expression
-    const left = this.visit(ctx.comparisonExpression());
+    const left = this.visitComparisonExpression(ctx.comparisonExpression());
     
     // Check if there's a logical operator
     const logicalExpr = ctx.logicalExpression();
@@ -108,6 +110,20 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
       left,
       right
     } as BinaryExpression;
+  }
+
+  visitComparisonExpression(ctx: any): Expression {
+    // Check which type of comparison expression this is
+    const contextName = ctx.constructor.name;
+    
+    if (contextName === 'BinaryComparisonExprContext') {
+      return this.visitBinaryComparisonExpr(ctx);
+    } else if (contextName === 'UnaryConditionExprContext') {
+      return this.visitUnaryConditionExpr(ctx);
+    } else {
+      // Fallback - try to visit it generically
+      return this.visit(ctx);
+    }
   }
 
   visitBinaryComparisonExpr(ctx: BinaryComparisonExprContext): Expression {
@@ -176,6 +192,81 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
       left,
       right
     } as BinaryExpression;
+  }
+
+  visitUnaryConditionExpr(ctx: any): Expression {
+    // UnaryConditionExpr wraps unaryCondition in comparisonExpression
+    const unaryConditionCtx = ctx.unaryCondition();
+    return this.visitUnaryCondition(unaryConditionCtx);
+  }
+
+  visitUnaryCondition(ctx: any): Expression {
+    // Check which type of unary condition this is
+    const contextName = ctx.constructor.name;
+    
+    if (contextName === 'UnaryCheckConditionContext') {
+      return this.visitUnaryCheckCondition(ctx);
+    } else if (contextName === 'UnaryDagsoortConditionContext') {
+      return this.visitUnaryDagsoortCondition(ctx);
+    } else if (contextName === 'UnaryUniekConditionContext') {
+      return this.visitUnaryUniekCondition(ctx);
+    } else {
+      throw new Error(`Unsupported unary condition type: ${contextName}`);
+    }
+  }
+
+  visitUnaryDagsoortCondition(ctx: any): Expression {
+    // expr=primaryExpression op=(IS_EEN_DAGSOORT | ...) dagsoort=identifier
+    const expr = this.visit(ctx.primaryExpression());
+    
+    // Get the dagsoort identifier
+    const dagsoortCtx = ctx.identifier();
+    if (!dagsoortCtx) {
+      throw new Error('Expected dagsoort identifier');
+    }
+    const dagsoortName = dagsoortCtx.getText();
+    
+    // Get the operator - use the private _op property
+    const opToken = ctx._op;
+    if (!opToken) {
+      throw new Error('Expected operator token in dagsoort condition');
+    }
+    
+    let binaryOp: string;
+    
+    if (opToken.type === RegelSpraakLexer.IS_EEN_DAGSOORT) {
+      binaryOp = 'is een dagsoort';
+    } else if (opToken.type === RegelSpraakLexer.ZIJN_EEN_DAGSOORT) {
+      binaryOp = 'zijn een dagsoort';
+    } else if (opToken.type === RegelSpraakLexer.IS_GEEN_DAGSOORT) {
+      binaryOp = 'is geen dagsoort';
+    } else if (opToken.type === RegelSpraakLexer.ZIJN_GEEN_DAGSOORT) {
+      binaryOp = 'zijn geen dagsoort';
+    } else {
+      throw new Error(`Unknown dagsoort operator token type: ${opToken.type}`);
+    }
+    
+    // Create a binary expression with the dagsoort name as right side
+    return {
+      type: 'BinaryExpression',
+      operator: binaryOp as any,
+      left: expr,
+      right: {
+        type: 'StringLiteral',
+        value: dagsoortName
+      }
+    } as BinaryExpression;
+  }
+
+  visitUnaryUniekCondition(ctx: any): Expression {
+    // ref=onderwerpReferentie MOETEN_UNIEK_ZIJN
+    const ref = this.visit(ctx.onderwerpReferentie());
+    
+    return {
+      type: 'UnaryExpression',
+      operator: 'moeten uniek zijn',
+      operand: ref
+    } as UnaryExpression;
   }
 
   visitAdditiveExpression(ctx: AdditiveExpressionContext): Expression {
@@ -1199,17 +1290,35 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
   }
 
   visitUnaryCheckCondition(ctx: any): any {
-    // Visit the expression - it might be called expr or primaryExpression
-    const exprCtx = ctx.expr || ctx.primaryExpression();
+    // Visit the expression - it should be a primaryExpression
+    const exprCtx = ctx.primaryExpression();
     if (!exprCtx) {
       throw new Error('No expression found in unaryCheckCondition');
     }
-    
     const operand = this.visit(exprCtx);
     
-    // Get the operator token
-    const operatorToken = ctx.op;
-    const operator = operatorToken.getText();
+    // Get the operator text - check which token is present
+    let operator: string;
+    
+    if (ctx.IS_LEEG && ctx.IS_LEEG()) {
+      operator = 'is leeg';
+    } else if (ctx.IS_GEVULD && ctx.IS_GEVULD()) {
+      operator = 'is gevuld';
+    } else if (ctx.VOLDOET_AAN_DE_ELFPROEF && ctx.VOLDOET_AAN_DE_ELFPROEF()) {
+      operator = 'voldoet aan de elfproef';
+    } else if (ctx.VOLDOET_NIET_AAN_DE_ELFPROEF && ctx.VOLDOET_NIET_AAN_DE_ELFPROEF()) {
+      operator = 'voldoet niet aan de elfproef';
+    } else if (ctx.ZIJN_LEEG && ctx.ZIJN_LEEG()) {
+      operator = 'zijn leeg';
+    } else if (ctx.ZIJN_GEVULD && ctx.ZIJN_GEVULD()) {
+      operator = 'zijn gevuld';
+    } else if (ctx.VOLDOEN_AAN_DE_ELFPROEF && ctx.VOLDOEN_AAN_DE_ELFPROEF()) {
+      operator = 'voldoen aan de elfproef';
+    } else if (ctx.VOLDOEN_NIET_AAN_DE_ELFPROEF && ctx.VOLDOEN_NIET_AAN_DE_ELFPROEF()) {
+      operator = 'voldoen niet aan de elfproef';
+    } else {
+      throw new Error('Unknown unary check operator');
+    }
     
     return {
       type: 'UnaryExpression',
@@ -1222,12 +1331,10 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
     // This handles patterns like "zijn burgerservicenummer"
     const bezieldeRef = ctx.bezieldeReferentie();
     
-    // Extract the possessive (e.g., "zijn")
-    const possessive = bezieldeRef.BEZITTELIJK_VNW ? bezieldeRef.BEZITTELIJK_VNW().getText() : 'zijn';
-    
-    // Extract the attribute name (e.g., "burgerservicenummer")
-    const attribute = bezieldeRef.naamwoord ? this.extractTextWithSpaces(bezieldeRef.naamwoord()) : 
-                     bezieldeRef.IDENTIFIER ? bezieldeRef.IDENTIFIER().getText() : 'unknown';
+    // The grammar is: bezieldeReferentie : ZIJN identifier
+    // Get the identifier
+    const identifierCtx = bezieldeRef.identifier();
+    const attribute = identifierCtx ? identifierCtx.getText() : 'unknown';
     
     // For now, we'll return a navigation expression that references the attribute
     // of the current object in scope

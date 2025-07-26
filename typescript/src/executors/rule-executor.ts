@@ -1,5 +1,5 @@
 import { IRuleExecutor, RuleExecutionResult, RuntimeContext, Value } from '../interfaces';
-import { Rule, Gelijkstelling, ObjectCreation, MultipleResults, ResultPart, Kenmerktoekenning } from '../ast/rules';
+import { Rule, Gelijkstelling, ObjectCreation, MultipleResults, ResultPart, Kenmerktoekenning, Voorwaarde } from '../ast/rules';
 import { ExpressionEvaluator } from '../evaluators/expression-evaluator';
 
 /**
@@ -10,7 +10,17 @@ export class RuleExecutor implements IRuleExecutor {
 
   execute(rule: Rule, context: RuntimeContext): RuleExecutionResult {
     try {
-      // Check if there's a condition
+      // For Kenmerktoekenning rules with conditions, we handle the condition differently
+      // The condition is evaluated per object, not at the rule level
+      if (rule.result.type === 'Kenmerktoekenning' && rule.condition) {
+        return this.executeKenmerktoekenningWithCondition(
+          rule.result as Kenmerktoekenning, 
+          rule.condition, 
+          context
+        );
+      }
+      
+      // Check if there's a condition for other rule types
       if (rule.condition) {
         // Evaluate the condition
         const conditionResult = this.expressionEvaluator.evaluate(rule.condition.expression, context);
@@ -135,8 +145,9 @@ export class RuleExecutor implements IRuleExecutor {
     if (subjectValue.type === 'object') {
       // Single object - set the characteristic
       const objectData = subjectValue.value as Record<string, Value>;
-      const characteristicKey = `is ${kenmerktoekenning.characteristic}`;
-      objectData[characteristicKey] = { type: 'boolean', value: true };
+      // Kenmerken are stored with "is " prefix
+      const kenmerkKey = `is ${kenmerktoekenning.characteristic}`;
+      objectData[kenmerkKey] = { type: 'boolean', value: true };
       
       return {
         success: true,
@@ -150,8 +161,9 @@ export class RuleExecutor implements IRuleExecutor {
       for (const obj of objects) {
         if (obj.type === 'object') {
           const objectData = obj.value as Record<string, Value>;
-          const characteristicKey = `is ${kenmerktoekenning.characteristic}`;
-          objectData[characteristicKey] = { type: 'boolean', value: true };
+          // Kenmerken are stored with "is " prefix
+          const kenmerkKey = `is ${kenmerktoekenning.characteristic}`;
+          objectData[kenmerkKey] = { type: 'boolean', value: true };
           count++;
         }
       }
@@ -163,6 +175,58 @@ export class RuleExecutor implements IRuleExecutor {
     } else {
       throw new Error(`Cannot set characteristic on value of type ${subjectValue.type}`);
     }
+  }
+  
+  private executeKenmerktoekenningWithCondition(
+    kenmerktoekenning: Kenmerktoekenning, 
+    condition: Voorwaarde,
+    context: RuntimeContext
+  ): RuleExecutionResult {
+    // Extract the object type from the subject
+    // The subject should be something like { type: 'VariableReference', variableName: 'Natuurlijkpersoon' }
+    const subjectExpr = kenmerktoekenning.subject;
+    
+    if (subjectExpr.type === 'VariableReference') {
+      const objectType = subjectExpr.variableName;
+      
+      // Get all objects of this type
+      const objects = context.getObjectsByType(objectType);
+      
+      let assignedCount = 0;
+      
+      // For each object, evaluate the condition with the object as context
+      for (const obj of objects) {
+        // Create a temporary context with _subject pointing to the current object
+        const tempContext = Object.create(context);
+        tempContext.setVariable = context.setVariable.bind(context);
+        tempContext.getVariable = function(name: string): Value | undefined {
+          if (name === '_subject') {
+            // The obj itself is the Value object
+            return obj;
+          }
+          return context.getVariable(name);
+        };
+        
+        // Evaluate the condition for this object
+        const conditionResult = this.expressionEvaluator.evaluate(condition.expression, tempContext);
+        
+        if (this.isTruthy(conditionResult)) {
+          // Condition is true, assign the characteristic
+          const objectData = obj.value as Record<string, Value>;
+          // Kenmerken are stored with "is " prefix
+          const kenmerkKey = `is ${kenmerktoekenning.characteristic}`;
+          objectData[kenmerkKey] = { type: 'boolean', value: true };
+          assignedCount++;
+        }
+      }
+      
+      return {
+        success: true,
+        message: `Set characteristic ${kenmerktoekenning.characteristic} on ${assignedCount} objects`
+      };
+    }
+    
+    throw new Error('Conditional kenmerktoekenning requires a variable reference subject');
   }
   
   private isTruthy(value: Value): boolean {
