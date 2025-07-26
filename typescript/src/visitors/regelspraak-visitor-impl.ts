@@ -813,6 +813,7 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
 
   visitResultaatDeel(ctx: any): any {
     // The grammar has labeled alternatives, so we check the context type
+    console.log('visitResultaatDeel context type:', ctx.constructor.name);
     if (ctx.constructor.name === 'GelijkstellingResultaatContext') {
       return this.visitGelijkstellingResultaat(ctx);
     } else if (ctx.constructor.name === 'DagsoortdefinitieResultaatContext') {
@@ -1408,6 +1409,7 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
       const text = this.extractText(node).trim();
       console.log('ResultaatDeelContext text:', text);
       console.log('ResultaatDeelContext children:', node.children?.length);
+      console.log('ResultaatDeelContext child types:', node.children?.map((c: any) => c.constructor.name));
       if (text.includes(' is ')) {
         throw new Error('Expected gelijkstelling pattern (moet berekend worden als)');
       }
@@ -1415,7 +1417,7 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
         // This is a verdeling pattern, but we shouldn't be in visitChildren
         throw new Error('Verdeling pattern not being handled correctly in visitResultaatDeel');
       }
-      throw new Error('Invalid result pattern');
+      throw new Error('Invalid result pattern in ResultaatDeelContext: ' + text);
     }
     
     // If only one child, visit it

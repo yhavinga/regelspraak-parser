@@ -6,7 +6,7 @@
   "types": "dist/index.d.ts",
   "scripts": {
     "build": "tsc && npm run check-size",
-    "test": "jest",
+    "test": "jest --runInBand",
     "test:watch": "jest --watch",
     "check-size": "node scripts/check-module-sizes.js",
     "clean": "rm -rf dist",
