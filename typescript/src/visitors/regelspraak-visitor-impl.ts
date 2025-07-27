@@ -548,7 +548,7 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
     }
   }
 
-  visitAttribuutReferentie(ctx: any): NavigationExpression {
+  visitAttribuutReferentie(ctx: any): NavigationExpression | AttributeReference {
     // attribuutReferentie : attribuutMetLidwoord VAN onderwerpReferentie
     const attrCtx = ctx.attribuutMetLidwoord();
     const attrText = this.extractTextWithSpaces(attrCtx);
@@ -607,6 +607,19 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
     const onderwerpCtx = ctx.onderwerpReferentie();
     const objectExpr = this.visit(onderwerpCtx);
     
+    // Check if this is the special "alle X" pattern
+    if (objectExpr.type === 'VariableReference' && 
+        (objectExpr as VariableReference).variableName.startsWith('__alle__')) {
+      // Extract the object type name
+      const objectTypeName = (objectExpr as VariableReference).variableName.substring(8); // Remove "__alle__"
+      
+      // Create AttributeReference with the special "alle" pattern
+      return {
+        type: 'AttributeReference',
+        path: [attrName, 'alle', objectTypeName]
+      } as AttributeReference;
+    }
+    
     return {
       type: 'NavigationExpression',
       attribute: attrName,
@@ -662,17 +675,29 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
     const basisOnderwerpCtx = basisOnderwerpList[0];
     
     // basisOnderwerp : (DE | HET | EEN | ZIJN | ALLE)? identifierOrKeyword+
-    // Extract the identifier(s) without article
+    // Check if ALLE token is present
+    const hasAlle = basisOnderwerpCtx.ALLE && basisOnderwerpCtx.ALLE();
+    
+    // Extract the identifier(s)
     const identifiers = basisOnderwerpCtx.identifierOrKeyword ? basisOnderwerpCtx.identifierOrKeyword() : [];
     
     if (identifiers.length > 0) {
-      const variableName = Array.isArray(identifiers) 
+      const objectTypeName = Array.isArray(identifiers) 
         ? identifiers.map(id => id.getText()).join(' ')
         : identifiers.getText();
         
+      if (hasAlle) {
+        // Return a special marker that indicates this is a collection query
+        // We'll use a VariableReference with a special prefix
+        return {
+          type: 'VariableReference',
+          variableName: `__alle__${objectTypeName}`
+        } as VariableReference;
+      }
+        
       return {
         type: 'VariableReference',
-        variableName
+        variableName: objectTypeName
       } as VariableReference;
     }
     
@@ -1527,7 +1552,7 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
     if (ctx.verdelingMethodeSimple && ctx.verdelingMethodeSimple()) {
       const simpleCtx = ctx.verdelingMethodeSimple();
       if (simpleCtx.verdelingMethode && simpleCtx.verdelingMethode()) {
-        const method = this.visitVerdelingMethode(simpleCtx.verdelingMethode());
+        const method = this.visit(simpleCtx.verdelingMethode());
         if (method) {
           distributionMethods.push(method);
         }
@@ -1542,7 +1567,7 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
         const bulletContexts = bulletListCtx.verdelingMethodeBullet_list ? bulletListCtx.verdelingMethodeBullet_list() : [];
         for (const bulletCtx of bulletContexts) {
           if (bulletCtx.verdelingMethode && bulletCtx.verdelingMethode()) {
-            const method = this.visitVerdelingMethode(bulletCtx.verdelingMethode());
+            const method = this.visit(bulletCtx.verdelingMethode());
             if (method) {
               distributionMethods.push(method);
             }
@@ -1569,59 +1594,51 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
     };
   }
   
-  visitVerdelingMethode(ctx: any): any {
-    // Check the context type to determine which method it is
-    const ctxName = ctx.constructor.name;
-    
-    if (ctxName === 'VerdelingGelijkeDelenContext') {
-      return { type: 'VerdelingGelijkeDelen' };
-    }
-    else if (ctxName === 'VerdelingNaarRatoContext') {
-      const ratioExpression = this.visit(ctx.ratioExpression);
-      return {
-        type: 'VerdelingNaarRato',
-        ratioExpression
-      };
-    }
-    else if (ctxName === 'VerdelingOpVolgordeContext') {
-      const orderDirection = ctx.orderDirection?.text || 'toenemende';
-      const orderExpression = this.visit(ctx.orderExpression);
-      return {
-        type: 'VerdelingOpVolgorde',
-        orderDirection: orderDirection as 'toenemende' | 'afnemende',
-        orderExpression
-      };
-    }
-    else if (ctxName === 'VerdelingTieBreakContext') {
-      const tieBreakMethod = this.visitVerdelingMethode(ctx.tieBreakMethod);
-      return {
-        type: 'VerdelingTieBreak',
-        tieBreakMethod
-      };
-    }
-    else if (ctxName === 'VerdelingMaximumContext') {
-      const maxExpression = this.visit(ctx.maxExpression);
-      return {
-        type: 'VerdelingMaximum',
-        maxExpression
-      };
-    }
-    else if (ctxName === 'VerdelingAfrondingContext') {
-      const decimals = ctx.decimals ? parseInt(ctx.decimals.text) : 0;
-      const roundDirection = ctx.roundDirection?.text || 'naar beneden';
-      return {
-        type: 'VerdelingAfronding',
-        decimals,
-        roundDirection: roundDirection as 'naar beneden' | 'naar boven'
-      };
-    }
-    
-    // Handle comma-separated methods
-    if (ctx.verdelingMethode && ctx.verdelingMethode()) {
-      return this.visitVerdelingMethode(ctx.verdelingMethode());
-    }
-    
-    console.warn(`Unknown verdeling method type: ${ctxName}`);
-    return null;
+  visitVerdelingGelijkeDelen(ctx: any): any {
+    return { type: 'VerdelingGelijkeDelen' };
+  }
+  
+  visitVerdelingNaarRato(ctx: any): any {
+    const ratioExpression = this.visit(ctx._ratioExpression);
+    return {
+      type: 'VerdelingNaarRato',
+      ratioExpression
+    };
+  }
+  
+  visitVerdelingOpVolgorde(ctx: any): any {
+    const orderDirection = ctx._orderDirection?.text || 'toenemende';
+    const orderExpression = this.visit(ctx._orderExpression);
+    return {
+      type: 'VerdelingOpVolgorde',
+      orderDirection: orderDirection as 'toenemende' | 'afnemende',
+      orderExpression
+    };
+  }
+  
+  visitVerdelingTieBreak(ctx: any): any {
+    const tieBreakMethod = this.visit(ctx._tieBreakMethod);
+    return {
+      type: 'VerdelingTieBreak',
+      tieBreakMethod
+    };
+  }
+  
+  visitVerdelingMaximum(ctx: any): any {
+    const maxExpression = this.visit(ctx._maxExpression);
+    return {
+      type: 'VerdelingMaximum',
+      maxExpression
+    };
+  }
+  
+  visitVerdelingAfronding(ctx: any): any {
+    const decimals = ctx._decimals ? parseInt(ctx._decimals.text) : 0;
+    const roundDirection = ctx._roundDirection?.text || 'naar beneden';
+    return {
+      type: 'VerdelingAfronding',
+      decimals,
+      roundDirection: roundDirection as 'naar beneden' | 'naar boven'
+    };
   }
 }

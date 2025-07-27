@@ -347,6 +347,16 @@ export class ExpressionEvaluator implements IEvaluator {
   }
 
   private evaluateVariableReference(expr: VariableReference, context: RuntimeContext): Value {
+    // First check if there's a current instance and the variable name is an attribute
+    const ctx = context as any;
+    if (ctx.current_instance && ctx.current_instance.type === 'object') {
+      const objectData = ctx.current_instance.value as Record<string, Value>;
+      if (objectData[expr.variableName] !== undefined) {
+        return objectData[expr.variableName];
+      }
+    }
+    
+    // Otherwise look for a regular variable
     const value = context.getVariable(expr.variableName);
     if (value === undefined) {
       throw new Error(`Undefined variable: ${expr.variableName}`);
@@ -426,6 +436,30 @@ export class ExpressionEvaluator implements IEvaluator {
   private evaluateNavigationExpression(expr: NavigationExpression, context: RuntimeContext): Value {
     // First evaluate the object expression
     const objectValue = this.evaluate(expr.object, context);
+    
+    // Handle navigation into collections
+    if (objectValue.type === 'array') {
+      // When navigating into a collection, return a collection of the attribute values
+      const collection = objectValue.value as Value[];
+      const results: Value[] = [];
+      
+      for (const item of collection) {
+        if (item.type === 'object') {
+          const objectData = item.value as Record<string, Value>;
+          const attributeValue = objectData[expr.attribute];
+          
+          if (attributeValue !== undefined) {
+            results.push(attributeValue);
+          }
+          // Skip items that don't have the attribute
+        }
+      }
+      
+      return {
+        type: 'array',
+        value: results
+      };
+    }
     
     // Check if the object is actually an object
     if (objectValue.type !== 'object') {

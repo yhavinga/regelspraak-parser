@@ -8,6 +8,7 @@ export class Context implements RuntimeContext {
   private objects: Map<string, Map<string, any>> = new Map();
   private executionTrace: string[] = [];
   private objectCounter: number = 0;
+  public current_instance: Value | undefined;
 
   getVariable(name: string): Value | undefined {
     // Search from innermost to outermost scope
@@ -81,5 +82,9 @@ export class Context implements RuntimeContext {
   generateObjectId(type: string): string {
     this.objectCounter++;
     return `${type}_${this.objectCounter}`;
+  }
+  
+  setCurrentInstance(instance: Value | undefined): void {
+    this.current_instance = instance;
   }
 }

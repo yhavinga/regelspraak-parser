@@ -17,9 +17,14 @@ import {
   VerdelingMaximum,
   VerdelingAfronding
 } from '../ast/rules';
-import { VariableReference } from '../ast/expressions';
+import { VariableReference, Expression } from '../ast/expressions';
 import { ExpressionEvaluator } from '../evaluators/expression-evaluator';
 import { Context } from '../runtime/context';
+
+interface DistributionResult {
+  amounts: number[];
+  remainder: number;
+}
 
 /**
  * Executes RegelSpraak rules
@@ -356,59 +361,74 @@ export class RuleExecutor implements IRuleExecutor {
     
     const totalAmount = sourceValue.value as number;
     
-    // Evaluate the target collection to get all objects to distribute to
-    const collectionValue = this.expressionEvaluator.evaluate(verdeling.targetCollection, context);
+    // Parse the target collection to extract objects and attribute
+    // Pattern: "de <attribute> van <collection>"
+    let targetObjects: Value[] = [];
+    let attributeName: string = '';
     
-    if (collectionValue.type !== 'array') {
-      throw new Error('Distribution target must be a collection');
+    if (verdeling.targetCollection.type === 'NavigationExpression') {
+      const navExpr = verdeling.targetCollection as any;
+      attributeName = navExpr.attribute;
+      
+      // Evaluate the object part to get the collection
+      const objectValue = this.expressionEvaluator.evaluate(navExpr.object, context);
+      
+      if (objectValue.type === 'array') {
+        targetObjects = objectValue.value as Value[];
+      } else {
+        throw new Error('Distribution target collection must evaluate to an array');
+      }
+    } else {
+      throw new Error('Distribution target must be a navigation expression');
     }
-    
-    const targetObjects = collectionValue.value as Value[];
     
     if (targetObjects.length === 0) {
       // Nothing to distribute to
+      // Handle remainder if specified
+      if (verdeling.remainderTarget) {
+        this.setRemainderValue(verdeling.remainderTarget, sourceValue, context);
+      }
       return {
-        success: true,
-        message: 'No targets for distribution'
+        success: true
+        // No targets for distribution
       };
     }
     
-    // For now, implement only equal distribution
-    const hasEqualDistribution = verdeling.distributionMethods.some(
-      method => method.type === 'VerdelingGelijkeDelen'
+    // Calculate distribution based on methods
+    const distributionResult = this.calculateDistribution(
+      totalAmount,
+      targetObjects,
+      verdeling.distributionMethods,
+      context
     );
     
-    if (hasEqualDistribution) {
-      // Distribute equally
-      const amountPerTarget = totalAmount / targetObjects.length;
-      
-      // Update each target object's attribute
-      for (const targetObj of targetObjects) {
-        if (targetObj.type !== 'object') {
-          continue;
-        }
-        
-        // Assuming the target expression was something like "de ontvangen aantal van alle personen"
-        // We need to extract the attribute name from the target collection expression
-        // For now, we'll use a simplified approach
-        const attributeName = this.extractAttributeNameFromTargetCollection(verdeling.targetCollection);
-        
-        const objectData = targetObj.value as Record<string, Value>;
-        objectData[attributeName] = {
-          type: 'number',
-          value: amountPerTarget
-        };
+    // Apply distributed values to target objects
+    for (let i = 0; i < targetObjects.length; i++) {
+      const targetObj = targetObjects[i];
+      if (!targetObj || targetObj.type !== 'object') {
+        continue;
       }
       
-      return {
-        success: true,
-        distributedAmount: totalAmount,
-        targetCount: targetObjects.length
+      const objectData = targetObj.value as Record<string, Value>;
+      objectData[attributeName] = {
+        type: 'number',
+        value: distributionResult.amounts[i]
       };
     }
     
-    // TODO: Implement other distribution methods (ratio, ordered, etc.)
-    throw new Error('Only equal distribution is currently implemented');
+    // Handle remainder if specified
+    if (verdeling.remainderTarget && distributionResult.remainder > 0) {
+      const remainderValue: Value = {
+        type: 'number',
+        value: distributionResult.remainder
+      };
+      this.setRemainderValue(verdeling.remainderTarget, remainderValue, context);
+    }
+    
+    return {
+      success: true
+      // Distributed totalAmount to targetObjects.length targets
+    };
   }
   
   private extractAttributeNameFromTargetCollection(expr: any): string {
@@ -421,5 +441,412 @@ export class RuleExecutor implements IRuleExecutor {
     
     // Fallback
     return 'ontvangen aantal';
+  }
+  
+  private setRemainderValue(remainderTarget: Expression, value: Value, context: RuntimeContext): void {
+    // The remainder target should be an attribute reference on the current instance
+    if (remainderTarget.type === 'AttributeReference') {
+      const attrRef = remainderTarget as any;
+      if (attrRef.path && attrRef.path.length > 0) {
+        const attrName = attrRef.path[0];
+        // Set on current instance or specified object
+        const ctx = context as Context;
+        if (ctx.current_instance) {
+          const objectData = ctx.current_instance.value as Record<string, Value>;
+          objectData[attrName] = value;
+        }
+      }
+    } else if (remainderTarget.type === 'NavigationExpression') {
+      // Handle navigation expression for remainder target
+      const navExpr = remainderTarget as any;
+      const attrName = navExpr.attribute;
+      const objectExpr = navExpr.object;
+      
+      // Evaluate the object expression to get the target object
+      const targetObject = this.expressionEvaluator.evaluate(objectExpr, context);
+      
+      if (targetObject.type === 'object') {
+        const objectData = targetObject.value as Record<string, Value>;
+        objectData[attrName] = value;
+      }
+    }
+  }
+  
+  private calculateDistribution(
+    totalAmount: number,
+    targetObjects: Value[],
+    methods: VerdelingMethode[],
+    context: RuntimeContext
+  ): DistributionResult {
+    const n = targetObjects.length;
+    if (n === 0) {
+      return { amounts: [], remainder: totalAmount };
+    }
+    
+    // Start with equal distribution as default
+    let amounts = new Array(n).fill(totalAmount / n);
+    let hasRatio = false;
+    let hasOrdering = false;
+    let hasMaximum = false;
+    let hasRounding = false;
+    
+    // Extract all method configurations
+    let ratioExpression: Expression | undefined;
+    let orderExpression: Expression | undefined;
+    let orderDirection: 'toenemende' | 'afnemende' | undefined;
+    let tieBreakMethod: VerdelingMethode | undefined;
+    let maximumExpression: Expression | undefined;
+    let roundingDecimals: number | undefined;
+    let roundingDirection: string | undefined;
+    
+    // Process methods to extract configurations
+    for (const method of methods) {
+      switch (method.type) {
+        case 'VerdelingGelijkeDelen':
+          // Equal distribution is the default
+          break;
+          
+        case 'VerdelingNaarRato':
+          hasRatio = true;
+          ratioExpression = (method as VerdelingNaarRato).ratioExpression;
+          break;
+          
+        case 'VerdelingOpVolgorde':
+          hasOrdering = true;
+          const orderMethod = method as VerdelingOpVolgorde;
+          orderExpression = orderMethod.orderExpression;
+          orderDirection = orderMethod.orderDirection as 'toenemende' | 'afnemende';
+          break;
+          
+        case 'VerdelingTieBreak':
+          tieBreakMethod = (method as VerdelingTieBreak).tieBreakMethod;
+          break;
+          
+        case 'VerdelingMaximum':
+          hasMaximum = true;
+          maximumExpression = (method as VerdelingMaximum).maxExpression;
+          break;
+          
+        case 'VerdelingAfronding':
+          hasRounding = true;
+          const roundingMethod = method as VerdelingAfronding;
+          roundingDecimals = roundingMethod.decimals;
+          roundingDirection = roundingMethod.roundDirection;
+          break;
+      }
+    }
+    
+    // Apply distribution logic based on methods
+    if (hasOrdering && orderExpression) {
+      // Sort objects and apply ordered distribution
+      amounts = this.distributeOrdered(
+        totalAmount,
+        targetObjects,
+        orderExpression,
+        orderDirection!,
+        tieBreakMethod,
+        maximumExpression,
+        context
+      );
+    } else if (hasRatio && ratioExpression) {
+      // Apply ratio-based distribution
+      amounts = this.distributeByRatio(
+        totalAmount,
+        targetObjects,
+        ratioExpression,
+        context
+      );
+    }
+    
+    // Apply maximum constraint if specified
+    if (hasMaximum && maximumExpression) {
+      amounts = this.applyMaximumConstraint(
+        amounts,
+        targetObjects,
+        maximumExpression,
+        context
+      );
+    }
+    
+    // Apply rounding if specified
+    if (hasRounding && roundingDecimals !== undefined) {
+      amounts = this.applyRounding(
+        amounts,
+        roundingDecimals,
+        roundingDirection === 'naar beneden'
+      );
+    }
+    
+    // Calculate remainder
+    const distributedTotal = amounts.reduce((sum, amt) => sum + amt, 0);
+    const remainder = totalAmount - distributedTotal;
+    
+    return { amounts, remainder };
+  }
+  
+  private distributeByRatio(
+    totalAmount: number,
+    targetObjects: Value[],
+    ratioExpression: Expression,
+    context: RuntimeContext
+  ): number[] {
+    // Evaluate ratio expression for each target object
+    const ratios: number[] = [];
+    let totalRatio = 0;
+    
+    for (const targetObj of targetObjects) {
+      if (targetObj.type !== 'object') {
+        ratios.push(0);
+        continue;
+      }
+      
+      // Temporarily set this object as current for expression evaluation
+      const ctx = context as Context;
+      const oldInstance = ctx.current_instance;
+      ctx.current_instance = targetObj;
+      
+      try {
+        const ratioValue = this.expressionEvaluator.evaluate(ratioExpression, context);
+        if (ratioValue.type === 'number') {
+          const ratio = ratioValue.value as number;
+          ratios.push(ratio);
+          totalRatio += ratio;
+        } else {
+          ratios.push(0);
+        }
+      } finally {
+        ctx.current_instance = oldInstance;
+      }
+    }
+    
+    // Calculate amounts based on ratios
+    if (totalRatio === 0) {
+      // If all ratios are 0, distribute equally
+      return new Array(targetObjects.length).fill(totalAmount / targetObjects.length);
+    }
+    
+    return ratios.map(ratio => (ratio / totalRatio) * totalAmount);
+  }
+  
+  private distributeOrdered(
+    totalAmount: number,
+    targetObjects: Value[],
+    orderExpression: Expression,
+    orderDirection: 'toenemende' | 'afnemende',
+    tieBreakMethod: VerdelingMethode | undefined,
+    maximumExpression: Expression | undefined,
+    context: RuntimeContext
+  ): number[] {
+    // Create array of objects with their order values
+    const objectsWithOrder: Array<{obj: Value, orderValue: any, index: number}> = [];
+    
+    for (let i = 0; i < targetObjects.length; i++) {
+      const targetObj = targetObjects[i];
+      if (targetObj.type !== 'object') {
+        objectsWithOrder.push({obj: targetObj, orderValue: 0, index: i});
+        continue;
+      }
+      
+      // Evaluate order expression for this object
+      const ctx = context as Context;
+      const oldInstance = ctx.current_instance;
+      ctx.current_instance = targetObj;
+      
+      try {
+        const orderValue = this.expressionEvaluator.evaluate(orderExpression, context);
+        objectsWithOrder.push({
+          obj: targetObj,
+          orderValue: orderValue.value,
+          index: i
+        });
+      } finally {
+        ctx.current_instance = oldInstance;
+      }
+    }
+    
+    // Sort by order value
+    objectsWithOrder.sort((a, b) => {
+      const comparison = a.orderValue < b.orderValue ? -1 : 
+                        a.orderValue > b.orderValue ? 1 : 0;
+      return orderDirection === 'toenemende' ? comparison : -comparison;
+    });
+    
+    // Distribute in order, respecting maximum if specified
+    const amounts = new Array(targetObjects.length).fill(0);
+    let remainingAmount = totalAmount;
+    
+    // Group by order value for tie-breaking
+    const groups: Array<Array<{obj: Value, index: number}>> = [];
+    let currentGroup: Array<{obj: Value, index: number}> = [];
+    let lastOrderValue: any = null;
+    
+    for (const item of objectsWithOrder) {
+      if (lastOrderValue !== null && item.orderValue !== lastOrderValue) {
+        if (currentGroup.length > 0) {
+          groups.push(currentGroup);
+          currentGroup = [];
+        }
+      }
+      currentGroup.push({obj: item.obj, index: item.index});
+      lastOrderValue = item.orderValue;
+    }
+    if (currentGroup.length > 0) {
+      groups.push(currentGroup);
+    }
+    
+    // Distribute to each group
+    for (const group of groups) {
+      if (remainingAmount <= 0) break;
+      
+      // For tied objects, distribute based on tie-break method
+      if (group.length === 1) {
+        // No tie, give all remaining (respecting maximum)
+        const index = group[0].index;
+        let amount = remainingAmount;
+        
+        // Apply maximum if specified
+        if (maximumExpression) {
+          const ctx = context as Context;
+          const oldInstance = ctx.current_instance;
+          ctx.current_instance = group[0].obj;
+          
+          try {
+            const maxValue = this.expressionEvaluator.evaluate(maximumExpression, context);
+            if (maxValue.type === 'number') {
+              amount = Math.min(amount, maxValue.value as number);
+            }
+          } finally {
+            ctx.current_instance = oldInstance;
+          }
+        }
+        
+        amounts[index] = amount;
+        remainingAmount -= amount;
+      } else {
+        // Tie - distribute within group based on tie-break method
+        if (tieBreakMethod) {
+          if (tieBreakMethod.type === 'VerdelingGelijkeDelen') {
+            // Equal distribution within group
+            const amountPerObject = remainingAmount / group.length;
+            for (const {obj, index} of group) {
+              let amount = amountPerObject;
+              
+              // Apply maximum if specified
+              if (maximumExpression) {
+                const ctx = context as Context;
+                const oldInstance = ctx.current_instance;
+                ctx.current_instance = obj;
+                
+                try {
+                  const maxValue = this.expressionEvaluator.evaluate(maximumExpression, context);
+                  if (maxValue.type === 'number') {
+                    amount = Math.min(amount, maxValue.value as number);
+                  }
+                } finally {
+                  ctx.current_instance = oldInstance;
+                }
+              }
+              
+              amounts[index] = amount;
+              remainingAmount -= amount;
+            }
+          } else if (tieBreakMethod.type === 'VerdelingNaarRato') {
+            // Ratio-based distribution within group
+            const tieBreakExpression = (tieBreakMethod as VerdelingNaarRato).ratioExpression;
+            const groupObjects = group.map(g => g.obj);
+            const groupAmounts = this.distributeByRatio(
+              remainingAmount,
+              groupObjects,
+              tieBreakExpression,
+              context
+            );
+            
+            // Apply amounts with maximum constraint
+            for (let i = 0; i < group.length; i++) {
+              let amount = groupAmounts[i];
+              
+              // Apply maximum if specified
+              if (maximumExpression) {
+                const ctx = context as Context;
+                const oldInstance = ctx.current_instance;
+                ctx.current_instance = group[i].obj;
+                
+                try {
+                  const maxValue = this.expressionEvaluator.evaluate(maximumExpression, context);
+                  if (maxValue.type === 'number') {
+                    amount = Math.min(amount, maxValue.value as number);
+                  }
+                } finally {
+                  ctx.current_instance = oldInstance;
+                }
+              }
+              
+              amounts[group[i].index] = amount;
+              remainingAmount -= amount;
+            }
+          }
+        } else {
+          // No tie-break method specified, distribute equally
+          const amountPerObject = remainingAmount / group.length;
+          for (const {obj, index} of group) {
+            amounts[index] = amountPerObject;
+            remainingAmount -= amountPerObject;
+          }
+        }
+      }
+    }
+    
+    return amounts;
+  }
+  
+  private applyMaximumConstraint(
+    amounts: number[],
+    targetObjects: Value[],
+    maximumExpression: Expression,
+    context: RuntimeContext
+  ): number[] {
+    const newAmounts: number[] = [];
+    
+    for (let i = 0; i < amounts.length; i++) {
+      const targetObj = targetObjects[i];
+      if (targetObj.type !== 'object') {
+        newAmounts.push(amounts[i]);
+        continue;
+      }
+      
+      // Evaluate maximum for this object
+      const ctx = context as Context;
+      const oldInstance = ctx.current_instance;
+      ctx.current_instance = targetObj;
+      
+      try {
+        const maxValue = this.expressionEvaluator.evaluate(maximumExpression, context);
+        if (maxValue.type === 'number') {
+          newAmounts.push(Math.min(amounts[i], maxValue.value as number));
+        } else {
+          newAmounts.push(amounts[i]);
+        }
+      } finally {
+        ctx.current_instance = oldInstance;
+      }
+    }
+    
+    return newAmounts;
+  }
+  
+  private applyRounding(
+    amounts: number[],
+    decimals: number,
+    roundDown: boolean
+  ): number[] {
+    const factor = Math.pow(10, decimals);
+    
+    return amounts.map(amount => {
+      if (roundDown) {
+        return Math.floor(amount * factor) / factor;
+      } else {
+        return Math.ceil(amount * factor) / factor;
+      }
+    });
   }
 }

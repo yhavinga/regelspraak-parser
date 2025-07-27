@@ -39,8 +39,7 @@ describe('Uniek Predicate', () => {
                     het personeelsnummer Nummer;
                     de afdeling Tekst;
                     
-                Regel personeelsnummer uniekheid per afdeling
-                geldig altijd
+                Consistentieregel personeelsnummer uniekheid per afdeling
                     De personeelsnummers van alle medewerkers met dezelfde afdeling moeten uniek zijn.
             `;
             
