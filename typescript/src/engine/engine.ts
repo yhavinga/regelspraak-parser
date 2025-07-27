@@ -2,7 +2,6 @@ import { IEngine, ParseResult, RuntimeContext, ExecutionResult, Value } from '..
 import { Context } from '../runtime/context';
 import { ExpressionEvaluator } from '../evaluators/expression-evaluator';
 import { RuleExecutor } from '../executors/rule-executor';
-import { DecisionTableParser } from '../parsers/decision-table-parser';
 import { DecisionTableExecutor } from '../executors/decision-table-executor';
 import { AntlrParser } from '../parsers/antlr-parser';
 
@@ -75,8 +74,8 @@ export class Engine implements IEngine {
           ast
         };
       } else if (trimmed.startsWith('Beslistabel ')) {
-        const dtParser = new DecisionTableParser(trimmed);
-        const ast = dtParser.parseDecisionTable();
+        // Use ANTLR parser for decision tables
+        const ast = this.antlrParser.parseDecisionTable(trimmed);
         return {
           success: true,
           ast

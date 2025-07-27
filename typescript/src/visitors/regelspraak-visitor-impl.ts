@@ -90,8 +90,15 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
       }
     }
     
-    // Visit other top-level elements as needed
-    // TODO: Add support for regelGroep, beslistabel, etc.
+    // Visit beslistabels
+    for (const beslistabel of beslistabels) {
+      const result = this.visit(beslistabel);
+      if (result) {
+        results.push(result);
+      }
+    }
+    
+    // TODO: Add support for regelGroep, etc.
     
     return results;
   }
@@ -478,6 +485,27 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
       type: 'FunctionCall',
       functionName: 'abs',
       arguments: [arg]
+    } as FunctionCall;
+  }
+  
+  visitSomFuncExpr(ctx: any): Expression {
+    // SOM_VAN primaryExpression (COMMA primaryExpression)* EN primaryExpression
+    // This handles "de som van X, Y en Z" pattern
+    
+    const args: Expression[] = [];
+    
+    // Get all primary expressions
+    const primaryExprs = ctx.primaryExpression_list();
+    if (primaryExprs && primaryExprs.length > 0) {
+      for (const expr of primaryExprs) {
+        args.push(this.visit(expr));
+      }
+    }
+    
+    return {
+      type: 'FunctionCall',
+      functionName: 'som',
+      arguments: args
     } as FunctionCall;
   }
   
@@ -1640,5 +1668,96 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
       decimals,
       roundDirection: roundDirection as 'naar beneden' | 'naar boven'
     };
+  }
+
+  // --- Decision Table (Beslistabel) Visitor Methods ---
+  
+  visitBeslistabel(ctx: any): any {
+    const name = this.extractText(ctx.naamwoord()).trim();
+    
+    // Check if there's a regelVersie (validity rule)
+    let validity = 'altijd';  // default
+    if (ctx.regelVersie && ctx.regelVersie()) {
+      const versie = this.visit(ctx.regelVersie());
+      validity = versie.validity || 'altijd';
+    }
+    
+    // Visit the table structure
+    const table = this.visit(ctx.beslistabelTable());
+    
+    return {
+      type: 'DecisionTable',
+      name,
+      validity,
+      ...table  // Contains resultColumn, conditionColumns, and rows
+    };
+  }
+  
+  visitBeslistabelTable(ctx: any): any {
+    // Visit header to get column information
+    const header = this.visit(ctx.beslistabelHeader());
+    
+    // Visit all rows
+    const rows = ctx.beslistabelRow_list().map((row: any) => this.visit(row));
+    
+    return {
+      ...header,
+      rows
+    };
+  }
+  
+  visitBeslistabelHeader(ctx: any): any {
+    // Extract result column text including hidden whitespace
+    const resultColumn = this.getFullText(ctx._resultColumn);
+    
+    // Extract condition column texts including hidden whitespace
+    const conditionColumns = (ctx._conditionColumns || []).map((col: any) => {
+      return this.getFullText(col);
+    });
+    
+    return {
+      resultColumn,
+      conditionColumns
+    };
+  }
+  
+  // Helper to get full text including hidden whitespace
+  private getFullText(ctx: any): string {
+    if (!ctx) return '';
+    
+    // For now, just use extractTextWithSpaces since getting hidden tokens is complex
+    // The decision table executor will need to be updated to handle the space-less headers
+    return this.extractTextWithSpaces(ctx);
+  }
+  
+  visitBeslistabelRow(ctx: any): any {
+    const rowNumber = parseInt(ctx._rowNumber.text);
+    const resultExpression = this.visit(ctx._resultExpression);
+    
+    // Visit all condition values
+    const conditionValues = (ctx._conditionValues || []).map((value: any) => this.visit(value));
+    
+    return {
+      type: 'DecisionTableRow',
+      rowNumber,
+      resultExpression,
+      conditionValues
+    };
+  }
+  
+  visitBeslistabelCellValue(ctx: any): any {
+    // Check if this is n.v.t. or an expression
+    if (ctx.NVT && ctx.NVT()) {
+      return 'n.v.t.';
+    } 
+    
+    // Otherwise it should be an expression
+    const exprCtx = ctx.expressie();
+    if (exprCtx) {
+      return this.visit(exprCtx);
+    }
+    
+    // Shouldn't happen with proper grammar
+    throw new Error('Invalid decision table cell value');
   }
 }

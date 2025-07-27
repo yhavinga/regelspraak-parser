@@ -197,4 +197,38 @@ export class AntlrParser {
       throw new Error(`Parse error: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
   }
+
+  /**
+   * Parse a decision table (beslistabel)
+   */
+  parseDecisionTable(source: string): DecisionTable {
+    try {
+      const chars = new CharStream(source);
+      const lexer = new RegelSpraakLexer(chars);
+      const tokens = new CommonTokenStream(lexer);
+      const parser = new RegelSpraakParser(tokens);
+      
+      // Set up custom error listener
+      const errorListener = new CustomErrorListener();
+      parser.removeErrorListeners();
+      parser.addErrorListener(errorListener);
+      
+      // Parse a beslistabel
+      const tree = parser.beslistabel();
+      
+      // Check for parse errors
+      const errors = errorListener.getErrors();
+      if (errors.length > 0) {
+        throw new Error(errors[0]);
+      }
+      
+      if (!tree) {
+        throw new Error('Failed to parse decision table: parser returned null');
+      }
+      
+      return this.visitor.visit(tree);
+    } catch (error) {
+      throw new Error(`Parse error: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  }
 }
