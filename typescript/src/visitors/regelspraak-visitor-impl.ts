@@ -14,7 +14,8 @@ import {
   IdentifierExprContext,
   ParenExprContext,
   UnaryNietExprContext,
-  UnaryMinusExprContext
+  UnaryMinusExprContext,
+  DateCalcExprContext
 } from '../generated/antlr/RegelSpraakParser';
 import RegelSpraakLexer from '../generated/antlr/RegelSpraakLexer';
 import { 
@@ -403,6 +404,35 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
 
   visitParenExpr(ctx: ParenExprContext): Expression {
     return this.visit(ctx.expressie());
+  }
+
+  visitDateCalcExpr(ctx: any): Expression {
+    // Handle DateCalcExpr - check if it's actually a date calculation or arithmetic with units
+    const left = this.visit(ctx.primaryExpression(0));
+    const right = this.visit(ctx.primaryExpression(1));
+    const identifier = ctx.identifier()?.getText() || '';
+    
+    // Check if the identifier is a time unit
+    const timeUnits = ['dagen', 'dag', 'maanden', 'maand', 'jaren', 'jaar', 'weken', 'week', 
+                       'uren', 'uur', 'minuten', 'minuut', 'seconden', 'seconde'];
+    
+    if (!timeUnits.includes(identifier.toLowerCase())) {
+      // Not a date calculation - treat as arithmetic with the identifier as unit
+      // If right is a number literal, add the unit to it
+      if (right.type === 'NumberLiteral' && identifier) {
+        (right as NumberLiteral).unit = identifier;
+      }
+    }
+    
+    // Create binary expression
+    const operator = ctx.PLUS() ? '+' : '-';
+    
+    return {
+      type: 'BinaryExpression',
+      operator: operator,
+      left: left,
+      right: right
+    } as BinaryExpression;
   }
 
   visitOnderwerpRefExpr(ctx: any): Expression {

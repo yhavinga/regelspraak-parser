@@ -124,9 +124,10 @@ geldig altijd
       
       expect(result.success).toBe(true);
       // First matching row wins - aankoopbedrag (150) > 50, so row 1 matches
-      expect(result.value).toEqual({
+      expect(result.value).toMatchObject({
         type: 'number',
-        value: 5  // EUR amount parsed as number
+        value: 5,
+        unit: { name: 'euro' }
       });
     });
   });

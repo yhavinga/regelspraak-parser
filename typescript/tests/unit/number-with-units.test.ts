@@ -54,8 +54,17 @@ describe('Engine - Number Literals with Units', () => {
   });
 
   test('should add numbers with same units', () => {
-    // TODO: Fix grammar conflict - "EUR" matches DateCalcExpr pattern
-    // For now, use € symbol instead
+    const result = engine.run('10 EUR plus 20 EUR', context);
+    
+    expect(result.success).toBe(true);
+    expect(result.value).toMatchObject({
+      type: 'number',
+      value: 30,
+      unit: { name: 'euro' }
+    });
+  });
+
+  test('should also work with Euro symbol', () => {
     const result = engine.run('10 € plus 20 €', context);
     
     expect(result.success).toBe(true);
@@ -94,15 +103,14 @@ describe('Engine - Number Literals with Units', () => {
   });
 
   test('should support arithmetic with EUR unit', () => {
-    // Use € symbol due to grammar conflict with EUR
-    const result = engine.run('1000 € gedeeld door 12', context);
+    const result = engine.run('1000 EUR gedeeld door 12', context);
     
     expect(result.success).toBe(true);
     expect(result.value?.value).toBeCloseTo(1000/12);
     
     // Check that euro unit is preserved
     const unitValue = result.value as any;
-    expect(unitValue.compositeUnit?.numerator).toEqual([['€', 1]]);
+    expect(unitValue.compositeUnit?.numerator).toEqual([['EUR', 1]]);
     expect(unitValue.compositeUnit?.denominator).toEqual([]);
   });
 });
