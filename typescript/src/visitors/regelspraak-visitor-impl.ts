@@ -47,6 +47,7 @@ import {
 import { ObjectTypeDefinition, KenmerkSpecification, AttributeSpecification, DataType, DomainReference } from '../ast/object-types';
 import { ParameterDefinition } from '../ast/parameters';
 import { AttributeReference } from '../ast/expressions';
+import { UnitSystemDefinition, UnitDefinition, UnitConversion } from '../ast/unit-systems';
 
 /**
  * Implementation of ANTLR4 visitor that builds our AST
@@ -94,6 +95,14 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
     // Visit beslistabels
     for (const beslistabel of beslistabels) {
       const result = this.visit(beslistabel);
+      if (result) {
+        results.push(result);
+      }
+    }
+    
+    // Visit unit systems
+    for (const eenheidsystem of eenheidsystems) {
+      const result = this.visit(eenheidsystem);
       if (result) {
         results.push(result);
       }
@@ -1841,4 +1850,64 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
     // Shouldn't happen with proper grammar
     throw new Error('Invalid decision table cell value');
   }
+
+  // --- Unit System (Eenheidsysteem) Visitor Methods ---
+  
+  visitEenheidsysteemDefinition(ctx: any): UnitSystemDefinition {
+    // Get the name from the identifier (ctx._name holds the labeled identifier context)
+    const name = this.extractText(ctx._name);
+    
+    // Visit all unit entries
+    const units = ctx.eenheidEntry_list().map((entry: any) => this.visit(entry));
+    
+    return {
+      type: 'UnitSystemDefinition',
+      name,
+      units
+    };
+  }
+  
+  visitEenheidEntry(ctx: any): UnitDefinition {
+    // Extract unit name (e.g., "meter") - labeled as _unitName
+    const unitName = this.extractText(ctx._unitName);
+    
+    // Extract abbreviation (e.g., "m") - labeled as _abbrev
+    const abbrev = this.extractText(ctx._abbrev);
+    
+    // Check for symbol (optional, fourth position) - labeled as _symbol
+    let symbol: string | undefined;
+    if (ctx._symbol) {
+      symbol = this.extractText(ctx._symbol);
+    }
+    
+    // Check for plural form - labeled as _pluralName
+    let plural: string | undefined;
+    if (ctx._pluralName) {
+      plural = this.extractText(ctx._pluralName);
+    }
+    
+    // Check for conversion specification - labeled as _value and _targetUnit
+    let conversion: UnitConversion | undefined;
+    if (ctx._value && ctx._targetUnit) {
+      const isFraction = ctx.SLASH && ctx.SLASH();
+      const numberValue = parseFloat(this.extractText(ctx._value).replace(',', '.'));
+      
+      const factor = isFraction ? 1 / numberValue : numberValue;
+      const toUnit = this.extractText(ctx._targetUnit);
+      
+      conversion = {
+        factor,
+        toUnit
+      };
+    }
+    
+    return {
+      name: unitName,
+      plural,
+      abbreviation: abbrev,
+      symbol,
+      conversion
+    };
+  }
+  
 }

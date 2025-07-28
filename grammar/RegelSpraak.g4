@@ -221,8 +221,11 @@ eenheidsysteemDefinition
     ;
 
 eenheidEntry
-    : DE unitName=unitIdentifier abbrev=unitIdentifier // Use unitIdentifier rule
-      (EQUALS value=NUMBER targetUnit=unitIdentifier)? // Use standard tokens + unitIdentifier
+    : DE unitName=unitIdentifier 
+      (MV_START pluralName=unitIdentifier RPAREN)?  // Optional plural form
+      abbrev=unitIdentifier // abbreviation  
+      symbol=unitIdentifier? // optional symbol like € or °C
+      (EQUALS (SLASH)? value=NUMBER targetUnit=unitIdentifier)? // conversion spec with optional fraction
     ;
 
 // New rule to allow keywords or identifiers as units
@@ -230,7 +233,7 @@ unitIdentifier
     : IDENTIFIER
     | METER | KILOGRAM | SECONDE | MINUUT | UUR | VOET | POND | MIJL // Keywords
     | M | KG | S | FT | LB | MIN | MI // Abbreviations + Keyword MIN
-    | EURO_SYMBOL | DOLLAR_SYMBOL
+    | EURO_SYMBOL | DOLLAR_SYMBOL | DEGREE_SYMBOL
     | DAG | DAGEN | MAAND | JAAR | WEEK // Time units
     ;
 

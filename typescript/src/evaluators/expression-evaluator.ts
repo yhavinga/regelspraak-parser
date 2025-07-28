@@ -27,7 +27,7 @@ export class ExpressionEvaluator implements IEvaluator {
   evaluate(expr: Expression, context: RuntimeContext): Value {
     switch (expr.type) {
       case 'NumberLiteral':
-        return this.evaluateNumberLiteral(expr as NumberLiteral);
+        return this.evaluateNumberLiteral(expr as NumberLiteral, context);
       case 'StringLiteral':
         return this.evaluateStringLiteral(expr as StringLiteral);
       case 'BinaryExpression':
@@ -55,10 +55,12 @@ export class ExpressionEvaluator implements IEvaluator {
     }
   }
 
-  private evaluateNumberLiteral(expr: NumberLiteral): Value {
+  private evaluateNumberLiteral(expr: NumberLiteral, context: RuntimeContext): Value {
     if (expr.unit) {
+      // Use context's unit registry if available (for custom unit systems)
+      const registry = (context as any).unitRegistry || this.unitRegistry;
       // Create a unit value using the unit registry
-      return createUnitValue(expr.value, expr.unit, this.unitRegistry);
+      return createUnitValue(expr.value, expr.unit, registry);
     }
     return {
       type: 'number',
@@ -107,11 +109,13 @@ export class ExpressionEvaluator implements IEvaluator {
     // Use unit arithmetic if either operand has units
     if (left.unit || right.unit || (left as UnitValue).compositeUnit || (right as UnitValue).compositeUnit) {
       try {
+        // Use context's unit registry if available (for custom unit systems)
+        const registry = (context as any).unitRegistry || this.unitRegistry;
         return performUnitArithmetic(
           expr.operator as '+' | '-' | '*' | '/',
           left as UnitValue,
           right as UnitValue,
-          this.unitRegistry
+          registry
         );
       } catch (error) {
         // Re-throw with more context

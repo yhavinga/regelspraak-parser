@@ -290,9 +290,10 @@ FT: 'ft';
 LB: 'lb';
 MI: 'mi';
 
-// Monetary Units
+// Monetary and Other Units
 EURO_SYMBOL: '€';
 DOLLAR_SYMBOL: '$';
+DEGREE_SYMBOL: '°';
 
 
 // --- Standard Tokens (No predicates) ---

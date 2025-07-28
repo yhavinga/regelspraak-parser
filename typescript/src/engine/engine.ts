@@ -4,6 +4,9 @@ import { ExpressionEvaluator } from '../evaluators/expression-evaluator';
 import { RuleExecutor } from '../executors/rule-executor';
 import { DecisionTableExecutor } from '../executors/decision-table-executor';
 import { AntlrParser } from '../parsers/antlr-parser';
+import { UnitSystemDefinition } from '../ast/unit-systems';
+import { UnitRegistry } from '../units/unit-registry';
+import { UnitSystem, BaseUnit } from '../units/base-unit';
 
 /**
  * Main RegelSpraak engine
@@ -13,6 +16,7 @@ export class Engine implements IEngine {
   private ruleExecutor = new RuleExecutor();
   private decisionTableExecutor = new DecisionTableExecutor();
   private antlrParser = new AntlrParser();
+  private unitRegistry = new UnitRegistry();
 
   parse(source: string): ParseResult {
     const trimmed = source.trim();
@@ -20,7 +24,7 @@ export class Engine implements IEngine {
     try {
       // Check if this contains multiple definitions (has newlines and multiple keywords)
       const lines = trimmed.split('\n');
-      const definitionKeywords = ['Parameter ', 'Objecttype ', 'Regel ', 'Beslistabel ', 'Consistentieregel ', 'Verdeling '];
+      const definitionKeywords = ['Parameter ', 'Objecttype ', 'Regel ', 'Beslistabel ', 'Consistentieregel ', 'Verdeling ', 'Eenheidsysteem '];
       let definitionCount = 0;
       for (const line of lines) {
         const trimmedLine = line.trim();
@@ -39,6 +43,7 @@ export class Engine implements IEngine {
         const rules = definitions.filter((def: any) => def.type === 'Rule');
         const objectTypes = definitions.filter((def: any) => def.type === 'ObjectTypeDefinition');
         const parameters = definitions.filter((def: any) => def.type === 'ParameterDefinition');
+        const unitSystems = definitions.filter((def: any) => def.type === 'UnitSystemDefinition');
         
         return {
           success: true,
@@ -46,7 +51,8 @@ export class Engine implements IEngine {
             type: 'Model',
             rules,
             objectTypes,
-            parameters
+            parameters,
+            unitSystems
           }
         };
       }
@@ -79,6 +85,14 @@ export class Engine implements IEngine {
         return {
           success: true,
           ast
+        };
+      } else if (trimmed.startsWith('Eenheidsysteem ')) {
+        // Parse as a full document to handle unit system definition
+        const definitions = this.antlrParser.parse(trimmed);
+        // Return the first (and should be only) definition
+        return {
+          success: true,
+          ast: Array.isArray(definitions) && definitions.length > 0 ? definitions[0] : definitions
         };
       } else {
         // Parse as expression using ANTLR
@@ -122,6 +136,11 @@ export class Engine implements IEngine {
       
       // Handle different AST types
       if (ast.type === 'Model') {
+        // First register any unit systems
+        for (const unitSystem of (ast as any).unitSystems || []) {
+          this.registerUnitSystem(unitSystem, context);
+        }
+        
         // Execute all rules in the model
         let lastResult: ExecutionResult = {
           success: true,
@@ -187,6 +206,13 @@ export class Engine implements IEngine {
           success: true,
           value: { type: 'string', value: 'Parameter registered' }
         };
+      } else if (ast.type === 'UnitSystemDefinition') {
+        // Register the unit system in the context
+        this.registerUnitSystem(ast, context);
+        return {
+          success: true,
+          value: { type: 'string', value: `Unit system '${ast.name}' registered` }
+        };
       } else {
         // It's an expression
         const value = this.expressionEvaluator.evaluate(ast, context);
@@ -248,5 +274,31 @@ export class Engine implements IEngine {
     } else {
       return { type: 'object', value };
     }
+  }
+  
+  private registerUnitSystem(unitSystemDef: UnitSystemDefinition, context: RuntimeContext): void {
+    // Create a new unit system
+    const system = new UnitSystem(unitSystemDef.name);
+    
+    // Add each unit to the system
+    for (const unitDef of unitSystemDef.units) {
+      const baseUnit: BaseUnit = {
+        name: unitDef.name,
+        plural: unitDef.plural,
+        abbreviation: unitDef.abbreviation,
+        symbol: unitDef.symbol,
+        conversionFactor: unitDef.conversion?.factor,
+        conversionToUnit: unitDef.conversion?.toUnit
+      };
+      
+      system.addUnit(baseUnit);
+    }
+    
+    // Register the system in the unit registry
+    this.unitRegistry.addSystem(system);
+    
+    // Also make the registry available in the context
+    // This allows expression evaluator to access custom units
+    (context as any).unitRegistry = this.unitRegistry;
   }
 }
