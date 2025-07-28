@@ -68,7 +68,8 @@ export class DecisionTableExecutor {
     
     if (match) {
       // Replace spaces with underscores in multi-word attributes
-      return { target: match[1].replace(/\s+/g, '_').toLowerCase() };
+      const target = match[1].replace(/\s+/g, '_').toLowerCase();
+      return { target };
     }
     
     // Fallback: extract all words between article and "van" or end

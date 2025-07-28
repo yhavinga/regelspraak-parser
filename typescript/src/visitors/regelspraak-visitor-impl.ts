@@ -1473,6 +1473,17 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
       throw new Error('Invalid result pattern in ResultaatDeelContext: ' + text);
     }
     
+    // Debug when we hit visitChildren for ExpressieContext  
+    if (node.constructor.name === 'ExpressieContext') {
+      // ExpressieContext should be handled by visitExpressie
+      // If we're here, the visitor dispatch is not working correctly
+      // Try to handle it directly
+      const logicalExpr = node.logicalExpression ? node.logicalExpression() : null;
+      if (logicalExpr) {
+        return this.visit(logicalExpr);
+      }
+    }
+    
     // If only one child, visit it
     if (node.children.length === 1) {
       return this.visit(node.children[0]);
@@ -1710,10 +1721,10 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
     // Extract result column text including hidden whitespace
     const resultColumn = this.getFullText(ctx._resultColumn);
     
-    // Extract condition column texts including hidden whitespace
-    const conditionColumns = (ctx._conditionColumns || []).map((col: any) => {
-      return this.getFullText(col);
-    });
+    // Extract condition column texts - they are stored in _conditionColumns array
+    const conditionColumns = ctx._conditionColumns ? 
+      ctx._conditionColumns.map((col: any) => this.getFullText(col)) : 
+      [];
     
     return {
       resultColumn,
@@ -1725,8 +1736,20 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
   private getFullText(ctx: any): string {
     if (!ctx) return '';
     
-    // For now, just use extractTextWithSpaces since getting hidden tokens is complex
-    // The decision table executor will need to be updated to handle the space-less headers
+    // Access the input stream directly to get original text with spaces
+    if (ctx.start && ctx.stop && ctx.parser) {
+      const inputStream = ctx.parser.getInputStream();
+      if (inputStream) {
+        // Get the text directly from input stream
+        const startIndex = ctx.start.startIndex;
+        const stopIndex = ctx.stop.stopIndex;
+        if (startIndex >= 0 && stopIndex >= startIndex) {
+          return inputStream.getText(startIndex, stopIndex);
+        }
+      }
+    }
+    
+    // Fallback to extractTextWithSpaces
     return this.extractTextWithSpaces(ctx);
   }
   
@@ -1734,8 +1757,10 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
     const rowNumber = parseInt(ctx._rowNumber.text);
     const resultExpression = this.visit(ctx._resultExpression);
     
-    // Visit all condition values
-    const conditionValues = (ctx._conditionValues || []).map((value: any) => this.visit(value));
+    // Visit all condition values - they are stored in _conditionValues array
+    const conditionValues = ctx._conditionValues ? 
+      ctx._conditionValues.map((value: any) => this.visit(value)) : 
+      [];
     
     return {
       type: 'DecisionTableRow',
@@ -1754,7 +1779,8 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
     // Otherwise it should be an expression
     const exprCtx = ctx.expressie();
     if (exprCtx) {
-      return this.visit(exprCtx);
+      // Direct call to visitExpressie to avoid dispatch issues
+      return this.visitExpressie(exprCtx);
     }
     
     // Shouldn't happen with proper grammar
