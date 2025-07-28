@@ -35,19 +35,21 @@ de meter m
 de kilometer km = 1000 m
 de centimeter cm = 1/100 m
 
-Parameter de afstand heeft waarde 5 km
+Parameter de afstand : Numeriek (getal) met eenheid km;
 
 Regel bereken totaal
-  de totale afstand moet berekend worden als de afstand plus 3000 m
+geldig altijd
+De totale afstand van een berekening moet berekend worden als de afstand plus 3000 m.
 `;
     
     const context = new Context();
+    context.setVariable('afstand', { type: 'number', value: 5, unit: { name: 'kilometer' } });
     const result = engine.run(modelWithUnits, context);
     
     expect(result.success).toBe(true);
     
     // Check that the total distance is calculated correctly (5 km + 3000 m = 8 km)
-    const totalDistance = context.getVariable('totale_afstand');
+    const totalDistance = context.getVariable('totale afstand');
     expect(totalDistance).toMatchObject({
       type: 'number',
       value: 8,
@@ -77,19 +79,21 @@ de foot ft = 12 in
 de yard yd = 3 ft
 de mile mi = 1760 yd
 
-Parameter de lengte heeft waarde 1 mi
+Parameter de lengte : Numeriek (getal) met eenheid mi;
 
 Regel converteer naar yards
-  de lengte in yards moet berekend worden als de lengte
+geldig altijd
+De lengte in yards van een meting moet berekend worden als de lengte.
 `;
     
     const context = new Context();
+    context.setVariable('lengte', { type: 'number', value: 1, unit: { name: 'mile' } });
     const result = engine.run(modelWithUnits, context);
     
     expect(result.success).toBe(true);
     
     // Check conversion (1 mile = 1760 yards)
-    const lengthInYards = context.getVariable('lengte_in_yards');
+    const lengthInYards = context.getVariable('lengte in yards');
     expect(lengthInYards).toMatchObject({
       type: 'number',
       value: 1760,
@@ -103,20 +107,23 @@ Eenheidsysteem snelheid
 de meter per seconde m/s
 de kilometer per uur km/h = 1/3.6 m/s
 
-Parameter de snelheid heeft waarde 100 km/h
-Parameter de tijd heeft waarde 2 uur
+Parameter de snelheid : Numeriek (getal) met eenheid km/h;
+Parameter de tijd : Numeriek (getal) met eenheid uur;
 
 Regel bereken afstand
-  de afgelegde afstand moet berekend worden als de snelheid maal de tijd
+geldig altijd
+De afgelegde afstand van een reis moet berekend worden als de snelheid maal de tijd.
 `;
     
     const context = new Context();
+    context.setVariable('snelheid', { type: 'number', value: 100, unit: { name: 'kilometer per uur' } });
+    context.setVariable('tijd', { type: 'number', value: 2, unit: { name: 'uur' } });
     const result = engine.run(modelWithMixedUnits, context);
     
     expect(result.success).toBe(true);
     
     // Check that distance is calculated (100 km/h * 2 h = 200 km)
-    const distance = context.getVariable('afgelegde_afstand');
+    const distance = context.getVariable('afgelegde afstand');
     expect(distance).toMatchObject({
       type: 'number',
       value: 200
@@ -134,14 +141,17 @@ Eenheidsysteem volume
 de milliliter ml
 de liter l = 1000 ml
 
-Parameter het gewicht heeft waarde 2 kg
-Parameter het volume heeft waarde 500 ml
+Parameter het gewicht : Numeriek (getal) met eenheid kg;
+Parameter het volume : Numeriek (getal) met eenheid ml;
 
 Regel bereken dichtheid
-  de dichtheid moet berekend worden als het gewicht gedeeld door het volume
+geldig altijd
+De dichtheid van een stof moet berekend worden als het gewicht gedeeld door het volume.
 `;
     
     const context = new Context();
+    context.setVariable('gewicht', { type: 'number', value: 2, unit: { name: 'kilogram' } });
+    context.setVariable('volume', { type: 'number', value: 500, unit: { name: 'milliliter' } });
     const result = engine.run(model, context);
     
     expect(result.success).toBe(true);

@@ -11,8 +11,8 @@ import {
 	Token, TokenStream,
 	Interval, IntervalSet
 } from 'antlr4';
-import RegelSpraakListener from "./RegelSpraakListener.js";
-import RegelSpraakVisitor from "./RegelSpraakVisitor.js";
+import RegelSpraakListener from "./RegelSpraakListener";
+import RegelSpraakVisitor from "./RegelSpraakVisitor";
 
 // for running tests with parameters, TODO: discuss strategy for typed parameters in CI
 // eslint-disable-next-line no-unused-vars

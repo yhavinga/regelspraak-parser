@@ -280,18 +280,38 @@ export class Engine implements IEngine {
     // Create a new unit system
     const system = new UnitSystem(unitSystemDef.name);
     
-    // Add each unit to the system
+    // First pass: add all units without conversions
     for (const unitDef of unitSystemDef.units) {
       const baseUnit: BaseUnit = {
         name: unitDef.name,
         plural: unitDef.plural,
         abbreviation: unitDef.abbreviation,
-        symbol: unitDef.symbol,
-        conversionFactor: unitDef.conversion?.factor,
-        conversionToUnit: unitDef.conversion?.toUnit
+        symbol: unitDef.symbol
       };
       
       system.addUnit(baseUnit);
+    }
+    
+    // Second pass: add conversion information, resolving abbreviations to full names
+    for (const unitDef of unitSystemDef.units) {
+      if (unitDef.conversion) {
+        // Find the target unit by its identifier (which might be an abbreviation)
+        const targetUnit = system.findUnit(unitDef.conversion.toUnit);
+        if (targetUnit) {
+          // Update the unit with conversion info using the full unit name
+          const updatedUnit: BaseUnit = {
+            name: unitDef.name,
+            plural: unitDef.plural,
+            abbreviation: unitDef.abbreviation,
+            symbol: unitDef.symbol,
+            conversionFactor: unitDef.conversion.factor,
+            conversionToUnit: targetUnit.name  // Use the full name, not abbreviation
+          };
+          
+          // Re-add the unit with conversion info
+          system.addUnit(updatedUnit);
+        }
+      }
     }
     
     // Register the system in the unit registry

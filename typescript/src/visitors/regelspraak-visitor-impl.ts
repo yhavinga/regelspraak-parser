@@ -964,8 +964,8 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
     // Let's try to extract just the identifier part
     let target = 'unknown';
     
-    // Get the text and parse it
-    const fullText = naamwoordCtx.getText();
+    // Get the text with spaces preserved
+    const fullText = this.extractTextWithSpaces(naamwoordCtx);
     target = this.extractTargetName(fullText);
     
     // Get the expression - check which operator is used
@@ -1050,23 +1050,25 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
 
   // Helper to extract target attribute name from full reference
   private extractTargetName(fullReference: string): string {
-    // Handle case where article is concatenated with the attribute (e.g., "Hetresultaat")
-    const articlePrefixes = /^(het|de|een)/i;
-    const match = fullReference.match(articlePrefixes);
+    const trimmed = fullReference.trim();
     
-    if (match) {
-      // Remove the article prefix and return the rest
-      const withoutArticle = fullReference.substring(match[0].length);
-      return withoutArticle.toLowerCase();
+    // First try to split by spaces
+    const words = trimmed.split(/\s+/);
+    
+    // If multiple words and first is an article, remove it
+    if (words.length > 1 && /^(de|het|een)$/i.test(words[0])) {
+      // Join remaining words with space, preserving multi-word attributes
+      return words.slice(1).join(' ').toLowerCase();
     }
     
-    // If there are spaces, try the original logic
-    const words = fullReference.split(/\s+/);
-    if (words.length > 1 && /^(het|de|een)$/i.test(words[0])) {
-      return words[1].toLowerCase();
+    // Check if article is concatenated with the name (no space)
+    const concatenatedMatch = trimmed.match(/^(de|het|een)(.+)$/i);
+    if (concatenatedMatch && concatenatedMatch[2]) {
+      // Extract the part after the article
+      return concatenatedMatch[2].toLowerCase();
     }
     
-    return fullReference.toLowerCase();
+    return trimmed.toLowerCase();
   }
 
   // Helper to extract text from a context
@@ -1890,10 +1892,13 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
     let conversion: UnitConversion | undefined;
     if (ctx._value && ctx._targetUnit) {
       const isFraction = ctx.SLASH && ctx.SLASH();
-      const numberValue = parseFloat(this.extractText(ctx._value).replace(',', '.'));
+      // _value is a token, so use getText() or text property
+      const valueText = ctx._value.getText ? ctx._value.getText() : ctx._value.text;
+      const numberValue = parseFloat(valueText.replace(',', '.'));
       
       const factor = isFraction ? 1 / numberValue : numberValue;
-      const toUnit = this.extractText(ctx._targetUnit);
+      // _targetUnit might already be extracted
+      const toUnit = ctx._targetUnit.getText ? ctx._targetUnit.getText() : this.extractText(ctx._targetUnit);
       
       conversion = {
         factor,
