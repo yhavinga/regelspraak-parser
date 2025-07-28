@@ -155,16 +155,20 @@ geldig altijd
       expect(result.success).toBe(false);
     });
 
-    test('should fail on missing geldig keyword', () => {
-      const invalidTable = `Beslistabel Test
-|   | result | condition |
-|---|--------|-----------|
-| 1 | 10     | 5         |`;
+    test('should handle missing geldig keyword with default validity', () => {
+      const tableWithoutGeldig = `Beslistabel Test
+|   | de result moet gesteld worden op | indien value gelijk is aan |
+|---|-----------------------------------|----------------------------|
+| 1 | 10                                | 5                          |`;
       
-      const result = engine.run(invalidTable);
+      const context = new Context();
+      context.setVariable('value', { type: 'number', value: 5 });
       
-      expect(result.success).toBe(false);
-      expect(result.error?.message).toContain('Expected "geldig" keyword');
+      const result = engine.run(tableWithoutGeldig, context);
+      
+      // The grammar allows optional geldig, defaulting to 'altijd'
+      expect(result.success).toBe(true);
+      expect(result.value).toEqual({ type: 'number', value: 10 });
     });
 
     test('should fail when condition variable is undefined', () => {

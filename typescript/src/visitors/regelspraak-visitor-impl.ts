@@ -444,6 +444,19 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
     } as Expression;
   }
 
+  visitEnumLiteralExpr(ctx: any): Expression {
+    // Get the enum literal token
+    const text = ctx.ENUM_LITERAL().getText();
+    
+    // Remove surrounding quotes
+    const value = text.slice(1, -1);
+    
+    return {
+      type: 'StringLiteral',  // Treat enum literals as string literals for now
+      value
+    } as Expression;
+  }
+
   visitUnaryNietExpr(ctx: UnaryNietExprContext): Expression {
     // Get the operand expression
     const operand = this.visit(ctx.primaryExpression());
