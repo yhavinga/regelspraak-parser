@@ -56,6 +56,13 @@ test:
 	$(PYTHON) -m unittest discover -s $(TEST_DIR)
 	@echo "Tests complete."
 
+# Target to run TypeScript tests
+.PHONY: test-ts
+test-ts:
+	@echo "Running TypeScript tests..."
+	@cd typescript && npm test
+	@echo "TypeScript tests complete."
+
 # Target to clean generated files and cache
 .PHONY: clean
 clean:

@@ -1,6 +1,19 @@
 # RegelSpraak TypeScript Implementation Plan (Revised)
 
-## Current Status (2025-01-28 - Session 19)
+## How to Run Tests
+
+From the project root directory:
+```bash
+make test-ts     # Run all TypeScript tests
+```
+
+Or from the typescript directory:
+```bash
+npm test         # Run all tests
+npm test -- --watch  # Run tests in watch mode
+```
+
+## Current Status (2025-01-28 - Session 20)
 
 ### ✅ Completed Phases
 - **Phase 0-4**: Basic architecture and expression evaluation complete
@@ -14,37 +27,38 @@
 - **Phase 10**: Navigation expressions, subselectie, object creation COMPLETE ✓
 - **Phase 11a**: Collection navigation support COMPLETE ✓
 - **Phase 11b**: ANTLR integration for remaining parsers COMPLETE ✓
+- **Phase 12**: Unit system definitions (Eenheidsysteem) COMPLETE ✓
 
 ### 🎯 Progress Update
-The TypeScript implementation is now **~94% complete** compared to Python:
-- ✅ Has: ANTLR4 parser, all operators, parentheses, numbers/variables, Dutch functions, **rule parsing & execution**, **conditional rules**, **navigation expressions**, **subselectie (DIE/DAT filtering)**, **object creation**, **consistency rules (Consistentieregel)**, **advanced predicates (elfproef, dagsoort, uniek)**, **verdeling (distribution rules - COMPLETE)**, **collection navigation support**, **ANTLR decision tables**, **ANTLR aggregation expressions**, **unit system support**, **EUR parsing fixed**, **unit system definitions (Eenheidsysteem)**
-- ✅ Tests: 257/269 passing (95.5%) - 4 failing (complex unit system tests), 8 skipped
+The TypeScript implementation is now **~97% complete** compared to Python:
+- ✅ Has: ANTLR4 parser, all operators, parentheses, numbers/variables, Dutch functions, **rule parsing & execution**, **conditional rules**, **navigation expressions**, **subselectie (DIE/DAT filtering)**, **object creation**, **consistency rules (Consistentieregel)**, **advanced predicates (elfproef, dagsoort, uniek)**, **verdeling (distribution rules - COMPLETE)**, **collection navigation support**, **ANTLR decision tables**, **ANTLR aggregation expressions**, **unit system support**, **EUR parsing fixed**, **unit system definitions (Eenheidsysteem)**, **unit conversions working**
+- ✅ Tests: 261/269 passing (97.0%) - 2 failing (complex unit conversion edge cases), 6 skipped
 - ✅ Advanced predicates fully implemented: elfproef validation, dagsoort checks, uniqueness validation
 - ✅ Verdeling: ALL distribution methods implemented (equal, ratio, ordered, constraints, remainder, rounding)
 - ✅ Navigation into collections: Can now navigate attributes of array elements
 - ✅ ANTLR parsers: Decision tables and aggregation expressions now use ANTLR
 - ✅ Decision table parsing: All issues fixed including string literal support
-- ✅ Unit system: Basic unit arithmetic, conversions, composite units (km/h), EUR arithmetic, custom unit system definitions
-- ❌ Missing: proper "alle X" AST generation, dimensions, recursion, ~6% of features
+- ✅ Unit system: Basic unit arithmetic, conversions, composite units (km/h), EUR arithmetic, custom unit system definitions, proper abbreviation resolution
+- ❌ Missing: dimensions, recursion, ~3% of features
 
-### 📊 Key Achievements (Session 19)
-- ✅ **Implemented unit system definition parsing (Eenheidsysteem)**:
-  - Added visitor methods for unit system definitions in ANTLR visitor
-  - Extended grammar to support plural forms and degree symbol (°)
-  - Unit systems are registered in context and available to expression evaluator
-  - Custom units can be defined and used in calculations
-- ✅ **Enhanced unit system support**:
-  - Unit registry now available in runtime context for custom units
-  - Expression evaluator uses context's unit registry when available
-  - Support for conversion specifications (e.g., "km = 1000 m" or "cm = 1/100 m")
-- ✅ **Grammar improvements**:
-  - Added DEGREE_SYMBOL token to lexer for temperature units
-  - Fixed eenheidEntry rule to support optional plural forms and symbols
-  - Unit identifiers now include degree symbol alongside currency symbols
-- ✅ **Test coverage**:
-  - Added comprehensive unit system definition tests
-  - 2 new tests passing for basic unit system parsing
-  - Total: 257/269 tests passing (95.5%)
+### 📊 Key Achievements (Session 20)
+- ✅ **Fixed critical ANTLR TypeScript integration issues**:
+  - Resolved ES5/ES6 class incompatibility preventing all tests from running
+  - Configured Jest to properly transform both .ts and .js files with ES2022 target
+  - Fixed import mismatches between .js and .ts files in generated ANTLR code
+- ✅ **Fixed unit conversion implementation**:
+  - Conversion factors now correctly parsed (was NaN due to incorrect token extraction)
+  - Implemented two-pass registration to resolve abbreviations (e.g., "m" → "meter")
+  - Unit conversions now working: 3000 m → 3 km, 5 km → 5000 m
+- ✅ **Fixed multi-word attribute handling**:
+  - Variable names with spaces now preserved (e.g., "totale afstand" not "totaleafstand")
+  - Updated extractTargetName to use extractTextWithSpaces for proper whitespace handling
+  - Rule execution now correctly sets multi-word variables
+- ✅ **Test improvements**:
+  - Updated all unit system tests to use proper RegelSpraak v2.1.0 syntax
+  - Added explicit parameter declarations and validity clauses
+  - 4/6 unit system tests now passing (up from 2/6)
+  - Overall: 261/269 tests passing (97.0%, up from 95.5%)
 
 ### 📊 Key Achievements (Session 18)
 - ✅ **Fixed EUR unit parsing conflict**:
