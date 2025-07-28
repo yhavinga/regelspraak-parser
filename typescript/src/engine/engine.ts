@@ -24,7 +24,7 @@ export class Engine implements IEngine {
     try {
       // Check if this contains multiple definitions (has newlines and multiple keywords)
       const lines = trimmed.split('\n');
-      const definitionKeywords = ['Parameter ', 'Objecttype ', 'Regel ', 'Beslistabel ', 'Consistentieregel ', 'Verdeling ', 'Eenheidsysteem '];
+      const definitionKeywords = ['Parameter ', 'Objecttype ', 'Regel ', 'Beslistabel ', 'Consistentieregel ', 'Verdeling ', 'Eenheidsysteem ', 'Dimensie '];
       let definitionCount = 0;
       for (const line of lines) {
         const trimmedLine = line.trim();
@@ -44,6 +44,7 @@ export class Engine implements IEngine {
         const objectTypes = definitions.filter((def: any) => def.type === 'ObjectTypeDefinition');
         const parameters = definitions.filter((def: any) => def.type === 'ParameterDefinition');
         const unitSystems = definitions.filter((def: any) => def.type === 'UnitSystemDefinition');
+        const dimensions = definitions.filter((def: any) => def.type === 'Dimension');
         
         return {
           success: true,
@@ -52,7 +53,8 @@ export class Engine implements IEngine {
             rules,
             objectTypes,
             parameters,
-            unitSystems
+            unitSystems,
+            dimensions
           }
         };
       }
@@ -88,6 +90,14 @@ export class Engine implements IEngine {
         };
       } else if (trimmed.startsWith('Eenheidsysteem ')) {
         // Parse as a full document to handle unit system definition
+        const definitions = this.antlrParser.parse(trimmed);
+        // Return the first (and should be only) definition
+        return {
+          success: true,
+          ast: Array.isArray(definitions) && definitions.length > 0 ? definitions[0] : definitions
+        };
+      } else if (trimmed.startsWith('Dimensie ')) {
+        // Parse as a full document to handle dimension definition
         const definitions = this.antlrParser.parse(trimmed);
         // Return the first (and should be only) definition
         return {
@@ -212,6 +222,12 @@ export class Engine implements IEngine {
         return {
           success: true,
           value: { type: 'string', value: `Unit system '${ast.name}' registered` }
+        };
+      } else if (ast.type === 'Dimension') {
+        // For now, dimensions are just registered - they would be used during attribute access
+        return {
+          success: true,
+          value: { type: 'string', value: `Dimension '${ast.name}' registered` }
         };
       } else {
         // It's an expression

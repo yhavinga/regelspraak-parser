@@ -48,6 +48,7 @@ import { ObjectTypeDefinition, KenmerkSpecification, AttributeSpecification, Dat
 import { ParameterDefinition } from '../ast/parameters';
 import { AttributeReference } from '../ast/expressions';
 import { UnitSystemDefinition, UnitDefinition, UnitConversion } from '../ast/unit-systems';
+import { Dimension, DimensionLabel } from '../ast/dimensions';
 
 /**
  * Implementation of ANTLR4 visitor that builds our AST
@@ -964,7 +965,7 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
     // Let's try to extract just the identifier part
     let target = 'unknown';
     
-    // Get the text with spaces preserved
+    // Get the text with spaces preserved - this gives us the full attribute name
     const fullText = this.extractTextWithSpaces(naamwoordCtx);
     target = this.extractTargetName(fullText);
     
@@ -1388,6 +1389,66 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
     }
     
     return result;
+  }
+  
+  visitDimensieDefinition(ctx: any): Dimension {
+    // Get dimension name
+    const nameCtx = ctx.naamwoord(0); // First naamwoord is the dimension name
+    const nameText = this.extractTextWithSpaces(nameCtx);
+    const name = this.extractParameterName(nameText);
+    
+    // Get plural form - it's labeled as dimensieNaamMeervoud
+    const pluralCtx = ctx._dimensieNaamMeervoud;
+    let plural = '';
+    if (pluralCtx) {
+      const pluralText = this.extractTextWithSpaces(pluralCtx);
+      plural = this.extractParameterName(pluralText);
+    }
+    
+    // Determine usage style and preposition
+    let usageStyle: 'prepositional' | 'adjectival';
+    let preposition: string | undefined;
+    
+    const voorzetselSpec = ctx.voorzetselSpecificatie();
+    
+    if (voorzetselSpec && voorzetselSpec.NA_HET_ATTRIBUUT_MET_VOORZETSEL && voorzetselSpec.NA_HET_ATTRIBUUT_MET_VOORZETSEL()) {
+      usageStyle = 'prepositional';
+      // Get the preposition (voorzetsel) - it's labeled as vz
+      const vzCtx = voorzetselSpec._vz;
+      if (vzCtx) {
+        preposition = this.extractText(vzCtx);
+      }
+    } else if (voorzetselSpec && voorzetselSpec.VOOR_HET_ATTRIBUUT_ZONDER_VOORZETSEL && voorzetselSpec.VOOR_HET_ATTRIBUUT_ZONDER_VOORZETSEL()) {
+      usageStyle = 'adjectival';
+    } else {
+      // Default to prepositional with 'van' if not specified
+      usageStyle = 'prepositional';
+      preposition = 'van';
+    }
+    
+    // Get labels
+    const labels: DimensionLabel[] = [];
+    const labelSpecs = ctx.labelWaardeSpecificatie_list() || [];
+    
+    for (const labelSpec of labelSpecs) {
+      const position = parseInt(labelSpec.NUMBER().getText());
+      const labelCtx = labelSpec.naamwoord();
+      const label = this.extractTextWithSpaces(labelCtx);
+      
+      labels.push({
+        position,
+        label
+      });
+    }
+    
+    return {
+      type: 'Dimension',
+      name,
+      plural,
+      usageStyle,
+      preposition,
+      labels
+    };
   }
   
   // Helper to extract parameter name from full reference with article
