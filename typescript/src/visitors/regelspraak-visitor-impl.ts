@@ -376,6 +376,18 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
     // Convert Dutch decimal notation (comma) to JavaScript notation (dot)
     const normalizedText = text.replace(',', '.');
     const value = parseFloat(normalizedText);
+    
+    // Check for optional unit
+    const unitCtx = ctx.unitIdentifier();
+    if (unitCtx) {
+      const unit = unitCtx.getText();
+      return {
+        type: 'NumberLiteral',
+        value,
+        unit
+      } as NumberLiteral;
+    }
+    
     return {
       type: 'NumberLiteral',
       value

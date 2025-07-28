@@ -9,6 +9,7 @@ export interface Expression {
 export interface NumberLiteral extends Expression {
   type: 'NumberLiteral';
   value: number;
+  unit?: string;
 }
 
 export interface StringLiteral extends Expression {

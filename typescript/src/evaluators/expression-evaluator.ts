@@ -3,6 +3,7 @@ import { Expression, NumberLiteral, StringLiteral, BinaryExpression, UnaryExpres
 import { AggregationEngine } from './aggregation-engine';
 import { TimelineEvaluator } from './timeline-evaluator';
 import { TimelineExpression, TimelineValue } from '../ast/timelines';
+import { UnitRegistry, performUnitArithmetic, UnitValue, createUnitValue } from '../units';
 
 /**
  * Evaluator for expression nodes
@@ -15,10 +16,12 @@ export class ExpressionEvaluator implements IEvaluator {
   };
   private aggregationEngine: AggregationEngine;
   private timelineEvaluator: TimelineEvaluator;
+  private unitRegistry: UnitRegistry;
 
   constructor() {
     this.aggregationEngine = new AggregationEngine(this);
     this.timelineEvaluator = new TimelineEvaluator(this);
+    this.unitRegistry = new UnitRegistry();
   }
 
   evaluate(expr: Expression, context: RuntimeContext): Value {
@@ -53,6 +56,10 @@ export class ExpressionEvaluator implements IEvaluator {
   }
 
   private evaluateNumberLiteral(expr: NumberLiteral): Value {
+    if (expr.unit) {
+      // Create a unit value using the unit registry
+      return createUnitValue(expr.value, expr.unit, this.unitRegistry);
+    }
     return {
       type: 'number',
       value: expr.value
@@ -97,6 +104,22 @@ export class ExpressionEvaluator implements IEvaluator {
       throw new Error(`Cannot apply ${expr.operator} to ${left.type} and ${right.type}`);
     }
 
+    // Use unit arithmetic if either operand has units
+    if (left.unit || right.unit || (left as UnitValue).compositeUnit || (right as UnitValue).compositeUnit) {
+      try {
+        return performUnitArithmetic(
+          expr.operator as '+' | '-' | '*' | '/',
+          left as UnitValue,
+          right as UnitValue,
+          this.unitRegistry
+        );
+      } catch (error) {
+        // Re-throw with more context
+        throw new Error(`Unit arithmetic error: ${(error as Error).message}`);
+      }
+    }
+
+    // No units - simple arithmetic
     const leftVal = left.value as number;
     const rightVal = right.value as number;
     let result: number;
