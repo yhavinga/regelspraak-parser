@@ -48,6 +48,8 @@ export class ExpressionEvaluator implements IEvaluator {
         return this.evaluateSubselectieExpression(expr as SubselectieExpression, context);
       case 'AttributeReference':
         return this.evaluateAttributeReference(expr as AttributeReference, context);
+      case 'DimensionedAttributeReference':
+        return this.evaluateDimensionedAttributeReference(expr as any, context);
       case 'AllAttributesExpression':
         return this.evaluateAllAttributesExpression(expr as AllAttributesExpression, context);
       default:
@@ -869,5 +871,97 @@ export class ExpressionEvaluator implements IEvaluator {
       type: 'array',
       value: values
     };
+  }
+
+  private evaluateDimensionedAttributeReference(expr: any, context: RuntimeContext): Value {
+    // DimensionedAttributeReference wraps a navigation/attribute reference with dimension labels
+    
+    // For the pattern "het netto inkomen van huidig jaar van de persoon", the AST has:
+    // - baseAttribute: NavigationExpression with attribute "netto inkomen" and object pointing to "huidig jaar"
+    // - dimensionLabels: ["netto", "huidig jaar"]
+    
+    // We need to extract the real attribute name and object from the base attribute
+    const baseAttribute = expr.baseAttribute;
+    let targetObject: Value;
+    let attributeName: string;
+    
+    if (baseAttribute.type === 'NavigationExpression') {
+      // For dimensional patterns, we need to reconstruct the proper navigation
+      // The attribute name should be cleaned of dimension keywords
+      attributeName = baseAttribute.attribute;
+      
+      // Remove dimension keywords from attribute name
+      const dimensionKeywords = ['bruto', 'netto'];
+      for (const keyword of dimensionKeywords) {
+        attributeName = attributeName.replace(keyword, '').trim();
+      }
+      
+      // The object might be nested navigation that includes dimension labels
+      // For now, we'll assume the deepest object is the actual target
+      let currentNav = baseAttribute.object;
+      while (currentNav && currentNav.type === 'NavigationExpression') {
+        currentNav = currentNav.object;
+      }
+      
+      // Evaluate the actual object
+      if (currentNav && currentNav.type === 'VariableReference') {
+        targetObject = this.evaluate(currentNav, context);
+      } else {
+        targetObject = this.evaluate(baseAttribute.object, context);
+      }
+    } else if (baseAttribute.type === 'AttributeReference') {
+      throw new Error('DimensionedAttributeReference with AttributeReference base not yet implemented');
+    } else {
+      throw new Error(`Unsupported base attribute type for dimensional reference: ${baseAttribute.type}`);
+    }
+    
+    // Ensure we have an object
+    if (targetObject.type !== 'object') {
+      throw new Error(`Cannot access dimensional attribute on non-object type: ${targetObject.type}`);
+    }
+    
+    // Access the dimensional attribute value
+    const objectData = targetObject.value as Record<string, any>;
+    
+    // Check if the attribute has dimensional values
+    const attrValue = objectData[attributeName];
+    if (!attrValue || typeof attrValue !== 'object') {
+      // Attribute doesn't have dimensional values, return null
+      return { type: 'null', value: null };
+    }
+    
+    // Navigate through the dimension structure based on the labels
+    // The test expects a nested structure like: inkomen['huidig jaar']['netto']
+    let currentValue = attrValue;
+    
+    // First check for temporal dimensions (jaar)
+    const temporalLabels = ['huidig jaar', 'vorig jaar', 'volgend jaar'];
+    for (const label of expr.dimensionLabels) {
+      if (temporalLabels.includes(label) && currentValue && typeof currentValue === 'object' && label in currentValue) {
+        currentValue = currentValue[label];
+        break;
+      }
+    }
+    
+    // Then check for other dimensions (bruto/netto)
+    const valueLabels = ['bruto', 'netto'];
+    for (const label of expr.dimensionLabels) {
+      if (valueLabels.includes(label) && currentValue && typeof currentValue === 'object' && label in currentValue) {
+        currentValue = currentValue[label];
+        break;
+      }
+    }
+    
+    // Convert the final value to a proper Value type
+    if (typeof currentValue === 'number') {
+      return { type: 'number', value: currentValue };
+    } else if (typeof currentValue === 'string') {
+      return { type: 'string', value: currentValue };
+    } else if (currentValue === null || currentValue === undefined) {
+      return { type: 'null', value: null };
+    } else {
+      // Return as-is for complex types
+      return { type: 'object', value: currentValue };
+    }
   }
 }

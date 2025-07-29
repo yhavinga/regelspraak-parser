@@ -32,3 +32,18 @@ export interface DimensionReference {
   attribute: string;
   coordinates: DimensionCoordinate[];
 }
+
+export interface DimensionCoordinates {
+  [dimensionName: string]: string; // Map of dimension name to label
+}
+
+export interface DimensionedValue {
+  coordinates: DimensionCoordinates;
+  value: any;
+}
+
+export interface DimensionedAttributeReference {
+  type: 'DimensionedAttributeReference';
+  baseAttribute: any; // NavigationExpression or AttributeReference
+  dimensionLabels: string[]; // e.g., ["bruto", "huidig jaar"]
+}
