@@ -50,7 +50,7 @@ describe('Tijdsduur', () => {
     const code = `
 Regel test tijdsduur jaren
 geldig altijd
-  Het resultaat van een berekening moet berekend worden als de tijdsduur van geboortedatum tot peildatum.
+  Het resultaat van een berekening moet berekend worden als de tijdsduur van geboortedatum tot peildatum in hele jaren.
     `;
     
     // Set variables
@@ -75,17 +75,15 @@ geldig altijd
     const result = context.getVariable('resultaat');
     expect(result).toBeDefined();
     expect(result!.type).toBe('number');
-    // TODO: Unit conversion not working - IN_HELE token missing in grammar
-    // Should be 34 jaren, but returns days
-    expect(result!.value).toBe(12516); // days instead of 34 years
-    expect((result as any).unit).toEqual({ name: 'dagen' });
+    expect(result!.value).toBe(34); // 34 years
+    expect((result as any).unit).toEqual({ name: 'jaren' });
   });
 
   test('should calculate tijdsduur in months', () => {
     const code = `
 Regel test tijdsduur maanden
 geldig altijd
-  Het resultaat van een berekening moet berekend worden als de tijdsduur van start tot eind.
+  Het resultaat van een berekening moet berekend worden als de tijdsduur van start tot eind in hele maanden.
     `;
     
     // Set variables
@@ -107,10 +105,8 @@ geldig altijd
     const result = context.getVariable('resultaat');
     expect(result).toBeDefined();
     expect(result!.type).toBe('number');
-    // TODO: Unit conversion not working - IN_HELE token missing in grammar
-    // Should be 2 maanden, but returns days
-    expect(result!.value).toBe(86); // days instead of 2 months
-    expect((result as any).unit).toEqual({ name: 'dagen' });
+    expect(result!.value).toBe(2); // 2 months
+    expect((result as any).unit).toEqual({ name: 'maanden' });
   });
 
   test('should calculate negative tijdsduur', () => {
@@ -177,7 +173,7 @@ geldig altijd
     const code = `
 Regel test leeftijd berekening
 geldig altijd
-  Het resultaat van een berekening moet berekend worden als de tijdsduur van geboorte tot peil.
+  Het resultaat van een berekening moet berekend worden als de tijdsduur van geboorte tot peil in hele jaren.
     `;
     
     // Test case: birthday not yet reached
@@ -199,10 +195,8 @@ geldig altijd
     let result = context.getVariable('resultaat');
     expect(result).toBeDefined();
     expect(result!.type).toBe('number');
-    // TODO: Unit conversion not working - IN_HELE token missing in grammar
-    // Should be 23 jaren, but returns days
-    expect(result!.value).toBe(8765); // days instead of 23 years
-    expect((result as any).unit).toEqual({ name: 'dagen' });
+    expect(result!.value).toBe(23); // 23 years
+    expect((result as any).unit).toEqual({ name: 'jaren' });
 
     // Test case: birthday just passed
     context.setVariable('peil', {
@@ -216,17 +210,15 @@ geldig altijd
     result = context.getVariable('resultaat');
     expect(result).toBeDefined();
     expect(result!.type).toBe('number');
-    // TODO: Unit conversion not working - IN_HELE token missing in grammar
-    // Should be 24 jaren, but returns days
-    expect(result!.value).toBe(8767); // days instead of 24 years
-    expect((result as any).unit).toEqual({ name: 'dagen' });
+    expect(result!.value).toBe(24); // 24 years
+    expect((result as any).unit).toEqual({ name: 'jaren' });
   });
 
   test('should calculate tijdsduur with weeks', () => {
     const code = `
 Regel test tijdsduur weken
 geldig altijd
-  Het resultaat van een berekening moet berekend worden als de tijdsduur van start tot eind.
+  Het resultaat van een berekening moet berekend worden als de tijdsduur van start tot eind in hele weken.
     `;
     
     context.setVariable('start', {
@@ -247,17 +239,15 @@ geldig altijd
     const result = context.getVariable('resultaat');
     expect(result).toBeDefined();
     expect(result!.type).toBe('number');
-    // TODO: Unit conversion not working - IN_HELE token missing in grammar
-    // Should be 4 weken, but returns days
-    expect(result!.value).toBe(28); // days instead of 4 weeks
-    expect((result as any).unit).toEqual({ name: 'dagen' });
+    expect(result!.value).toBe(4); // 4 weeks
+    expect((result as any).unit).toEqual({ name: 'weken' });
   });
 
   test('should calculate tijdsduur with hours', () => {
     const code = `
 Regel test tijdsduur uren
 geldig altijd
-  Het resultaat van een berekening moet berekend worden als de tijdsduur van start tot eind.
+  Het resultaat van een berekening moet berekend worden als de tijdsduur van start tot eind in hele uren.
     `;
     
     context.setVariable('start', {
@@ -278,10 +268,8 @@ geldig altijd
     const result = context.getVariable('resultaat');
     expect(result).toBeDefined();
     expect(result!.type).toBe('number');
-    // TODO: Unit conversion not working - IN_HELE token missing in grammar
-    // Should be 5 uren, but returns days
-    expect(result!.value).toBe(0); // days (5.5 hours = 0 days)
-    expect((result as any).unit).toEqual({ name: 'dagen' });
+    expect(result!.value).toBe(5); // 5 hours (rounded down from 5.5)
+    expect((result as any).unit).toEqual({ name: 'uren' });
   });
 
   test.skip('should work with navigation expression - pronoun resolution not implemented', () => {
@@ -297,7 +285,7 @@ Objecttype de Vlucht
 Regel bereken leeftijd voor vlucht
 geldig altijd
   De leeftijd van de passagier van een Vlucht moet berekend worden als 
-  de tijdsduur van de geboortedatum van zijn passagier tot zijn vluchtdatum.
+  de tijdsduur van de geboortedatum van zijn passagier tot zijn vluchtdatum in hele jaren.
     `;
 
     const parseResult = engine.parse(code);
@@ -335,9 +323,7 @@ geldig altijd
     expect(personObj).toBeDefined();
     expect(personObj.leeftijd).toBeDefined();
     expect(personObj.leeftijd.type).toBe('number');
-    // TODO: Unit conversion not working - IN_HELE token missing in grammar
-    // Should be 34 jaren, but returns days
-    expect(personObj.leeftijd.value).toBe(12516); // days instead of 34 years
-    expect((personObj.leeftijd as any).unit).toEqual({ name: 'dagen' });
+    expect(personObj.leeftijd.value).toBe(34); // 34 years
+    expect((personObj.leeftijd as any).unit).toEqual({ name: 'jaren' });
   });
 });

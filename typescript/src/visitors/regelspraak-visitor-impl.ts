@@ -566,7 +566,7 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
     const toExpr = this.visit(ctx.primaryExpression(1));
     
     // Check for unit specification
-    const unit = ctx.unitName ? ctx.unitName.text : undefined;
+    const unit = ctx._unitName ? ctx._unitName.text : undefined;
     
     const funcCall: FunctionCall = {
       type: 'FunctionCall',
