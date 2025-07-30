@@ -775,6 +775,72 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
     } as FunctionCall;
   }
 
+  visitHetAantalDagenInExpr(ctx: any): Expression {
+    // HET AANTAL DAGEN IN (DE? MAAND | HET? JAAR) DAT expressie
+    let periodType: string;
+    
+    // Check if MAAND or JAAR token is present
+    if (ctx.MAAND && ctx.MAAND()) {
+      periodType = 'maand';
+    } else if (ctx.JAAR && ctx.JAAR()) {
+      periodType = 'jaar';
+    } else {
+      throw new Error('Expected MAAND or JAAR in aantal dagen expression');
+    }
+    
+    // Get the condition expression after DAT
+    const conditionCtx = ctx.expressie();
+    if (!conditionCtx) {
+      throw new Error('Expected condition expression after DAT');
+    }
+    
+    const conditionExpr = this.visit(conditionCtx);
+    
+    // Create literal for period type
+    const periodLiteral: Literal = {
+      type: 'Literal',
+      value: periodType,
+      datatype: 'string'
+    };
+    
+    return {
+      type: 'FunctionCall',
+      functionName: 'aantal_dagen_in',
+      arguments: [periodLiteral, conditionExpr]
+    } as FunctionCall;
+  }
+
+  visitSubordinateIsWithExpr(ctx: any): Expression {
+    // Handle "hij actief is" pattern 
+    // This is parsed as: subject=onderwerpReferentie prepPhrase=naamwoord verb=IS
+    // But for "hij actief is", actief is a kenmerk, not a prepositional phrase
+    
+    // Get the subject and prepPhrase from the context
+    const subjectCtx = ctx.onderwerpReferentie ? ctx.onderwerpReferentie() : null;
+    const prepPhraseCtx = ctx.naamwoord ? ctx.naamwoord() : null;
+    
+    if (!subjectCtx || !prepPhraseCtx) {
+      throw new Error('Invalid SubordinateIsWithExpr context');
+    }
+    
+    const subject = this.visit(subjectCtx);
+    const prepPhrase = this.extractTextWithSpaces(prepPhraseCtx);
+    
+    // Check if this is actually a kenmerk pattern
+    // For now, assume it's a boolean kenmerk check
+    const kenmerkKey = `is ${prepPhrase}`;
+    
+    // Create an attribute reference for the kenmerk
+    const kenmerkRef: AttributeReference = {
+      type: 'AttributeReference',
+      path: ['self', kenmerkKey]
+    };
+    
+    // Return a boolean expression that's always true if the kenmerk exists
+    // This is a simplification - in reality we'd check the actual value
+    return kenmerkRef;
+  }
+
   // Rule parsing visitor methods
   visitRegel(ctx: any): any {
     try {
@@ -862,7 +928,7 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
     };
   }
 
-  visitAttribuutReferentie(ctx: any): NavigationExpression | AttributeReference | DimensionedAttributeReference {
+  visitAttribuutReferentie(ctx: any): AttributeReference | NavigationExpression | DimensionedAttributeReference {
     // attribuutReferentie : attribuutMetLidwoord VAN onderwerpReferentie
     const attrCtx = ctx.attribuutMetLidwoord();
     const attrText = this.extractTextWithSpaces(attrCtx);
@@ -996,49 +1062,29 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
     // Simple case: no nested navigation in attribute
     const attrName = this.extractParameterName(cleanAttrText);
     
-    // Get the object expression (onderwerpReferentie)
-    const objectExpr = this.visit(onderwerpCtx);
+    // Get the object path using the helper method
+    const objectPath = this.visitOnderwerpReferentieToPath(onderwerpCtx);
     
-    // Check if this is the special "alle X" pattern
-    if (objectExpr.type === 'VariableReference' && 
-        (objectExpr as VariableReference).variableName.startsWith('__alle__')) {
-      // Extract the object type name
-      const objectTypeName = (objectExpr as VariableReference).variableName.substring(8); // Remove "__alle__"
-      
-      // Create AttributeReference with the special "alle" pattern
-      const attrRef = {
-        type: 'AttributeReference',
-        path: [attrName, 'alle', objectTypeName]
-      } as AttributeReference;
-      
-      // If we have dimension labels, wrap in DimensionedAttributeReference
-      if (dimensionLabels.length > 0) {
-        return {
-          type: 'DimensionedAttributeReference',
-          baseAttribute: attrRef,
-          dimensionLabels
-        } as DimensionedAttributeReference;
-      }
-      
-      return attrRef;
-    }
+    // Build the full path for AttributeReference
+    // For "Het dagen aantal van een Test", this becomes ["dagen aantal", "Test"]
+    const fullPath = [attrName, ...objectPath];
     
-    const navExpr = {
-      type: 'NavigationExpression',
-      attribute: attrName,
-      object: objectExpr
-    } as NavigationExpression;
+    // Create AttributeReference with the full path
+    const attrRef = {
+      type: 'AttributeReference',
+      path: fullPath
+    } as AttributeReference;
     
     // If we have dimension labels, wrap in DimensionedAttributeReference
     if (dimensionLabels.length > 0) {
       return {
         type: 'DimensionedAttributeReference',
-        baseAttribute: navExpr,
+        baseAttribute: attrRef,
         dimensionLabels
       } as DimensionedAttributeReference;
     }
     
-    return navExpr;
+    return attrRef;
   }
   
   visitAttrRefExpr(ctx: any): Expression {
@@ -1124,6 +1170,31 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
       type: 'VariableReference',
       variableName
     } as VariableReference;
+  }
+  
+  // Helper method to convert onderwerpReferentie to a path list
+  visitOnderwerpReferentieToPath(ctx: any): string[] {
+    if (!ctx) {
+      return [];
+    }
+    
+    // onderwerpReferentie : onderwerpBasis ( (DIE | DAT) predicaat )?
+    // For now, just handle the simple case without predicates
+    const onderwerpBasisCtx = ctx.onderwerpBasis();
+    if (!onderwerpBasisCtx) {
+      return [];
+    }
+    
+    const expr = this.visitOnderwerpBasis(onderwerpBasisCtx);
+    
+    // Convert the expression to a path
+    if (expr.type === 'VariableReference') {
+      const varRef = expr as VariableReference;
+      return [varRef.variableName];
+    }
+    
+    // For other expression types, we'd need more complex handling
+    return [];
   }
   
   visitPredicaat(ctx: any): Predicaat {
@@ -1270,19 +1341,12 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
     // Get the target attribute reference
     const targetCtx = ctx.attribuutReferentie();
     
-    // Visit the attribute reference to get its parts
-    const attrRefCtx = targetCtx.attribuutMetLidwoord();
+    // Visit the attribute reference to get the full AttributeReference
+    const target = this.visitAttribuutReferentie(targetCtx);
     
-    // Get the naamwoord context which contains the attribute name
-    const naamwoordCtx = attrRefCtx.naamwoord();
-    
-    // The naamwoord might have a naamPhrase with an article and identifier
-    // Let's try to extract just the identifier part
-    let target = 'unknown';
-    
-    // Get the text with spaces preserved - this gives us the full attribute name
-    const fullText = this.extractTextWithSpaces(naamwoordCtx);
-    target = this.extractTargetName(fullText);
+    if (!target) {
+      throw new Error('Failed to parse gelijkstelling target');
+    }
     
     // Get the expression - check which operator is used
     let expression;

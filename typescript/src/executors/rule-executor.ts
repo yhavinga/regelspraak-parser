@@ -109,12 +109,47 @@ export class RuleExecutor implements IRuleExecutor {
     // Evaluate the expression
     const value = this.expressionEvaluator.evaluate(gelijkstelling.expression, context);
     
-    // Set the variable in context
-    context.setVariable(gelijkstelling.target, value);
+    // The target is an AttributeReference which might have multiple path elements
+    if (!gelijkstelling.target) {
+      throw new Error('No target in gelijkstelling');
+    }
+    
+    if (!gelijkstelling.target.path) {
+      throw new Error('No path in gelijkstelling target');
+    }
+    
+    const targetPath = gelijkstelling.target.path;
+    
+    if (targetPath.length === 0) {
+      throw new Error('Empty target path in gelijkstelling');
+    }
+    
+    if (targetPath.length === 1) {
+      // Simple attribute name - likely a variable assignment
+      context.setVariable(targetPath[0], value);
+    } else if (targetPath.length === 2) {
+      // Pattern like ["dagen aantal", "Test"] - attribute on object type
+      const attributeName = targetPath[0];
+      const objectTypeName = targetPath[1];
+      
+      // Get all objects of this type
+      const objects = (context as Context).getObjectsByType(objectTypeName);
+      
+      // Set attribute on all objects of this type
+      for (const obj of objects) {
+        if (obj.type === 'object') {
+          const objectData = obj.value as Record<string, Value>;
+          objectData[attributeName] = value;
+        }
+      }
+    } else {
+      // More complex path - navigate through object references
+      throw new Error(`Complex attribute paths not yet implemented: ${targetPath.join('.')}`);
+    }
     
     return {
       success: true,
-      target: gelijkstelling.target,
+      target: targetPath.join('.'),
       value
     };
   }
@@ -247,6 +282,8 @@ export class RuleExecutor implements IRuleExecutor {
           }
           return context.getVariable(name);
         };
+        // Also set current_instance for pronoun resolution (self/zijn/haar)
+        (tempContext as any).current_instance = obj;
         
         // Evaluate the condition for this object
         try {

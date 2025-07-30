@@ -2,7 +2,7 @@
  * AST nodes for RegelSpraak rules
  */
 
-import { Expression } from './expressions';
+import { Expression, AttributeReference } from './expressions';
 
 export interface Rule {
   type: 'Rule';
@@ -21,7 +21,7 @@ export type ResultPart = Gelijkstelling | ObjectCreation | MultipleResults | Ken
 
 export interface Gelijkstelling {
   type: 'Gelijkstelling';
-  target: string; // Simplified: just the attribute name for now
+  target: AttributeReference; // The attribute being assigned to
   expression: Expression;
 }
 
