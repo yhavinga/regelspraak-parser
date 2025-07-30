@@ -651,11 +651,57 @@ export class ExpressionEvaluator implements IEvaluator {
     const attributeValue = objectData[expr.attribute];
     
     if (attributeValue === undefined) {
-      // Throw an error when attribute is not found
+      // Check if this is a navigation through a Feittype relationship
+      const ctx = context as any;
+      // Try to find related objects through Feittype relationships
+      const relatedObjects = this.findRelatedObjectsThroughFeittype(expr.attribute, objectValue, ctx);
+      if (relatedObjects && relatedObjects.length > 0) {
+        // Return as an array of related objects
+        return {
+          type: 'array',
+          value: relatedObjects
+        };
+      }
+      
+      // Throw an error when attribute is not found and no relationships match
       throw new Error(`Attribute "${expr.attribute}" not found`);
     }
     
     return attributeValue;
+  }
+  
+  private findRelatedObjectsThroughFeittype(roleName: string, fromObject: Value, context: any): Value[] | null {
+    // Get all registered Feittypen
+    const feittypen = context.feittypen || new Map();
+    
+    // Clean the role name for comparison
+    const roleNameClean = roleName.toLowerCase().trim();
+    
+    // Check each Feittype to see if it has a matching role
+    for (const [feittypeName, feittype] of feittypen) {
+      for (const rol of feittype.rollen) {
+        const rolNaamClean = rol.naam.toLowerCase().trim();
+        const rolMeervoudClean = (rol.meervoud || '').toLowerCase().trim();
+        
+        // Check if the role name matches (singular or plural)
+        if (roleNameClean === rolNaamClean || 
+            roleNameClean === rolMeervoudClean ||
+            // Handle common plural patterns
+            (roleNameClean.endsWith('s') && roleNameClean.slice(0, -1) === rolNaamClean) ||
+            (roleNameClean.endsWith('en') && roleNameClean.slice(0, -2) === rolNaamClean)) {
+          
+          // Found a matching role - get related objects
+          const asSubject = feittype.rollen.indexOf(rol) === 1; // If we matched the second role, look for subjects
+          const relatedObjects = context.getRelatedObjects(fromObject, feittypeName, asSubject);
+          
+          if (relatedObjects && relatedObjects.length > 0) {
+            return relatedObjects;
+          }
+        }
+      }
+    }
+    
+    return null;
   }
 
   private evaluateAttributeReference(expr: AttributeReference, context: RuntimeContext): Value {

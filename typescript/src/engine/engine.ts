@@ -240,7 +240,8 @@ export class Engine implements IEngine {
           value: { type: 'string', value: `Dimension '${ast.name}' registered` }
         };
       } else if (ast.type === 'FeitType') {
-        // For now, feittype definitions are just registered - they would be used for relationships
+        // Register the Feittype definition in the context
+        (context as any).registerFeittype(ast);
         return {
           success: true,
           value: { type: 'string', value: `FeitType '${ast.naam}' registered` }
