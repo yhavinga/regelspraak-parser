@@ -1963,15 +1963,10 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
     const identifierCtx = bezieldeRef.identifier();
     const attribute = identifierCtx ? identifierCtx.getText() : 'unknown';
     
-    // For now, we'll return a navigation expression that references the attribute
-    // of the current object in scope
+    // Return an AttributeReference with 'self' path, matching Python implementation
     return {
-      type: 'NavigationExpression',
-      object: {
-        type: 'VariableReference',
-        variableName: '_subject' // This will need to be resolved to the actual subject
-      },
-      attribute: attribute
+      type: 'AttributeReference',
+      path: ['self', attribute]
     };
   }
 

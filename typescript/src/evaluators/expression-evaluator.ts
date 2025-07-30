@@ -705,6 +705,35 @@ export class ExpressionEvaluator implements IEvaluator {
   }
 
   private evaluateAttributeReference(expr: AttributeReference, context: RuntimeContext): Value {
+    // Handle paths starting with 'self' (pronoun resolution)
+    if (expr.path.length >= 2 && expr.path[0] === 'self') {
+      // Get the current instance from context
+      const ctx = context as any;
+      const currentInstance = ctx.current_instance;
+      
+      if (!currentInstance) {
+        throw new Error('No current instance available for pronoun resolution');
+      }
+      
+      // Navigate through the rest of the path
+      let value: Value = currentInstance;
+      for (let i = 1; i < expr.path.length; i++) {
+        const attr = expr.path[i];
+        
+        if (value.type === 'object') {
+          const objectData = value.value as Record<string, Value>;
+          if (!(attr in objectData)) {
+            throw new Error(`Attribute '${attr}' not found on object`);
+          }
+          value = objectData[attr];
+        } else {
+          throw new Error(`Cannot access attribute '${attr}' on ${value.type}`);
+        }
+      }
+      
+      return value;
+    }
+    
     // Check if this is the special "alle" pattern for uniqueness checks
     if (expr.path.length === 3 && expr.path[1] === 'alle') {
       // Pattern: ["attributeName", "alle", "objectType"]

@@ -272,7 +272,7 @@ geldig altijd
     expect((result as any).unit).toEqual({ name: 'uren' });
   });
 
-  test.skip('should work with navigation expression - pronoun resolution not implemented', () => {
+  test.skip('should work with navigation expression - requires pronoun resolution and object-scoped rules', () => {
     const code = `
 Objecttype de Persoon
   de geboortedatum Datum;
