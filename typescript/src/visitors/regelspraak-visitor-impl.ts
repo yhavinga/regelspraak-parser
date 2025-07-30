@@ -2006,7 +2006,7 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
     // Special case for ResultaatDeelContext - provide helpful error
     if (node.constructor.name === 'ResultaatDeelContext') {
       // Try to provide a more helpful error message
-      const text = this.extractText(node).trim();
+      const text = this.extractTextWithSpaces(node).trim();
       console.log('ResultaatDeelContext text:', text);
       console.log('ResultaatDeelContext children:', node.children?.length);
       console.log('ResultaatDeelContext child types:', node.children?.map((c: any) => c.constructor.name));
