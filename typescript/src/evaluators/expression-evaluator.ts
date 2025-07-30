@@ -9,10 +9,14 @@ import { UnitRegistry, performUnitArithmetic, UnitValue, createUnitValue } from 
  * Evaluator for expression nodes
  */
 export class ExpressionEvaluator implements IEvaluator {
-  private builtInFunctions: Record<string, (args: Value[]) => Value> = {
+  private builtInFunctions: Record<string, (args: Value[], unitConversion?: string) => Value> = {
     'sqrt': this.sqrt.bind(this),
     'abs': this.abs.bind(this),
-    'aantal': this.aantal.bind(this)
+    'aantal': this.aantal.bind(this),
+    'som': this.som.bind(this),
+    'som_van': this.som_van.bind(this),
+    'tijdsduur_van': this.tijdsduur_van.bind(this),
+    'abs_tijdsduur_van': this.abs_tijdsduur_van.bind(this)
   };
   private aggregationEngine: AggregationEngine;
   private timelineEvaluator: TimelineEvaluator;
@@ -400,7 +404,7 @@ export class ExpressionEvaluator implements IEvaluator {
     // Check if it's a built-in function
     const builtInFunc = this.builtInFunctions[expr.functionName];
     if (builtInFunc) {
-      return builtInFunc(evaluatedArgs);
+      return builtInFunc(evaluatedArgs, expr.unitConversion);
     }
     
     // Unknown function
@@ -460,6 +464,149 @@ export class ExpressionEvaluator implements IEvaluator {
       type: 'number',
       value: items.length
     };
+  }
+
+  private som(args: Value[]): Value {
+    // Simple sum of multiple values
+    if (args.length === 0) {
+      throw new Error('som expects at least one argument');
+    }
+    
+    let sum = 0;
+    for (const arg of args) {
+      if (arg.type !== 'number') {
+        throw new Error(`som expects numeric arguments, got ${arg.type}`);
+      }
+      sum += arg.value as number;
+    }
+    
+    return {
+      type: 'number',
+      value: sum
+    };
+  }
+
+  private som_van(args: Value[]): Value {
+    // Sum aggregation for attribute references with filtering
+    if (args.length !== 1) {
+      throw new Error('som_van expects exactly 1 argument (an array of values)');
+    }
+    
+    const arg = args[0];
+    
+    // If it's already an array, sum the values
+    if (arg.type === 'array') {
+      const values = arg.value as Value[];
+      let sum = 0;
+      
+      for (const val of values) {
+        if (val.type !== 'number') {
+          throw new Error(`som_van expects numeric values, got ${val.type}`);
+        }
+        sum += val.value as number;
+      }
+      
+      return {
+        type: 'number',
+        value: sum
+      };
+    } else {
+      throw new Error(`som_van expects an array argument, got ${arg.type}`);
+    }
+  }
+
+  private tijdsduur_van(args: Value[], unitConversion?: string): Value {
+    if (args.length !== 2) {
+      throw new Error('tijdsduur_van expects exactly 2 arguments');
+    }
+    
+    const startDateVal = args[0];
+    const endDateVal = args[1];
+    
+    if (startDateVal.type !== 'date' || endDateVal.type !== 'date') {
+      throw new Error(`tijdsduur_van expects two date arguments, got ${startDateVal.type} and ${endDateVal.type}`);
+    }
+    
+    const startDate = startDateVal.value as Date;
+    const endDate = endDateVal.value as Date;
+    
+    // Calculate difference in milliseconds
+    const diffMs = endDate.getTime() - startDate.getTime();
+    
+    // Convert to the requested unit or default to days
+    const unit = unitConversion || 'dagen';
+    let value: number;
+    
+    switch (unit) {
+      case 'jaren':
+        // Calculate year difference accounting for leap years
+        const yearDiff = endDate.getFullYear() - startDate.getFullYear();
+        const monthDiff = endDate.getMonth() - startDate.getMonth();
+        const dayDiff = endDate.getDate() - startDate.getDate();
+        
+        // Adjust for partial years
+        if (monthDiff < 0 || (monthDiff === 0 && dayDiff < 0)) {
+          value = yearDiff - 1;
+        } else {
+          value = yearDiff;
+        }
+        break;
+        
+      case 'maanden':
+        const totalMonths = (endDate.getFullYear() - startDate.getFullYear()) * 12 
+                          + (endDate.getMonth() - startDate.getMonth());
+        // Adjust for partial months
+        if (endDate.getDate() < startDate.getDate()) {
+          value = totalMonths - 1;
+        } else {
+          value = totalMonths;
+        }
+        break;
+        
+      case 'dagen':
+        value = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+        break;
+        
+      case 'weken':
+        value = Math.floor(diffMs / (1000 * 60 * 60 * 24 * 7));
+        break;
+        
+      case 'uren':
+        value = Math.floor(diffMs / (1000 * 60 * 60));
+        break;
+        
+      case 'minuten':
+        value = Math.floor(diffMs / (1000 * 60));
+        break;
+        
+      case 'seconden':
+        value = Math.floor(diffMs / 1000);
+        break;
+        
+      default:
+        throw new Error(`Unknown time unit: ${unit}`);
+    }
+    
+    // Create unit value with the specified unit
+    return createUnitValue(value, unit);
+  }
+
+  private abs_tijdsduur_van(args: Value[], unitConversion?: string): Value {
+    // Call regular tijdsduur_van first
+    const result = this.tijdsduur_van(args, unitConversion);
+    
+    // Make the value absolute
+    if (result.type === 'unit') {
+      const unitValue = result.value as UnitValue;
+      return createUnitValue(Math.abs(unitValue.value), unitValue.unit);
+    } else if (result.type === 'number') {
+      return {
+        type: 'number',
+        value: Math.abs(result.value as number)
+      };
+    }
+    
+    return result;
   }
 
   private evaluateNavigationExpression(expr: NavigationExpression, context: RuntimeContext): Value {

@@ -34,6 +34,7 @@ export interface FunctionCall extends Expression {
   type: 'FunctionCall';
   functionName: string;
   arguments: Expression[];
+  unitConversion?: string; // e.g., "jaren", "maanden", "dagen"
 }
 
 export interface UnaryExpression extends Expression {

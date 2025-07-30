@@ -558,6 +558,42 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
       arguments: [arg]
     } as FunctionCall;
   }
+
+  visitTijdsduurFuncExpr(ctx: any): Expression {
+    // TIJDSDUUR_VAN primaryExpression TOT primaryExpression (IN_HELE unitName=IDENTIFIER)?
+    const fromExpr = this.visit(ctx.primaryExpression(0));
+    const toExpr = this.visit(ctx.primaryExpression(1));
+    
+    // Check for unit specification
+    const unit = ctx.unitName ? ctx.unitName.text : undefined;
+    
+    const funcCall: FunctionCall = {
+      type: 'FunctionCall',
+      functionName: 'tijdsduur_van',
+      arguments: [fromExpr, toExpr],
+      unitConversion: unit
+    };
+    
+    return funcCall;
+  }
+
+  visitAbsTijdsduurFuncExpr(ctx: any): Expression {
+    // DE_ABSOLUTE_TIJDSDUUR_VAN primaryExpression TOT primaryExpression (IN_HELE unitName=IDENTIFIER)?
+    const fromExpr = this.visit(ctx.primaryExpression(0));
+    const toExpr = this.visit(ctx.primaryExpression(1));
+    
+    // Check for unit specification
+    const unit = ctx.unitName ? ctx.unitName.text : undefined;
+    
+    const funcCall: FunctionCall = {
+      type: 'FunctionCall',
+      functionName: 'abs_tijdsduur_van',
+      arguments: [fromExpr, toExpr],
+      unitConversion: unit
+    };
+    
+    return funcCall;
+  }
   
   visitSomFuncExpr(ctx: any): Expression {
     // SOM_VAN primaryExpression (COMMA primaryExpression)* EN primaryExpression
@@ -577,6 +613,22 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
       type: 'FunctionCall',
       functionName: 'som',
       arguments: args
+    } as FunctionCall;
+  }
+  
+  visitSomAlleAttribuutExpr(ctx: any): Expression {
+    // SOM_VAN ALLE attribuutReferentie
+    // This handles patterns like "de som van alle belasting van passagiers die minderjarig zijn"
+    const attrRef = this.visitAttribuutReferentie(ctx.attribuutReferentie());
+    
+    if (!attrRef) {
+      throw new Error('No attribute reference found in som_van function');
+    }
+    
+    return {
+      type: 'FunctionCall',
+      functionName: 'som_van',
+      arguments: [attrRef]
     } as FunctionCall;
   }
   

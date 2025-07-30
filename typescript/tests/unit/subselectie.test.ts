@@ -71,9 +71,51 @@ describe('Subselectie (Collection Filtering)', () => {
         expect(result.value?.value).toBe(2);
     });
 
-    test.skip('should filter with aggregation: "de som van X van alle Y die Z"', () => {
-        // TODO: Implement som function and test aggregation with subselectie
-        // For now, skip this test as it requires implementing the som function
+    test('should filter with aggregation: "de som van X van alle Y die Z"', () => {
+        const expressionText = `de som van alle belasting van personen die minderjarig zijn`;
+        
+        const context = new Context();
+        
+        // Create test persons with belasting (tax) attribute
+        const personen = [
+            { 
+                type: 'object', 
+                value: { 
+                    naam: { type: 'string', value: 'Jan' },
+                    leeftijd: { type: 'number', value: 10, unit: 'jr' },
+                    'is minderjarig': { type: 'boolean', value: true },
+                    belasting: { type: 'number', value: 100 }
+                } 
+            },
+            { 
+                type: 'object', 
+                value: { 
+                    naam: { type: 'string', value: 'Piet' },
+                    leeftijd: { type: 'number', value: 25, unit: 'jr' },
+                    'is minderjarig': { type: 'boolean', value: false },
+                    belasting: { type: 'number', value: 500 }
+                } 
+            },
+            { 
+                type: 'object', 
+                value: { 
+                    naam: { type: 'string', value: 'Klaas' },
+                    leeftijd: { type: 'number', value: 15, unit: 'jr' },
+                    'is minderjarig': { type: 'boolean', value: true },
+                    belasting: { type: 'number', value: 150 }
+                } 
+            }
+        ];
+        
+        context.setVariable('personen', { type: 'array', value: personen });
+        
+        // Run the expression
+        const result = engine.run(expressionText, context);
+        
+        // We should get 250 (sum of belasting for minors: 100 + 150)
+        expect(result.success).toBe(true);
+        expect(result.value?.type).toBe('number');
+        expect(result.value?.value).toBe(250);
     });
 
     test('should filter by text comparison: "die een nationaliteit hebben gelijk aan X"', () => {
