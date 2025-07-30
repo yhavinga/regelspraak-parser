@@ -64,6 +64,9 @@ describe('Tijdsduur', () => {
     });
 
     const parseResult = engine.parse(code);
+    if (!parseResult.success) {
+      console.error('Parse error:', parseResult.errors);
+    }
     expect(parseResult.success).toBe(true);
     
     const runResult = engine.run(code, context);

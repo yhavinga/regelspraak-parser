@@ -596,10 +596,12 @@ export class ExpressionEvaluator implements IEvaluator {
     const result = this.tijdsduur_van(args, unitConversion);
     
     // Make the value absolute
-    if (result.type === 'unit') {
-      const unitValue = result.value as UnitValue;
-      return createUnitValue(Math.abs(unitValue.value), unitValue.unit);
-    } else if (result.type === 'number') {
+    if (result.type === 'number') {
+      const value = Math.abs(result.value as number);
+      // Preserve unit if present
+      if ('unit' in result) {
+        return createUnitValue(value, (result as any).unit?.name);
+      }
       return {
         type: 'number',
         value: Math.abs(result.value as number)

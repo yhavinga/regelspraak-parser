@@ -45,6 +45,7 @@ export class Engine implements IEngine {
         const parameters = definitions.filter((def: any) => def.type === 'ParameterDefinition');
         const unitSystems = definitions.filter((def: any) => def.type === 'UnitSystemDefinition');
         const dimensions = definitions.filter((def: any) => def.type === 'Dimension');
+        const feittypen = definitions.filter((def: any) => def.type === 'FeitType');
         
         return {
           success: true,
@@ -54,7 +55,8 @@ export class Engine implements IEngine {
             objectTypes,
             parameters,
             unitSystems,
-            dimensions
+            dimensions,
+            feittypen
           }
         };
       }
@@ -98,6 +100,14 @@ export class Engine implements IEngine {
         };
       } else if (trimmed.startsWith('Dimensie ')) {
         // Parse as a full document to handle dimension definition
+        const definitions = this.antlrParser.parse(trimmed);
+        // Return the first (and should be only) definition
+        return {
+          success: true,
+          ast: Array.isArray(definitions) && definitions.length > 0 ? definitions[0] : definitions
+        };
+      } else if (trimmed.startsWith('Feittype ') || trimmed.startsWith('Wederkerig feittype ')) {
+        // Parse as a full document to handle feittype definition
         const definitions = this.antlrParser.parse(trimmed);
         // Return the first (and should be only) definition
         return {
@@ -228,6 +238,12 @@ export class Engine implements IEngine {
         return {
           success: true,
           value: { type: 'string', value: `Dimension '${ast.name}' registered` }
+        };
+      } else if (ast.type === 'FeitType') {
+        // For now, feittype definitions are just registered - they would be used for relationships
+        return {
+          success: true,
+          value: { type: 'string', value: `FeitType '${ast.naam}' registered` }
         };
       } else if (ast.type === 'RegelGroep') {
         // Execute rule group

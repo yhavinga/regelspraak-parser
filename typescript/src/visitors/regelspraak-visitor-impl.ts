@@ -49,6 +49,7 @@ import { ParameterDefinition } from '../ast/parameters';
 import { AttributeReference } from '../ast/expressions';
 import { UnitSystemDefinition, UnitDefinition, UnitConversion } from '../ast/unit-systems';
 import { Dimension, DimensionLabel, DimensionedAttributeReference } from '../ast/dimensions';
+import { FeitType, Rol } from '../ast/feittype';
 
 /**
  * Implementation of ANTLR4 visitor that builds our AST
@@ -1763,6 +1764,111 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
       preposition,
       labels
     };
+  }
+
+  visitFeitTypeDefinition(ctx: any): FeitType {
+    // Check if it's wederkerig (reciprocal)
+    const wederkerig = Boolean(ctx.WEDERKERIG_FEITTYPE && ctx.WEDERKERIG_FEITTYPE());
+    
+    // Extract the feittype name - _feittypenaam is a naamwoord context
+    const naamCtx = ctx._feittypenaam;
+    let naam = '';
+    if (naamCtx) {
+      naam = this.extractTextWithSpaces(naamCtx);
+    }
+    
+    // Extract roles from rolDefinition elements
+    const rollen: Rol[] = [];
+    const rolDefs = ctx.rolDefinition_list() || [];
+    
+    for (const rolDef of rolDefs) {
+      const rol = this.visitRolDefinition(rolDef);
+      if (rol) {
+        rollen.push(rol);
+      }
+    }
+    
+    // Extract cardinality description from cardinalityLine
+    let cardinalityDescription: string | undefined;
+    const cardinalityLineCtx = ctx.cardinalityLine();
+    if (cardinalityLineCtx) {
+      cardinalityDescription = this.extractCardinalityLine(cardinalityLineCtx);
+    }
+    
+    return {
+      type: 'FeitType',
+      naam,
+      wederkerig,
+      rollen,
+      cardinalityDescription
+    };
+  }
+
+  visitRolDefinition(ctx: any): Rol | null {
+    // Extract role name from _content field
+    const contentCtx = ctx._content;
+    if (!contentCtx) {
+      return null;
+    }
+    
+    // Parse the content more carefully - it contains multiple words
+    const words: string[] = [];
+    if (contentCtx.children) {
+      for (const child of contentCtx.children) {
+        if (child.getText) {
+          words.push(child.getText());
+        }
+      }
+    }
+    
+    // Get object type - it's labeled as _objecttype
+    let objectType = '';
+    if (ctx._objecttype) {
+      objectType = this.extractText(ctx._objecttype);
+    }
+    
+    // Determine role name based on the words
+    let roleName = '';
+    if (!objectType && words.length > 0) {
+      // No explicit object type, so last word is the object type
+      objectType = words[words.length - 1];
+      roleName = words.slice(0, -1).join(' ');
+    } else {
+      // Object type is explicit, so all words are the role name
+      roleName = words.join(' ');
+    }
+    
+    // Check for plural form - it's labeled as _meervoud
+    let meervoud: string | undefined;
+    if (ctx._meervoud) {
+      meervoud = this.extractTextWithSpaces(ctx._meervoud);
+    }
+    
+    return {
+      type: 'Rol',
+      naam: roleName,
+      meervoud,
+      objectType
+    };
+  }
+
+  private extractCardinalityLine(ctx: any): string {
+    // Extract the full text of the cardinality line
+    const tokens: string[] = [];
+    
+    // Traverse all children to get text
+    if (ctx.children) {
+      for (const child of ctx.children) {
+        if (child.getText) {
+          const text = child.getText();
+          if (text && text.trim()) {
+            tokens.push(text);
+          }
+        }
+      }
+    }
+    
+    return tokens.join(' ');
   }
   
   // Helper to extract parameter name from full reference with article
