@@ -109,7 +109,13 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
       }
     }
     
-    // TODO: Add support for regelGroep, etc.
+    // Visit regel groups
+    for (const regelGroup of regelGroups) {
+      const result = this.visit(regelGroup);
+      if (result) {
+        results.push(result);
+      }
+    }
     
     return results;
   }
@@ -639,6 +645,46 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
       }
       throw new Error('Failed to parse rule');
     }
+  }
+
+  visitRegelGroep(ctx: any): any {
+    // Extract group name
+    const nameCtx = ctx.naamwoord();
+    if (!nameCtx) {
+      throw new Error('Expected regel group name');
+    }
+    const name = this.extractTextWithSpaces(nameCtx).trim();
+    
+    // Check if it's marked as recursive
+    const isRecursive = ctx.IS_RECURSIEF() !== null;
+    
+    // Visit all rules in the group
+    const rules: any[] = [];
+    const regelContexts = ctx.regel_list() || [];
+    const consistentieCtxs = ctx.consistentieregel_list() || [];
+    
+    // Visit regular rules
+    for (const regelCtx of regelContexts) {
+      const rule = this.visit(regelCtx);
+      if (rule) {
+        rules.push(rule);
+      }
+    }
+    
+    // Visit consistency rules
+    for (const consistentieCtx of consistentieCtxs) {
+      const rule = this.visit(consistentieCtx);
+      if (rule) {
+        rules.push(rule);
+      }
+    }
+    
+    return {
+      type: 'RegelGroep',
+      name,
+      isRecursive,
+      rules
+    };
   }
 
   visitAttribuutReferentie(ctx: any): NavigationExpression | AttributeReference | DimensionedAttributeReference {

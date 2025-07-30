@@ -229,6 +229,20 @@ export class Engine implements IEngine {
           success: true,
           value: { type: 'string', value: `Dimension '${ast.name}' registered` }
         };
+      } else if (ast.type === 'RegelGroep') {
+        // Execute rule group
+        const result = this.ruleExecutor.executeRegelGroep(ast, context);
+        if (result.success) {
+          return {
+            success: true,
+            value: result.value!
+          };
+        } else {
+          return {
+            success: false,
+            error: result.error
+          };
+        }
       } else {
         // It's an expression
         const value = this.expressionEvaluator.evaluate(ast, context);

@@ -15,7 +15,8 @@ import {
   VerdelingOpVolgorde,
   VerdelingTieBreak,
   VerdelingMaximum,
-  VerdelingAfronding
+  VerdelingAfronding,
+  RegelGroep
 } from '../ast/rules';
 import { VariableReference, Expression } from '../ast/expressions';
 import { ExpressionEvaluator } from '../evaluators/expression-evaluator';
@@ -848,5 +849,120 @@ export class RuleExecutor implements IRuleExecutor {
         return Math.ceil(amount * factor) / factor;
       }
     });
+  }
+  
+  executeRegelGroep(regelGroep: RegelGroep, context: RuntimeContext): RuleExecutionResult {
+    const results: any[] = [];
+    
+    if (!regelGroep.isRecursive) {
+      // Non-recursive: execute all rules once
+      for (const rule of regelGroep.rules) {
+        try {
+          const result = this.execute(rule, context);
+          results.push({
+            rule: rule.name,
+            status: result.success ? 'evaluated' : 'error',
+            result: result
+          });
+        } catch (error) {
+          results.push({
+            rule: rule.name,
+            status: 'error',
+            error: error instanceof Error ? error.message : 'Unknown error'
+          });
+        }
+      }
+    } else {
+      // Recursive: execute with iteration tracking
+      const maxIterations = 100; // Safety limit
+      let iteration = 0;
+      
+      while (iteration < maxIterations) {
+        iteration++;
+        let objectCreated = false;
+        
+        for (const rule of regelGroep.rules) {
+          // Check if this is an object creation rule
+          if (rule.result.type === 'ObjectCreation') {
+            // Check termination condition
+            if (rule.condition) {
+              try {
+                const conditionResult = this.expressionEvaluator.evaluate(rule.condition.expression, context);
+                if (!this.isTruthy(conditionResult)) {
+                  // Termination condition met
+                  results.push({
+                    iteration,
+                    rule: rule.name,
+                    status: 'terminated',
+                    message: 'Termination condition met'
+                  });
+                  return {
+                    success: true,
+                    value: { type: 'array', value: results }
+                  };
+                }
+              } catch (error) {
+                // Condition evaluation failed - treat as termination
+                results.push({
+                  iteration,
+                  rule: rule.name,
+                  status: 'terminated',
+                  message: `Condition evaluation failed: ${error instanceof Error ? error.message : 'unknown'}`
+                });
+                return {
+                  success: true,
+                  value: { type: 'array', value: results }
+                };
+              }
+            }
+            
+            // Execute object creation
+            const result = this.execute(rule, context);
+            if (result.success) {
+              objectCreated = true;
+              results.push({
+                iteration,
+                rule: rule.name,
+                status: 'object_created',
+                result
+              });
+            }
+          } else {
+            // Execute other rules normally
+            const result = this.execute(rule, context);
+            results.push({
+              iteration,
+              rule: rule.name,
+              status: result.success ? 'evaluated' : 'error',
+              result
+            });
+          }
+        }
+        
+        // If no objects were created, terminate
+        if (!objectCreated) {
+          results.push({
+            iteration,
+            status: 'completed',
+            message: 'No more objects created'
+          });
+          break;
+        }
+      }
+      
+      // Check if we hit max iterations
+      if (iteration >= maxIterations) {
+        results.push({
+          iteration,
+          status: 'max_iterations_reached',
+          message: `Maximum iterations (${maxIterations}) reached`
+        });
+      }
+    }
+    
+    return {
+      success: true,
+      value: { type: 'array', value: results }
+    };
   }
 }

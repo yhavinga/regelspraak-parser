@@ -100,3 +100,10 @@ export interface Verdeling {
   distributionMethods: VerdelingMethode[];  // Methods and constraints
   remainderTarget?: Expression;  // Where to store remainder
 }
+
+export interface RegelGroep {
+  type: 'RegelGroep';
+  name: string;
+  isRecursive: boolean;
+  rules: Rule[];  // The rules contained in this group
+}
