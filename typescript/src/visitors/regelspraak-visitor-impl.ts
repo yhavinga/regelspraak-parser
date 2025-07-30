@@ -580,8 +580,109 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
     } as FunctionCall;
   }
   
+  private _stripArticle(text: string): string {
+    // Strip leading articles like Python does
+    const articles = ['de ', 'het ', 'een '];
+    const lowerText = text.toLowerCase();
+    
+    for (const article of articles) {
+      if (lowerText.startsWith(article)) {
+        return text.substring(article.length);
+      }
+    }
+    
+    return text;
+  }
+
+  visitDimensieAggExpr(ctx: any): Expression {
+    // This handles aggregation patterns like:
+    // "de som van het salaris van alle personen"
+    // "het maximum van de leeftijd van alle personen"
+    
+    // Pattern: <aggregation_function> <attribute_reference> <optional: van alle objecttype>
+    if (ctx.getChildCount() < 2) {
+      throw new Error(`DimensieAggExpr must have at least 2 children, got ${ctx.getChildCount()}`);
+    }
+    
+    // Extract the aggregation function name by looking at the first child
+    let functionName = '';
+    const firstChild = ctx.getChild(0);
+    if (firstChild) {
+      const text = firstChild.getText().toLowerCase();
+      if (text.includes('som')) {
+        functionName = 'som_van';
+      } else if (text.includes('gemiddelde')) {
+        functionName = 'gemiddelde_van';
+      } else if (text.includes('maximale')) {
+        functionName = 'maximum_van';
+      } else if (text.includes('minimale')) {
+        functionName = 'minimum_van';
+      } else if (text.includes('totaal')) {
+        functionName = 'totaal_van';
+      }
+    }
+    
+    if (!functionName) {
+      throw new Error('Unknown aggregation function in DimensieAggExpr');
+    }
+    
+    // Get the attribute reference using attribuutMetLidwoord
+    const attrMetLidwoordCtx = ctx.attribuutMetLidwoord ? ctx.attribuutMetLidwoord() : null;
+    
+    if (!attrMetLidwoordCtx) {
+      throw new Error('Expected attribuutMetLidwoord in DimensieAggExpr');
+    }
+    
+    // Get attribute name and strip article
+    const attrName = this.extractTextWithSpaces(attrMetLidwoordCtx);
+    const strippedAttrName = this._stripArticle(attrName);
+    
+    // Create AttributeReference for the attribute
+    const attrRef: AttributeReference = {
+      type: 'AttributeReference',
+      path: [strippedAttrName]
+    };
+    
+    // Look for dimensieSelectie context which contains the collection reference
+    const dimensieSelectieCtx = ctx.dimensieSelectie ? ctx.dimensieSelectie() : null;
+    
+    if (dimensieSelectieCtx && dimensieSelectieCtx.aggregerenOverAlleDimensies && 
+        dimensieSelectieCtx.aggregerenOverAlleDimensies()) {
+      // Has "alle" pattern - get the collection name
+      const aggCtx = dimensieSelectieCtx.aggregerenOverAlleDimensies();
+      const naamwoordCtx = aggCtx.naamwoord ? aggCtx.naamwoord() : null;
+      
+      if (naamwoordCtx) {
+        const collectionName = this.extractTextWithSpaces(naamwoordCtx);
+        
+        // Create AttributeReference for the collection
+        const collectionRef: AttributeReference = {
+          type: 'AttributeReference',
+          path: [collectionName]
+        };
+        
+        // Return FunctionCall with both arguments
+        return {
+          type: 'FunctionCall',
+          functionName,
+          arguments: [attrRef, collectionRef]
+        } as FunctionCall;
+      }
+    }
+    
+    // No collection specified, just return function with attribute
+    return {
+      type: 'FunctionCall',
+      functionName,
+      arguments: [attrRef]
+    } as FunctionCall;
+  }
+  
   visitAantalFuncExpr(ctx: any): Expression {
     // HET? AANTAL (ALLE? onderwerpReferentie)
+    // Check if ALLE token is present
+    const hasAlle = ctx.ALLE && ctx.ALLE();
+    
     // Get the onderwerp reference (which might include subselectie)
     const onderwerpCtx = ctx.onderwerpReferentie();
     
@@ -589,10 +690,31 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
       throw new Error('Expected onderwerpReferentie in aantal expression');
     }
     
+    // If ALLE is present, we need to handle this specially
+    if (hasAlle) {
+      // Visit the onderwerpReferentie to get the object type
+      const onderwerpExpr = this.visit(onderwerpCtx);
+      
+      // If it's a VariableReference, convert to AttributeReference
+      if (onderwerpExpr && onderwerpExpr.type === 'VariableReference') {
+        const objectType = onderwerpExpr.variableName;
+        // Create an AttributeReference representing "alle <objectType>"
+        const attrRef = {
+          type: 'AttributeReference',
+          path: [objectType]
+        } as AttributeReference;
+        
+        return {
+          type: 'FunctionCall',
+          functionName: 'aantal',
+          arguments: [attrRef]
+        } as FunctionCall;
+      }
+    }
+    
+    // Normal case: just visit the onderwerp reference
     const onderwerpExpr = this.visit(onderwerpCtx);
     
-    // For now, just return a function call expression
-    // We'll need to enhance this to handle subselectie properly
     return {
       type: 'FunctionCall',
       functionName: 'aantal',
@@ -925,14 +1047,8 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
         ? identifiers.map(id => id.getText()).join(' ')
         : identifiers.getText();
         
-      if (hasAlle) {
-        // Return a special marker that indicates this is a collection query
-        // We'll use a VariableReference with a special prefix
-        return {
-          type: 'VariableReference',
-          variableName: `__alle__${objectTypeName}`
-        } as VariableReference;
-      }
+      // Note: If hasAlle is true, we still return a regular VariableReference
+      // The handling of "alle" is done by the parent context (e.g., in aggregation functions)
         
       return {
         type: 'VariableReference',
