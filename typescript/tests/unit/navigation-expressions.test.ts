@@ -146,7 +146,7 @@ describe('Engine - Navigation Expressions', () => {
       
       const result = engine.run('de leeftijd van persoon', context);
       expect(result.success).toBe(false);
-      expect(result.error?.message).toContain('Attribute "leeftijd" not found');
+      expect(result.error?.message).toContain("Attribute 'leeftijd' not found");
     });
 
     test('should fail on non-object navigation', () => {

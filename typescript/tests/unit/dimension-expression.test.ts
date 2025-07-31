@@ -56,8 +56,10 @@ De belasting van de persoon moet berekend worden als het netto inkomen van huidi
     expect(result.success).toBe(true);
     
     // Check that the rule calculated belasting based on netto inkomen van huidig jaar
-    const belasting = context.getVariable('belasting');
-    expect(belasting).toMatchObject({
+    const persoonVar = context.getVariable('persoon');
+    expect(persoonVar?.type).toBe('object');
+    const persoonObj = persoonVar?.value as any;
+    expect(persoonObj.belasting).toMatchObject({
       type: 'number',
       value: 21000 // 70000 * 0.3
     });
@@ -95,11 +97,17 @@ Het verschil van de persoon moet berekend worden als het bruto salaris van de pe
     
     const result = engine.run(model, context);
     
+    if (!result.success) {
+      console.error('Parse/execution error:', result.error);
+    }
+    
     expect(result.success).toBe(true);
     
     // Check that the rule calculated verschil
-    const verschil = context.getVariable('verschil');
-    expect(verschil).toMatchObject({
+    const persoonVar = context.getVariable('persoon');
+    expect(persoonVar?.type).toBe('object');
+    const persoonObj = persoonVar?.value as any;
+    expect(persoonObj.verschil).toMatchObject({
       type: 'number',
       value: 15000 // 50000 - 35000
     });
@@ -136,6 +144,10 @@ Het inkomen volgend jaar van de persoon moet berekend worden als 0.
     context.setVariable('persoon', persoon);
     
     const result = engine.run(model, context);
+    
+    if (!result.success) {
+      console.error('Parse/execution error:', result.error);
+    }
     
     // Should not throw error, but the dimension lookup should return null
     expect(result.success).toBe(true);

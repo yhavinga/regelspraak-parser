@@ -41,13 +41,21 @@ De waarde van een berekening moet berekend worden als 42.
 `;
     
     const context = new Context();
+    // Create a 'berekening' object for the rule to set attributes on
+    context.setVariable('berekening', {
+      type: 'object',
+      value: {}
+    });
+    
     const result = engine.run(simpleRule, context);
     
     console.log('Simple rule result:', result);
     
     expect(result.success).toBe(true);
     
-    const waarde = context.getVariable('waarde');
+    const berekeningingObject = context.getVariable('berekening');
+    expect(berekeningingObject?.type).toBe('object');
+    const waarde = (berekeningingObject?.value as any).waarde;
     console.log('waarde:', waarde);
     expect(waarde?.value).toBe(42);
   });
@@ -63,6 +71,11 @@ De uitvoer van een berekening moet berekend worden als de invoer plus 10.
     
     const context = new Context();
     context.setVariable('invoer', { type: 'number', value: 5 });
+    // Create a 'berekening' object for the rule to set attributes on
+    context.setVariable('berekening', {
+      type: 'object',
+      value: {}
+    });
     
     const result = engine.run(model, context);
     
@@ -70,7 +83,9 @@ De uitvoer van een berekening moet berekend worden als de invoer plus 10.
     
     expect(result.success).toBe(true);
     
-    const uitvoer = context.getVariable('uitvoer');
+    const berekeningingObject = context.getVariable('berekening');
+    expect(berekeningingObject?.type).toBe('object');
+    const uitvoer = (berekeningingObject?.value as any).uitvoer;
     console.log('uitvoer:', uitvoer);
     expect(uitvoer?.value).toBe(15);
   });

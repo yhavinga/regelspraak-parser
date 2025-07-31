@@ -1,5 +1,5 @@
 import { IEvaluator, Value, RuntimeContext } from '../interfaces';
-import { Expression, NumberLiteral, StringLiteral, Literal, BinaryExpression, UnaryExpression, VariableReference, FunctionCall, AggregationExpression, NavigationExpression, SubselectieExpression, AllAttributesExpression, Predicaat, KenmerkPredicaat, AttributeComparisonPredicaat, AttributeReference } from '../ast/expressions';
+import { Expression, NumberLiteral, StringLiteral, BinaryExpression, UnaryExpression, VariableReference, FunctionCall, AggregationExpression, NavigationExpression, SubselectieExpression, AllAttributesExpression, Predicaat, KenmerkPredicaat, AttributeComparisonPredicaat, AttributeReference } from '../ast/expressions';
 import { AggregationEngine } from './aggregation-engine';
 import { TimelineEvaluator } from './timeline-evaluator';
 import { TimelineExpression, TimelineValue } from '../ast/timelines';
@@ -432,6 +432,11 @@ export class ExpressionEvaluator implements IEvaluator {
   }
 
   private evaluateFunctionCall(expr: FunctionCall, context: RuntimeContext): Value {
+    // Special handling for aantal_dagen_in - needs unevaluated condition expression
+    if (expr.functionName === 'aantal_dagen_in') {
+      return this.aantal_dagen_in_special(expr, context);
+    }
+    
     // Evaluate all arguments first
     const evaluatedArgs = expr.arguments.map(arg => this.evaluate(arg, context));
     
@@ -646,35 +651,93 @@ export class ExpressionEvaluator implements IEvaluator {
   }
 
   private aantal_dagen_in(args: Value[]): Value {
+    // This is the legacy method that takes evaluated arguments
+    // Not used for the specification pattern
+    throw new Error('aantal_dagen_in should be called via aantal_dagen_in_special');
+  }
+  
+  private aantal_dagen_in_special(expr: FunctionCall, context: RuntimeContext): Value {
     // Pattern: "het aantal dagen in (de maand | het jaar) dat <condition>"
-    // Args: [periodType: 'maand' | 'jaar', condition: expression]
+    // Args: [periodType: 'maand' | 'jaar', condition: expression (unevaluated)]
     
-    if (args.length !== 2) {
+    if (expr.arguments.length !== 2) {
       throw new Error('aantal_dagen_in expects exactly 2 arguments: period type and condition');
     }
     
-    const periodType = args[0];
-    const condition = args[1];
+    // First argument should be a Literal with period type
+    const periodArg = expr.arguments[0];
+    if (periodArg.type !== 'Literal') {
+      throw new Error('First argument to aantal_dagen_in must be a literal');
+    }
     
-    if (periodType.type !== 'string' || (periodType.value !== 'maand' && periodType.value !== 'jaar')) {
+    const periodLiteral = periodArg as any;
+    const periodType = periodLiteral.value;
+    
+    if (periodType !== 'maand' && periodType !== 'jaar') {
       throw new Error("First argument to aantal_dagen_in must be 'maand' or 'jaar'");
     }
     
-    // For now, return a placeholder implementation
-    // Full implementation would:
-    // 1. Get current evaluation period from context
-    // 2. Iterate through each day in that period
-    // 3. Evaluate condition for each day
-    // 4. Count days where condition is true
+    // Second argument is the condition expression (unevaluated)
+    const conditionExpr = expr.arguments[1];
     
-    // Placeholder: return typical days in period
-    const daysInPeriod = periodType.value === 'jaar' ? 365 : 30;
+    // Get evaluation date from context
+    const ctx = context as any;
+    const evaluationDate = ctx.getEvaluationDate ? ctx.getEvaluationDate() : new Date();
+    
+    // Determine the period to iterate over
+    let startDate: Date;
+    let endDate: Date;
+    
+    if (periodType === 'maand') {
+      // Current month
+      startDate = new Date(evaluationDate.getFullYear(), evaluationDate.getMonth(), 1);
+      endDate = new Date(evaluationDate.getFullYear(), evaluationDate.getMonth() + 1, 0);
+    } else {
+      // Current year
+      startDate = new Date(evaluationDate.getFullYear(), 0, 1);
+      endDate = new Date(evaluationDate.getFullYear(), 11, 31);
+    }
+    
+    // Count days where condition is true
+    let count = 0;
+    const currentDate = new Date(startDate);
+    
+    while (currentDate <= endDate) {
+      // Create a temporary context with current date
+      const tempContext = Object.create(context);
+      
+      // Set the evaluation date to the current day
+      if (tempContext.setEvaluationDate) {
+        tempContext.setEvaluationDate(new Date(currentDate));
+      }
+      
+      // If there's a current_instance, preserve it
+      if (ctx.current_instance) {
+        tempContext.current_instance = ctx.current_instance;
+      }
+      
+      // Evaluate the condition for this day
+      try {
+        const conditionResult = this.evaluate(conditionExpr, tempContext);
+        
+        // Check if condition is truthy
+        if (this.isTruthy(conditionResult)) {
+          count++;
+        }
+      } catch (error) {
+        // If condition evaluation fails (e.g., missing attribute), skip this day
+        // This is consistent with how conditions are handled elsewhere
+      }
+      
+      // Move to next day
+      currentDate.setDate(currentDate.getDate() + 1);
+    }
     
     return {
       type: 'number',
-      value: daysInPeriod,
+      value: count,
       unit: {
-        name: `dagen/${periodType.value}`,
+        name: `dagen/${periodType}`,
         system: 'Tijd'
       }
     } as UnitValue;
@@ -832,6 +895,36 @@ export class ExpressionEvaluator implements IEvaluator {
           value: values
         };
       }
+    }
+    
+    // Handle simple navigation patterns like ["naam", "persoon"]
+    if (expr.path.length === 2) {
+      const [attribute, objectName] = expr.path;
+      
+      // Look up the object as a variable
+      const objectValue = this.evaluateVariableReference({ type: 'VariableReference', variableName: objectName } as VariableReference, context);
+      
+      // Navigate to the attribute
+      if (objectValue.type !== 'object') {
+        throw new Error(`Cannot navigate into non-object type: ${objectValue.type}`);
+      }
+      
+      const obj = objectValue.value as Record<string, Value>;
+      
+      if (!(attribute in obj)) {
+        // Check for Feittype relationships
+        const relatedObjects = this.findRelatedObjectsThroughFeittype(attribute, objectValue, context);
+        if (relatedObjects) {
+          return {
+            type: 'array',
+            value: relatedObjects
+          };
+        }
+        
+        throw new Error(`Attribute '${attribute}' not found on object of type ${objectValue.type}`);
+      }
+      
+      return obj[attribute];
     }
     
     // For other attribute reference patterns, we need more context
@@ -1203,7 +1296,25 @@ export class ExpressionEvaluator implements IEvaluator {
         targetObject = this.evaluate(baseAttribute.object, context);
       }
     } else if (baseAttribute.type === 'AttributeReference') {
-      throw new Error('DimensionedAttributeReference with AttributeReference base not yet implemented');
+      // For AttributeReference with dimensions
+      // The path should have the attribute name and object type
+      const path = baseAttribute.path;
+      if (path.length < 2) {
+        throw new Error('AttributeReference in dimensional context must have at least 2 path elements');
+      }
+      
+      // Extract attribute name and object path
+      attributeName = path[0];
+      
+      // Remove dimension keywords from attribute name if needed
+      const dimensionKeywords = ['bruto', 'netto'];
+      for (const keyword of dimensionKeywords) {
+        attributeName = attributeName.replace(keyword, '').trim();
+      }
+      
+      // Get the target object - for now, assume it's a variable
+      const objectName = path[path.length - 1];
+      targetObject = context.getVariable(objectName) || { type: 'null', value: null };
     } else {
       throw new Error(`Unsupported base attribute type for dimensional reference: ${baseAttribute.type}`);
     }

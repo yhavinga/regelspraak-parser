@@ -75,12 +75,18 @@ export class RuleParser {
       throw new Error('Expected gelijkstelling pattern: "X moet berekend worden als Y"');
     }
     
-    const target = this.parseTarget(match[1].trim());
+    const targetName = this.parseTarget(match[1].trim());
     const expressionSource = match[2].trim().replace(/\.$/, ''); // Remove trailing period
     
     // Parse the expression using the expression parser
     const exprParser = new ExpressionParser(expressionSource);
     const expression = exprParser.parseExpression();
+    
+    // Create AttributeReference for the target
+    const target = {
+      type: 'AttributeReference',
+      path: [targetName]
+    } as any;
     
     return {
       type: 'Gelijkstelling',

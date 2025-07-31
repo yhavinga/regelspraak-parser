@@ -109,16 +109,26 @@ export class RuleExecutor implements IRuleExecutor {
     // Evaluate the expression
     const value = this.expressionEvaluator.evaluate(gelijkstelling.expression, context);
     
-    // The target is an AttributeReference which might have multiple path elements
+    // The target is an AttributeReference or DimensionedAttributeReference
     if (!gelijkstelling.target) {
       throw new Error('No target in gelijkstelling');
     }
     
-    if (!gelijkstelling.target.path) {
-      throw new Error('No path in gelijkstelling target');
-    }
+    let targetPath: string[];
     
-    const targetPath = gelijkstelling.target.path;
+    if ((gelijkstelling.target as any).type === 'DimensionedAttributeReference') {
+      // For dimensional references, get the path from the base attribute
+      const dimRef = gelijkstelling.target as any;
+      if (!dimRef.baseAttribute || !dimRef.baseAttribute.path) {
+        throw new Error('DimensionedAttributeReference must have baseAttribute with path');
+      }
+      targetPath = dimRef.baseAttribute.path;
+    } else if (gelijkstelling.target.path) {
+      // Regular AttributeReference
+      targetPath = gelijkstelling.target.path;
+    } else {
+      throw new Error(`No path in gelijkstelling target. Target type: ${gelijkstelling.target.type}`);
+    }
     
     if (targetPath.length === 0) {
       throw new Error('Empty target path in gelijkstelling');
@@ -128,18 +138,27 @@ export class RuleExecutor implements IRuleExecutor {
       // Simple attribute name - likely a variable assignment
       context.setVariable(targetPath[0], value);
     } else if (targetPath.length === 2) {
-      // Pattern like ["dagen aantal", "Test"] - attribute on object type
+      // Pattern like ["resultaat", "berekening"] - attribute on object
       const attributeName = targetPath[0];
-      const objectTypeName = targetPath[1];
+      const objectName = targetPath[1];
       
-      // Get all objects of this type
-      const objects = (context as Context).getObjectsByType(objectTypeName);
+      // First, try to get the object as a variable
+      const objectValue = context.getVariable(objectName);
       
-      // Set attribute on all objects of this type
-      for (const obj of objects) {
-        if (obj.type === 'object') {
-          const objectData = obj.value as Record<string, Value>;
-          objectData[attributeName] = value;
+      if (objectValue && objectValue.type === 'object') {
+        // Set the attribute on the specific object
+        const objectData = objectValue.value as Record<string, Value>;
+        objectData[attributeName] = value;
+      } else {
+        // Fall back to getting all objects of this type
+        const objects = (context as Context).getObjectsByType(objectName);
+        
+        // Set attribute on all objects of this type
+        for (const obj of objects) {
+          if (obj.type === 'object') {
+            const objectData = obj.value as Record<string, Value>;
+            objectData[attributeName] = value;
+          }
         }
       }
     } else {
@@ -416,8 +435,31 @@ export class RuleExecutor implements IRuleExecutor {
       } else {
         throw new Error('Distribution target collection must evaluate to an array');
       }
+    } else if (verdeling.targetCollection.type === 'AttributeReference') {
+      const attrRef = verdeling.targetCollection as any;
+      
+      // For AttributeReference with path like ["ontvangen aantal", "personen"]
+      // The first element is the attribute name, the second is the collection
+      if (attrRef.path.length === 2) {
+        attributeName = attrRef.path[0];
+        const collectionName = attrRef.path[1];
+        
+        // Look up the collection as a variable
+        const collectionValue = this.expressionEvaluator.evaluate({
+          type: 'VariableReference',
+          variableName: collectionName
+        } as VariableReference, context);
+        
+        if (collectionValue.type === 'array') {
+          targetObjects = collectionValue.value as Value[];
+        } else {
+          throw new Error('Distribution target collection must evaluate to an array');
+        }
+      } else {
+        throw new Error('Distribution target AttributeReference must have exactly 2 path elements');
+      }
     } else {
-      throw new Error('Distribution target must be a navigation expression');
+      throw new Error('Distribution target must be a navigation expression or attribute reference');
     }
     
     if (targetObjects.length === 0) {

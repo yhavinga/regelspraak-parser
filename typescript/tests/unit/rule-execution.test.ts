@@ -14,6 +14,13 @@ geldig altijd
     Het resultaat van een berekening moet berekend worden als 42.`;
       
       const context = new Context();
+      // Create a 'berekening' object for the rule to set attributes on
+      const berekening = {
+        type: 'object' as const,
+        value: {}
+      };
+      context.setVariable('berekening', berekening);
+      
       const result = engine.run(rule, context);
       
       expect(result.success).toBe(true);
@@ -22,9 +29,10 @@ geldig altijd
         value: 42
       });
       
-      // Check that the variable was set in context
-      const storedValue = context.getVariable('resultaat');
-      expect(storedValue).toEqual({
+      // Check that the attribute was set on the object
+      const berekeningingObject = context.getVariable('berekening');
+      expect(berekeningingObject?.type).toBe('object');
+      expect((berekeningingObject?.value as any).resultaat).toEqual({
         type: 'number',
         value: 42
       });
@@ -36,6 +44,13 @@ geldig altijd
     Het totaal van een berekening moet berekend worden als 10 plus 20.`;
       
       const context = new Context();
+      // Create a 'berekening' object for the rule to set attributes on
+      const berekening = {
+        type: 'object' as const,
+        value: {}
+      };
+      context.setVariable('berekening', berekening);
+      
       const result = engine.run(rule, context);
       
       expect(result.success).toBe(true);
@@ -44,9 +59,10 @@ geldig altijd
         value: 30
       });
       
-      // Check that the variable was set in context
-      const storedValue = context.getVariable('totaal');
-      expect(storedValue).toEqual({
+      // Check that the attribute was set on the object
+      const berekeningingObject = context.getVariable('berekening');
+      expect(berekeningingObject?.type).toBe('object');
+      expect((berekeningingObject?.value as any).totaal).toEqual({
         type: 'number',
         value: 30
       });
@@ -180,10 +196,31 @@ geldig altijd
 
       for (const testCase of testCases) {
         const context = new Context();
+        
+        // Create appropriate objects for the rules to set attributes on
+        if (testCase.rule.includes('van een berekening')) {
+          context.setVariable('berekening', { type: 'object', value: {} });
+        } else if (testCase.rule.includes('van een persoon')) {
+          context.setVariable('persoon', { type: 'object', value: {} });
+        } else if (testCase.rule.includes('van een groep')) {
+          context.setVariable('groep', { type: 'object', value: {} });
+        }
+        
         const result = engine.run(testCase.rule, context);
         
         expect(result.success).toBe(true);
-        expect(context.getVariable(testCase.expectedTarget)).toBeDefined();
+        
+        // Check that the attribute was set on the appropriate object
+        if (testCase.rule.includes('van een berekening')) {
+          const obj = context.getVariable('berekening');
+          expect((obj?.value as any)[testCase.expectedTarget]).toBeDefined();
+        } else if (testCase.rule.includes('van een persoon')) {
+          const obj = context.getVariable('persoon');
+          expect((obj?.value as any)[testCase.expectedTarget]).toBeDefined();
+        } else if (testCase.rule.includes('van een groep')) {
+          const obj = context.getVariable('groep');
+          expect((obj?.value as any)[testCase.expectedTarget]).toBeDefined();
+        }
       }
     });
   });

@@ -26,7 +26,10 @@ indien de verkoop groter is dan 1000.`;
         name: 'bereken bonus',
         result: {
           type: 'Gelijkstelling',
-          target: 'bonus',
+          target: {
+            type: 'AttributeReference',
+            path: ['bonus', 'berekening']
+          },
           expression: {
             type: 'NumberLiteral',
             value: 100

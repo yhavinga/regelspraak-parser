@@ -46,7 +46,7 @@ import {
 } from '../ast/rules';
 import { ObjectTypeDefinition, KenmerkSpecification, AttributeSpecification, DataType, DomainReference } from '../ast/object-types';
 import { ParameterDefinition } from '../ast/parameters';
-import { AttributeReference } from '../ast/expressions';
+import { AttributeReference, StringLiteral } from '../ast/expressions';
 import { UnitSystemDefinition, UnitDefinition, UnitConversion } from '../ast/unit-systems';
 import { Dimension, DimensionLabel, DimensionedAttributeReference } from '../ast/dimensions';
 import { FeitType, Rol } from '../ast/feittype';
@@ -797,10 +797,9 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
     const conditionExpr = this.visit(conditionCtx);
     
     // Create literal for period type
-    const periodLiteral: Literal = {
-      type: 'Literal',
-      value: periodType,
-      datatype: 'string'
+    const periodLiteral: StringLiteral = {
+      type: 'StringLiteral',
+      value: periodType
     };
     
     return {
@@ -1062,7 +1061,31 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
     // Simple case: no nested navigation in attribute
     const attrName = this.extractParameterName(cleanAttrText);
     
-    // Get the object path using the helper method
+    // Check if the onderwerp has filtering (predicates)
+    const predicaatCtx = onderwerpCtx.predicaat ? onderwerpCtx.predicaat() : null;
+    if (predicaatCtx && (onderwerpCtx.DIE && onderwerpCtx.DIE() || onderwerpCtx.DAT && onderwerpCtx.DAT())) {
+      // We have a subselectie - use NavigationExpression instead of AttributeReference
+      const objectExpr = this.visitOnderwerpReferentie(onderwerpCtx);
+      
+      const navExpr = {
+        type: 'NavigationExpression',
+        attribute: attrName,
+        object: objectExpr
+      } as NavigationExpression;
+      
+      // If we have dimension labels, wrap in DimensionedAttributeReference
+      if (dimensionLabels.length > 0) {
+        return {
+          type: 'DimensionedAttributeReference',
+          baseAttribute: navExpr,
+          dimensionLabels
+        } as DimensionedAttributeReference;
+      }
+      
+      return navExpr;
+    }
+    
+    // No filtering - use AttributeReference with path
     const objectPath = this.visitOnderwerpReferentieToPath(onderwerpCtx);
     
     // Build the full path for AttributeReference
@@ -2032,6 +2055,20 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
       type: 'AttributeReference',
       path: ['self', attribute]
     };
+  }
+  
+  visitBooleanTrueLiteralExpr(ctx: any): Expression {
+    return {
+      type: 'BooleanLiteral',
+      value: true
+    } as Expression;
+  }
+  
+  visitBooleanFalseLiteralExpr(ctx: any): Expression {
+    return {
+      type: 'BooleanLiteral',
+      value: false
+    } as Expression;
   }
 
   visitKenmerkFeitResultaat(ctx: any): any {

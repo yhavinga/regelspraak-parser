@@ -62,6 +62,11 @@ geldig altijd
       type: 'date',
       value: new Date('2024-06-20')
     });
+    // Create 'berekening' object for the rule to set attributes on
+    context.setVariable('berekening', {
+      type: 'object',
+      value: {}
+    });
 
     const parseResult = engine.parse(code);
     if (!parseResult.success) {
@@ -72,7 +77,9 @@ geldig altijd
     const runResult = engine.run(code, context);
     expect(runResult.success).toBe(true);
     
-    const result = context.getVariable('resultaat');
+    const berekeningingObject = context.getVariable('berekening');
+    expect(berekeningingObject?.type).toBe('object');
+    const result = (berekeningingObject?.value as any).resultaat;
     expect(result).toBeDefined();
     expect(result!.type).toBe('number');
     expect(result!.value).toBe(34); // 34 years
@@ -96,13 +103,21 @@ geldig altijd
       value: new Date('2024-04-10')
     });
 
+    // Create 'berekening' object for the rule to set attributes on
+    context.setVariable('berekening', {
+      type: 'object',
+      value: {}
+    });
+
     const parseResult = engine.parse(code);
     expect(parseResult.success).toBe(true);
     
     const runResult = engine.run(code, context);
     expect(runResult.success).toBe(true);
     
-    const result = context.getVariable('resultaat');
+    const berekeningingObject = context.getVariable('berekening');
+    expect(berekeningingObject?.type).toBe('object');
+    const result = (berekeningingObject?.value as any).resultaat;
     expect(result).toBeDefined();
     expect(result!.type).toBe('number');
     expect(result!.value).toBe(2); // 2 months
@@ -125,6 +140,11 @@ geldig altijd
       type: 'date',
       value: new Date('2024-01-01')
     });
+    // Create 'berekening' object for the rule to set attributes on
+    context.setVariable('berekening', {
+      type: 'object',
+      value: {}
+    });
 
     const parseResult = engine.parse(code);
     expect(parseResult.success).toBe(true);
@@ -132,7 +152,9 @@ geldig altijd
     const runResult = engine.run(code, context);
     expect(runResult.success).toBe(true);
     
-    const result = context.getVariable('resultaat');
+    const berekeningingObject = context.getVariable('berekening');
+    expect(berekeningingObject?.type).toBe('object');
+    const result = (berekeningingObject?.value as any).resultaat;
     expect(result).toBeDefined();
     expect(result!.type).toBe('number');
     expect(result!.value).toBe(-9);
@@ -155,6 +177,11 @@ geldig altijd
       type: 'date',
       value: new Date('2024-01-01')
     });
+    // Create 'berekening' object for the rule to set attributes on
+    context.setVariable('berekening', {
+      type: 'object',
+      value: {}
+    });
 
     const parseResult = engine.parse(code);
     expect(parseResult.success).toBe(true);
@@ -162,7 +189,9 @@ geldig altijd
     const runResult = engine.run(code, context);
     expect(runResult.success).toBe(true);
     
-    const result = context.getVariable('resultaat');
+    const berekeningingObject = context.getVariable('berekening');
+    expect(berekeningingObject?.type).toBe('object');
+    const result = (berekeningingObject?.value as any).resultaat;
     expect(result).toBeDefined();
     expect(result!.type).toBe('number');
     expect(result!.value).toBe(9);
@@ -185,6 +214,11 @@ geldig altijd
       type: 'date',
       value: new Date('2024-06-14')
     });
+    // Create 'berekening' object for the rule to set attributes on
+    context.setVariable('berekening', {
+      type: 'object',
+      value: {}
+    });
 
     let parseResult = engine.parse(code);
     expect(parseResult.success).toBe(true);
@@ -192,7 +226,9 @@ geldig altijd
     let runResult = engine.run(code, context);
     expect(runResult.success).toBe(true);
     
-    let result = context.getVariable('resultaat');
+    let berekeningingObject = context.getVariable('berekening');
+    expect(berekeningingObject?.type).toBe('object');
+    let result = (berekeningingObject?.value as any).resultaat;
     expect(result).toBeDefined();
     expect(result!.type).toBe('number');
     expect(result!.value).toBe(23); // 23 years
@@ -207,7 +243,7 @@ geldig altijd
     runResult = engine.run(code, context);
     expect(runResult.success).toBe(true);
     
-    result = context.getVariable('resultaat');
+    result = (berekeningingObject?.value as any).resultaat;
     expect(result).toBeDefined();
     expect(result!.type).toBe('number');
     expect(result!.value).toBe(24); // 24 years
@@ -229,6 +265,11 @@ geldig altijd
       type: 'date',
       value: new Date('2024-01-29')
     });
+    // Create 'berekening' object for the rule to set attributes on
+    context.setVariable('berekening', {
+      type: 'object',
+      value: {}
+    });
 
     const parseResult = engine.parse(code);
     expect(parseResult.success).toBe(true);
@@ -236,7 +277,9 @@ geldig altijd
     const runResult = engine.run(code, context);
     expect(runResult.success).toBe(true);
     
-    const result = context.getVariable('resultaat');
+    const berekeningingObject = context.getVariable('berekening');
+    expect(berekeningingObject?.type).toBe('object');
+    const result = (berekeningingObject?.value as any).resultaat;
     expect(result).toBeDefined();
     expect(result!.type).toBe('number');
     expect(result!.value).toBe(4); // 4 weeks
@@ -258,6 +301,11 @@ geldig altijd
       type: 'date',
       value: new Date('2024-01-01T15:30:00')
     });
+    // Create 'berekening' object for the rule to set attributes on
+    context.setVariable('berekening', {
+      type: 'object',
+      value: {}
+    });
 
     const parseResult = engine.parse(code);
     expect(parseResult.success).toBe(true);
@@ -265,7 +313,9 @@ geldig altijd
     const runResult = engine.run(code, context);
     expect(runResult.success).toBe(true);
     
-    const result = context.getVariable('resultaat');
+    const berekeningingObject = context.getVariable('berekening');
+    expect(berekeningingObject?.type).toBe('object');
+    const result = (berekeningingObject?.value as any).resultaat;
     expect(result).toBeDefined();
     expect(result!.type).toBe('number');
     expect(result!.value).toBe(5); // 5 hours (rounded down from 5.5)

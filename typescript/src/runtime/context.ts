@@ -20,6 +20,7 @@ export class Context implements RuntimeContext {
   private executionTrace: string[] = [];
   private objectCounter: number = 0;
   public current_instance: Value | undefined;
+  public evaluation_date: Date = new Date();
   
   // Store relationships between objects
   private relationships: Relationship[] = [];
@@ -99,6 +100,14 @@ export class Context implements RuntimeContext {
   generateObjectId(type: string): string {
     this.objectCounter++;
     return `${type}_${this.objectCounter}`;
+  }
+  
+  getEvaluationDate(): Date {
+    return this.evaluation_date;
+  }
+  
+  setEvaluationDate(date: Date): void {
+    this.evaluation_date = date;
   }
   
   setCurrentInstance(instance: Value | undefined): void {
