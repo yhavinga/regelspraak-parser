@@ -322,7 +322,7 @@ geldig altijd
     expect((result as any).unit).toEqual({ name: 'uren' });
   });
 
-  test.skip('should work with navigation expression - requires pronoun resolution and object-scoped rules', () => {
+  test('should work with navigation expression - requires pronoun resolution and object-scoped rules', () => {
     const code = `
 Objecttype de Persoon
   de geboortedatum Datum;
@@ -366,6 +366,9 @@ geldig altijd
     context.createObject('Vlucht', 'vlucht1', vlucht);
 
     const runResult = engine.run(code, context);
+    if (!runResult.success) {
+      console.error('Run error:', runResult.error);
+    }
     expect(runResult.success).toBe(true);
     
     // Check if person's age was calculated

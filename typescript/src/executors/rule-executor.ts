@@ -106,10 +106,7 @@ export class RuleExecutor implements IRuleExecutor {
   }
   
   private executeGelijkstelling(gelijkstelling: Gelijkstelling, context: RuntimeContext): RuleExecutionResult {
-    // Evaluate the expression
-    const value = this.expressionEvaluator.evaluate(gelijkstelling.expression, context);
-    
-    // The target is an AttributeReference or DimensionedAttributeReference
+    // The target is an AttributeReference, NavigationExpression, or DimensionedAttributeReference
     if (!gelijkstelling.target) {
       throw new Error('No target in gelijkstelling');
     }
@@ -126,6 +123,10 @@ export class RuleExecutor implements IRuleExecutor {
     } else if (gelijkstelling.target.path) {
       // Regular AttributeReference
       targetPath = gelijkstelling.target.path;
+    } else if ((gelijkstelling.target as any).type === 'NavigationExpression') {
+      // NavigationExpression - extract path
+      const navExpr = gelijkstelling.target as any;
+      targetPath = this.extractPathFromNavigationExpression(navExpr);
     } else {
       throw new Error(`No path in gelijkstelling target. Target type: ${gelijkstelling.target.type}`);
     }
@@ -133,6 +134,72 @@ export class RuleExecutor implements IRuleExecutor {
     if (targetPath.length === 0) {
       throw new Error('Empty target path in gelijkstelling');
     }
+    
+    // Check if this is an object-scoped rule (universeel onderwerp pattern)
+    // Pattern: ["attribute", "navigation", ..., "ObjectType"]
+    // The last element should be an object type name (capitalized)
+    if (targetPath.length >= 3) {
+      const lastElement = targetPath[targetPath.length - 1];
+      // Check if the last element looks like an object type (starts with capital letter)
+      if (lastElement && lastElement[0] === lastElement[0].toUpperCase()) {
+        // This might be an object-scoped rule
+        const objectType = lastElement;
+        const objects = (context as Context).getObjectsByType(objectType);
+        
+        if (objects.length > 0) {
+          // This is an object-scoped rule - iterate over all objects
+          for (const obj of objects) {
+            // Set current_instance for pronoun resolution
+            const ctx = context as Context;
+            const oldInstance = ctx.current_instance;
+            ctx.current_instance = obj;
+            
+            try {
+              // Evaluate expression in the context of this object
+              const value = this.expressionEvaluator.evaluate(gelijkstelling.expression, context);
+              
+              // Navigate through the path to set the attribute
+              // For "De leeftijd van de passagier van een Vlucht"
+              // path = ["leeftijd", "passagier", "Vlucht"]
+              // We need to navigate: Vlucht -> passagier -> set leeftijd
+              
+              let currentObj = obj;
+              // Navigate through the path from right to left (skipping the last element which is the object type)
+              for (let i = targetPath.length - 2; i > 0; i--) {
+                const navAttribute = targetPath[i];
+                const objData = currentObj.value as Record<string, Value>;
+                const nextObj = objData[navAttribute];
+                
+                if (!nextObj || nextObj.type !== 'object') {
+                  // Can't navigate further - skip this object
+                  currentObj = null as any;
+                  break;
+                }
+                currentObj = nextObj;
+              }
+              
+              if (currentObj) {
+                // Set the attribute on the final object
+                const attributeName = targetPath[0];
+                const objData = currentObj.value as Record<string, Value>;
+                objData[attributeName] = value;
+              }
+            } finally {
+              ctx.current_instance = oldInstance;
+            }
+          }
+          
+          return {
+            success: true,
+            target: targetPath.join('.'),
+            value: { type: 'string', value: `Set on all ${objects.length} ${objectType} objects` }
+          };
+        }
+      }
+    }
+    
+    // Not an object-scoped rule - evaluate the expression once
+    const value = this.expressionEvaluator.evaluate(gelijkstelling.expression, context);
     
     if (targetPath.length === 1) {
       // Simple attribute name - likely a variable assignment
@@ -928,6 +995,34 @@ export class RuleExecutor implements IRuleExecutor {
         return Math.ceil(amount * factor) / factor;
       }
     });
+  }
+  
+  private extractPathFromNavigationExpression(navExpr: any): string[] {
+    // NavigationExpression has structure: { attribute: string, object: Expression }
+    // We need to build a path from the navigation chain
+    const path: string[] = [];
+    
+    // Add the attribute first
+    path.push(navExpr.attribute);
+    
+    // Traverse the object chain
+    let current = navExpr.object;
+    while (current) {
+      if (current.type === 'NavigationExpression') {
+        // Another navigation expression - add its attribute
+        path.push(current.attribute);
+        current = current.object;
+      } else if (current.type === 'VariableReference') {
+        // End of chain - this should be the object type
+        path.push(current.variableName);
+        break;
+      } else {
+        // Unknown expression type in navigation chain
+        break;
+      }
+    }
+    
+    return path;
   }
   
   executeRegelGroep(regelGroep: RegelGroep, context: RuntimeContext): RuleExecutionResult {
