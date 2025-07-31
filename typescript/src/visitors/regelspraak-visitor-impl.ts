@@ -50,15 +50,26 @@ import { AttributeReference, StringLiteral, Literal } from '../ast/expressions';
 import { UnitSystemDefinition, UnitDefinition, UnitConversion } from '../ast/unit-systems';
 import { Dimension, DimensionLabel, DimensionedAttributeReference } from '../ast/dimensions';
 import { FeitType, Rol } from '../ast/feittype';
+import { DomainModel } from '../ast/domain-model';
 
 /**
  * Implementation of ANTLR4 visitor that builds our AST
  */
 export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements RegelSpraakVisitor<any> {
   
-  visitRegelSpraakDocument(ctx: RegelSpraakDocumentContext): any {
-    // Visit all top-level elements (definitions, rules, etc.)
-    const results = [];
+  visitRegelSpraakDocument(ctx: RegelSpraakDocumentContext): DomainModel {
+    // Create a proper DomainModel
+    const model: DomainModel = {
+      objectTypes: [],
+      parameters: [],
+      regels: [],
+      regelGroepen: [],
+      beslistabels: [],
+      dimensions: [],
+      dagsoortDefinities: [],
+      domains: [],
+      feitTypes: []
+    };
     
     // Get all top-level elements
     const definitions = ctx.definitie_list() || [];
@@ -68,29 +79,40 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
     const consistentieregels = ctx.consistentieregel_list() || [];
     const eenheidsystems = ctx.eenheidsysteemDefinition_list() || [];
     
-    // console.log('Document has', definitions.length, 'definitions and', rules.length, 'rules');
-    
-    // Visit definitions
+    // Visit definitions and categorize them
     for (const def of definitions) {
       const result = this.visit(def);
       if (result) {
-        results.push(result);
+        // Categorize based on type
+        if (result.type === 'ObjectTypeDefinition') {
+          model.objectTypes.push(result);
+        } else if (result.type === 'ParameterDefinition') {
+          model.parameters.push(result);
+        } else if (result.type === 'Dimension') {
+          model.dimensions.push(result);
+        } else if (result.type === 'DagsoortDefinitie') {
+          model.dagsoortDefinities.push(result);
+        } else if (result.type === 'DomainReference') {
+          model.domains.push(result);
+        } else if (result.type === 'FeitType') {
+          model.feitTypes.push(result);
+        }
       }
     }
     
-    // Visit rules
+    // Visit rules and add to regels
     for (const rule of rules) {
       const result = this.visit(rule);
       if (result) {
-        results.push(result);
+        model.regels.push(result);
       }
     }
     
-    // Visit consistency rules
+    // Visit consistency rules and add to regels
     for (const consistentieregel of consistentieregels) {
       const result = this.visit(consistentieregel);
       if (result) {
-        results.push(result);
+        model.regels.push(result);
       }
     }
     
@@ -98,15 +120,7 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
     for (const beslistabel of beslistabels) {
       const result = this.visit(beslistabel);
       if (result) {
-        results.push(result);
-      }
-    }
-    
-    // Visit unit systems
-    for (const eenheidsystem of eenheidsystems) {
-      const result = this.visit(eenheidsystem);
-      if (result) {
-        results.push(result);
+        model.beslistabels.push(result);
       }
     }
     
@@ -114,11 +128,11 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
     for (const regelGroup of regelGroups) {
       const result = this.visit(regelGroup);
       if (result) {
-        results.push(result);
+        model.regelGroepen.push(result);
       }
     }
     
-    return results;
+    return model;
   }
 
   visitExpressie(ctx: ExpressieContext): Expression {

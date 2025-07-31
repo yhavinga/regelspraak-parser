@@ -7,6 +7,7 @@ import { Rule } from '../ast/rules';
 import { DecisionTable } from '../ast/decision-tables';
 import { ObjectTypeDefinition } from '../ast/object-types';
 import { ParameterDefinition } from '../ast/parameters';
+import { DomainModel } from '../ast/domain-model';
 
 /**
  * Custom error listener to capture parse errors
@@ -30,9 +31,56 @@ export class AntlrParser {
   private visitor = new RegelSpraakVisitorImpl();
 
   /**
-   * Parse RegelSpraak source code
+   * Parse RegelSpraak source code and return array of definitions (backward compatibility)
    */
   parse(source: string): any {
+    const model = this.parseModel(source);
+    
+    // Convert DomainModel back to array for backward compatibility
+    const results = [];
+    
+    // Add object types
+    for (const objectType of model.objectTypes) {
+      results.push(objectType);
+    }
+    
+    // Add parameters
+    for (const param of model.parameters) {
+      results.push(param);
+    }
+    
+    // Add dimensions
+    for (const dimension of model.dimensions) {
+      results.push(dimension);
+    }
+    
+    // Add rules
+    for (const regel of model.regels) {
+      results.push(regel);
+    }
+    
+    // Add regel groups
+    for (const regelGroep of model.regelGroepen) {
+      results.push(regelGroep);
+    }
+    
+    // Add decision tables
+    for (const beslistabel of model.beslistabels) {
+      results.push(beslistabel);
+    }
+    
+    // Add feit types
+    for (const feitType of model.feitTypes) {
+      results.push(feitType);
+    }
+    
+    return results;
+  }
+
+  /**
+   * Parse RegelSpraak source code and return a DomainModel
+   */
+  parseModel(source: string): DomainModel {
     const chars = new CharStream(source);
     const lexer = new RegelSpraakLexer(chars);
     const tokens = new CommonTokenStream(lexer);
