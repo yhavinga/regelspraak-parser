@@ -111,6 +111,7 @@ export class RuleExecutor implements IRuleExecutor {
       throw new Error('No target in gelijkstelling');
     }
     
+    
     let targetPath: string[];
     
     if ((gelijkstelling.target as any).type === 'DimensionedAttributeReference') {
@@ -135,16 +136,18 @@ export class RuleExecutor implements IRuleExecutor {
       throw new Error('Empty target path in gelijkstelling');
     }
     
+    
     // Check if this is an object-scoped rule (universeel onderwerp pattern)
     // Pattern: ["attribute", "navigation", ..., "ObjectType"]
     // The last element should be an object type name (capitalized)
-    if (targetPath.length >= 3) {
+    if (targetPath.length >= 2) {
       const lastElement = targetPath[targetPath.length - 1];
       // Check if the last element looks like an object type (starts with capital letter)
       if (lastElement && lastElement[0] === lastElement[0].toUpperCase()) {
         // This might be an object-scoped rule
         const objectType = lastElement;
         const objects = (context as Context).getObjectsByType(objectType);
+        
         
         if (objects.length > 0) {
           // This is an object-scoped rule - iterate over all objects

@@ -60,7 +60,7 @@ test:
 .PHONY: test-ts
 test-ts:
 	@echo "Running TypeScript tests..."
-	@cd typescript && npm test
+	@cd typescript && npm test -- $(ARGS)
 	@echo "TypeScript tests complete."
 
 # Target to clean generated files and cache

@@ -841,6 +841,44 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
     return kenmerkRef;
   }
 
+  visitSubordinateHasExpr(ctx: any): Expression {
+    // Handle "hij een recht op belastingvermindering heeft" pattern
+    // This is parsed as: subject=onderwerpReferentie object=naamwoord verb=HEEFT
+    
+    // Get the subject and object from the context
+    const subjectCtx = ctx.onderwerpReferentie ? ctx.onderwerpReferentie() : null;
+    const objectCtx = ctx.naamwoord ? ctx.naamwoord() : null;
+    
+    if (!subjectCtx || !objectCtx) {
+      throw new Error('Invalid SubordinateHasExpr context');
+    }
+    
+    const subject = this.visit(subjectCtx);
+    let objectText = this.extractTextWithSpaces(objectCtx);
+    
+    // Strip leading articles from the attribute name
+    // "een recht op belastingvermindering" -> "recht op belastingvermindering"
+    const articles = ['de ', 'het ', 'een '];
+    for (const article of articles) {
+      if (objectText.startsWith(article)) {
+        objectText = objectText.substring(article.length);
+        break;
+      }
+    }
+    
+    // If subject is "hij", it refers to the current instance (pronoun resolution)
+    // The object becomes the attribute name we want to check
+    
+    // Create an attribute reference for the attribute
+    const attributeRef: AttributeReference = {
+      type: 'AttributeReference',
+      path: ['self', objectText]
+    };
+    
+    // Return the attribute reference - it will be evaluated as truthy/falsy
+    return attributeRef;
+  }
+
   // Rule parsing visitor methods
   visitRegel(ctx: any): any {
     try {

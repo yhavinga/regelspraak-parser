@@ -713,17 +713,19 @@ export class ExpressionEvaluator implements IEvaluator {
     
     while (currentDate <= endDate) {
       // Create a temporary context with current date
+      // We need to properly copy properties, not just use prototype chain
       const tempContext = Object.create(context);
       
-      // Set the evaluation date to the current day
-      if (tempContext.setEvaluationDate) {
-        tempContext.setEvaluationDate(new Date(currentDate));
-      }
-      
-      // If there's a current_instance, preserve it
-      if (ctx.current_instance) {
-        tempContext.current_instance = ctx.current_instance;
-      }
+      // Copy important properties from the original context
+      Object.assign(tempContext, {
+        current_instance: (context as any).current_instance,
+        getEvaluationDate: function() { return new Date(currentDate); },
+        setEvaluationDate: function(date: Date) { /* no-op for temp context */ },
+        // Copy other necessary methods/properties
+        getVariable: context.getVariable ? context.getVariable.bind(context) : undefined,
+        setVariable: context.setVariable ? context.setVariable.bind(context) : undefined,
+        getObjectsByType: (context as any).getObjectsByType ? (context as any).getObjectsByType.bind(context) : undefined
+      });
       
       // Evaluate the condition for this day
       try {
@@ -867,6 +869,26 @@ export class ExpressionEvaluator implements IEvaluator {
             throw new Error(`Attribute '${attr}' not found on object`);
           }
           value = objectData[attr];
+          
+          // If the value has a timeline, extract the value at the evaluation date
+          if (value && typeof value === 'object' && 'timeline' in value) {
+            const timelineValue = value as any;
+            const evalDate = ctx.getEvaluationDate ? ctx.getEvaluationDate() : new Date();
+            
+            // Find the value at the evaluation date
+            let foundValue = null;
+            if (timelineValue.timeline && Array.isArray(timelineValue.timeline)) {
+              for (const period of timelineValue.timeline) {
+                if (evalDate >= period.validFrom && evalDate < period.validTo) {
+                  foundValue = period.value;
+                  break;
+                }
+              }
+            }
+            
+            // If we found a timeline value, use it; otherwise use the base value
+            value = foundValue || timelineValue;
+          }
         } else {
           throw new Error(`Cannot access attribute '${attr}' on ${value.type}`);
         }
