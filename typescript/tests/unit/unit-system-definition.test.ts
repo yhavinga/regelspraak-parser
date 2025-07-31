@@ -44,12 +44,17 @@ De totale afstand van een berekening moet berekend worden als de afstand plus 30
     
     const context = new Context();
     context.setVariable('afstand', { type: 'number', value: 5, unit: { name: 'kilometer' } });
+    // Create berekening object for the rule to set attributes on
+    context.setVariable('berekening', { type: 'object', value: {} });
     const result = engine.run(modelWithUnits, context);
     
     expect(result.success).toBe(true);
     
     // Check that the total distance is calculated correctly (5 km + 3000 m = 8 km)
-    const totalDistance = context.getVariable('totale afstand');
+    const berekeningingObject = context.getVariable('berekening');
+    expect(berekeningingObject).toBeDefined();
+    expect(berekeningingObject?.type).toBe('object');
+    const totalDistance = (berekeningingObject?.value as any)['totale afstand'];
     expect(totalDistance).toMatchObject({
       type: 'number',
       value: 8,
@@ -88,13 +93,18 @@ De lengte in yards van een meting moet berekend worden als de lengte.
     
     const context = new Context();
     context.setVariable('lengte', { type: 'number', value: 1, unit: { name: 'mile' } });
+    // Create meting object for the rule to set attributes on
+    context.setVariable('meting', { type: 'object', value: {} });
     const result = engine.run(modelWithUnits, context);
     
     expect(result.success).toBe(true);
     
     // The rule simply assigns the value without automatic conversion
     // Unit conversion is not automatic based on variable name
-    const lengthInYards = context.getVariable('lengte in yards');
+    const metingObject = context.getVariable('meting');
+    expect(metingObject).toBeDefined();
+    expect(metingObject?.type).toBe('object');
+    const lengthInYards = (metingObject?.value as any)['lengte in yards'];
     expect(lengthInYards).toMatchObject({
       type: 'number',
       value: 1,
@@ -119,12 +129,17 @@ De afgelegde afstand van een reis moet berekend worden als de snelheid maal de t
     const context = new Context();
     context.setVariable('snelheid', { type: 'number', value: 100, unit: { name: 'kilometer per uur' } });
     context.setVariable('tijd', { type: 'number', value: 2, unit: { name: 'uur' } });
+    // Create reis object for the rule to set attributes on
+    context.setVariable('reis', { type: 'object', value: {} });
     const result = engine.run(modelWithMixedUnits, context);
     
     expect(result.success).toBe(true);
     
     // Check that distance is calculated (100 km/h * 2 h = 200 km)
-    const distance = context.getVariable('afgelegde afstand');
+    const reisObject = context.getVariable('reis');
+    expect(reisObject).toBeDefined();
+    expect(reisObject?.type).toBe('object');
+    const distance = (reisObject?.value as any)['afgelegde afstand'];
     expect(distance).toMatchObject({
       type: 'number',
       value: 200
@@ -153,13 +168,18 @@ De dichtheid van een stof moet berekend worden als het gewicht gedeeld door het 
     const context = new Context();
     context.setVariable('gewicht', { type: 'number', value: 2, unit: { name: 'kilogram' } });
     context.setVariable('volume', { type: 'number', value: 500, unit: { name: 'milliliter' } });
+    // Create stof object for the rule to set attributes on
+    context.setVariable('stof', { type: 'object', value: {} });
     const result = engine.run(model, context);
     
     expect(result.success).toBe(true);
     
     // Check that density is calculated (2 kg / 500 ml = 0.004 kg/ml)
     // No automatic unit conversion happens during division
-    const density = context.getVariable('dichtheid');
+    const stofObject = context.getVariable('stof');
+    expect(stofObject).toBeDefined();
+    expect(stofObject?.type).toBe('object');
+    const density = (stofObject?.value as any)['dichtheid'];
     expect(density).toBeDefined();
     expect(density?.value).toBe(0.004);
     // Unit should be kg/ml (composite unit without automatic simplification)

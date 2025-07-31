@@ -46,7 +46,7 @@ import {
 } from '../ast/rules';
 import { ObjectTypeDefinition, KenmerkSpecification, AttributeSpecification, DataType, DomainReference } from '../ast/object-types';
 import { ParameterDefinition } from '../ast/parameters';
-import { AttributeReference, StringLiteral } from '../ast/expressions';
+import { AttributeReference, StringLiteral, Literal } from '../ast/expressions';
 import { UnitSystemDefinition, UnitDefinition, UnitConversion } from '../ast/unit-systems';
 import { Dimension, DimensionLabel, DimensionedAttributeReference } from '../ast/dimensions';
 import { FeitType, Rol } from '../ast/feittype';
@@ -797,9 +797,10 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
     const conditionExpr = this.visit(conditionCtx);
     
     // Create literal for period type
-    const periodLiteral: StringLiteral = {
-      type: 'StringLiteral',
-      value: periodType
+    const periodLiteral = {
+      type: 'Literal',
+      value: periodType,
+      datatype: 'string'
     };
     
     return {

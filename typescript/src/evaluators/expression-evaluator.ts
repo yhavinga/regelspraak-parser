@@ -37,6 +37,8 @@ export class ExpressionEvaluator implements IEvaluator {
         return this.evaluateStringLiteral(expr as StringLiteral);
       case 'Literal':
         return this.evaluateLiteral(expr as any);
+      case 'BooleanLiteral':
+        return this.evaluateBooleanLiteral(expr as any);
       case 'BinaryExpression':
         return this.evaluateBinaryExpression(expr as BinaryExpression, context);
       case 'UnaryExpression':
@@ -113,6 +115,13 @@ export class ExpressionEvaluator implements IEvaluator {
           value: expr.value
         };
     }
+  }
+
+  private evaluateBooleanLiteral(expr: any): Value {
+    return {
+      type: 'boolean',
+      value: expr.value
+    };
   }
 
   private evaluateBinaryExpression(expr: BinaryExpression, context: RuntimeContext): Value {

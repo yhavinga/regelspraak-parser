@@ -17,6 +17,17 @@ export interface StringLiteral extends Expression {
   value: string;
 }
 
+export interface Literal extends Expression {
+  type: 'Literal';
+  value: any;
+  datatype?: string;
+}
+
+export interface BooleanLiteral extends Expression {
+  type: 'BooleanLiteral';
+  value: boolean;
+}
+
 export interface BinaryExpression extends Expression {
   type: 'BinaryExpression';
   operator: '+' | '-' | '*' | '/' | '==' | '!=' | '>' | '<' | '>=' | '<=' | '&&' | '||' |
