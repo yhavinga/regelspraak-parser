@@ -119,8 +119,41 @@ export class AntlrParser {
       const tokens = new CommonTokenStream(lexer);
       const parser = new RegelSpraakParser(tokens);
       
+      // Set up custom error listener
+      const errorListener = new CustomErrorListener();
+      parser.removeErrorListeners();
+      parser.addErrorListener(errorListener);
+      
       // Parse just an expression
       const tree = parser.expressie();
+      
+      // Check for parse errors
+      const errors = errorListener.getErrors();
+      if (errors.length > 0) {
+        const firstError = errors[0];
+        // Map ANTLR errors to user-friendly messages
+        if (firstError.includes('no viable alternative') && source.includes('de wortel van')) {
+          throw new Error('Missing argument for "de wortel van"');
+        }
+        if (firstError.includes('no viable alternative') && source.includes('de absolute waarde van')) {
+          throw new Error('Missing argument for "de absolute waarde van"');
+        }
+        throw new Error(firstError);
+      }
+      
+      // Check if there's unparsed input (multiple arguments)
+      const currentToken = parser.getCurrentToken();
+      if (currentToken && currentToken.type !== RegelSpraakParser.EOF) {
+        // Check specific patterns for better error messages
+        if (source.includes('de wortel van') && currentToken.text === ',') {
+          throw new Error('Multiple arguments not supported for "de wortel van"');
+        }
+        if (source.includes('de absolute waarde van') && currentToken.text === ',') {
+          throw new Error('Multiple arguments not supported for "de absolute waarde van"');
+        }
+        // Generic error for other cases
+        throw new Error(`Unexpected input after expression: ${currentToken.text}`);
+      }
       
       if (!tree) {
         throw new Error('Failed to parse expression: parser returned null');
@@ -131,7 +164,9 @@ export class AntlrParser {
       // Don't add "Parse error: " prefix for specific error messages
       if (error instanceof Error && 
           (error.message === 'Expected "geldig" keyword' ||
-           error.message.includes('Expected gelijkstelling pattern'))) {
+           error.message.includes('Expected gelijkstelling pattern') ||
+           error.message.includes('Missing argument for') ||
+           error.message.includes('Multiple arguments not supported'))) {
         throw error;
       }
       throw new Error(`Parse error: ${error instanceof Error ? error.message : 'Unknown error'}`);

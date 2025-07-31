@@ -563,7 +563,15 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
 
   visitWortelFuncExpr(ctx: any): Expression {
     // Get the argument expression 
-    const arg = this.visit(ctx.primaryExpression());
+    const argCtx = ctx.primaryExpression();
+    if (!argCtx) {
+      throw new Error('Missing argument for "de wortel van"');
+    }
+    
+    const arg = this.visit(argCtx);
+    if (!arg) {
+      throw new Error('Invalid argument for "de wortel van"');
+    }
     
     return {
       type: 'FunctionCall',
@@ -574,7 +582,15 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
 
   visitAbsValFuncExpr(ctx: any): Expression {
     // Get the argument expression (inside parentheses)
-    const arg = this.visit(ctx.primaryExpression());
+    const argCtx = ctx.primaryExpression();
+    if (!argCtx) {
+      throw new Error('Missing argument for "de absolute waarde van"');
+    }
+    
+    const arg = this.visit(argCtx);
+    if (!arg) {
+      throw new Error('Invalid argument for "de absolute waarde van"');
+    }
     
     return {
       type: 'FunctionCall',

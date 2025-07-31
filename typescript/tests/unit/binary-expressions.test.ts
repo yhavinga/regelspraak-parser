@@ -141,7 +141,7 @@ describe('Engine - Binary Expressions', () => {
     test('should fail on missing closing parenthesis', () => {
       const result = engine.run('(2 plus 3');
       expect(result.success).toBe(false);
-      expect(result.error?.message).toContain("Don't know how to handle");
+      expect(result.error?.message).toContain("no viable alternative");
     });
   });
 

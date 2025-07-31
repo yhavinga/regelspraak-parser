@@ -41,18 +41,18 @@ describe('Engine - Function Calls', () => {
       expect(result.error?.message).toBe('sqrt of negative number');
     });
 
-    test.skip('should fail on wrong number of arguments', () => {
+    test('should fail on wrong number of arguments', () => {
       // Dutch syntax doesn't support empty arguments
       const result = engine.run('de wortel van');
       expect(result.success).toBe(false);
-      expect(result.error?.message).toContain('syntax');
+      expect(result.error?.message).toContain('Missing argument for "de wortel van"');
     });
 
-    test.skip('should fail on multiple arguments', () => {
+    test('should fail on multiple arguments', () => {
       // Dutch syntax doesn't support multiple arguments like this
       const result = engine.run('de wortel van 4, 5');
       expect(result.success).toBe(false);
-      expect(result.error?.message).toContain('syntax');
+      expect(result.error?.message).toContain('Multiple arguments not supported for "de wortel van"');
     });
   });
 
@@ -133,12 +133,6 @@ describe('Engine - Function Calls', () => {
       expect(result.error?.message).toContain('syntax');
     });
 
-    test.skip('should fail on missing closing parenthesis', () => {
-      // Dutch syntax doesn't use parentheses for sqrt
-      const result = engine.run('de wortel van');
-      expect(result.success).toBe(false);
-      expect(result.error?.message).toContain('syntax');
-    });
   });
 
   describe('functions with variables', () => {
