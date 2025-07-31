@@ -68,7 +68,8 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
       dimensions: [],
       dagsoortDefinities: [],
       domains: [],
-      feitTypes: []
+      feitTypes: [],
+      unitSystems: []
     };
     
     // Get all top-level elements
@@ -129,6 +130,14 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
       const result = this.visit(regelGroup);
       if (result) {
         model.regelGroepen.push(result);
+      }
+    }
+    
+    // Visit unit systems
+    for (const unitSystem of eenheidsystems) {
+      const result = this.visit(unitSystem);
+      if (result) {
+        model.unitSystems.push(result);
       }
     }
     

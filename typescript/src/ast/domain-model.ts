@@ -9,6 +9,7 @@ import { DecisionTable } from './decision-tables';
 import { Dimension } from './dimensions';
 import { DagsoortDefinitie } from './dagsoort';
 import { DomainReference } from './object-types';
+import { UnitSystemDefinition } from './unit-systems';
 
 export interface DomainModel {
   objectTypes: ObjectTypeDefinition[];
@@ -20,4 +21,5 @@ export interface DomainModel {
   dagsoortDefinities: DagsoortDefinitie[];
   domains: DomainReference[];
   feitTypes: any[]; // TODO: Define FeitType interface when implemented
+  unitSystems: UnitSystemDefinition[];
 }

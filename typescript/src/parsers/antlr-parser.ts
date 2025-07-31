@@ -69,9 +69,19 @@ export class AntlrParser {
       results.push(beslistabel);
     }
     
+    // Add domains
+    for (const domain of model.domains) {
+      results.push(domain);
+    }
+    
     // Add feit types
     for (const feitType of model.feitTypes) {
       results.push(feitType);
+    }
+    
+    // Add unit systems
+    for (const unitSystem of model.unitSystems) {
+      results.push(unitSystem);
     }
     
     return results;
