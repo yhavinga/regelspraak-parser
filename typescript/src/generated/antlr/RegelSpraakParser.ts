@@ -11,8 +11,8 @@ import {
 	Token, TokenStream,
 	Interval, IntervalSet
 } from 'antlr4';
-import RegelSpraakListener from "./RegelSpraakListener";
-import RegelSpraakVisitor from "./RegelSpraakVisitor";
+import RegelSpraakListener from "./RegelSpraakListener.js";
+import RegelSpraakVisitor from "./RegelSpraakVisitor.js";
 
 // for running tests with parameters, TODO: discuss strategy for typed parameters in CI
 // eslint-disable-next-line no-unused-vars
@@ -7867,7 +7867,7 @@ export default class RegelSpraakParser extends Parser {
 				this.state = 1409;
 				this.match(RegelSpraakParser.LPAREN);
 				this.state = 1410;
-				this.primaryExpression(0);
+				this.expressie();
 				this.state = 1411;
 				this.match(RegelSpraakParser.RPAREN);
 				}
@@ -10559,7 +10559,7 @@ export default class RegelSpraakParser extends Parser {
 	0,1398,1396,1,0,0,0,1399,1402,1,0,0,0,1400,1398,1,0,0,0,1400,1401,1,0,0,
 	0,1401,1403,1,0,0,0,1402,1400,1,0,0,0,1403,1404,7,31,0,0,1404,1405,3,238,
 	119,37,1405,1572,1,0,0,0,1406,1407,5,150,0,0,1407,1572,3,238,119,35,1408,
-	1409,5,11,0,0,1409,1410,5,261,0,0,1410,1411,3,238,119,0,1411,1412,5,262,
+	1409,5,11,0,0,1409,1410,5,261,0,0,1410,1411,3,218,109,0,1411,1412,5,262,
 	0,0,1412,1572,1,0,0,0,1413,1414,5,13,0,0,1414,1419,3,238,119,0,1415,1416,
 	5,265,0,0,1416,1418,3,238,119,0,1417,1415,1,0,0,0,1418,1421,1,0,0,0,1419,
 	1417,1,0,0,0,1419,1420,1,0,0,0,1420,1422,1,0,0,0,1421,1419,1,0,0,0,1422,
@@ -16548,8 +16548,8 @@ export class AbsValFuncExprContext extends PrimaryExpressionContext {
 	public LPAREN(): TerminalNode {
 		return this.getToken(RegelSpraakParser.LPAREN, 0);
 	}
-	public primaryExpression(): PrimaryExpressionContext {
-		return this.getTypedRuleContext(PrimaryExpressionContext, 0) as PrimaryExpressionContext;
+	public expressie(): ExpressieContext {
+		return this.getTypedRuleContext(ExpressieContext, 0) as ExpressieContext;
 	}
 	public RPAREN(): TerminalNode {
 		return this.getToken(RegelSpraakParser.RPAREN, 0);

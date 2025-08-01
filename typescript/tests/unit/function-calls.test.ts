@@ -84,8 +84,7 @@ describe('Engine - Function Calls', () => {
       });
     });
 
-    test.skip('should handle nested function calls', () => {
-      // Grammar limitation: abs function only accepts primaryExpression, not complex expressions
+    test('should handle nested function calls', () => {
       const result = engine.run('de absolute waarde van ((de wortel van 16) min 10)');
       expect(result.success).toBe(true);
       expect(result.value).toEqual({

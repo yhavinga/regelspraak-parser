@@ -706,7 +706,7 @@ primaryExpression : // Corresponds roughly to terminals/functions/references in 
 
     // Added for §13.4.16 functions
     | DE_WORTEL_VAN primaryExpression                                          # WortelFuncExpr // EBNF 13.4.16.13 (Simplified, no rounding yet)
-    | DE_ABSOLUTE_WAARDE_VAN LPAREN primaryExpression RPAREN                   # AbsValFuncExpr // EBNF 13.4.16.17
+    | DE_ABSOLUTE_WAARDE_VAN LPAREN expressie RPAREN                           # AbsValFuncExpr // EBNF 13.4.16.17
     | DE_MINIMALE_WAARDE_VAN primaryExpression (COMMA primaryExpression)* EN primaryExpression # MinValFuncExpr // EBNF 13.4.16.15
     | DE_MINIMALE_WAARDE_VAN ALLE attribuutReferentie                         # MinAlleAttribuutExpr // Min all attributes with filtering
     | DE_MAXIMALE_WAARDE_VAN primaryExpression (COMMA primaryExpression)* EN primaryExpression # MaxValFuncExpr // EBNF 13.4.16.16

@@ -582,7 +582,7 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
 
   visitAbsValFuncExpr(ctx: any): Expression {
     // Get the argument expression (inside parentheses)
-    const argCtx = ctx.primaryExpression();
+    const argCtx = ctx.expressie();
     if (!argCtx) {
       throw new Error('Missing argument for "de absolute waarde van"');
     }
