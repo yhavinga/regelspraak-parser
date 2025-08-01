@@ -124,12 +124,11 @@ describe('Engine - Function Calls', () => {
       });
     });
 
-    test.skip('should fail on unknown function', () => {
-      // This test assumes English function syntax which is not supported
-      // Dutch syntax would be something like "de onbekende van 42" which wouldn't parse
-      const result = engine.run('unknown(42)');
+    test('should fail on unknown function', () => {
+      // Unknown Dutch function syntax - parser should reject this
+      const result = engine.run('de onbekende functie van 42');
       expect(result.success).toBe(false);
-      expect(result.error?.message).toContain('syntax');
+      expect(result.error?.message).toContain('Unexpected input after expression');
     });
 
   });
