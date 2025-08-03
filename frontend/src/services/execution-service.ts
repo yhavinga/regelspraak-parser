@@ -1,5 +1,5 @@
 // Real execution service using the TypeScript engine
-import { Engine } from '../lib/parser/bundles/engine.js';
+import { Engine, Context } from '../lib/parser/bundles/engine.js';
 
 export interface ExecutionResult {
   success: boolean;
@@ -18,33 +18,36 @@ class ExecutionService {
       console.log('Executing with model:', model);
       console.log('Test data:', testData);
       
-      // The engine expects a context object with variables
-      const context = {
-        variables: new Map(Object.entries(testData))
-      };
+      // Create a proper Context instance
+      const context = new Context();
       
-      // Execute the model
+      // Initialize the context with test data
+      Object.entries(testData).forEach(([key, value]) => {
+        context.setVariable(key, value);
+      });
+      
+      // Execute the model/AST
       const result = await this.engine.execute(model, context);
       
       console.log('Execution result:', result);
       
-      // The engine might return the context directly or wrap it
-      const executionContext = result.variables ? result : context;
-      
-      // Extract the output from the context
+      // Extract the output from the context after execution
       const output: any = {};
-      if (executionContext.variables instanceof Map) {
-        executionContext.variables.forEach((value: any, key: string) => {
-          output[key] = value;
-        });
-      } else {
-        console.error('Unexpected context structure:', executionContext);
+      
+      // Get all variables from the context's global scope
+      context.scopes[0].forEach((value: any, key: string) => {
+        output[key] = value;
+      });
+      
+      // Also check if the result has a value
+      if (result && result.success && result.value) {
+        output._result = result.value;
       }
       
       return {
-        success: true,
+        success: result && result.success ? true : false,
         output,
-        errors: [],
+        errors: result && result.error ? [result.error.toString()] : [],
         executionTime: performance.now() - startTime
       };
     } catch (error: any) {

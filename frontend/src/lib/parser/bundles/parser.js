@@ -75719,7 +75719,15 @@ var AntlrParser = class {
     const lexer = new RegelSpraakLexer(chars);
     const tokens = new Ze(lexer);
     const parser = new RegelSpraakParser(tokens);
+    const errorListener = new CustomErrorListener();
+    parser.removeErrorListeners();
+    parser.addErrorListener(errorListener);
     const tree = parser.regelSpraakDocument();
+    const errors = errorListener.getErrors();
+    if (errors.length > 0) {
+      const firstError = errors[0];
+      throw new Error(firstError);
+    }
     try {
       return this.visitor.visit(tree);
     } catch (error) {

@@ -155,7 +155,35 @@ export class Engine implements IEngine {
       }
       
       // Handle different AST types
-      if (ast.type === 'Model') {
+      // Check for DomainModel structure (no type field, but has regels, objectTypes, etc.)
+      if (!ast.type && (ast.regels || ast.objectTypes || ast.parameters)) {
+        // This is a DomainModel from the parser
+        // Execute all rules in the model
+        let lastResult: ExecutionResult = {
+          success: true,
+          value: { type: 'string', value: 'Model executed' }
+        };
+        
+        // Execute each rule in sequence
+        for (const rule of (ast.regels || [])) {
+          const result = this.ruleExecutor.execute(rule, context);
+          if (!result.success) {
+            return {
+              success: false,
+              error: result.error
+            };
+          }
+          // Keep track of the last result
+          if (result.value) {
+            lastResult = {
+              success: true,
+              value: result.value
+            };
+          }
+        }
+        
+        return lastResult;
+      } else if (ast.type === 'Model') {
         // First register any unit systems
         for (const unitSystem of (ast as any).unitSystems || []) {
           this.registerUnitSystem(unitSystem, context);

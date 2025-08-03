@@ -913,6 +913,14 @@ var ExpressionEvaluator = class {
     this.unitRegistry = new UnitRegistry();
   }
   evaluate(expr, context) {
+    if (!expr) {
+      console.error("Expression evaluator received null/undefined expression");
+      throw new Error("Cannot evaluate null or undefined expression");
+    }
+    if (!expr.type) {
+      console.error("Expression missing type field:", JSON.stringify(expr, null, 2));
+      throw new Error(`Expression missing type field: ${JSON.stringify(expr)}`);
+    }
     switch (expr.type) {
       case "NumberLiteral":
         return this.evaluateNumberLiteral(expr, context);
@@ -78807,7 +78815,28 @@ var Engine = class {
         }
         return lastResult;
       }
-      if (ast.type === "Model") {
+      if (!ast.type && (ast.regels || ast.objectTypes || ast.parameters)) {
+        let lastResult = {
+          success: true,
+          value: { type: "string", value: "Model executed" }
+        };
+        for (const rule of ast.regels || []) {
+          const result = this.ruleExecutor.execute(rule, context);
+          if (!result.success) {
+            return {
+              success: false,
+              error: result.error
+            };
+          }
+          if (result.value) {
+            lastResult = {
+              success: true,
+              value: result.value
+            };
+          }
+        }
+        return lastResult;
+      } else if (ast.type === "Model") {
         for (const unitSystem of ast.unitSystems || []) {
           this.registerUnitSystem(unitSystem, context);
         }
@@ -78980,6 +79009,10 @@ var Engine = class {
   }
 };
 export {
-  Engine
+  Context,
+  Engine,
+  ExpressionEvaluator,
+  RuleExecutor,
+  UnitRegistry
 };
 //# sourceMappingURL=engine.js.map

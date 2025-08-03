@@ -30,6 +30,18 @@ export class ExpressionEvaluator implements IEvaluator {
   }
 
   evaluate(expr: Expression, context: RuntimeContext): Value {
+    // Defensive check for undefined expression
+    if (!expr) {
+      console.error('Expression evaluator received null/undefined expression');
+      throw new Error('Cannot evaluate null or undefined expression');
+    }
+    
+    // Defensive check for missing type
+    if (!expr.type) {
+      console.error('Expression missing type field:', JSON.stringify(expr, null, 2));
+      throw new Error(`Expression missing type field: ${JSON.stringify(expr)}`);
+    }
+    
     switch (expr.type) {
       case 'NumberLiteral':
         return this.evaluateNumberLiteral(expr as NumberLiteral, context);
