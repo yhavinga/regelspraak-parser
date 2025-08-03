@@ -20,6 +20,8 @@ export function useMonacoValidation(
     gcTime: 300000 // Keep in cache for 5 minutes
   });
   
+  console.log('useMonacoValidation - parseResult:', parseResult);
+  
   // Convert parse errors to Monaco markers
   const updateMarkers = useCallback(() => {
     if (!editor || !monaco) return;
@@ -30,9 +32,10 @@ export function useMonacoValidation(
     const markers: monaco.editor.IMarkerData[] = [];
     
     if (parseResult?.errors) {
+      console.log('Parse result errors:', parseResult.errors);
       parseResult.errors.forEach(error => {
         if (error.span) {
-          markers.push({
+          const marker = {
             severity: error.severity === 'error' 
               ? monaco.MarkerSeverity.Error 
               : monaco.MarkerSeverity.Warning,
@@ -41,10 +44,12 @@ export function useMonacoValidation(
             startColumn: (error.span.start?.column || 0) + 1,
             endLineNumber: error.span.end?.line || 1,
             endColumn: (error.span.end?.column || 0) + 1
-          });
+          };
+          console.log('Adding marker with span:', marker);
+          markers.push(marker);
         } else if (error.line) {
           // Fallback for simple line/column format
-          markers.push({
+          const marker = {
             severity: error.severity === 'error' 
               ? monaco.MarkerSeverity.Error 
               : monaco.MarkerSeverity.Warning,
@@ -53,42 +58,23 @@ export function useMonacoValidation(
             startColumn: error.column || 1,
             endLineNumber: error.line,
             endColumn: (error.column || 1) + 1
-          });
+          };
+          console.log('Adding marker with line/column:', marker);
+          markers.push(marker);
+        } else {
+          console.log('Error has no span or line info:', error);
         }
       });
     }
     
+    console.log('Setting Monaco markers:', markers);
     monaco.editor.setModelMarkers(model, 'regelspraak', markers);
   }, [editor, parseResult]);
   
-  // Update decorations for inline errors
+  // Update decorations for inline errors (currently disabled - using markers instead)
   const updateDecorations = useCallback(() => {
-    if (!editor || !parseResult) return;
-    
-    const newDecorations: monaco.editor.IModelDeltaDecoration[] = [];
-    
-    parseResult.errors.forEach(error => {
-      if (error.span && error.severity === 'error') {
-        newDecorations.push({
-          range: new monaco.Range(
-            error.span.start.line,
-            error.span.start.column + 1,
-            error.span.end.line,
-            error.span.end.column + 1
-          ),
-          options: {
-            inlineClassName: 'squiggly-error',
-            hoverMessage: { value: error.message },
-            stickiness: monaco.editor.TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges
-          }
-        });
-      }
-    });
-    
-    decorationsRef.current = editor.deltaDecorations(
-      decorationsRef.current,
-      newDecorations
-    );
+    // Monaco markers already provide squiggles, so we don't need custom decorations
+    return;
   }, [editor, parseResult]);
   
   // Apply markers and decorations

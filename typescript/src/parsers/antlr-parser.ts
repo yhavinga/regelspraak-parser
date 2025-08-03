@@ -96,8 +96,20 @@ export class AntlrParser {
     const tokens = new CommonTokenStream(lexer);
     const parser = new RegelSpraakParser(tokens);
     
+    // Set up custom error listener
+    const errorListener = new CustomErrorListener();
+    parser.removeErrorListeners();
+    parser.addErrorListener(errorListener);
+    
     // Parse starting from the root rule
     const tree = parser.regelSpraakDocument();
+    
+    // Check for parse errors
+    const errors = errorListener.getErrors();
+    if (errors.length > 0) {
+      const firstError = errors[0];
+      throw new Error(firstError);
+    }
     
     // Visit the tree to build our AST
     try {

@@ -112,11 +112,13 @@ class RealParserService {
     if (match) {
       const line = parseInt(match[1]);
       const column = parseInt(match[2]);
+      console.log('Extracted span from error:', { line, column, message: errorMessage });
       return {
         start: { line, column },
-        end: { line, column: column + 1 }
+        end: { line, column: column + 10 } // Make the squiggle more visible
       };
     }
+    console.log('No span extracted from error:', errorMessage);
     return undefined;
   }
 
