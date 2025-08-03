@@ -5,9 +5,11 @@ interface EditorState {
   code: string;
   fileName: string;
   isDirty: boolean;
+  currentExampleId: string | null;
   setCode: (code: string) => void;
   setFileName: (name: string) => void;
   markClean: () => void;
+  setCurrentExample: (exampleId: string | null) => void;
 }
 
 // Test code with intentional errors to verify validation
@@ -32,16 +34,20 @@ export const useEditorStore = create<EditorState>()(
       code: DEFAULT_CODE,
       fileName: 'untitled.rs',
       isDirty: false,
+      currentExampleId: null,
       
       setCode: (code) =>
         set((state) => ({
           code,
-          isDirty: state.code !== code
+          isDirty: state.code !== code,
+          currentExampleId: null // Clear example ID when code is manually changed
         })),
         
       setFileName: (fileName) => set({ fileName }),
       
-      markClean: () => set({ isDirty: false })
+      markClean: () => set({ isDirty: false }),
+      
+      setCurrentExample: (exampleId) => set({ currentExampleId: exampleId })
     }),
     {
       name: 'regelspraak-editor'

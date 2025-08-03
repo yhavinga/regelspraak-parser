@@ -55,6 +55,13 @@ export function MonacoEditor() {
     });
   };
   
+  // Update editor value when code changes from external sources (e.g., example dropdown)
+  useEffect(() => {
+    if (editorRef.current && code !== editorRef.current.getValue()) {
+      editorRef.current.setValue(code);
+    }
+  }, [code]);
+  
   return (
     <div className="h-full w-full relative">
       <Editor

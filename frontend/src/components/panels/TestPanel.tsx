@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { PlayIcon } from 'lucide-react';
-import { exampleTemplates } from '../../data/examples';
+import { testDataExamples } from '../../data/examples';
 import { useEditorStore } from '../../stores/editor-store';
 
 interface TestPanelProps {
@@ -9,14 +9,10 @@ interface TestPanelProps {
 }
 
 export function TestPanel({ onExecute, isExecuting }: TestPanelProps) {
-  const { setCode } = useEditorStore();
+  const { currentExampleId } = useEditorStore();
   const [jsonText, setJsonText] = useState(
     JSON.stringify({
-      persoon: {
-        naam: "Jan Jansen",
-        leeftijd: 25
-      },
-      pensioenleeftijd: 65
+      "info": "Select a test data example or enter your own JSON"
     }, null, 2)
   );
   const [jsonError, setJsonError] = useState<string | null>(null);
@@ -42,33 +38,46 @@ export function TestPanel({ onExecute, isExecuting }: TestPanelProps) {
     }
   };
   
-  const loadExample = (exampleKey: string) => {
-    const example = exampleTemplates[exampleKey as keyof typeof exampleTemplates];
-    if (example) {
-      setCode(example.code);
-      setJsonText(JSON.stringify(example.testData, null, 2));
-      setJsonError(null);
+  const loadTestData = (exampleIndex: number) => {
+    if (currentExampleId && testDataExamples[currentExampleId as keyof typeof testDataExamples]) {
+      const testData = testDataExamples[currentExampleId as keyof typeof testDataExamples][exampleIndex];
+      if (testData) {
+        setJsonText(JSON.stringify(testData.data, null, 2));
+        setJsonError(null);
+      }
     }
   };
+  
+  // Get available test data for current example
+  const availableTestData = currentExampleId && testDataExamples[currentExampleId as keyof typeof testDataExamples] 
+    ? testDataExamples[currentExampleId as keyof typeof testDataExamples] 
+    : [];
 
   return (
     <div className="h-full flex flex-col bg-white">
       <div className="flex items-center justify-between p-3 border-b">
         <div className="flex items-center space-x-3">
           <h3 className="font-medium text-gray-700">Test Data (JSON)</h3>
-          <select 
-            onChange={(e) => {
-              if (e.target.value) {
-                loadExample(e.target.value);
-              }
-            }}
-            className="text-sm border rounded px-2 py-1"
-          >
-            <option value="">Load example...</option>
-            <option value="basic">Basic Age Rule</option>
-            <option value="pensioen">Pension Check</option>
-            <option value="discount">Discount Rule</option>
-          </select>
+          {availableTestData.length > 0 ? (
+            <select 
+              onChange={(e) => {
+                const index = parseInt(e.target.value);
+                if (!isNaN(index)) {
+                  loadTestData(index);
+                }
+              }}
+              className="text-sm border rounded px-2 py-1"
+            >
+              <option value="">Select test data...</option>
+              {availableTestData.map((testData, index) => (
+                <option key={index} value={index}>{testData.name}</option>
+              ))}
+            </select>
+          ) : (
+            <span className="text-sm text-gray-500">
+              {currentExampleId ? 'No test data for this example' : 'Load an example first'}
+            </span>
+          )}
         </div>
         <button
           onClick={handleExecute}

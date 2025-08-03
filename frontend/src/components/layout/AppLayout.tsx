@@ -8,13 +8,14 @@ import { useQuery } from '@tanstack/react-query';
 import { parserService } from '../../services/real-parser-service';
 import { executionService } from '../../services/execution-service';
 import { useDebounce } from '../../hooks/useDebounce';
+import { codeExamples } from '../../data/examples';
 
 interface AppLayoutProps {
   children: ReactNode;
 }
 
 export function AppLayout({ children }: AppLayoutProps) {
-  const { fileName, isDirty, code } = useEditorStore();
+  const { fileName, isDirty, code, currentExampleId, setCode, setCurrentExample } = useEditorStore();
   const [showAST, setShowAST] = useState(false);
   const [showTest, setShowTest] = useState(false);
   const [executionResult, setExecutionResult] = useState<ExecutionResult | null>(null);
@@ -56,6 +57,14 @@ export function AppLayout({ children }: AppLayoutProps) {
     }
   };
   
+  const handleLoadExample = (exampleId: string) => {
+    const example = codeExamples[exampleId as keyof typeof codeExamples];
+    if (example) {
+      setCode(example.code);
+      setCurrentExample(exampleId);
+    }
+  };
+  
   return (
     <div className="flex flex-col h-screen bg-gray-50">
       {/* Header */}
@@ -65,9 +74,26 @@ export function AppLayout({ children }: AppLayoutProps) {
             <h1 className="text-xl font-semibold text-gray-800">
               RegelSpraak Editor
             </h1>
+            <span className="text-xs text-gray-400 ml-2">
+              v{import.meta.env.DEV ? 'dev-' + Date.now() : '1.0.0'}
+            </span>
             <span className="text-sm text-gray-600">
               {fileName} {isDirty && '*'}
             </span>
+            <select 
+              value={currentExampleId || ''}
+              onChange={(e) => {
+                if (e.target.value) {
+                  handleLoadExample(e.target.value);
+                }
+              }}
+              className="text-sm border rounded px-2 py-1"
+            >
+              <option value="">Load example...</option>
+              {Object.entries(codeExamples).map(([id, example]) => (
+                <option key={id} value={id}>{example.name}</option>
+              ))}
+            </select>
             {parseResult && (
               <>
                 <span className="text-xs text-gray-500">
