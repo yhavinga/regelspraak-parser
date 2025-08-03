@@ -2,8 +2,11 @@ import { ReactNode, useState } from 'react';
 import { useEditorStore } from '../../stores/editor-store';
 import { ASTExplorer } from '../panels/ASTExplorer';
 import { ErrorPanel } from '../panels/ErrorPanel';
+import { TestPanel } from '../panels/TestPanel';
+import { ResultsPanel, ExecutionResult } from '../panels/ResultsPanel';
 import { useQuery } from '@tanstack/react-query';
 import { parserService } from '../../services/real-parser-service';
+import { executionService } from '../../services/execution-service';
 import { useDebounce } from '../../hooks/useDebounce';
 
 interface AppLayoutProps {
@@ -12,7 +15,10 @@ interface AppLayoutProps {
 
 export function AppLayout({ children }: AppLayoutProps) {
   const { fileName, isDirty, code } = useEditorStore();
-  const [showAST, setShowAST] = useState(true);
+  const [showAST, setShowAST] = useState(false);
+  const [showTest, setShowTest] = useState(false);
+  const [executionResult, setExecutionResult] = useState<ExecutionResult | null>(null);
+  const [isExecuting, setIsExecuting] = useState(false);
   const debouncedCode = useDebounce(code, 500);
   
   // Get full parse result for AST
@@ -21,6 +27,34 @@ export function AppLayout({ children }: AppLayoutProps) {
     queryFn: () => parserService.parse(debouncedCode),
     enabled: !!debouncedCode
   });
+  
+  const handleExecute = async (testData: any) => {
+    // Allow execution even if there are semantic errors, as long as we have a model
+    if (!parseResult?.model) {
+      setExecutionResult({
+        success: false,
+        output: null,
+        errors: ['Cannot execute: no valid parse model'],
+        executionTime: 0
+      });
+      return;
+    }
+    
+    setIsExecuting(true);
+    try {
+      const result = await executionService.execute(parseResult.model, testData);
+      setExecutionResult(result);
+    } catch (error: any) {
+      setExecutionResult({
+        success: false,
+        output: null,
+        errors: [error.message || 'Execution failed'],
+        executionTime: 0
+      });
+    } finally {
+      setIsExecuting(false);
+    }
+  };
   
   return (
     <div className="flex flex-col h-screen bg-gray-50">
@@ -53,8 +87,11 @@ export function AppLayout({ children }: AppLayoutProps) {
             >
               {showAST ? 'Hide' : 'Show'} AST
             </button>
-            <button className="px-3 py-1 text-sm bg-blue-500 text-white rounded hover:bg-blue-600">
-              Run
+            <button 
+              onClick={() => setShowTest(!showTest)}
+              className="px-3 py-1 text-sm bg-blue-500 text-white rounded hover:bg-blue-600"
+            >
+              {showTest ? 'Hide Test' : 'Run'}
             </button>
           </div>
         </div>
@@ -62,10 +99,27 @@ export function AppLayout({ children }: AppLayoutProps) {
       
       {/* Main content */}
       <main className="flex-1 flex overflow-hidden">
-        <div className="flex-1">
+        <div className={showTest ? "w-1/2" : "flex-1"}>
           {children}
         </div>
-        {showAST && (
+        
+        {/* Test Panel */}
+        {showTest && (
+          <div className="w-1/2 flex flex-col border-l border-gray-200">
+            <div className="h-1/2 border-b">
+              <TestPanel 
+                onExecute={handleExecute}
+                isExecuting={isExecuting}
+              />
+            </div>
+            <div className="h-1/2">
+              <ResultsPanel result={executionResult} />
+            </div>
+          </div>
+        )}
+        
+        {/* AST Panel */}
+        {showAST && !showTest && (
           <div className="w-96 bg-white border-l border-gray-200">
             {parseResult?.errors && parseResult.errors.length > 0 ? (
               <ErrorPanel errors={parseResult.errors} />

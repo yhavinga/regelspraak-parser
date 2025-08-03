@@ -6,11 +6,12 @@ const path = require('path');
 
 async function buildBrowserBundle() {
   try {
-    // First, just bundle the parser and semantic analyzer
+    // Bundle parser, analyzer, and engine for real execution
     await build({
       entryPoints: {
         'parser': 'src/parsers/antlr-parser.ts',
-        'analyzer': 'src/semantic-analyzer.ts'
+        'analyzer': 'src/semantic-analyzer.ts',
+        'engine': 'src/engine/engine.ts'
       },
       bundle: true,
       format: 'esm',
