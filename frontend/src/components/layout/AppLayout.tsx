@@ -4,9 +4,12 @@ import { ASTExplorer } from '../panels/ASTExplorer';
 import { ErrorPanel } from '../panels/ErrorPanel';
 import { TestPanel } from '../panels/TestPanel';
 import { ResultsPanel, ExecutionResult } from '../panels/ResultsPanel';
+import { WhyNotPanel } from '../panels/WhyNotPanel';
+import { DebugSuggestions } from '../panels/DebugSuggestions';
 import { useQuery } from '@tanstack/react-query';
 import { parserService } from '../../services/real-parser-service';
-import { executionService } from '../../services/execution-service';
+import { executionService, ExecutionTrace } from '../../services/execution-service';
+import { getSuggestionsForSkippedRule, generateTestDataFix, DebugSuggestion } from '../../services/debug-helpers';
 import { useDebounce } from '../../hooks/useDebounce';
 import { codeExamples } from '../../data/examples';
 import { MonacoEditorHandle } from '../editor/MonacoEditor';
@@ -76,7 +79,9 @@ export function AppLayout({ children, editorRef }: AppLayoutProps) {
   const { fileName, isDirty, code, currentExampleId, setCode, setCurrentExample, loadExample, setFileName, markClean } = useEditorStore();
   const [showAST, setShowAST] = useState(false);
   const [showTest, setShowTest] = useState(false);
+  const [showWhyNot, setShowWhyNot] = useState(false);
   const [executionResult, setExecutionResult] = useState<ExecutionResult | null>(null);
+  const [executionTrace, setExecutionTrace] = useState<ExecutionTrace | null>(null);
   const [isExecuting, setIsExecuting] = useState(false);
   const [currentFile, setCurrentFile] = useState<RegelSpraakFile | null>(null);
   const [showFileBrowser, setShowFileBrowser] = useState(false);
@@ -113,13 +118,20 @@ export function AppLayout({ children, editorRef }: AppLayoutProps) {
           errors: [errorMsg],
           executionTime: 0
         });
+        setExecutionTrace(null);
         return;
       }
       
       console.log('handleExecute - parse successful, executing with model:', freshParseResult.model);
-      // Execute with the fresh parse result
-      const result = await executionService.execute(freshParseResult.model, testData);
+      // Execute with trace collection
+      const { result, trace } = await executionService.executeWithTrace(freshParseResult.model, testData);
       setExecutionResult(result);
+      setExecutionTrace(trace);
+      
+      // Auto-show why-not panel if rules were skipped
+      if (trace.skippedRules.length > 0) {
+        setShowWhyNot(true);
+      }
     } catch (error: any) {
       setExecutionResult({
         success: false,
@@ -127,6 +139,7 @@ export function AppLayout({ children, editorRef }: AppLayoutProps) {
         errors: [error.message || 'Execution failed'],
         executionTime: 0
       });
+      setExecutionTrace(null);
     } finally {
       setIsExecuting(false);
     }
@@ -230,6 +243,33 @@ export function AppLayout({ children, editorRef }: AppLayoutProps) {
     };
     
     input.click();
+  };
+  
+  const handleJumpToRule = (ruleName: string) => {
+    // Find rule in code and jump to it
+    const lines = code.split('\n');
+    const ruleIndex = lines.findIndex(line => 
+      line.includes('Regel') && line.includes(ruleName)
+    );
+    
+    if (ruleIndex !== -1 && editorRef.current) {
+      editorRef.current.jumpToLine(ruleIndex + 1);
+    }
+  };
+  
+  const handleApplySuggestion = (suggestion: DebugSuggestion) => {
+    if (suggestion.type === 'value-change' && suggestion.action) {
+      try {
+        const currentData = JSON.parse(testData);
+        const fixedData = generateTestDataFix(currentData, [suggestion]);
+        setTestData(JSON.stringify(fixedData, null, 2));
+        
+        // Re-execute with fixed data
+        handleExecute(fixedData);
+      } catch (error) {
+        console.error('Error applying suggestion:', error);
+      }
+    }
   };
   
   
@@ -360,19 +400,31 @@ export function AppLayout({ children, editorRef }: AppLayoutProps) {
             >
               {showTest ? 'Verberg Test' : 'Test'}
             </button>
+            {executionTrace && executionTrace.skippedRules.length > 0 && (
+              <button
+                onClick={() => setShowWhyNot(!showWhyNot)}
+                className={`px-3 py-1 text-sm rounded transition-colors ${
+                  showWhyNot 
+                    ? 'bg-yellow-500 text-white hover:bg-yellow-600' 
+                    : 'bg-yellow-100 text-yellow-700 hover:bg-yellow-200'
+                }`}
+              >
+                Waarom niet? ({executionTrace.skippedRules.length})
+              </button>
+            )}
           </div>
         </div>
       </header>
       
       {/* Main content */}
       <main className="flex-1 flex overflow-hidden">
-        <div className={showTest ? "w-1/2" : "flex-1"}>
+        <div className="flex-1">
           {children}
         </div>
         
         {/* Test Panel */}
         {showTest && (
-          <div className="w-1/2 flex flex-col border-l border-gray-200">
+          <div className={`${showWhyNot ? 'w-1/3' : 'w-1/2'} flex flex-col border-l border-gray-200`}>
             <div className="h-1/2 border-b">
               <TestPanel 
                 onExecute={handleExecute}
@@ -388,7 +440,7 @@ export function AppLayout({ children, editorRef }: AppLayoutProps) {
         )}
         
         {/* AST Panel */}
-        {showAST && !showTest && (
+        {showAST && !showTest && !showWhyNot && (
           <div className="w-96 bg-white border-l border-gray-200">
             {parseResult?.errors && parseResult.errors.length > 0 ? (
               <ErrorPanel 
@@ -398,6 +450,30 @@ export function AppLayout({ children, editorRef }: AppLayoutProps) {
               />
             ) : (
               <ASTExplorer model={parseResult?.model || null} />
+            )}
+          </div>
+        )}
+        
+        {/* Why-Not Panel */}
+        {showWhyNot && (
+          <div className={`${showTest ? 'w-1/3' : 'w-96'} bg-white border-l border-gray-200 flex flex-col`}>
+            <div className="flex-1 overflow-auto">
+              <WhyNotPanel
+                trace={executionTrace}
+                onJumpToRule={handleJumpToRule}
+              />
+            </div>
+            
+            {/* Debug suggestions for first skipped rule */}
+            {executionTrace?.skippedRules[0] && (
+              <div className="p-4 border-t">
+                <DebugSuggestions
+                  suggestions={getSuggestionsForSkippedRule(
+                    executionTrace.skippedRules[0]
+                  )}
+                  onApplySuggestion={handleApplySuggestion}
+                />
+              </div>
             )}
           </div>
         )}
