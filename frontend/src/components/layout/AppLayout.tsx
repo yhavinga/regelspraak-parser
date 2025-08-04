@@ -1,4 +1,4 @@
-import { ReactNode, useState, useEffect } from 'react';
+import { ReactNode, useState, useEffect, RefObject } from 'react';
 import { useEditorStore } from '../../stores/editor-store';
 import { ASTExplorer } from '../panels/ASTExplorer';
 import { ErrorPanel } from '../panels/ErrorPanel';
@@ -9,12 +9,15 @@ import { parserService } from '../../services/real-parser-service';
 import { executionService } from '../../services/execution-service';
 import { useDebounce } from '../../hooks/useDebounce';
 import { codeExamples } from '../../data/examples';
+import { MonacoEditorHandle } from '../editor/MonacoEditor';
+import { QuickFix } from '../../services/error-formatter';
 
 interface AppLayoutProps {
   children: ReactNode;
+  editorRef: RefObject<MonacoEditorHandle>;
 }
 
-export function AppLayout({ children }: AppLayoutProps) {
+export function AppLayout({ children, editorRef }: AppLayoutProps) {
   const { fileName, isDirty, code, currentExampleId, setCode, setCurrentExample, loadExample, setFileName, markClean } = useEditorStore();
   const [showAST, setShowAST] = useState(false);
   const [showTest, setShowTest] = useState(false);
@@ -177,6 +180,26 @@ export function AppLayout({ children }: AppLayoutProps) {
     return () => document.removeEventListener('keydown', handleKeyDown);
   }, [code, fileName, isDirty]);
   
+  // Error handling functions
+  const handleJumpToError = (line: number) => {
+    editorRef.current?.jumpToLine(line);
+  };
+  
+  const handleApplyFix = (fix: QuickFix) => {
+    if (!editorRef.current) return;
+    
+    if (fix.edit.text && fix.edit.column) {
+      // Insert text at specific position
+      editorRef.current.jumpToLine(fix.edit.line);
+      setTimeout(() => {
+        editorRef.current?.insertText(fix.edit.text!);
+      }, 100);
+    } else if (fix.edit.find && fix.edit.replace) {
+      // Replace text on line
+      editorRef.current.replaceTextAtLine(fix.edit.line, fix.edit.find, fix.edit.replace);
+    }
+  };
+  
   return (
     <div className="flex flex-col h-screen bg-gray-50">
       {/* Header */}
@@ -298,7 +321,11 @@ export function AppLayout({ children }: AppLayoutProps) {
         {showAST && !showTest && (
           <div className="w-96 bg-white border-l border-gray-200">
             {parseResult?.errors && parseResult.errors.length > 0 ? (
-              <ErrorPanel errors={parseResult.errors} />
+              <ErrorPanel 
+                errors={parseResult.errors} 
+                onJumpToError={handleJumpToError}
+                onApplyFix={handleApplyFix}
+              />
             ) : (
               <ASTExplorer model={parseResult?.model || null} />
             )}
