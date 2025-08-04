@@ -15,7 +15,7 @@ interface AppLayoutProps {
 }
 
 export function AppLayout({ children }: AppLayoutProps) {
-  const { fileName, isDirty, code, currentExampleId, setCode, setCurrentExample } = useEditorStore();
+  const { fileName, isDirty, code, currentExampleId, setCode, setCurrentExample, loadExample } = useEditorStore();
   const [showAST, setShowAST] = useState(false);
   const [showTest, setShowTest] = useState(false);
   const [executionResult, setExecutionResult] = useState<ExecutionResult | null>(null);
@@ -30,20 +30,33 @@ export function AppLayout({ children }: AppLayoutProps) {
   });
   
   const handleExecute = async (testData: any) => {
-    // Allow execution even if there are semantic errors, as long as we have a model
-    if (!parseResult?.model) {
-      setExecutionResult({
-        success: false,
-        output: null,
-        errors: ['Cannot execute: no valid parse model'],
-        executionTime: 0
-      });
-      return;
-    }
-    
+    // Force a fresh parse to ensure we're executing the current code
     setIsExecuting(true);
     try {
-      const result = await executionService.execute(parseResult.model, testData);
+      console.log('handleExecute - code being parsed:', code);
+      console.log('handleExecute - code length:', code.length);
+      console.log('handleExecute - code lines:', code.split('\n').length);
+      
+      const freshParseResult = await parserService.parse(code);
+      
+      if (!freshParseResult.model) {
+        const errorMsg = freshParseResult.errors.length > 0 
+          ? `Cannot execute: parse errors - ${freshParseResult.errors[0].message}`
+          : 'Cannot execute: no model generated from parse';
+        console.log('handleExecute - parse error:', errorMsg);
+        console.log('handleExecute - full errors:', freshParseResult.errors);
+        setExecutionResult({
+          success: false,
+          output: null,
+          errors: [errorMsg],
+          executionTime: 0
+        });
+        return;
+      }
+      
+      console.log('handleExecute - parse successful, executing with model:', freshParseResult.model);
+      // Execute with the fresh parse result
+      const result = await executionService.execute(freshParseResult.model, testData);
       setExecutionResult(result);
     } catch (error: any) {
       setExecutionResult({
@@ -60,8 +73,7 @@ export function AppLayout({ children }: AppLayoutProps) {
   const handleLoadExample = (exampleId: string) => {
     const example = codeExamples[exampleId as keyof typeof codeExamples];
     if (example) {
-      setCode(example.code);
-      setCurrentExample(exampleId);
+      loadExample(example.code, exampleId);
     }
   };
   

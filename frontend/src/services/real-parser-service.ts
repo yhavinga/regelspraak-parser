@@ -44,6 +44,8 @@ class RealParserService {
     
     try {
       console.log('Parsing with real parser...', { codeLength: code.length });
+      console.log('Code to parse:', code);
+      console.log('Code lines:', code.split('\n').map((line, i) => `${i+1}: ${line}`));
       
       // Parse the code using the real ANTLR parser
       try {

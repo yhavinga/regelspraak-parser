@@ -2,12 +2,12 @@
 export const codeExamples = {
   btw: {
     name: 'BTW Calculation',
-    code: `Parameter het btw percentage : Numeriek (getal);
-Parameter het bruto bedrag : Numeriek met eenheid EUR;
+    code: `Parameter het btw_percentage : Numeriek (getal);
+Parameter het bruto_bedrag : Numeriek met eenheid EUR;
 
 Regel BTW berekening
 geldig altijd
-    Het btw bedrag moet berekend worden als het bruto bedrag maal het btw percentage gedeeld door 100.`
+    het btw_bedrag van een factuur moet berekend worden als het bruto_bedrag maal (het btw_percentage gedeeld door 100).`
   },
   
   age: {
@@ -44,13 +44,11 @@ Parameter de volwassenleeftijd : Numeriek (geheel getal) met eenheid jr;
 
 Regel Volwassenheid
 geldig altijd
-    Een Persoon is volwassen
-    indien zijn leeftijd groter of gelijk aan de volwassenleeftijd is.
+    Een Persoon is volwassen indien zijn leeftijd groter of gelijk aan de volwassenleeftijd is.
 
 Regel Minderjarigheid  
 geldig altijd
-    Een Persoon is minderjarig
-    indien zijn leeftijd kleiner dan de volwassenleeftijd is.`
+    Een Persoon is minderjarig indien zijn leeftijd kleiner dan de volwassenleeftijd is.`
   }
 };
 
@@ -60,15 +58,15 @@ export const testDataExamples = {
     {
       name: 'Standard VAT (21%)',
       data: {
-        "btw percentage": 21,
-        "bruto bedrag": 100
+        "btw_percentage": 21,
+        "bruto_bedrag": 100
       }
     },
     {
       name: 'Reduced VAT (6%)',
       data: {
-        "btw percentage": 6,
-        "bruto bedrag": 250
+        "btw_percentage": 6,
+        "bruto_bedrag": 250
       }
     }
   ],

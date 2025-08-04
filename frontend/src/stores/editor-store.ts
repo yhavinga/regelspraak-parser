@@ -10,6 +10,7 @@ interface EditorState {
   setFileName: (name: string) => void;
   markClean: () => void;
   setCurrentExample: (exampleId: string | null) => void;
+  loadExample: (code: string, exampleId: string) => void;
 }
 
 // Test code with intentional errors to verify validation
@@ -47,7 +48,14 @@ export const useEditorStore = create<EditorState>()(
       
       markClean: () => set({ isDirty: false }),
       
-      setCurrentExample: (exampleId) => set({ currentExampleId: exampleId })
+      setCurrentExample: (exampleId) => set({ currentExampleId: exampleId }),
+      
+      loadExample: (code, exampleId) =>
+        set({
+          code,
+          currentExampleId: exampleId,
+          isDirty: false // Examples are clean by definition
+        })
     }),
     {
       name: 'regelspraak-editor'

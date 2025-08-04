@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { PlayIcon } from 'lucide-react';
 import { testDataExamples } from '../../data/examples';
 import { useEditorStore } from '../../stores/editor-store';
@@ -52,6 +52,20 @@ export function TestPanel({ onExecute, isExecuting }: TestPanelProps) {
   const availableTestData = currentExampleId && testDataExamples[currentExampleId as keyof typeof testDataExamples] 
     ? testDataExamples[currentExampleId as keyof typeof testDataExamples] 
     : [];
+  
+  // Clear test data when example changes
+  useEffect(() => {
+    if (currentExampleId && availableTestData.length > 0) {
+      // Automatically load the first test data for the new example
+      loadTestData(0);
+    } else {
+      // Reset to empty state
+      setJsonText(JSON.stringify({
+        "info": "Select a test data example or enter your own JSON"
+      }, null, 2));
+      setJsonError(null);
+    }
+  }, [currentExampleId]);
 
   return (
     <div className="h-full flex flex-col bg-white">
