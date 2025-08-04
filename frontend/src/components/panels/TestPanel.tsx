@@ -6,12 +6,14 @@ import { useEditorStore } from '../../stores/editor-store';
 interface TestPanelProps {
   onExecute: (testData: any) => void;
   isExecuting?: boolean;
+  testData?: string;
+  onTestDataChange?: (data: string) => void;
 }
 
-export function TestPanel({ onExecute, isExecuting }: TestPanelProps) {
+export function TestPanel({ onExecute, isExecuting, testData, onTestDataChange }: TestPanelProps) {
   const { currentExampleId } = useEditorStore();
   const [jsonText, setJsonText] = useState(
-    JSON.stringify({
+    testData || JSON.stringify({
       "info": "Select a test data example or enter your own JSON"
     }, null, 2)
   );
@@ -19,6 +21,7 @@ export function TestPanel({ onExecute, isExecuting }: TestPanelProps) {
   
   const handleJsonChange = (value: string) => {
     setJsonText(value);
+    onTestDataChange?.(value);
     
     // Validate JSON
     try {
@@ -53,13 +56,21 @@ export function TestPanel({ onExecute, isExecuting }: TestPanelProps) {
     ? testDataExamples[currentExampleId as keyof typeof testDataExamples] 
     : [];
   
+  // Update when testData prop changes
+  useEffect(() => {
+    if (testData && testData !== '{}') {
+      setJsonText(testData);
+      setJsonError(null);
+    }
+  }, [testData]);
+  
   // Clear test data when example changes
   useEffect(() => {
     if (currentExampleId && availableTestData.length > 0) {
       // Automatically load the first test data for the new example
       loadTestData(0);
-    } else {
-      // Reset to empty state
+    } else if (!testData || testData === '{}') {
+      // Reset to empty state only if no testData provided
       setJsonText(JSON.stringify({
         "info": "Select a test data example or enter your own JSON"
       }, null, 2));

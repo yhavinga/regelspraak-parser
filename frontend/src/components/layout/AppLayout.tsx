@@ -11,6 +11,61 @@ import { useDebounce } from '../../hooks/useDebounce';
 import { codeExamples } from '../../data/examples';
 import { MonacoEditorHandle } from '../editor/MonacoEditor';
 import { QuickFix } from '../../services/error-formatter';
+import { fileService, RegelSpraakFile, FileTemplate } from '../../services/file-service';
+import { FileBrowser } from '../FileBrowser';
+import { TemplatePicker } from '../TemplatePicker';
+import { ChevronDownIcon } from '@radix-ui/react-icons';
+import { formatDistanceToNow } from 'date-fns';
+import { nl } from 'date-fns/locale';
+
+// Recent files dropdown component
+const RecentFilesDropdown = ({ onSelectFile }: { onSelectFile: (file: RegelSpraakFile) => void }) => {
+  const [isOpen, setIsOpen] = useState(false);
+  const [recentFiles, setRecentFiles] = useState<RegelSpraakFile[]>([]);
+  
+  useEffect(() => {
+    if (isOpen) {
+      setRecentFiles(fileService.getRecentFiles());
+    }
+  }, [isOpen]);
+  
+  if (recentFiles.length === 0) return null;
+  
+  return (
+    <div className="relative">
+      <button
+        onClick={() => setIsOpen(!isOpen)}
+        className="px-3 py-1 text-sm bg-gray-100 text-gray-700 rounded hover:bg-gray-200 transition-colors flex items-center space-x-1"
+      >
+        <span>Recent</span>
+        <ChevronDownIcon className="w-3 h-3" />
+      </button>
+      
+      {isOpen && (
+        <div className="absolute top-full left-0 mt-1 w-64 bg-white border rounded-lg shadow-lg z-10">
+          <div className="p-2">
+            <div className="text-xs text-gray-500 mb-2">Recent bestanden</div>
+            {recentFiles.map(file => (
+              <button
+                key={file.id}
+                onClick={() => {
+                  onSelectFile(file);
+                  setIsOpen(false);
+                }}
+                className="w-full text-left p-2 hover:bg-gray-100 rounded"
+              >
+                <div className="font-medium text-sm">{file.name}</div>
+                <div className="text-xs text-gray-500">
+                  {formatDistanceToNow(file.modified, { addSuffix: true, locale: nl })}
+                </div>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
 
 interface AppLayoutProps {
   children: ReactNode;
@@ -23,7 +78,10 @@ export function AppLayout({ children, editorRef }: AppLayoutProps) {
   const [showTest, setShowTest] = useState(false);
   const [executionResult, setExecutionResult] = useState<ExecutionResult | null>(null);
   const [isExecuting, setIsExecuting] = useState(false);
-  const [recentFiles, setRecentFiles] = useState<Array<{name: string, timestamp: number}>>([]);
+  const [currentFile, setCurrentFile] = useState<RegelSpraakFile | null>(null);
+  const [showFileBrowser, setShowFileBrowser] = useState(false);
+  const [showTemplatePicker, setShowTemplatePicker] = useState(false);
+  const [testData, setTestData] = useState('{}');
   const debouncedCode = useDebounce(code, 500);
   
   // Get full parse result for AST
@@ -78,6 +136,7 @@ export function AppLayout({ children, editorRef }: AppLayoutProps) {
     const example = codeExamples[exampleId as keyof typeof codeExamples];
     if (example) {
       loadExample(example.code, exampleId);
+      setCurrentFile(null);
     }
   };
   
@@ -89,79 +148,90 @@ export function AppLayout({ children, editorRef }: AppLayoutProps) {
     setCode('');
     setFileName('untitled.rs');
     setCurrentExample(null);
+    setCurrentFile(null);
+    setTestData('{}');
     markClean();
   };
   
   const saveFile = () => {
-    const key = `regelspraak-file-${fileName}`;
-    const fileData = {
-      name: fileName,
-      code,
-      timestamp: Date.now()
-    };
-    
-    localStorage.setItem(key, JSON.stringify(fileData));
-    
-    // Update recent files
-    const recent = [...recentFiles.filter(f => f.name !== fileName), fileData].slice(0, 10);
-    setRecentFiles(recent);
-    localStorage.setItem('regelspraak-recent-files', JSON.stringify(recent));
-    
+    if (!currentFile) {
+      const name = prompt('Bestandsnaam:');
+      if (!name) return;
+      
+      const file = fileService.saveFile({
+        name,
+        content: code,
+        testData: testData !== '{}' ? testData : undefined
+      });
+      setCurrentFile(file);
+      setFileName(file.name);
+    } else {
+      const updated = fileService.saveFile({
+        ...currentFile,
+        content: code,
+        testData: testData !== '{}' ? testData : undefined
+      });
+      setCurrentFile(updated);
+    }
     markClean();
   };
   
-  const loadFile = (name: string) => {
-    const key = `regelspraak-file-${name}`;
-    const saved = localStorage.getItem(key);
-    if (saved) {
-      const fileData = JSON.parse(saved);
-      setCode(fileData.code);
-      setFileName(fileData.name);
-      setCurrentExample(null);
-      markClean();
-    }
+  const loadFile = (file: RegelSpraakFile) => {
+    setCurrentFile(file);
+    setCode(file.content);
+    setFileName(file.name);
+    setTestData(file.testData || '{}');
+    setCurrentExample(null);
+    markClean();
+    setShowFileBrowser(false);
+  };
+  
+  const loadTemplate = (template: FileTemplate) => {
+    setCode(template.content);
+    setTestData(template.testData || '{}');
+    setCurrentFile(null);
+    setFileName('untitled.rs');
+    setCurrentExample(null);
+    markClean();
+    setShowTemplatePicker(false);
   };
   
   const exportFile = () => {
-    const blob = new Blob([code], { type: 'text/plain' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = fileName.endsWith('.rs') ? fileName : `${fileName}.rs`;
-    a.click();
-    URL.revokeObjectURL(url);
+    if (currentFile) {
+      fileService.exportFile(currentFile);
+    } else {
+      const tempFile: RegelSpraakFile = {
+        id: 'temp',
+        name: fileName,
+        content: code,
+        testData: testData !== '{}' ? testData : undefined,
+        created: new Date(),
+        modified: new Date()
+      };
+      fileService.exportFile(tempFile);
+    }
   };
   
   const importFile = () => {
     const input = document.createElement('input');
     input.type = 'file';
-    input.accept = '.rs,.regelspraak,.txt';
+    input.accept = '.rs,.regelspraak,.txt,.json';
     
-    input.onchange = (e) => {
+    input.onchange = async (e) => {
       const file = (e.target as HTMLInputElement).files?.[0];
       if (file) {
-        const reader = new FileReader();
-        reader.onload = (e) => {
-          const content = e.target?.result as string;
-          setCode(content);
-          setFileName(file.name);
-          setCurrentExample(null);
-          markClean();
-        };
-        reader.readAsText(file);
+        try {
+          const imported = await fileService.importFile(file);
+          loadFile(imported);
+        } catch (error: any) {
+          alert('Fout bij importeren: ' + error.message);
+        }
       }
     };
     
     input.click();
   };
   
-  // Load recent files on mount
-  useEffect(() => {
-    const saved = localStorage.getItem('regelspraak-recent-files');
-    if (saved) {
-      setRecentFiles(JSON.parse(saved));
-    }
-  }, []);
   
   // Keyboard shortcuts
   useEffect(() => {
@@ -174,11 +244,15 @@ export function AppLayout({ children, editorRef }: AppLayoutProps) {
         e.preventDefault();
         newFile();
       }
+      if ((e.metaKey || e.ctrlKey) && e.key === 'o') {
+        e.preventDefault();
+        setShowFileBrowser(true);
+      }
     };
     
     document.addEventListener('keydown', handleKeyDown);
     return () => document.removeEventListener('keydown', handleKeyDown);
-  }, [code, fileName, isDirty]);
+  }, [code, fileName, isDirty, currentFile, testData]);
   
   // Error handling functions
   const handleJumpToError = (line: number) => {
@@ -218,6 +292,19 @@ export function AppLayout({ children, editorRef }: AppLayoutProps) {
                 Nieuw
               </button>
               <button 
+                onClick={() => setShowTemplatePicker(true)}
+                className="px-3 py-1 text-sm bg-blue-500 text-white rounded hover:bg-blue-600 transition-colors"
+              >
+                Template
+              </button>
+              <button 
+                onClick={() => setShowFileBrowser(true)}
+                className="px-3 py-1 text-sm bg-gray-100 text-gray-700 rounded hover:bg-gray-200 transition-colors"
+                title="Open bestand (⌘O)"
+              >
+                Open
+              </button>
+              <button 
                 onClick={saveFile}
                 className="px-3 py-1 text-sm bg-gray-100 text-gray-700 rounded hover:bg-gray-200 transition-colors"
                 title="Opslaan (⌘S)"
@@ -236,31 +323,12 @@ export function AppLayout({ children, editorRef }: AppLayoutProps) {
               >
                 Exporteer
               </button>
-              
-              {/* Recent files dropdown */}
-              {recentFiles.length > 0 && (
-                <select 
-                  value=""
-                  onChange={(e) => {
-                    if (e.target.value) {
-                      loadFile(e.target.value);
-                    }
-                  }}
-                  className="text-sm border rounded px-2 py-1"
-                >
-                  <option value="">Recent bestanden...</option>
-                  {recentFiles.map(file => (
-                    <option key={file.name} value={file.name}>
-                      {file.name} ({new Date(file.timestamp).toLocaleDateString()})
-                    </option>
-                  ))}
-                </select>
-              )}
+              <RecentFilesDropdown onSelectFile={loadFile} />
             </div>
             
             <div className="flex items-center space-x-3 border-l pl-4">
               <span className="text-sm text-gray-600 font-medium">
-                {fileName} {isDirty && <span className="text-orange-500">●</span>}
+                {currentFile ? currentFile.name : fileName} {isDirty && <span className="text-orange-500">●</span>}
               </span>
               <select 
                 value={currentExampleId || ''}
@@ -309,6 +377,8 @@ export function AppLayout({ children, editorRef }: AppLayoutProps) {
               <TestPanel 
                 onExecute={handleExecute}
                 isExecuting={isExecuting}
+                testData={testData}
+                onTestDataChange={setTestData}
               />
             </div>
             <div className="h-1/2">
@@ -359,9 +429,25 @@ export function AppLayout({ children, editorRef }: AppLayoutProps) {
             )}
             <kbd className="text-xs bg-gray-200 px-2 py-0.5 rounded">⌘S opslaan</kbd>
             <kbd className="text-xs bg-gray-200 px-2 py-0.5 rounded">⌘N nieuw</kbd>
+            <kbd className="text-xs bg-gray-200 px-2 py-0.5 rounded">⌘O open</kbd>
           </div>
         </div>
       </footer>
+      
+      {/* Modals */}
+      {showFileBrowser && (
+        <FileBrowser
+          onSelectFile={loadFile}
+          onClose={() => setShowFileBrowser(false)}
+        />
+      )}
+      
+      {showTemplatePicker && (
+        <TemplatePicker
+          onSelectTemplate={loadTemplate}
+          onClose={() => setShowTemplatePicker(false)}
+        />
+      )}
     </div>
   );
 }
