@@ -2,7 +2,7 @@
 const { spawn } = require('child_process');
 const path = require('path');
 
-const serverPath = path.join(__dirname, '../lib/server/src/server-test.js');
+const serverPath = path.join(__dirname, '../dist/server.js');
 const server = spawn('node', [serverPath, '--stdio']);
 
 let response = '';
@@ -69,7 +69,7 @@ setTimeout(() => {
         uri: "file:///test2.regelspraak",
         languageId: "regelspraak",
         version: 1,
-        text: "parameter loon is een bedrag."
+        text: "Parameter loon: Bedrag;"
       }
     }
   });
