@@ -212,7 +212,9 @@ connection.onDocumentSymbol((params) => {
     }
     
     return symbols;
-  } catch (e) {
+  } catch (e: any) {
+    // Log error for debugging
+    console.error('Document symbols error:', e.message || e);
     // Return empty array if parsing fails
     return [];
   }
