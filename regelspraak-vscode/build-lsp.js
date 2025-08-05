@@ -24,6 +24,8 @@ async function buildLSPBundle() {
         // Map to the TypeScript source files directly - esbuild will compile them
         '@regelspraak/parser/parser': path.resolve(__dirname, '../typescript/src/parsers/antlr-parser.ts'),
         '@regelspraak/parser/analyzer': path.resolve(__dirname, '../typescript/src/semantic-analyzer.ts'),
+        '@regelspraak/parser/lexer': path.resolve(__dirname, '../typescript/src/generated/antlr/RegelSpraakLexer.ts'),
+        '@regelspraak/parser/parser-antlr': path.resolve(__dirname, '../typescript/src/generated/antlr/RegelSpraakParser.ts'),
       },
       // No banner needed - antlr4 will handle its own import_meta
       logLevel: 'info'

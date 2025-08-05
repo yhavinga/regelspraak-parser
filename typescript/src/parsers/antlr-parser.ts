@@ -8,6 +8,7 @@ import { DecisionTable } from '../ast/decision-tables';
 import { ObjectTypeDefinition } from '../ast/object-types';
 import { ParameterDefinition } from '../ast/parameters';
 import { DomainModel } from '../ast/domain-model';
+import { LocationMap } from '../ast/location';
 
 /**
  * Custom error listener to capture parse errors
@@ -27,8 +28,12 @@ class CustomErrorListener extends ErrorListener<any> {
 /**
  * Parser service using ANTLR4-generated parser
  */
+export interface ParseResult {
+  model: DomainModel;
+  locationMap: LocationMap;
+}
+
 export class AntlrParser {
-  private visitor = new RegelSpraakVisitorImpl();
 
   /**
    * Parse RegelSpraak source code and return array of definitions (backward compatibility)
@@ -88,6 +93,43 @@ export class AntlrParser {
   }
 
   /**
+   * Parse RegelSpraak source code and return both model and location map
+   */
+  parseWithLocations(source: string): ParseResult {
+    const chars = new CharStream(source);
+    const lexer = new RegelSpraakLexer(chars);
+    const tokens = new CommonTokenStream(lexer);
+    const parser = new RegelSpraakParser(tokens);
+    
+    // Set up custom error listener
+    const errorListener = new CustomErrorListener();
+    parser.removeErrorListeners();
+    parser.addErrorListener(errorListener);
+    
+    // Parse starting from the root rule
+    const tree = parser.regelSpraakDocument();
+    
+    // Check for parse errors
+    const errors = errorListener.getErrors();
+    if (errors.length > 0) {
+      const firstError = errors[0];
+      throw new Error(firstError);
+    }
+    
+    // Visit the tree to build our AST
+    try {
+      const visitor = new RegelSpraakVisitorImpl();
+      const model = visitor.visit(tree);
+      const locationMap = visitor.getLocationMap();
+      return { model, locationMap };
+    } catch (error) {
+      console.error('Visitor error:', error);
+      console.error('Stack:', (error as Error).stack);
+      throw error;
+    }
+  }
+
+  /**
    * Parse RegelSpraak source code and return a DomainModel
    */
   parseModel(source: string): DomainModel {
@@ -113,7 +155,8 @@ export class AntlrParser {
     
     // Visit the tree to build our AST
     try {
-      return this.visitor.visit(tree);
+      const visitor = new RegelSpraakVisitorImpl();
+      return visitor.visit(tree);
     } catch (error) {
       console.error('Visitor error:', error);
       console.error('Stack:', (error as Error).stack);
@@ -171,7 +214,8 @@ export class AntlrParser {
         throw new Error('Failed to parse expression: parser returned null');
       }
       
-      return this.visitor.visit(tree);
+      const visitor = new RegelSpraakVisitorImpl();
+      return visitor.visit(tree);
     } catch (error) {
       // Don't add "Parse error: " prefix for specific error messages
       if (error instanceof Error && 
@@ -223,7 +267,8 @@ export class AntlrParser {
         throw new Error('Failed to parse rule: parser returned null');
       }
       
-      return this.visitor.visit(tree);
+      const visitor = new RegelSpraakVisitorImpl();
+      return visitor.visit(tree);
     } catch (error) {
       // Don't add "Parse error: " prefix for specific error messages
       if (error instanceof Error && 
@@ -263,7 +308,8 @@ export class AntlrParser {
         throw new Error('Failed to parse object type: parser returned null');
       }
       
-      return this.visitor.visit(tree);
+      const visitor = new RegelSpraakVisitorImpl();
+      return visitor.visit(tree);
     } catch (error) {
       throw new Error(`Parse error: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
@@ -297,7 +343,8 @@ export class AntlrParser {
         throw new Error('Failed to parse parameter: parser returned null');
       }
       
-      return this.visitor.visit(tree);
+      const visitor = new RegelSpraakVisitorImpl();
+      return visitor.visit(tree);
     } catch (error) {
       throw new Error(`Parse error: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
@@ -331,7 +378,8 @@ export class AntlrParser {
         throw new Error('Failed to parse decision table: parser returned null');
       }
       
-      return this.visitor.visit(tree);
+      const visitor = new RegelSpraakVisitorImpl();
+      return visitor.visit(tree);
     } catch (error) {
       throw new Error(`Parse error: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }

@@ -48,6 +48,7 @@ import { ObjectTypeDefinition, KenmerkSpecification, AttributeSpecification, Dat
 import { ParameterDefinition } from '../ast/parameters';
 import { AttributeReference, StringLiteral, Literal } from '../ast/expressions';
 import { UnitSystemDefinition, UnitDefinition, UnitConversion } from '../ast/unit-systems';
+import { createSourceLocation, LocationMap } from '../ast/location';
 import { Dimension, DimensionLabel, DimensionedAttributeReference } from '../ast/dimensions';
 import { FeitType, Rol } from '../ast/feittype';
 import { DomainModel } from '../ast/domain-model';
@@ -56,6 +57,11 @@ import { DomainModel } from '../ast/domain-model';
  * Implementation of ANTLR4 visitor that builds our AST
  */
 export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements RegelSpraakVisitor<any> {
+  private locationMap: LocationMap = new WeakMap();
+  
+  getLocationMap(): LocationMap {
+    return this.locationMap;
+  }
   
   visitRegelSpraakDocument(ctx: RegelSpraakDocumentContext): DomainModel {
     // Create a proper DomainModel
@@ -950,13 +956,18 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
         condition = this.visitVoorwaardeDeel(ctx.voorwaardeDeel());
       }
       
-      return {
+      const rule = {
         type: 'Rule',
         name,
         version,
         result,
         condition
       };
+      
+      // Store location separately
+      this.locationMap.set(rule, createSourceLocation(ctx));
+      
+      return rule;
     } catch (e) {
       if (e instanceof Error) {
         throw e;
@@ -997,12 +1008,17 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
       }
     }
     
-    return {
+    const group = {
       type: 'RegelGroep',
       name,
       isRecursive,
       rules
     };
+    
+    // Store location separately
+    this.locationMap.set(group, createSourceLocation(ctx));
+    
+    return group;
   }
 
   visitAttribuutReferentie(ctx: any): AttributeReference | NavigationExpression | DimensionedAttributeReference {
@@ -1647,13 +1663,18 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
       members.push(this.visit(memberCtx));
     }
     
-    return {
+    const objType = {
       type: 'ObjectTypeDefinition',
       name,
       plural: plural.length > 0 ? plural : undefined,
       animated,
       members
     };
+    
+    // Store location separately
+    this.locationMap.set(objType, createSourceLocation(ctx));
+    
+    return objType;
   }
 
   visitObjectTypeMember(ctx: any): KenmerkSpecification | AttributeSpecification {
@@ -1860,6 +1881,9 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
       dataType
     };
     
+    // Store location separately
+    this.locationMap.set(result, createSourceLocation(ctx));
+    
     if (unit) {
       result.unit = unit;
     }
@@ -1921,7 +1945,7 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
       });
     }
     
-    return {
+    const dimension = {
       type: 'Dimension',
       name,
       plural,
@@ -1929,6 +1953,11 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
       preposition,
       labels
     };
+    
+    // Store location separately
+    this.locationMap.set(dimension, createSourceLocation(ctx));
+    
+    return dimension;
   }
 
   visitFeitTypeDefinition(ctx: any): FeitType {
@@ -2417,12 +2446,17 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
     // Visit the table structure
     const table = this.visit(ctx.beslistabelTable());
     
-    return {
+    const decisionTable = {
       type: 'DecisionTable',
       name,
       validity,
       ...table  // Contains resultColumn, conditionColumns, and rows
     };
+    
+    // Store location separately
+    this.locationMap.set(decisionTable, createSourceLocation(ctx));
+    
+    return decisionTable;
   }
   
   visitBeslistabelTable(ctx: any): any {
