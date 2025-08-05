@@ -12,7 +12,8 @@ connection.onInitialize(() => ({
   capabilities: {
     textDocumentSync: 1,
     diagnosticProvider: { interFileDependencies: false },
-    documentSymbolProvider: true
+    documentSymbolProvider: true,
+    hoverProvider: true
   }
 }));
 
@@ -217,6 +218,146 @@ connection.onDocumentSymbol((params) => {
     console.error('Document symbols error:', e.message || e);
     // Return empty array if parsing fails
     return [];
+  }
+});
+
+// Helper to find node at a given position
+function findNodeAtPosition(node: any, position: { line: number; character: number }, locationMap: WeakMap<any, any>): any {
+  const location = locationMap.get(node);
+  if (!location) {
+    // If no location for this node, try its children
+    for (const key of Object.keys(node)) {
+      const value = node[key];
+      if (value && typeof value === 'object') {
+        if (Array.isArray(value)) {
+          for (const item of value) {
+            const result = findNodeAtPosition(item, position, locationMap);
+            if (result) return result;
+          }
+        } else {
+          const result = findNodeAtPosition(value, position, locationMap);
+          if (result) return result;
+        }
+      }
+    }
+    return null;
+  }
+  
+  // Check if position is within this node's range (using 1-based lines from parser)
+  const posLine = position.line + 1; // Convert to 1-based
+  const posChar = position.character;
+  
+  if (posLine < location.startLine || posLine > location.endLine) {
+    return null;
+  }
+  
+  if (posLine === location.startLine && posChar < location.startColumn) {
+    return null;
+  }
+  
+  if (posLine === location.endLine && posChar > location.endColumn) {
+    return null;
+  }
+  
+  // Position is within this node - check children for more specific match
+  let bestMatch = node;
+  
+  // Traverse all properties looking for child nodes
+  for (const key of Object.keys(node)) {
+    const value = node[key];
+    
+    if (value && typeof value === 'object') {
+      if (Array.isArray(value)) {
+        // Check each item in array
+        for (const item of value) {
+          const childMatch = findNodeAtPosition(item, position, locationMap);
+          if (childMatch) {
+            bestMatch = childMatch;
+          }
+        }
+      } else {
+        // Check single object
+        const childMatch = findNodeAtPosition(value, position, locationMap);
+        if (childMatch) {
+          bestMatch = childMatch;
+        }
+      }
+    }
+  }
+  
+  return bestMatch;
+}
+
+// Handle hover requests
+connection.onHover((params) => {
+  const document = documents.get(params.textDocument.uri);
+  if (!document) {
+    console.error('Document not found:', params.textDocument.uri);
+    return null;
+  }
+  
+  try {
+    const parser = new AntlrParser();
+    const { model, locationMap } = parser.parseWithLocations(document.getText());
+    
+    // Find node at position
+    const node = findNodeAtPosition(model, params.position, locationMap);
+    if (!node) {
+      return null;
+    }
+    
+    // Build hover content based on node type
+    let content = '';
+    
+    // Check node type and build appropriate hover
+    if (node.type === 'ParameterDefinition' && node.name && node.dataType) {
+      // Parameter node
+      if (node.dataType.type === 'DomainReference') {
+        content = `**Parameter** \`${node.name}\`: ${node.dataType.domain}`;
+      } else if (node.dataType.type === 'DataType') {
+        content = `**Parameter** \`${node.name}\`: ${node.dataType.typeName || 'Unknown'}`;
+        if (node.dataType.unitName) {
+          content += ` (${node.dataType.unitName})`;
+        }
+      } else {
+        content = `**Parameter** \`${node.name}\``;
+      }
+    } else if (node.name && node.expression) {
+      // Rule node
+      content = `**Regel** \`${node.name}\``;
+    } else if (node.name && node.attributes) {
+      // Object type
+      content = `**Objecttype** \`${node.name}\``;
+    } else if (node.domain) {
+      // Domain
+      content = `**Domein** \`${node.domain}\``;
+    } else if (node.naam) {
+      // Feit type
+      content = `**Feittype** \`${node.naam}\``;
+    } else if (node.dagsoortName) {
+      // Dagsoort
+      content = `**Dagsoort** \`${node.dagsoortName}\``;
+    } else if (node.name && node.columns) {
+      // Decision table
+      content = `**Beslistabel** \`${node.name}\``;
+    } else if (node.name) {
+      // Generic named node
+      content = `**${node.constructor?.name || 'Item'}** \`${node.name}\``;
+    }
+    
+    if (!content) {
+      return null;
+    }
+    
+    return {
+      contents: {
+        kind: 'markdown',
+        value: content
+      }
+    };
+  } catch (e) {
+    // Return null on parse errors
+    return null;
   }
 });
 

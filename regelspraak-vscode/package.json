@@ -4,7 +4,8 @@
   "main": "dist/server.js",
   "scripts": {
     "build": "node build-lsp.js",
-    "test": "node test/simple-test.js"
+    "test": "npx tsc test/all-tests.ts --target ES2022 --module commonjs --outDir test && node test/all-tests.js",
+    "test:simple": "node test/simple-test.js"
   },
   "keywords": [],
   "author": "",
