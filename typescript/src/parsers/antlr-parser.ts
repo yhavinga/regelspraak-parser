@@ -9,6 +9,7 @@ import { ObjectTypeDefinition } from '../ast/object-types';
 import { ParameterDefinition } from '../ast/parameters';
 import { DomainModel } from '../ast/domain-model';
 import { LocationMap } from '../ast/location';
+import { SimpleAutocompleteService } from './simple-autocomplete';
 
 /**
  * Custom error listener to capture parse errors
@@ -383,5 +384,68 @@ export class AntlrParser {
     } catch (error) {
       throw new Error(`Parse error: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
+  }
+
+  /**
+   * Get expected tokens at a specific position in the text.
+   * 
+   * This uses a simple context-based approach. For production use with full
+   * parser-based autocomplete, consider implementing antlr4-c3 properly or
+   * using the ANTLR4 getExpectedTokens() with an active parse context.
+   */
+  getExpectedTokensAt(text: string, position: number): string[] {
+    const autocomplete = new SimpleAutocompleteService();
+    return autocomplete.getSuggestionsAt(text, position);
+  }
+
+  /**
+   * Convert ANTLR token information to readable Dutch text for autocomplete
+   */
+  private tokenToReadableString(tokenType: number, literal: string | null, symbolic: string | null): string {
+    // Skip EOF token
+    if (tokenType === RegelSpraakParser.EOF) {
+      return '';
+    }
+    
+    // Process literal tokens (actual text from grammar)
+    if (literal) {
+      // Remove surrounding quotes
+      const clean = literal.replace(/^'|'$/g, '');
+      
+      // Skip meta-annotations and empty strings
+      if (clean.startsWith('(') && clean.endsWith(')')) {
+        return '';
+      }
+      if (!clean || clean === 'EOF') {
+        return '';
+      }
+      
+      return clean;
+    }
+    
+    // Process symbolic tokens (named tokens like IDENTIFIER)
+    if (symbolic) {
+      // Skip internal ANTLR tokens
+      if (symbolic.startsWith('T__')) {
+        return '';
+      }
+      
+      // Skip whitespace and comment tokens
+      if (symbolic === 'WS' || symbolic === 'NEWLINE' || 
+          symbolic === 'COMMENT' || symbolic === 'LINE_COMMENT') {
+        return '';
+      }
+      
+      // Provide placeholders for value tokens
+      if (symbolic === 'IDENTIFIER') return '<naam>';
+      if (symbolic === 'NUMBER') return '<getal>';
+      if (symbolic === 'STRING') return '<tekst>';
+      
+      // For other symbolic names, we'd need a proper mapping
+      // This would be expanded based on the actual grammar
+      return '';
+    }
+    
+    return '';
   }
 }
