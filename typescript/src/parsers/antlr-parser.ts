@@ -10,6 +10,7 @@ import { ParameterDefinition } from '../ast/parameters';
 import { DomainModel } from '../ast/domain-model';
 import { LocationMap } from '../ast/location';
 import { SimpleAutocompleteService } from './simple-autocomplete';
+import { ParserBasedAutocompleteService } from './parser-based-autocomplete';
 
 /**
  * Custom error listener to capture parse errors
@@ -394,8 +395,17 @@ export class AntlrParser {
    * using the ANTLR4 getExpectedTokens() with an active parse context.
    */
   getExpectedTokensAt(text: string, position: number): string[] {
-    const autocomplete = new SimpleAutocompleteService();
-    return autocomplete.getSuggestionsAt(text, position);
+    // Get parser-based suggestions (from error messages)
+    const parserService = new ParserBasedAutocompleteService();
+    const parserSuggestions = parserService.getSuggestionsAt(text, position);
+    
+    // Also get simple pattern-based suggestions for richer completions
+    const simpleService = new SimpleAutocompleteService();
+    const simpleSuggestions = simpleService.getSuggestionsAt(text, position);
+    
+    // Combine and deduplicate
+    const allSuggestions = new Set([...parserSuggestions, ...simpleSuggestions]);
+    return [...allSuggestions].sort();
   }
 
   /**
