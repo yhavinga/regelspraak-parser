@@ -1,6 +1,7 @@
 import { CharStream, CommonTokenStream, ErrorListener, RecognitionException, Recognizer, Token } from 'antlr4';
 import RegelSpraakLexer from '../generated/antlr/RegelSpraakLexer';
 import RegelSpraakParser from '../generated/antlr/RegelSpraakParser';
+import { MultiWordHandler } from './multiword-handler';
 
 /**
  * Parser-based autocomplete that uses error messages to extract expected tokens
@@ -11,6 +12,11 @@ import RegelSpraakParser from '../generated/antlr/RegelSpraakParser';
  * - Error messages contain the expected tokens
  */
 export class ParserBasedAutocompleteService {
+  private multiWordHandler: MultiWordHandler;
+  
+  constructor() {
+    this.multiWordHandler = new MultiWordHandler();
+  }
   
   /**
    * Get suggestions by parsing incomplete input and extracting from error messages
@@ -51,7 +57,18 @@ export class ParserBasedAutocompleteService {
       // Get suggestions for partial match
       const partialSuggestions = this.getPartialMatches(lastWord);
       partialSuggestions.forEach(s => suggestions.add(s));
+      
+      // Also check for multi-word completions
+      const multiWordCompletions = this.multiWordHandler.completeMultiWord(lastWord);
+      multiWordCompletions.forEach(s => suggestions.add(s));
     }
+    
+    // Expand single tokens to include multi-word suggestions
+    const singleTokens = [...suggestions];
+    const expandedSuggestions = this.multiWordHandler.expandToMultiWord(singleTokens);
+    
+    // Combine original and expanded suggestions
+    expandedSuggestions.forEach(s => suggestions.add(s));
     
     return [...suggestions].sort();
   }
@@ -119,8 +136,42 @@ export class ParserBasedAutocompleteService {
   }
   
   private getLastPartialWord(text: string): string | null {
+    // First check for partial multi-word phrase (e.g., "is gelijk")
+    const lastLine = text.split('\n').pop() || '';
+    const trimmed = lastLine.trim();
+    
+    // Check if we have multiple words that might be part of a multi-word keyword
+    const words = trimmed.split(/\s+/);
+    if (words.length >= 2) {
+      // Try the last 2-3 words as a potential partial multi-word
+      const twoWords = words.slice(-2).join(' ').toLowerCase();
+      const threeWords = words.slice(-3).join(' ').toLowerCase();
+      
+      // Return the longer match if it could be a partial multi-word
+      if (words.length >= 3 && this.couldBePartialMultiWord(threeWords)) {
+        return threeWords;
+      }
+      if (this.couldBePartialMultiWord(twoWords)) {
+        return twoWords;
+      }
+    }
+    
+    // Fall back to single word
     const match = text.match(/\b(\w+)$/);
     return match ? match[1].toLowerCase() : null;
+  }
+  
+  private couldBePartialMultiWord(text: string): boolean {
+    // Check if this could be the start of any multi-word keyword
+    const multiWordStarts = [
+      'is gelijk', 'is groter', 'is kleiner', 'is later', 'is eerder',
+      'groter of', 'kleiner of', 'later of', 'eerder of',
+      'de som', 'de absolute', 'de eerste', 'de laatste',
+      'het aantal', 'het totaal', 'van het',
+      'moet berekend', 'moet gesteld', 'met een'
+    ];
+    
+    return multiWordStarts.some(start => start.startsWith(text));
   }
   
   private getPartialMatches(partial: string): string[] {
