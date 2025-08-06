@@ -13,6 +13,7 @@
     }
   },
   "scripts": {
+    "prebuild": "node scripts/extract-multiword.js",
     "build": "tsc && npm run check-size",
     "build:browser": "node scripts/build-for-browser.js",
     "test": "jest --runInBand",

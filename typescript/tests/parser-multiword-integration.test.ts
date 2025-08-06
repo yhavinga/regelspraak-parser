@@ -62,7 +62,9 @@ describe('Parser Multi-word Integration', () => {
     
     const suggestions = service.getSuggestionsAt(text, position);
     
-    expect(suggestions).toContain('het aantal');
+    // "het aantal" is two separate tokens, not a multi-word token
+    // Only actual multi-word tokens from lexer are expanded
     expect(suggestions).toContain('het totaal van');
+    expect(suggestions).toContain('het tijdsevenredig deel per');
   });
 });

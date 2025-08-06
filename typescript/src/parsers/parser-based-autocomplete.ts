@@ -162,16 +162,8 @@ export class ParserBasedAutocompleteService {
   }
   
   private couldBePartialMultiWord(text: string): boolean {
-    // Check if this could be the start of any multi-word keyword
-    const multiWordStarts = [
-      'is gelijk', 'is groter', 'is kleiner', 'is later', 'is eerder',
-      'groter of', 'kleiner of', 'later of', 'eerder of',
-      'de som', 'de absolute', 'de eerste', 'de laatste',
-      'het aantal', 'het totaal', 'van het',
-      'moet berekend', 'moet gesteld', 'met een'
-    ];
-    
-    return multiWordStarts.some(start => start.startsWith(text));
+    // Use the multi-word handler to check if this could be a partial
+    return this.multiWordHandler.couldBePartialMultiWord(text);
   }
   
   private getPartialMatches(partial: string): string[] {
