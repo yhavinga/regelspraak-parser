@@ -2,6 +2,7 @@ import { CharStream, CommonTokenStream, ErrorListener, RecognitionException, Rec
 import RegelSpraakLexer from '../generated/antlr/RegelSpraakLexer';
 import RegelSpraakParser from '../generated/antlr/RegelSpraakParser';
 import { MultiWordHandler } from './multiword-handler';
+import { SymbolExtractor } from './symbol-extractor';
 
 /**
  * Parser-based autocomplete that uses error messages to extract expected tokens
@@ -13,13 +14,18 @@ import { MultiWordHandler } from './multiword-handler';
  */
 export class ParserBasedAutocompleteService {
   private multiWordHandler: MultiWordHandler;
+  private symbolExtractor: SymbolExtractor;
   
   constructor() {
     this.multiWordHandler = new MultiWordHandler();
+    this.symbolExtractor = new SymbolExtractor();
   }
   
   /**
    * Get suggestions by parsing incomplete input and extracting from error messages
+   * 
+   * @param text The full document text
+   * @param position The cursor position in the document
    */
   getSuggestionsAt(text: string, position: number): string[] {
     const textUpToCursor = text.substring(0, position);
@@ -69,6 +75,17 @@ export class ParserBasedAutocompleteService {
     
     // Combine original and expanded suggestions
     expandedSuggestions.forEach(s => suggestions.add(s));
+    
+    // Add parameter names if we see 'identifier' or context suggests it
+    if (singleTokens.includes('identifier') || this.shouldSuggestParameters(textUpToCursor)) {
+      try {
+        // Extract symbols from the full document
+        const symbols = this.symbolExtractor.extractSymbols(text);
+        symbols.parameters.forEach(p => suggestions.add(p));
+      } catch (e) {
+        // Ignore parse errors when extracting symbols
+      }
+    }
     
     return [...suggestions].sort();
   }
@@ -164,6 +181,20 @@ export class ParserBasedAutocompleteService {
   private couldBePartialMultiWord(text: string): boolean {
     // Use the multi-word handler to check if this could be a partial
     return this.multiWordHandler.couldBePartialMultiWord(text);
+  }
+  
+  private shouldSuggestParameters(text: string): boolean {
+    // Suggest parameters after common patterns
+    const patterns = [
+      /indien\s+$/i,        // After "indien"
+      /geldig\s+indien\s+$/i,  // After "geldig indien"
+      /\bde\s+$/i,          // After "de" (could be "de salaris")
+      /\bhet\s+$/i,         // After "het"
+      /\bvan\s+$/i,         // After "van"
+      /wordt\s+$/i,         // After "wordt"
+    ];
+    
+    return patterns.some(p => p.test(text));
   }
   
   private getPartialMatches(partial: string): string[] {
