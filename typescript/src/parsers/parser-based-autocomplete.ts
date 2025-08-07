@@ -29,11 +29,12 @@ export class ParserBasedAutocompleteService {
    */
   getSuggestionsAt(text: string, position: number): string[] {
     const textUpToCursor = text.substring(0, position);
+    const textAfterCursor = text.substring(position);
     const suggestions = new Set<string>();
     
-    // For empty input, add invalid token to force parser error
-    // Use 'INVALID' which is lexed as IDENTIFIER but not valid at document start
-    const textToParse = textUpToCursor.trim() === '' ? 'INVALID' : textUpToCursor;
+    // For mid-line editing, we need to handle the complete context
+    // Strategy: Replace current token at cursor with a placeholder
+    const textToParse = this.prepareTextForParsing(text, position);
     
     // Try parsing and capture error message
     const errorMsg = this.parseAndGetError(textToParse);
@@ -111,6 +112,46 @@ export class ParserBasedAutocompleteService {
     }
     
     return [...suggestions].sort();
+  }
+  
+  /**
+   * Prepare text for parsing by handling mid-line cursor positions
+   * 
+   * Strategy:
+   * 1. If cursor is at end of text, use text as-is
+   * 2. If cursor is in middle, find current token and replace with placeholder
+   * 3. For empty positions, insert 'INVALID' to trigger parser error
+   */
+  private prepareTextForParsing(text: string, position: number): string {
+    const textUpToCursor = text.substring(0, position);
+    const textAfterCursor = text.substring(position);
+    
+    // If at end of document, just use text up to cursor
+    if (textAfterCursor.trim() === '') {
+      return textUpToCursor.trim() === '' ? 'INVALID' : textUpToCursor;
+    }
+    
+    // Find the current token boundaries
+    // Look backward for token start
+    let tokenStart = position;
+    while (tokenStart > 0 && /\w/.test(text[tokenStart - 1])) {
+      tokenStart--;
+    }
+    
+    // Look forward for token end
+    let tokenEnd = position;
+    while (tokenEnd < text.length && /\w/.test(text[tokenEnd])) {
+      tokenEnd++;
+    }
+    
+    // If we're in the middle of a token, replace it with a placeholder
+    if (tokenStart < position || tokenEnd > position) {
+      // Use 'PLACEHOLDER' which will trigger expected tokens at this position
+      return text.substring(0, tokenStart) + 'PLACEHOLDER' + text.substring(tokenEnd);
+    }
+    
+    // If between tokens, insert placeholder at cursor
+    return text.substring(0, position) + 'PLACEHOLDER' + text.substring(position);
   }
   
   private parseAndGetError(text: string): string | null {
