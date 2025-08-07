@@ -76,12 +76,35 @@ export class ParserBasedAutocompleteService {
     // Combine original and expanded suggestions
     expandedSuggestions.forEach(s => suggestions.add(s));
     
-    // Add parameter names if we see 'identifier' or context suggests it
-    if (singleTokens.includes('identifier') || this.shouldSuggestParameters(textUpToCursor)) {
+    // Add parameter names if context suggests it
+    // Note: Don't add just because 'identifier' is expected - that's too broad
+    const shouldSuggest = this.shouldSuggestParameters(textUpToCursor);
+    
+    // Debug output for testing
+    if (process.env.DEBUG_AUTOCOMPLETE) {
+      console.log('Debug autocomplete:', {
+        textUpToCursor: textUpToCursor.slice(-50), // Last 50 chars
+        shouldSuggest,
+        hasIdentifier: singleTokens.includes('identifier'),
+        singleTokens
+      });
+    }
+    
+    if (shouldSuggest) {
       try {
         // Extract symbols from the full document
         const symbols = this.symbolExtractor.extractSymbols(text);
-        symbols.parameters.forEach(p => suggestions.add(p));
+        
+        // If we have a partial word, filter parameters by prefix
+        if (lastWord && lastWord.length > 0) {
+          const filtered = symbols.parameters.filter(p => 
+            p.toLowerCase().startsWith(lastWord.toLowerCase())
+          );
+          filtered.forEach(p => suggestions.add(p));
+        } else {
+          // Add all parameters if no partial word
+          symbols.parameters.forEach(p => suggestions.add(p));
+        }
       } catch (e) {
         // Ignore parse errors when extracting symbols
       }
@@ -186,12 +209,17 @@ export class ParserBasedAutocompleteService {
   private shouldSuggestParameters(text: string): boolean {
     // Suggest parameters after common patterns
     const patterns = [
-      /indien\s+$/i,        // After "indien"
-      /geldig\s+indien\s+$/i,  // After "geldig indien"
-      /\bde\s+$/i,          // After "de" (could be "de salaris")
-      /\bhet\s+$/i,         // After "het"
-      /\bvan\s+$/i,         // After "van"
-      /wordt\s+$/i,         // After "wordt"
+      /indien\s+\w*$/i,        // After "indien" (with optional partial word)
+      /geldig\s+indien\s+\w*$/i,  // After "geldig indien" (with optional partial)
+      /\bde\s+\w*$/i,          // After "de" (could be "de salaris")
+      /\bhet\s+\w*$/i,         // After "het"
+      /\bvan\s+\w*$/i,         // After "van"
+      /wordt\s+\w*$/i,         // After "wordt"
+      /\+\s*\w*$/i,            // After "+" operator
+      /\-\s*\w*$/i,            // After "-" operator
+      /\*\s*\w*$/i,            // After "*" operator
+      /\/\s*\w*$/i,            // After "/" operator
+      /=\s*\w*$/i,             // After "=" assignment
     ];
     
     return patterns.some(p => p.test(text));

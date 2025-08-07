@@ -29,17 +29,12 @@ export class SymbolExtractor {
   
   extractSymbols(source: string): ExtractedSymbols {
     try {
-      // Parse the source
+      // Parse the source - this will throw on errors
       const model = this.parser.parseModel(source);
       return this.extractFromModel(model);
     } catch (error) {
-      // Parse error - return empty symbols
-      return {
-        parameters: [],
-        domains: {},
-        objectTypes: {},
-        units: []
-      };
+      // Parse error - try to extract what we can from partial parse
+      return this.extractFromPartialParse(source);
     }
   }
   
@@ -77,6 +72,60 @@ export class SymbolExtractor {
     
     // Note: Unit systems aren't fully parsed yet in the AST
     // TODO: Extract units when unit system parsing is implemented
+    
+    return symbols;
+  }
+  
+  /**
+   * Extract symbols from partial/invalid parse
+   * This is more forgiving and extracts what it can
+   */
+  private extractFromPartialParse(source: string): ExtractedSymbols {
+    const symbols: ExtractedSymbols = {
+      parameters: [],
+      domains: {},
+      objectTypes: {},
+      units: []
+    };
+    
+    // Use simple regex patterns to extract parameter names
+    // Pattern: Parameter <name>: <type>;
+    const paramPattern = /^\s*Parameter\s+(\w+)\s*:/gm;
+    let match;
+    while ((match = paramPattern.exec(source)) !== null) {
+      const paramName = match[1].toLowerCase();
+      if (!symbols.parameters.includes(paramName)) {
+        symbols.parameters.push(paramName);
+      }
+    }
+    
+    // Extract domain names and values
+    // Pattern: Domein <name> { ... }
+    const domainPattern = /^\s*Domein\s+(\w+)\s*\{([^}]*)\}/gm;
+    while ((match = domainPattern.exec(source)) !== null) {
+      const domainName = match[1].toLowerCase();
+      const domainContent = match[2];
+      
+      // Extract domain values (simple string literals)
+      const valuePattern = /'([^']+)'/g;
+      const values: string[] = [];
+      let valueMatch;
+      while ((valueMatch = valuePattern.exec(domainContent)) !== null) {
+        values.push(valueMatch[1]);
+      }
+      
+      if (values.length > 0) {
+        symbols.domains[domainName] = values;
+      }
+    }
+    
+    // Extract object type names
+    // Pattern: Objecttype <name> { ... }
+    const objectPattern = /^\s*Objecttype\s+(\w+)/gm;
+    while ((match = objectPattern.exec(source)) !== null) {
+      const typeName = match[1].toLowerCase();
+      symbols.objectTypes[typeName] = []; // We won't extract attributes in partial parse
+    }
     
     return symbols;
   }
