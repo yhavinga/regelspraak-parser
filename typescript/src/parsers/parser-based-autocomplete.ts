@@ -77,6 +77,22 @@ export class ParserBasedAutocompleteService {
     // Combine original and expanded suggestions
     expandedSuggestions.forEach(s => suggestions.add(s));
     
+    // Check if we should suggest domain values
+    const domainContext = this.getDomainContext(text, textUpToCursor);
+    if (domainContext) {
+      if (domainContext === '__DOMAIN_DEFINITION__') {
+        // Inside domain definition - suggest placeholder for more values
+        suggestions.add("'<value>'");
+      } else {
+        // Extract symbols to get domain values
+        const symbols = this.symbolExtractor.extractSymbols(text);
+        const domainValues = symbols.domains[domainContext.toLowerCase()];
+        if (domainValues) {
+          domainValues.forEach(v => suggestions.add(`'${v}'`));
+        }
+      }
+    }
+    
     // Add parameter names if context suggests it
     // Note: Don't add just because 'identifier' is expected - that's too broad
     const shouldSuggest = this.shouldSuggestParameters(textUpToCursor);
@@ -278,6 +294,83 @@ export class ParserBasedAutocompleteService {
     ];
     
     return keywords.filter(k => k.startsWith(partial));
+  }
+  
+  /**
+   * Determine if we're in a context that expects domain values
+   * Returns the domain name if we should suggest its values, null otherwise
+   */
+  private getDomainContext(fullText: string, textUpToCursor: string): string | null {
+    // 1. Inside domain definition - suggest more values
+    const domainDefMatch = /Domein\s+(\w+)\s*\{[^}]*$/i.exec(textUpToCursor);
+    if (domainDefMatch) {
+      // We're inside a domain definition but don't know what values to suggest
+      // Return a placeholder to suggest generic value format
+      return '__DOMAIN_DEFINITION__';
+    }
+    
+    // 2. After "is gelijk aan" with a domain-typed parameter
+    // Extract parameter types first
+    const paramTypes = this.extractParameterTypes(fullText);
+    
+    // Check if we're after a comparison operator with a parameter
+    const patterns = [
+      /(\w+)\s+is\s+gelijk\s+aan\s*$/i,
+      /(\w+)\s+is\s*$/i,
+      /indien\s+(\w+)\s+is\s+gelijk\s+aan\s*$/i,
+      /indien\s+(\w+)\s+is\s*$/i,
+    ];
+    
+    for (const pattern of patterns) {
+      const match = pattern.exec(textUpToCursor);
+      if (match) {
+        const paramName = match[1].toLowerCase();
+        const domainName = paramTypes[paramName];
+        if (domainName) {
+          return domainName;
+        }
+      }
+    }
+    
+    // 3. In wanneer/case statement with domain parameter
+    const wanneerMatch = /wanneer\s+(\w+)\s*$/i.exec(textUpToCursor);
+    if (wanneerMatch) {
+      const paramName = wanneerMatch[1].toLowerCase();
+      const domainName = paramTypes[paramName];
+      if (domainName) {
+        return domainName;
+      }
+    }
+    
+    return null;
+  }
+  
+  /**
+   * Extract parameter types from the document
+   * Returns a map of parameter name -> domain name
+   */
+  private extractParameterTypes(text: string): Record<string, string> {
+    const types: Record<string, string> = {};
+    
+    // Pattern: Parameter <name>: <type>;
+    // Type could be a domain name (not Numeriek, Tekst, etc.)
+    const paramPattern = /Parameter\s+(\w+)\s*:\s*(\w+)/gi;
+    let match;
+    
+    // First collect all standard types
+    const standardTypes = new Set(['numeriek', 'tekst', 'bedrag', 'datum', 'boolean', 'percentage', 'aantal']);
+    
+    while ((match = paramPattern.exec(text)) !== null) {
+      const paramName = match[1].toLowerCase();
+      const typeName = match[2].toLowerCase();
+      
+      // If it's not a standard type, it might be a domain
+      if (!standardTypes.has(typeName)) {
+        types[paramName] = typeName;
+      }
+    }
+    
+    return types;
   }
   
   /**
