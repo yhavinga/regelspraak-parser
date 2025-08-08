@@ -1,4 +1,16 @@
-import { createConnection, TextDocuments, DiagnosticSeverity, DocumentSymbol, SymbolKind, Range, MessageType } from 'vscode-languageserver/node';
+import { 
+  createConnection, 
+  TextDocuments, 
+  DiagnosticSeverity, 
+  DocumentSymbol, 
+  SymbolKind, 
+  Range, 
+  MessageType,
+  CodeAction,
+  CodeActionKind,
+  TextEdit,
+  WorkspaceEdit
+} from 'vscode-languageserver/node';
 import { TextDocument } from 'vscode-languageserver-textdocument';
 
 // Import the parser directly from dist files
@@ -19,7 +31,8 @@ connection.onInitialize(() => ({
       triggerCharacters: [' ', ':', '.', ',', '(', '<', '>', '=', '+', '-', '*', '/']
     },
     definitionProvider: true,
-    referencesProvider: true
+    referencesProvider: true,
+    codeActionProvider: true
   }
 }));
 
@@ -628,6 +641,210 @@ connection.onReferences((params) => {
     console.error('References error:', e);
     return [];
   }
+});
+
+// Handle code actions (quick fixes)
+connection.onCodeAction((params) => {
+  const document = documents.get(params.textDocument.uri);
+  if (!document) {
+    return [];
+  }
+  
+  const actions: CodeAction[] = [];
+  const diagnostics = params.context.diagnostics;
+  
+  for (const diagnostic of diagnostics) {
+    const message = diagnostic.message;
+    
+    // Fix for "Unknown parameter" errors
+    if (message.includes('Unknown parameter:')) {
+      const match = message.match(/Unknown parameter:\s*(\w+)/);
+      if (match) {
+        const paramName = match[1];
+        
+        // Find where to insert the parameter (at the beginning of the file)
+        const lines = document.getText().split('\n');
+        let insertLine = 0;
+        
+        // Find the first non-empty line or after existing parameters
+        for (let i = 0; i < lines.length; i++) {
+          if (lines[i].trim().startsWith('Parameter')) {
+            insertLine = i + 1;
+          } else if (insertLine === 0 && lines[i].trim() && !lines[i].trim().startsWith('#')) {
+            insertLine = i;
+            break;
+          }
+        }
+        
+        const action: CodeAction = {
+          title: `Create parameter '${paramName}'`,
+          kind: CodeActionKind.QuickFix,
+          edit: {
+            changes: {
+              [params.textDocument.uri]: [{
+                range: {
+                  start: { line: insertLine, character: 0 },
+                  end: { line: insertLine, character: 0 }
+                },
+                newText: `Parameter ${paramName}: Bedrag;\n`
+              }]
+            }
+          }
+        };
+        actions.push(action);
+      }
+    }
+    
+    // Fix for "mismatched input 'is' expecting ':'"
+    if (message.includes("mismatched input 'is'") && message.includes("expecting ':'")) {
+      // Find 'is een' pattern and replace with ':'
+      const lineNumber = diagnostic.range.start.line;
+      const line = document.getText().split('\n')[lineNumber];
+      const isEenMatch = line.match(/(\s+)is\s+een\s+/);
+      
+      if (isEenMatch) {
+        const startChar = line.indexOf('is een');
+        const endChar = startChar + 6; // length of 'is een'
+        
+        const action: CodeAction = {
+          title: 'Replace "is een" with ":"',
+          kind: CodeActionKind.QuickFix,
+          edit: {
+            changes: {
+              [params.textDocument.uri]: [{
+                range: {
+                  start: { line: lineNumber, character: startChar },
+                  end: { line: lineNumber, character: endChar }
+                },
+                newText: ':'
+              }]
+            }
+          }
+        };
+        actions.push(action);
+      }
+    }
+    
+    // Fix for missing semicolon
+    if (message.includes("expecting ';'") || message.includes("missing ';'")) {
+      const lineNumber = diagnostic.range.start.line;
+      const line = document.getText().split('\n')[lineNumber];
+      const trimmedLine = line.trimEnd();
+      
+      if (!trimmedLine.endsWith(';')) {
+        const action: CodeAction = {
+          title: 'Add missing semicolon',
+          kind: CodeActionKind.QuickFix,
+          edit: {
+            changes: {
+              [params.textDocument.uri]: [{
+                range: {
+                  start: { line: lineNumber, character: trimmedLine.length },
+                  end: { line: lineNumber, character: trimmedLine.length }
+                },
+                newText: ';'
+              }]
+            }
+          }
+        };
+        actions.push(action);
+      }
+    }
+    
+    // Fix for "parameter" instead of "Parameter" (capitalization)
+    if (message.includes("mismatched input 'parameter'")) {
+      const lineNumber = diagnostic.range.start.line;
+      const line = document.getText().split('\n')[lineNumber];
+      const paramMatch = line.match(/^(\s*)parameter\s+/i);  // case insensitive
+      
+      if (paramMatch) {
+        const startChar = paramMatch[1].length;
+        const endChar = startChar + 9; // length of 'parameter'
+        
+        const action: CodeAction = {
+          title: 'Capitalize "parameter" to "Parameter"',
+          kind: CodeActionKind.QuickFix,
+          edit: {
+            changes: {
+              [params.textDocument.uri]: [{
+                range: {
+                  start: { line: lineNumber, character: startChar },
+                  end: { line: lineNumber, character: endChar }
+                },
+                newText: 'Parameter'
+              }]
+            }
+          }
+        };
+        actions.push(action);
+      }
+    }
+    
+    // Fix for missing "geldig" in rules
+    if (message.includes("expecting 'geldig'") || 
+        (message.includes("no viable alternative") && diagnostic.range.start.line > 0)) {
+      // Check if this is likely a rule that's missing "geldig"
+      const lineNumber = diagnostic.range.start.line;
+      const lines = document.getText().split('\n');
+      
+      // Look for "Regel" on previous line
+      if (lineNumber > 0 && lines[lineNumber - 1].trim().startsWith('Regel')) {
+        const currentLine = lines[lineNumber];
+        const leadingWhitespace = currentLine.match(/^\s*/)?.[0] || '';
+        
+        // If current line doesn't start with "geldig"
+        if (!currentLine.trim().startsWith('geldig')) {
+          const action: CodeAction = {
+            title: 'Add "geldig altijd"',
+            kind: CodeActionKind.QuickFix,
+            edit: {
+              changes: {
+                [params.textDocument.uri]: [{
+                  range: {
+                    start: { line: lineNumber, character: 0 },
+                    end: { line: lineNumber, character: 0 }
+                  },
+                  newText: `${leadingWhitespace}geldig altijd\n`
+                }]
+              }
+            }
+          };
+          actions.push(action);
+        }
+      }
+    }
+    
+    // Fix for "=" instead of "wordt"
+    if (message.includes("mismatched input '='") && message.includes("expecting 'wordt'")) {
+      const lineNumber = diagnostic.range.start.line;
+      const line = document.getText().split('\n')[lineNumber];
+      const equalMatch = line.match(/(\s*)=\s*/);
+      
+      if (equalMatch) {
+        const startChar = line.indexOf('=');
+        const endChar = startChar + 1;
+        
+        const action: CodeAction = {
+          title: 'Replace "=" with "wordt"',
+          kind: CodeActionKind.QuickFix,
+          edit: {
+            changes: {
+              [params.textDocument.uri]: [{
+                range: {
+                  start: { line: lineNumber, character: startChar },
+                  end: { line: lineNumber, character: endChar }
+                },
+                newText: 'wordt'
+              }]
+            }
+          }
+        };
+        actions.push(action);
+      }
+    }
+  }
+  
+  return actions;
 });
 
 documents.listen(connection);
