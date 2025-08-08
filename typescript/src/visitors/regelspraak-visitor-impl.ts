@@ -442,10 +442,15 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
   }
 
   visitIdentifierExpr(ctx: IdentifierExprContext): Expression {
-    return {
+    const ref = {
       type: 'VariableReference',
       variableName: ctx.identifier().getText()
     } as VariableReference;
+    
+    // Store location for this variable reference
+    this.locationMap.set(ref, createSourceLocation(ctx));
+    
+    return ref;
   }
 
   visitParenExpr(ctx: ParenExprContext): Expression {

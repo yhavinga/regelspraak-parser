@@ -1,12 +1,15 @@
 # Autocomplete Implementation for RegelSpraak TypeScript Parser
 
-## Current Status (2025-08-07)
+## Current Status (2025-08-08)
 
-✅ **Implemented**: Working autocomplete with ~45% grammar coverage
+✅ **Implemented**: Working autocomplete with ~50% grammar coverage
 - Parser-based completion via error message extraction  
 - Multi-word keyword expansion (128 keywords from grammar)
 - Robust symbol extraction (works with incomplete documents)
 - Context-aware parameter suggestions
+- Type-aware filtering (only boolean after indien, numeric in arithmetic)
+- Domain value suggestions
+- LSP server integration with VSCode
 - Hybrid approach combining parser and pattern matching
 
 ## Summary
@@ -130,12 +133,12 @@ npm test -- tests/autocomplete-integration.test.ts
 
 ### 🚀 Next Implementation Steps (Priority Order)
 
-1. ~~**Add domain value extraction**~~ ✅ Fixed - Suggests domain values in appropriate contexts
+1. ~~**Add domain value extraction**~~ ✅ Completed (Session 8)
    - ✅ Parse domain definitions via regex extraction
    - ✅ Extract domain values for autocomplete
    - ✅ Suggest values after domain references (IS operator, case statements)
 
-2. ~~**Type-aware filtering**~~ ✅ Fixed - Only suggests type-compatible parameters
+2. ~~**Type-aware filtering**~~ ✅ Completed (Session 9)
    - ✅ Track parameter types from AST
    - ✅ Filter suggestions by expected type
    - ✅ Only boolean parameters after `indien`
@@ -143,16 +146,30 @@ npm test -- tests/autocomplete-integration.test.ts
    - ✅ Only date parameters in date operations
    - ✅ Type-compatible parameters in comparisons
 
+3. ~~**LSP Integration**~~ ✅ Completed (Session 10)
+   - ✅ Wire parser autocomplete to VSCode LSP server
+   - ✅ Map raw tokens to user-friendly names
+   - ✅ Provide completion items with proper kinds
+   - ✅ Test through full LSP request/response cycle
+
+4. **Go to Definition** (~2 hours) - COMPLETE
+   - ✅ Add definitionProvider capability to LSP
+   - ✅ Implement onDefinition handler
+   - ✅ Fixed: VariableReference nodes (not ParameterReference) in expressions
+   - ✅ Added location tracking to visitIdentifierExpr
+   - ✅ Works for parameter, domain, and object type references
+
 5. **Performance optimization** (~3 hours)
    - Cache parsed AST and symbol table
    - Implement incremental parsing
    - Debounce autocomplete requests
 
 ### 💡 Future Enhancements
-- **Snippet templates**: Provide complete code structures
-- **Goto definition**: Navigate to parameter/rule definitions
+- **Snippet templates**: Provide complete code structures (e.g., full Regel block with placeholders)
 - **Semantic highlighting**: Color based on symbol type
 - **Quick fixes**: Suggest corrections for common errors
+- **Find references**: Show all usages of a parameter/domain/rule
+- **Rename symbol**: Rename parameter across entire document
 
 ## Technical Notes
 

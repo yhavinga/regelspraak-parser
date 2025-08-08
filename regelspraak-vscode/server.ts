@@ -17,7 +17,8 @@ connection.onInitialize(() => ({
     completionProvider: {
       resolveProvider: false,
       triggerCharacters: [' ', ':', '.', ',', '(', '<', '>', '=', '+', '-', '*', '/']
-    }
+    },
+    definitionProvider: true
   }
 }));
 
@@ -226,7 +227,7 @@ connection.onDocumentSymbol((params) => {
 });
 
 // Helper to find node at a given position
-function findNodeAtPosition(node: any, position: { line: number; character: number }, locationMap: WeakMap<any, any>): any {
+function findNodeAtPosition(node: any, position: { line: number; character: number }, locationMap: WeakMap<any, any>, depth: number = 0): any {
   const location = locationMap.get(node);
   if (!location) {
     // If no location for this node, try its children
@@ -235,11 +236,11 @@ function findNodeAtPosition(node: any, position: { line: number; character: numb
       if (value && typeof value === 'object') {
         if (Array.isArray(value)) {
           for (const item of value) {
-            const result = findNodeAtPosition(item, position, locationMap);
+            const result = findNodeAtPosition(item, position, locationMap, depth + 1);
             if (result) return result;
           }
         } else {
-          const result = findNodeAtPosition(value, position, locationMap);
+          const result = findNodeAtPosition(value, position, locationMap, depth + 1);
           if (result) return result;
         }
       }
@@ -266,6 +267,11 @@ function findNodeAtPosition(node: any, position: { line: number; character: numb
   // Position is within this node - check children for more specific match
   let bestMatch = node;
   
+  // Debug deep traversal
+  if (depth === 0) {
+    console.error(`Starting traversal at node type: ${node.type || 'unknown'}`);
+  }
+  
   // Traverse all properties looking for child nodes
   for (const key of Object.keys(node)) {
     const value = node[key];
@@ -274,14 +280,14 @@ function findNodeAtPosition(node: any, position: { line: number; character: numb
       if (Array.isArray(value)) {
         // Check each item in array
         for (const item of value) {
-          const childMatch = findNodeAtPosition(item, position, locationMap);
+          const childMatch = findNodeAtPosition(item, position, locationMap, depth + 1);
           if (childMatch) {
             bestMatch = childMatch;
           }
         }
       } else {
-        // Check single object
-        const childMatch = findNodeAtPosition(value, position, locationMap);
+        // Always check the object, regardless of whether it has location
+        const childMatch = findNodeAtPosition(value, position, locationMap, depth + 1);
         if (childMatch) {
           bestMatch = childMatch;
         }
@@ -453,6 +459,95 @@ function getCompletionItemKind(suggestion: string): number {
   // Default to variable for parameters
   return CompletionItemKind.Variable;
 }
+
+// Handle go to definition requests
+connection.onDefinition((params) => {
+  const document = documents.get(params.textDocument.uri);
+  if (!document) {
+    return null;
+  }
+  
+  try {
+    const parser = new AntlrParser();
+    const { model, locationMap } = parser.parseWithLocations(document.getText());
+    
+    // Find what's at the cursor position
+    const node = findNodeAtPosition(model, params.position, locationMap);
+    if (!node) {
+      console.error('No node found at position:', params.position);
+      // Debug: show what's in the model
+      console.error('Model has', model.parameters.length, 'parameters');
+      console.error('Model has', model.rules.length, 'rules');
+      if (model.rules.length > 0) {
+        console.error('First rule expression type:', model.rules[0].expression?.type);
+      }
+      return null;
+    }
+    
+    console.error('Found node:', { type: node.type, name: node.name, variableName: node.variableName });
+    
+    // If it's a variable reference (parameter references in expressions are VariableReference nodes)
+    if (node.type === 'VariableReference' && node.variableName) {
+      // Search for parameter definition
+      for (const param of model.parameters) {
+        if (param.name === node.variableName) {
+          const location = locationMap.get(param);
+          if (location) {
+            return {
+              uri: params.textDocument.uri,
+              range: {
+                start: { line: location.startLine - 1, character: location.startColumn },
+                end: { line: location.endLine - 1, character: location.endColumn }
+              }
+            };
+          }
+        }
+      }
+    }
+    
+    // If it's a domain reference, find the domain definition
+    if (node.type === 'DomainReference' && node.domain) {
+      for (const domain of model.domains) {
+        if (domain.name === node.domain) {
+          const location = locationMap.get(domain);
+          if (location) {
+            return {
+              uri: params.textDocument.uri,
+              range: {
+                start: { line: location.startLine - 1, character: location.startColumn },
+                end: { line: location.endLine - 1, character: location.endColumn }
+              }
+            };
+          }
+        }
+      }
+    }
+    
+    // If it's an object type reference, find its definition
+    if ((node.type === 'ObjectTypeReference' || node.objectType) && (node.name || node.objectType)) {
+      const typeName = node.objectType || node.name;
+      for (const objType of model.objectTypes) {
+        if (objType.name === typeName) {
+          const location = locationMap.get(objType);
+          if (location) {
+            return {
+              uri: params.textDocument.uri,
+              range: {
+                start: { line: location.startLine - 1, character: location.startColumn },
+                end: { line: location.endLine - 1, character: location.endColumn }
+              }
+            };
+          }
+        }
+      }
+    }
+    
+    return null;
+  } catch (e) {
+    console.error('Definition error:', e);
+    return null;
+  }
+});
 
 documents.listen(connection);
 connection.listen();

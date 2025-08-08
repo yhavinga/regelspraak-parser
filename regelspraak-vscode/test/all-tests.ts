@@ -191,6 +191,75 @@ Regel BerekenLoon
   console.log('  ✅ Document symbols working\n');
 }
 
+async function testGoToDefinition() {
+  console.log('Testing go to definition...');
+  
+  // Send document with parameter references
+  sendMessage(server, {
+    jsonrpc: '2.0',
+    method: 'textDocument/didOpen',
+    params: {
+      textDocument: {
+        uri: 'file:///gotodef-test.rs',
+        languageId: 'regelspraak',
+        version: 1,
+        text: `Parameter salaris: Bedrag;
+Parameter bonus: Bedrag;
+Regel Totaal
+  geldig altijd
+    Het totaal wordt salaris + bonus.`
+      }
+    }
+  });
+  
+  // Wait for document to be processed
+  await waitForMessage(server, 
+    msg => msg.method === 'textDocument/publishDiagnostics' && 
+           msg.params.uri === 'file:///gotodef-test.rs'
+  );
+  
+  // Request go to definition for 'salaris' in expression
+  const defId = messageId++;
+  sendMessage(server, {
+    jsonrpc: '2.0',
+    id: defId,
+    method: 'textDocument/definition',
+    params: {
+      textDocument: { uri: 'file:///gotodef-test.rs' },
+      position: { line: 4, character: 21 }  // On "salaris" in expression (line: "    Het totaal wordt salaris + bonus.")
+    }
+  });
+  
+  const defResponse = await waitForMessage(server, msg => msg.id === defId);
+  
+  if (!defResponse.result) {
+    console.log('  ❌ No definition found');
+    console.log('  Response:', JSON.stringify(defResponse));
+  } else {
+    console.log('  ✓ Returns definition location');
+    console.assert(defResponse.result.uri === 'file:///gotodef-test.rs', '  ✓ Same file');
+    console.assert(defResponse.result.range.start.line === 0, '  ✓ Points to parameter definition line');
+    console.assert(defResponse.result.range.start.character === 10, '  ✓ Points to parameter name start');
+  }
+  
+  // Test go to definition on empty space
+  const emptyDefId = messageId++;
+  sendMessage(server, {
+    jsonrpc: '2.0',
+    id: emptyDefId,
+    method: 'textDocument/definition',
+    params: {
+      textDocument: { uri: 'file:///gotodef-test.rs' },
+      position: { line: 10, character: 0 }  // Beyond document
+    }
+  });
+  
+  const emptyDefResponse = await waitForMessage(server, msg => msg.id === emptyDefId);
+  console.assert(emptyDefResponse.result === null, '  ✓ Returns null for empty space');
+  
+  console.log('  ✅ Go to definition working\n');
+}
+
 async function testHover() {
   console.log('Testing hover...');
   
@@ -262,6 +331,7 @@ async function runAllTests() {
     await testDiagnostics();
     await testDocumentSymbols();
     await testHover();
+    await testGoToDefinition();
     
     console.log('✅ All tests passed!');
     server.kill();
