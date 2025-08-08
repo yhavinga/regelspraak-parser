@@ -268,10 +268,10 @@ function findNodeAtPosition(node: any, position: { line: number; character: numb
   // Position is within this node - check children for more specific match
   let bestMatch = node;
   
-  // Debug deep traversal
-  if (depth === 0) {
-    console.error(`Starting traversal at node type: ${node.type || 'unknown'}`);
-  }
+  // Debug deep traversal (disabled)
+  // if (depth === 0) {
+  //   console.error(`Starting traversal at node type: ${node.type || 'unknown'}`);
+  // }
   
   // Traverse all properties looking for child nodes
   for (const key of Object.keys(node)) {
@@ -281,9 +281,11 @@ function findNodeAtPosition(node: any, position: { line: number; character: numb
       if (Array.isArray(value)) {
         // Check each item in array
         for (const item of value) {
-          const childMatch = findNodeAtPosition(item, position, locationMap, depth + 1);
-          if (childMatch) {
-            bestMatch = childMatch;
+          if (item && typeof item === 'object') {
+            const childMatch = findNodeAtPosition(item, position, locationMap, depth + 1);
+            if (childMatch) {
+              bestMatch = childMatch;
+            }
           }
         }
       } else {
@@ -473,19 +475,11 @@ connection.onDefinition((params) => {
     const { model, locationMap } = parser.parseWithLocations(document.getText());
     
     // Find what's at the cursor position
-    const node = findNodeAtPosition(model, params.position, locationMap);
+    let node = findNodeAtPosition(model, params.position, locationMap);
     if (!node) {
-      console.error('No node found at position:', params.position);
-      // Debug: show what's in the model
-      console.error('Model has', model.parameters.length, 'parameters');
-      console.error('Model has', model.rules.length, 'rules');
-      if (model.rules.length > 0) {
-        console.error('First rule expression type:', model.rules[0].expression?.type);
-      }
       return null;
     }
     
-    console.error('Found node:', { type: node.type, name: node.name, variableName: node.variableName });
     
     // If it's a variable reference (parameter references in expressions are VariableReference nodes)
     if (node.type === 'VariableReference' && node.variableName) {

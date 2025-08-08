@@ -500,16 +500,22 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
       if (Array.isArray(identifiers)) {
         // Join multiple identifiers with space, preserving case
         const variableName = identifiers.map(id => id.getText()).join(' ');
-        return {
+        const ref = {
           type: 'VariableReference',
           variableName
         } as VariableReference;
+        // Store location for this variable reference
+        this.locationMap.set(ref, createSourceLocation(ctx));
+        return ref;
       } else if (identifiers) {
         // Single identifier
-        return {
+        const ref = {
           type: 'VariableReference',
           variableName: identifiers.getText()
         } as VariableReference;
+        // Store location for this variable reference
+        this.locationMap.set(ref, createSourceLocation(ctx));
+        return ref;
       }
     }
     
@@ -518,10 +524,13 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
     const match = text.match(/^(?:de|het|een|zijn|alle)?\s*(.+)$/i);
     const variableName = match ? match[1] : text;
     
-    return {
+    const ref = {
       type: 'VariableReference',
       variableName
     } as VariableReference;
+    // Store location for this variable reference
+    this.locationMap.set(ref, createSourceLocation(ctx));
+    return ref;
   }
 
   visitStringLiteralExpr(ctx: any): Expression {
@@ -1248,10 +1257,12 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
       // Fallback
       const text = ctx.getText();
       const variableName = text.replace(/^(de|het|een|zijn|alle)\s*/i, '');
-      return {
+      const ref = {
         type: 'VariableReference',
         variableName
       } as VariableReference;
+      this.locationMap.set(ref, createSourceLocation(ctx));
+      return ref;
     }
     
     const basisOnderwerpCtx = basisOnderwerpList[0];
@@ -1271,27 +1282,33 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
       // Note: If hasAlle is true, we still return a regular VariableReference
       // The handling of "alle" is done by the parent context (e.g., in aggregation functions)
         
-      return {
+      const ref = {
         type: 'VariableReference',
         variableName: objectTypeName
       } as VariableReference;
+      this.locationMap.set(ref, createSourceLocation(ctx));
+      return ref;
     }
     
     // Check for HIJ pronoun
     if (basisOnderwerpCtx.HIJ && basisOnderwerpCtx.HIJ()) {
-      return {
+      const ref = {
         type: 'VariableReference',
         variableName: 'hij'
       } as VariableReference;
+      this.locationMap.set(ref, createSourceLocation(ctx));
+      return ref;
     }
     
     // Fallback
     const text = ctx.getText();
     const variableName = text.replace(/^(de|het|een|zijn|alle)\s*/i, '');
-    return {
+    const ref = {
       type: 'VariableReference',
       variableName
     } as VariableReference;
+    this.locationMap.set(ref, createSourceLocation(ctx));
+    return ref;
   }
   
   // Helper method to convert onderwerpReferentie to a path list
@@ -1482,11 +1499,16 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
       throw new Error('Expected gelijkstelling operator');
     }
     
-    return {
+    const result = {
       type: 'Gelijkstelling',
       target,
       expression
     };
+    
+    // Store location for this gelijkstelling
+    this.locationMap.set(result, createSourceLocation(ctx));
+    
+    return result;
   }
 
   visitObjectCreatieResultaat(ctx: any): any {
