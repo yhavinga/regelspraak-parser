@@ -135,10 +135,13 @@ npm test -- tests/autocomplete-integration.test.ts
    - ✅ Extract domain values for autocomplete
    - ✅ Suggest values after domain references (IS operator, case statements)
 
-2. **Type-aware filtering** (~4 hours)
-   - Track parameter types from AST
-   - Filter suggestions by expected type
-   - E.g., only boolean parameters after `indien`
+2. ~~**Type-aware filtering**~~ ✅ Fixed - Only suggests type-compatible parameters
+   - ✅ Track parameter types from AST
+   - ✅ Filter suggestions by expected type
+   - ✅ Only boolean parameters after `indien`
+   - ✅ Only numeric types in arithmetic operations
+   - ✅ Only date parameters in date operations
+   - ✅ Type-compatible parameters in comparisons
 
 5. **Performance optimization** (~3 hours)
    - Cache parsed AST and symbol table
@@ -189,15 +192,15 @@ The implemented solution provides practical, working autocomplete for RegelSpraa
 - ✅ **Robust symbol extraction** - Works even with incomplete/invalid documents
 - ✅ **Context-aware parameters** - Suggests parameters after indien, de, het, operators
 - ✅ **Domain value suggestions** - Suggests values when typing domain-typed parameters
+- ✅ **Type-aware filtering** - Only suggests type-compatible parameters based on context
 - ✅ **Partial matching** - Filters suggestions by typed prefix
-- ✅ **45% coverage** - Significant portion of language supported
+- ✅ **50% coverage** - Half of the language supported with intelligent filtering
 - ✅ **Mid-line editing** - Works correctly when editing in middle of lines
-- ✅ **Well tested** - 9 test suites, 19 tests passing
+- ✅ **Well tested** - 10 test suites, 24 tests passing
 
 ### Current Limitations
 - ❌ No unit value suggestions (only domains implemented)
-- ❌ No type-aware filtering
-- ❌ Re-parses on every keystroke
+- ❌ Re-parses on every keystroke (no caching)
 
 ### Bottom Line
 Not perfect, but ships today with real value. Users get intelligent suggestions based on both grammar and their code. That's the difference between a toy and a tool.

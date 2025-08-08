@@ -97,33 +97,56 @@ export class ParserBasedAutocompleteService {
     // Note: Don't add just because 'identifier' is expected - that's too broad
     const shouldSuggest = this.shouldSuggestParameters(textUpToCursor);
     
-    // Debug output for testing
-    if (process.env.DEBUG_AUTOCOMPLETE) {
-      console.log('Debug autocomplete:', {
-        textUpToCursor: textUpToCursor.slice(-50), // Last 50 chars
-        shouldSuggest,
-        hasIdentifier: singleTokens.includes('identifier'),
-        singleTokens
-      });
-    }
-    
     if (shouldSuggest) {
       try {
         // Extract symbols from the full document
         const symbols = this.symbolExtractor.extractSymbols(text);
         
+        // Get parameter types for filtering
+        const paramTypes = this.extractParameterTypes(text);
+        
+        // Get expected type context
+        const expectedType = this.getExpectedTypeContext(textUpToCursor, paramTypes);
+        
+        // Debug output for testing
+        if (process.env.DEBUG_AUTOCOMPLETE) {
+          console.log('Debug autocomplete:', {
+            textUpToCursor: textUpToCursor.slice(-50), // Last 50 chars
+            shouldSuggest,
+            expectedType,
+            paramTypes,
+            allParams: symbols.parameters,
+            hasIdentifier: singleTokens.includes('identifier'),
+            singleTokens
+          });
+        }
+        
+        // Filter parameters by type if needed
+        let applicableParams = this.filterParametersByType(
+          symbols.parameters,
+          paramTypes,
+          expectedType
+        );
+        
+        // Debug filtered params
+        if (process.env.DEBUG_AUTOCOMPLETE) {
+          console.log('Filtered params:', applicableParams);
+        }
+        
         // If we have a partial word, filter parameters by prefix
         if (lastWord && lastWord.length > 0) {
-          const filtered = symbols.parameters.filter(p => 
+          applicableParams = applicableParams.filter(p => 
             p.toLowerCase().startsWith(lastWord.toLowerCase())
           );
-          filtered.forEach(p => suggestions.add(p));
-        } else {
-          // Add all parameters if no partial word
-          symbols.parameters.forEach(p => suggestions.add(p));
         }
+        
+        // Add filtered parameters to suggestions
+        applicableParams.forEach(p => suggestions.add(p));
       } catch (e) {
         // Ignore parse errors when extracting symbols
+        if (process.env.DEBUG_AUTOCOMPLETE) {
+          console.log('Error extracting symbols:', e);
+        }
       }
     }
     
@@ -277,6 +300,10 @@ export class ParserBasedAutocompleteService {
       /\*\s*\w*$/i,            // After "*" operator
       /\/\s*\w*$/i,            // After "/" operator
       /=\s*\w*$/i,             // After "=" assignment
+      />\s*\w*$/i,             // After ">" comparison
+      /<\s*\w*$/i,             // After "<" comparison
+      />=\s*\w*$/i,            // After ">=" comparison
+      /<=\s*\w*$/i,            // After "<=" comparison
     ];
     
     return patterns.some(p => p.test(text));
@@ -313,6 +340,9 @@ export class ParserBasedAutocompleteService {
     // Extract parameter types first
     const paramTypes = this.extractParameterTypes(fullText);
     
+    // Standard types that are not domains
+    const standardTypes = new Set(['numeriek', 'tekst', 'bedrag', 'datum', 'boolean', 'percentage', 'aantal']);
+    
     // Check if we're after a comparison operator with a parameter
     const patterns = [
       /(\w+)\s+is\s+gelijk\s+aan\s*$/i,
@@ -325,9 +355,10 @@ export class ParserBasedAutocompleteService {
       const match = pattern.exec(textUpToCursor);
       if (match) {
         const paramName = match[1].toLowerCase();
-        const domainName = paramTypes[paramName];
-        if (domainName) {
-          return domainName;
+        const typeName = paramTypes[paramName];
+        // Only suggest domain values if it's not a standard type
+        if (typeName && !standardTypes.has(typeName)) {
+          return typeName;
         }
       }
     }
@@ -336,9 +367,10 @@ export class ParserBasedAutocompleteService {
     const wanneerMatch = /wanneer\s+(\w+)\s*$/i.exec(textUpToCursor);
     if (wanneerMatch) {
       const paramName = wanneerMatch[1].toLowerCase();
-      const domainName = paramTypes[paramName];
-      if (domainName) {
-        return domainName;
+      const typeName = paramTypes[paramName];
+      // Only suggest domain values if it's not a standard type
+      if (typeName && !standardTypes.has(typeName)) {
+        return typeName;
       }
     }
     
@@ -347,30 +379,111 @@ export class ParserBasedAutocompleteService {
   
   /**
    * Extract parameter types from the document
-   * Returns a map of parameter name -> domain name
+   * Returns a map of parameter name -> type (including standard types and domains)
    */
   private extractParameterTypes(text: string): Record<string, string> {
     const types: Record<string, string> = {};
     
     // Pattern: Parameter <name>: <type>;
-    // Type could be a domain name (not Numeriek, Tekst, etc.)
     const paramPattern = /Parameter\s+(\w+)\s*:\s*(\w+)/gi;
     let match;
-    
-    // First collect all standard types
-    const standardTypes = new Set(['numeriek', 'tekst', 'bedrag', 'datum', 'boolean', 'percentage', 'aantal']);
     
     while ((match = paramPattern.exec(text)) !== null) {
       const paramName = match[1].toLowerCase();
       const typeName = match[2].toLowerCase();
-      
-      // If it's not a standard type, it might be a domain
-      if (!standardTypes.has(typeName)) {
-        types[paramName] = typeName;
-      }
+      types[paramName] = typeName;
     }
     
     return types;
+  }
+  
+  /**
+   * Get the expected type context at cursor position
+   */
+  private getExpectedTypeContext(textUpToCursor: string, paramTypes?: Record<string, string>): string | null {
+    // After indien - expect boolean
+    if (/indien\s*$/i.test(textUpToCursor)) {
+      return 'boolean';
+    }
+    
+    // After comparison with a typed parameter  
+    const comparisonMatch = /(\w+)\s*[><=]\s*$/i.exec(textUpToCursor);
+    if (comparisonMatch && paramTypes) {
+      const leftParam = comparisonMatch[1].toLowerCase();
+      // Return the type of the left-hand parameter
+      const leftType = paramTypes[leftParam];
+      if (leftType) {
+        return leftType; // Return the type not the parameter name
+      }
+    }
+    
+    // In date operations (check for parameter followed by minus)
+    const dateOpMatch = /(\w+)\s*[-]\s*$/i.exec(textUpToCursor);
+    if (dateOpMatch && paramTypes) {
+      const leftParam = dateOpMatch[1].toLowerCase();
+      const leftType = paramTypes[leftParam];
+      // If it's a date type, expect another date
+      if (leftType === 'datum') {
+        return 'datum';
+      }
+    }
+    
+    // In arithmetic operations - expect numeric
+    if (/[+\-*/]\s*$/i.test(textUpToCursor)) {
+      return 'numeric';
+    }
+    
+    return null;
+  }
+  
+  /**
+   * Filter parameters by type
+   */
+  private filterParametersByType(
+    parameters: string[], 
+    paramTypes: Record<string, string>,
+    expectedType: string | null
+  ): string[] {
+    if (!expectedType) {
+      return parameters;
+    }
+    
+    // Define numeric types
+    const numericTypes = new Set(['numeriek', 'bedrag', 'percentage', 'aantal']);
+    
+    const filtered = parameters.filter(param => {
+      const paramType = paramTypes[param.toLowerCase()];
+      
+      if (process.env.DEBUG_AUTOCOMPLETE) {
+        console.log(`Checking param '${param}' with type '${paramType}' against expected '${expectedType}'`);
+      }
+      
+      if (!paramType) return false;
+      
+      // Boolean context
+      if (expectedType === 'boolean') {
+        return paramType === 'boolean';
+      }
+      
+      // Numeric context - any numeric type is compatible
+      if (expectedType === 'numeric') {
+        return numericTypes.has(paramType);
+      }
+      
+      // For numeric types, allow mixing with other numeric types
+      if (numericTypes.has(expectedType) && numericTypes.has(paramType)) {
+        return true;
+      }
+      
+      // Direct type match
+      return paramType === expectedType;
+    });
+    
+    if (process.env.DEBUG_AUTOCOMPLETE) {
+      console.log(`Filtered ${parameters.length} params to ${filtered.length} for type '${expectedType}'`);
+    }
+    
+    return filtered;
   }
   
   /**

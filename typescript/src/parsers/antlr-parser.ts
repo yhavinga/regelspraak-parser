@@ -399,13 +399,15 @@ export class AntlrParser {
     const parserService = new ParserBasedAutocompleteService();
     const parserSuggestions = parserService.getSuggestionsAt(text, position);
     
-    // Also get simple pattern-based suggestions for richer completions
-    const simpleService = new SimpleAutocompleteService();
-    const simpleSuggestions = simpleService.getSuggestionsAt(text, position);
+    // If parser has suggestions, use those (they have type-aware filtering)
+    // Otherwise fall back to simple pattern-based suggestions
+    if (parserSuggestions.length > 0) {
+      return parserSuggestions;
+    }
     
-    // Combine and deduplicate
-    const allSuggestions = new Set([...parserSuggestions, ...simpleSuggestions]);
-    return [...allSuggestions].sort();
+    // Fallback to simple pattern-based suggestions
+    const simpleService = new SimpleAutocompleteService();
+    return simpleService.getSuggestionsAt(text, position);
   }
 
   /**
