@@ -99,7 +99,11 @@ export class SemanticAnalyzer {
       this.globalScope.define(param.name, {
         name: param.name,
         kind: SymbolKind.PARAMETER,
-        datatype: param.datatype,
+        datatype: typeof param.dataType === 'object' && 'typeName' in param.dataType ? 
+                  (param.dataType as any).typeName : 
+                  typeof param.dataType === 'object' && 'domain' in param.dataType ? 
+                  (param.dataType as any).domain : 
+                  undefined,
         definition: param
       });
     }
@@ -168,8 +172,8 @@ export class SemanticAnalyzer {
 
     // Collect dagsoort definitions
     for (const dagsoort of model.dagsoortDefinities || []) {
-      this.globalScope.define(dagsoort.name, {
-        name: dagsoort.name,
+      this.globalScope.define(dagsoort.dagsoortName, {
+        name: dagsoort.dagsoortName,
         kind: SymbolKind.DAGSOORT,
         definition: dagsoort
       });
@@ -184,7 +188,7 @@ export class SemanticAnalyzer {
 
     // Validate rule groups
     for (const regelGroep of model.regelGroepen || []) {
-      for (const regel of regelGroep.regels) {
+      for (const regel of regelGroep.rules) {
         this.validateRegel(regel);
       }
     }
@@ -231,7 +235,7 @@ export class SemanticAnalyzer {
     
     if (regel.subject.type === 'VariableReference') {
       const varRef = regel.subject as VariableReference;
-      objectTypeName = varRef.name || (varRef as any).variableName;
+      objectTypeName = varRef.variableName;
     } else if (regel.subject.type === 'NavigationExpression') {
       // Handle "Een Persoon" which might be parsed as NavigationExpression
       const navExpr = regel.subject as any;
@@ -246,13 +250,13 @@ export class SemanticAnalyzer {
     
     const kenmerkName = regel.characteristic;
     
-    const objectType = this.objectTypes.get(objectTypeName);
-    if (!objectType) {
+    const objectType = this.objectTypes.get(objectTypeName || '');
+    if (!objectType && objectTypeName) {
       this.addError(`Unknown object type: ${objectTypeName}`);
       return;
     }
 
-    const kenmerk = objectType.members.find(m => 
+    const kenmerk = objectType?.members.find(m => 
       m.type === 'KenmerkSpecification' && m.name === kenmerkName
     ) as KenmerkSpecification | undefined;
     if (!kenmerk) {
@@ -261,7 +265,7 @@ export class SemanticAnalyzer {
 
     // Validate condition if present
     if ('condition' in regel && regel.condition) {
-      this.validateExpression(regel.condition);
+      this.validateExpression(regel.condition as Expression);
     }
   }
 
@@ -298,8 +302,8 @@ export class SemanticAnalyzer {
   private validateBeslistabel(beslistabel: DecisionTable): void {
     // Validate expressions in decision table
     for (const row of beslistabel.rows) {
-      if (row.result) {
-        this.validateExpression(row.result);
+      if ('result' in row && row.result) {
+        this.validateExpression((row as any).result);
       }
     }
   }
@@ -325,18 +329,13 @@ export class SemanticAnalyzer {
         this.validateAttributeReference(expr as AttributeReference);
         break;
       
-      case 'ParameterReference':
-        const paramRef = expr as ParameterReference;
-        const paramName = paramRef.name || (paramRef as any).parameterName;
-        if (!this.parameters.has(paramName)) {
-          this.addError(`Unknown parameter: ${paramName}`);
-        }
-        break;
+      // ParameterReference doesn't exist, using VariableReference
+      // This case is handled above
       
       case 'VariableReference':
         // In RegelSpraak, parameters are often referenced like variables with articles
         const varRef = expr as VariableReference;
-        const varName = varRef.name || (varRef as any).variableName;
+        const varName = varRef.variableName;
         
         // Check if it's a parameter reference
         if (!this.parameters.has(varName) && !this.objectTypes.has(varName)) {
@@ -377,7 +376,7 @@ export class SemanticAnalyzer {
     switch (expr.type) {
       case 'Literal':
         const lit = expr as Literal;
-        switch (lit.literalType) {
+        switch ((lit as any).literalType) {
           case 'number': return 'Numeriek';
           case 'string': return 'Tekst';
           case 'boolean': return 'Boolean';
@@ -398,11 +397,8 @@ export class SemanticAnalyzer {
         // Would need to resolve attribute type
         return 'Unknown';
       
-      case 'ParameterReference':
-        const paramRef = expr as ParameterReference;
-        const paramName = paramRef.name || (paramRef as any).parameterName;
-        const param = this.parameters.get(paramName);
-        return param?.datatype || 'Unknown';
+      // ParameterReference doesn't exist, using VariableReference
+      // This case is handled above
       
       case 'BinaryExpression':
         const binExpr = expr as BinaryExpression;
@@ -443,7 +439,7 @@ export class SemanticAnalyzer {
     return false;
   }
 
-  private getDataTypeString(dataType: DataType | DomainReference): string {
+  private getDataTypeString(dataType: any): string {
     if ('domain' in dataType) {
       return dataType.domain;
     }

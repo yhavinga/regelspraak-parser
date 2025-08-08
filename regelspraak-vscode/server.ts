@@ -1,4 +1,4 @@
-import { createConnection, TextDocuments, DiagnosticSeverity, DocumentSymbol, SymbolKind, Range } from 'vscode-languageserver/node';
+import { createConnection, TextDocuments, DiagnosticSeverity, DocumentSymbol, SymbolKind, Range, MessageType } from 'vscode-languageserver/node';
 import { TextDocument } from 'vscode-languageserver-textdocument';
 
 // Import the parser directly from dist files
@@ -18,7 +18,8 @@ connection.onInitialize(() => ({
       resolveProvider: false,
       triggerCharacters: [' ', ':', '.', ',', '(', '<', '>', '=', '+', '-', '*', '/']
     },
-    definitionProvider: true
+    definitionProvider: true,
+    referencesProvider: true
   }
 }));
 
@@ -546,6 +547,92 @@ connection.onDefinition((params) => {
   } catch (e) {
     console.error('Definition error:', e);
     return null;
+  }
+});
+
+// Handle find references requests
+connection.onReferences((params) => {
+  const document = documents.get(params.textDocument.uri);
+  if (!document) {
+    return [];
+  }
+  
+  try {
+    const parser = new AntlrParser();
+    const { model, locationMap } = parser.parseWithLocations(document.getText());
+    
+    // Find what symbol we're looking for
+    const node = findNodeAtPosition(model, params.position, locationMap);
+    if (!node) {
+      return [];
+    }
+    
+    // Get the symbol name to search for
+    let symbolName: string | null = null;
+    if (node.type === 'VariableReference' && node.variableName) {
+      symbolName = node.variableName;
+    } else if (node.type === 'ParameterDefinition' && node.name) {
+      symbolName = node.name;
+    }
+    
+    if (!symbolName) {
+      return [];
+    }
+    
+    // Find all references to this symbol
+    const references: any[] = [];
+    
+    function collectReferences(node: any) {
+      if (!node || typeof node !== 'object') return;
+      
+      // Check if this is a reference to our symbol
+      if (node.type === 'VariableReference' && node.variableName === symbolName) {
+        const location = locationMap.get(node);
+        if (location) {
+          references.push({
+            uri: params.textDocument.uri,
+            range: {
+              start: { line: location.startLine - 1, character: location.startColumn },
+              end: { line: location.endLine - 1, character: location.endColumn }
+            }
+          });
+        }
+      }
+      
+      // Include the definition if requested
+      if (params.context.includeDeclaration) {
+        if (node.type === 'ParameterDefinition' && node.name === symbolName) {
+          const location = locationMap.get(node);
+          if (location) {
+            references.push({
+              uri: params.textDocument.uri,
+              range: {
+                start: { line: location.startLine - 1, character: location.startColumn },
+                end: { line: location.endLine - 1, character: location.endColumn }
+              }
+            });
+          }
+        }
+      }
+      
+      // Recursively search all properties
+      for (const key of Object.keys(node)) {
+        const value = node[key];
+        if (value && typeof value === 'object') {
+          if (Array.isArray(value)) {
+            value.forEach(collectReferences);
+          } else {
+            collectReferences(value);
+          }
+        }
+      }
+    }
+    
+    collectReferences(model);
+    return references;
+  } catch (e) {
+    console.error('References error:', e);
+    return [];
   }
 });
 

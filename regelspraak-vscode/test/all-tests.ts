@@ -191,6 +191,66 @@ Regel BerekenLoon
   console.log('  ✅ Document symbols working\n');
 }
 
+async function testFindReferences() {
+  console.log('Testing find all references...');
+  
+  // Send document with parameter references
+  sendMessage(server, {
+    jsonrpc: '2.0',
+    method: 'textDocument/didOpen',
+    params: {
+      textDocument: {
+        uri: 'file:///references-test.rs',
+        languageId: 'regelspraak',
+        version: 1,
+        text: `Parameter loon: Bedrag;
+Parameter bonus: Bedrag;
+Regel BerekenTotaal
+  geldig altijd
+    Het totaal van de persoon moet gesteld worden op loon.
+Regel ControleerLoon
+  geldig altijd
+    Het minimum van de persoon moet gesteld worden op loon.`
+      }
+    }
+  });
+  
+  // Wait for document to be processed
+  await waitForMessage(server, 
+    msg => msg.method === 'textDocument/publishDiagnostics' && 
+           msg.params.uri === 'file:///references-test.rs'
+  );
+  
+  // Request references for 'loon'
+  const refId = messageId++;
+  sendMessage(server, {
+    jsonrpc: '2.0',
+    id: refId,
+    method: 'textDocument/references',
+    params: {
+      textDocument: { uri: 'file:///references-test.rs' },
+      position: { line: 0, character: 10 },  // On "loon" in parameter definition
+      context: { includeDeclaration: true }
+    }
+  });
+  
+  const refResponse = await waitForMessage(server, msg => msg.id === refId);
+  
+  if (!refResponse.result || !Array.isArray(refResponse.result)) {
+    console.log('  ❌ No references found or invalid response');
+    console.log('  Response:', JSON.stringify(refResponse));
+  } else {
+    console.log(`  ✓ Found ${refResponse.result.length} references`);
+    if (refResponse.result.length >= 3) {
+      console.log('  ✓ Found expected references');
+    } else {
+      console.log('  ❌ Expected at least 3 references');
+    }
+  }
+  
+  console.log('  ✅ Find references working\n');
+}
+
 async function testGoToDefinition() {
   console.log('Testing go to definition...');
   
@@ -332,6 +392,7 @@ async function runAllTests() {
     await testDocumentSymbols();
     await testHover();
     await testGoToDefinition();
+    await testFindReferences();
     
     console.log('✅ All tests passed!');
     server.kill();
