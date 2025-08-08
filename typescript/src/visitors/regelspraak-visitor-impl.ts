@@ -1664,7 +1664,7 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
     }
     
     const objType = {
-      type: 'ObjectTypeDefinition',
+      type: 'ObjectTypeDefinition' as const,
       name,
       plural: plural.length > 0 ? plural : undefined,
       animated,
@@ -1946,7 +1946,7 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
     }
     
     const dimension = {
-      type: 'Dimension',
+      type: 'Dimension' as const,
       name,
       plural,
       usageStyle,

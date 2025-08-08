@@ -13,7 +13,11 @@ connection.onInitialize(() => ({
     textDocumentSync: 1,
     diagnosticProvider: { interFileDependencies: false },
     documentSymbolProvider: true,
-    hoverProvider: true
+    hoverProvider: true,
+    completionProvider: {
+      resolveProvider: false,
+      triggerCharacters: [' ', ':', '.', ',', '(', '<', '>', '=', '+', '-', '*', '/']
+    }
   }
 }));
 
@@ -360,6 +364,95 @@ connection.onHover((params) => {
     return null;
   }
 });
+
+// Handle completion requests
+connection.onCompletion((params) => {
+  const document = documents.get(params.textDocument.uri);
+  if (!document) {
+    return [];
+  }
+  
+  try {
+    const parser = new AntlrParser();
+    const text = document.getText();
+    
+    // Convert VSCode position to character offset
+    const lines = text.split('\n');
+    let offset = 0;
+    for (let i = 0; i < params.position.line; i++) {
+      offset += lines[i].length + 1; // +1 for newline
+    }
+    offset += params.position.character;
+    
+    // Get suggestions from the parser
+    const suggestions = parser.getExpectedTokensAt(text, offset);
+    
+    // Convert to LSP CompletionItem format
+    return suggestions.map((suggestion, index) => {
+      // Clean up suggestions - capitalize type names properly
+      const cleaned = cleanSuggestion(suggestion);
+      return {
+        label: cleaned,
+        kind: getCompletionItemKind(cleaned),
+        sortText: String(index).padStart(4, '0'), // Keep original order
+        insertText: cleaned
+      };
+    });
+  } catch (e) {
+    console.error('Completion error:', e);
+    return [];
+  }
+});
+
+// Helper to clean up suggestions from parser
+function cleanSuggestion(suggestion: string): string {
+  // Map common raw token names to proper names
+  const mappings: Record<string, string> = {
+    'boolean': 'Boolean',
+    'numeriek': 'Numeriek',
+    'tekst': 'Tekst',
+    'datum': 'Datum',
+    'bedrag': 'Bedrag',
+    'percentage': 'Percentage',
+    'aantal': 'Aantal',
+    'datum en tijd in millisecondes': 'Datum',
+    'datum in dagen': 'Datum',
+    'numeriek met exact': 'Numeriek',
+    'identifier': '<naam>',
+    'lijst': 'Lijst'
+  };
+  
+  return mappings[suggestion.toLowerCase()] || suggestion;
+}
+
+// Helper to determine completion item kind
+function getCompletionItemKind(suggestion: string): number {
+  // Import CompletionItemKind enum values
+  const CompletionItemKind = {
+    Keyword: 14,
+    Variable: 6,
+    Value: 12,
+    Property: 10
+  };
+  
+  // Keywords
+  if (/^(regel|parameter|domein|objecttype|feittype|indien|altijd|geldig|wordt|is|van|de|het|een)$/i.test(suggestion)) {
+    return CompletionItemKind.Keyword;
+  }
+  
+  // Types
+  if (/^(bedrag|datum|tekst|numeriek|boolean|percentage|aantal)$/i.test(suggestion)) {
+    return CompletionItemKind.Property;
+  }
+  
+  // Domain values (quoted strings)
+  if (suggestion.startsWith("'") && suggestion.endsWith("'")) {
+    return CompletionItemKind.Value;
+  }
+  
+  // Default to variable for parameters
+  return CompletionItemKind.Variable;
+}
 
 documents.listen(connection);
 connection.listen();
