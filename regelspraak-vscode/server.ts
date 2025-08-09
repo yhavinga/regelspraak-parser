@@ -9,7 +9,10 @@ import {
   CodeAction,
   CodeActionKind,
   TextEdit,
-  WorkspaceEdit
+  WorkspaceEdit,
+  InsertTextFormat,
+  CompletionItem,
+  CompletionItemKind
 } from 'vscode-languageserver/node';
 import { TextDocument } from 'vscode-languageserver-textdocument';
 
@@ -387,6 +390,66 @@ connection.onHover((params) => {
   }
 });
 
+// Define snippets for common RegelSpraak patterns
+const snippets: Map<string, CompletionItem> = new Map([
+  ['param', {
+    label: 'Parameter',
+    kind: CompletionItemKind.Snippet,
+    insertText: 'Parameter ${1:de|het} ${2:naam}: ${3|Bedrag,Numeriek,Tekst,Datum,Boolean,Percentage|}${4: met eenheid ${5:eenheid}};',
+    insertTextFormat: InsertTextFormat.Snippet,
+    documentation: 'Insert a parameter declaration',
+    detail: 'Parameter snippet'
+  }],
+  ['regel', {
+    label: 'Regel',
+    kind: CompletionItemKind.Snippet,
+    insertText: 'Regel ${1:naam}\n  geldig ${2|altijd,vanaf ${3:datum},indien ${3:conditie}|}\n    ${4:Het|De} ${5:attribuut} ${6|wordt,moet berekend worden als,moet gesteld worden op|} ${7:expressie};',
+    insertTextFormat: InsertTextFormat.Snippet,
+    documentation: 'Insert a rule declaration',
+    detail: 'Rule snippet'
+  }],
+  ['object', {
+    label: 'Objecttype',
+    kind: CompletionItemKind.Snippet,
+    insertText: 'Objecttype ${1:de|het} ${2:naam}${3: (mv: ${4:meervoud})}\n  ${5:attribuut} ${6|Bedrag,Numeriek,Tekst,Datum,Boolean|};',
+    insertTextFormat: InsertTextFormat.Snippet,
+    documentation: 'Insert an object type declaration',
+    detail: 'Object type snippet'
+  }],
+  ['domein', {
+    label: 'Domein',
+    kind: CompletionItemKind.Snippet,
+    insertText: 'Domein ${1:naam}: ${2:\'waarde1\'}, ${3:\'waarde2\'}, ${4:\'waarde3\'};',
+    insertTextFormat: InsertTextFormat.Snippet,
+    documentation: 'Insert a domain declaration',
+    detail: 'Domain snippet'
+  }],
+  ['beslis', {
+    label: 'Beslistabel',
+    kind: CompletionItemKind.Snippet,
+    insertText: 'Beslistabel ${1:naam}\n  ${2:conditie1} | ${3:conditie2} | ${4:resultaat}\n  ${5:ja}       | ${6:nee}      | ${7:waarde1}\n  ${8:nee}      | ${9:ja}       | ${10:waarde2};',
+    insertTextFormat: InsertTextFormat.Snippet,
+    documentation: 'Insert a decision table',
+    detail: 'Decision table snippet'
+  }],
+  ['indien', {
+    label: 'indien',
+    kind: CompletionItemKind.Snippet,
+    insertText: 'indien ${1:conditie}',
+    insertTextFormat: InsertTextFormat.Snippet,
+    documentation: 'Insert an if condition',
+    detail: 'Condition snippet'
+  }],
+  ['geldig', {
+    label: 'geldig',
+    kind: CompletionItemKind.Snippet,
+    insertText: 'geldig ${1|altijd,vanaf ${2:datum},tot ${2:datum},indien ${2:conditie}|}',
+    insertTextFormat: InsertTextFormat.Snippet,
+    documentation: 'Insert a validity clause',
+    detail: 'Validity snippet'
+  }]
+]);
+
 // Handle completion requests
 connection.onCompletion((params) => {
   const document = documents.get(params.textDocument.uri);
@@ -394,12 +457,34 @@ connection.onCompletion((params) => {
     return [];
   }
   
+  const text = document.getText();
+  const lines = text.split('\n');
+  
+  // Get the current word being typed
+  const currentLine = lines[params.position.line];
+  const beforeCursor = currentLine.substring(0, params.position.character);
+  const wordMatch = beforeCursor.match(/(\w+)$/);
+  const currentWord = wordMatch ? wordMatch[1].toLowerCase() : '';
+  
+  const completions: CompletionItem[] = [];
+  
+  // Check for snippet matches - always do this even if parser fails
+  if (currentWord) {
+    for (const [prefix, snippet] of snippets) {
+      if (prefix.startsWith(currentWord)) {
+        // Clone the snippet and adjust sort order
+        const item = { ...snippet };
+        item.sortText = '0000'; // Snippets first
+        completions.push(item);
+      }
+    }
+  }
+  
+  // Try to get parser suggestions, but don't fail if parser has issues
   try {
     const parser = new AntlrParser();
-    const text = document.getText();
     
     // Convert VSCode position to character offset
-    const lines = text.split('\n');
     let offset = 0;
     for (let i = 0; i < params.position.line; i++) {
       offset += lines[i].length + 1; // +1 for newline
@@ -410,20 +495,24 @@ connection.onCompletion((params) => {
     const suggestions = parser.getExpectedTokensAt(text, offset);
     
     // Convert to LSP CompletionItem format
-    return suggestions.map((suggestion, index) => {
+    const parserCompletions = suggestions.map((suggestion, index) => {
       // Clean up suggestions - capitalize type names properly
       const cleaned = cleanSuggestion(suggestion);
       return {
         label: cleaned,
         kind: getCompletionItemKind(cleaned),
-        sortText: String(index).padStart(4, '0'), // Keep original order
+        sortText: String(1000 + index).padStart(4, '0'), // Parser suggestions after snippets
         insertText: cleaned
       };
     });
+    
+    completions.push(...parserCompletions);
   } catch (e) {
-    console.error('Completion error:', e);
-    return [];
+    // Parser errors are expected for incomplete code - just log for debugging
+    console.error('Parser completion error (expected for incomplete code):', e.message);
   }
+  
+  return completions;
 });
 
 // Helper to clean up suggestions from parser
@@ -449,14 +538,6 @@ function cleanSuggestion(suggestion: string): string {
 
 // Helper to determine completion item kind
 function getCompletionItemKind(suggestion: string): number {
-  // Import CompletionItemKind enum values
-  const CompletionItemKind = {
-    Keyword: 14,
-    Variable: 6,
-    Value: 12,
-    Property: 10
-  };
-  
   // Keywords
   if (/^(regel|parameter|domein|objecttype|feittype|indien|altijd|geldig|wordt|is|van|de|het|een)$/i.test(suggestion)) {
     return CompletionItemKind.Keyword;
