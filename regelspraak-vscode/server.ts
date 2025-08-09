@@ -75,7 +75,8 @@ connection.onInitialize(() => ({
         tokenModifiers: tokenModifiers
       },
       full: true
-    }
+    },
+    documentFormattingProvider: true
   }
 }));
 
@@ -1446,6 +1447,109 @@ connection.onRequest('textDocument/semanticTokens/full', (params: SemanticTokens
   }
   */
 });
+
+// Handle format document requests
+connection.onDocumentFormatting((params) => {
+  const document = documents.get(params.textDocument.uri);
+  if (!document) {
+    return [];
+  }
+  
+  try {
+    const parser = new AntlrParser();
+    const { model } = parser.parseWithLocations(document.getText());
+    
+    // Format the AST back to text
+    const formatted = formatModel(model);
+    
+    // Return a single edit that replaces the entire document
+    const text = document.getText();
+    const lines = text.split('\n');
+    const lastLine = lines[lines.length - 1];
+    
+    return [{
+      range: {
+        start: { line: 0, character: 0 },
+        end: { line: lines.length - 1, character: lastLine.length }
+      },
+      newText: formatted
+    }];
+  } catch (e) {
+    // If parsing fails, don't format
+    console.error('Format error:', e);
+    return [];
+  }
+});
+
+// Simple formatter that reconstructs the document from AST
+function formatModel(model: any): string {
+  const lines: string[] = [];
+  
+  // Format parameters
+  if (model.parameters && model.parameters.length > 0) {
+    // Find the longest parameter name for alignment
+    const maxNameLength = Math.max(...model.parameters.map((p: any) => p.name.length));
+    
+    for (const param of model.parameters) {
+      const name = param.name.padEnd(maxNameLength);
+      let type = '';
+      
+      if (param.dataType) {
+        if (param.dataType.type === 'DomainReference' && param.dataType.domain) {
+          type = param.dataType.domain;
+        } else if (param.dataType.type === 'Numeriek' && param.dataType.specification) {
+          type = `Numeriek (${param.dataType.specification})`;
+        } else if (param.dataType.type) {
+          type = param.dataType.type;
+        }
+      }
+      
+      const unit = param.unit ? ` met eenheid ${param.unit}` : '';
+      lines.push(`Parameter ${name}: ${type}${unit};`);
+    }
+    lines.push('');
+  }
+  
+  // Format domains
+  if (model.domains && model.domains.length > 0) {
+    for (const domain of model.domains) {
+      const values = domain.values.map((v: string) => `'${v}'`).join(', ');
+      lines.push(`Domein ${domain.name}: ${values};`);
+    }
+    lines.push('');
+  }
+  
+  // Format object types  
+  if (model.objectTypes && model.objectTypes.length > 0) {
+    for (const objType of model.objectTypes) {
+      lines.push(`Objecttype ${objType.name}`);
+      for (const member of objType.members) {
+        if (member.type === 'AttributeSpecification') {
+          let type = '';
+          if (member.dataType?.type) {
+            type = member.dataType.type;
+          }
+          const unit = member.unit ? ` met eenheid ${member.unit}` : '';
+          lines.push(`  ${member.name}: ${type}${unit}`);
+        }
+      }
+      lines.push('');
+    }
+  }
+  
+  // Format rules - for now just preserve original text
+  // Full rule formatting would require expression formatting which is complex
+  if (model.rules && model.rules.length > 0) {
+    for (const rule of model.rules) {
+      lines.push(`Regel ${rule.name}`);
+      lines.push(`geldig ${rule.version.validity}`);
+      lines.push(`  [regel inhoud]`);
+      lines.push('');
+    }
+  }
+  
+  return lines.join('\n');
+}
 
 documents.listen(connection);
 connection.listen();
