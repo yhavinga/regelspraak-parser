@@ -996,33 +996,79 @@ connection.onRequest('textDocument/semanticTokens/full', (params: SemanticTokens
         let modifiers: string[] = [];
         
         switch (node.type) {
+          // Declarations
           case 'ParameterDefinition':
-            tokenType = SemanticTokenTypes.variable;
-            modifiers = [SemanticTokenModifiers.declaration];
+            // Highlight just the parameter name, not the whole definition
+            if (node.name && location) {
+              // For now, use the whole node location
+              // TODO: Extract name-specific location from parser
+              tokenType = SemanticTokenTypes.variable;
+              modifiers = [SemanticTokenModifiers.declaration];
+            }
             break;
-          case 'VariableReference':
-            tokenType = SemanticTokenTypes.variable;
-            break;
-          case 'NumberLiteral':
-            tokenType = SemanticTokenTypes.number;
-            break;
-          case 'StringLiteral':
-            tokenType = SemanticTokenTypes.string;
-            break;
-          case 'FunctionCall':
-            tokenType = SemanticTokenTypes.function;
-            break;
+          
           case 'ObjectTypeDefinition':
             tokenType = SemanticTokenTypes.class;
             modifiers = [SemanticTokenModifiers.declaration];
             break;
+          
           case 'Rule':
-          case 'Gelijkstelling':
-            // Rules don't need tokens themselves, just their contents
+            tokenType = SemanticTokenTypes.function;
+            modifiers = [SemanticTokenModifiers.declaration];
             break;
+          
           case 'DomainDefinition':
             tokenType = SemanticTokenTypes.namespace;
             modifiers = [SemanticTokenModifiers.declaration];
+            break;
+          
+          // References and literals
+          case 'VariableReference':
+            tokenType = SemanticTokenTypes.variable;
+            // Check if it's a parameter reference vs object reference
+            if (node.variableName) {
+              // Could check against known parameters to be more precise
+              tokenType = SemanticTokenTypes.variable;
+            }
+            break;
+          
+          case 'NavigationExpression':
+            // The attribute being accessed
+            tokenType = SemanticTokenTypes.property;
+            break;
+          
+          case 'AttributeReference':
+            tokenType = SemanticTokenTypes.property;
+            break;
+          
+          case 'NumberLiteral':
+            tokenType = SemanticTokenTypes.number;
+            break;
+          
+          case 'StringLiteral':
+            tokenType = SemanticTokenTypes.string;
+            break;
+          
+          case 'BooleanLiteral':
+            tokenType = SemanticTokenTypes.keyword; // true/false are keywords
+            break;
+          
+          case 'FunctionCall':
+            tokenType = SemanticTokenTypes.function;
+            break;
+          
+          // Types
+          case 'DataType':
+          case 'DomainReference':
+            tokenType = SemanticTokenTypes.type;
+            break;
+          
+          // Operators and keywords handled by regex fallback
+          case 'BinaryExpression':
+          case 'UnaryExpression':
+          case 'Gelijkstelling':
+          case 'RuleVersion':
+            // These don't need tokens themselves, just their contents
             break;
         }
         
@@ -1067,42 +1113,29 @@ connection.onRequest('textDocument/semanticTokens/full', (params: SemanticTokens
     console.log('AST parsing failed, using regex fallback:', e);
   }
   
-  // Fallback: Simple regex-based approach
+  // Fallback: Only highlight keywords/operators that AST doesn't track
+  // This provides basic highlighting when parsing fails
   const lines = text.split('\n');
   
   for (let lineNum = 0; lineNum < lines.length; lineNum++) {
     const line = lines[lineNum];
     
-    // Match keywords
-    const keywords = /\b(Parameter|Regel|Objecttype|Domein|Beslistabel|geldig|altijd|indien|wordt|moet|als|dan)\b/g;
+    // Match RegelSpraak keywords (not tracked as separate AST nodes)
+    const keywords = /\b(Parameter|Regel|Objecttype|Domein|Beslistabel|Feittype|geldig|altijd|indien|wordt|moet|als|dan|van|de|het|een|is|zijn|met|eenheid|voor|elke|dag)\b/g;
     let match;
     while ((match = keywords.exec(line)) !== null) {
       builder.push(lineNum, match.index, match[0].length, 
         tokenTypeMap.get(SemanticTokenTypes.keyword)!, 0);
     }
     
-    // Match type names
-    const types = /\b(Bedrag|Numeriek|Tekst|Datum|Boolean|Percentage|Duur)\b/g;
+    // Match type keywords
+    const types = /\b(Bedrag|Numeriek|Tekst|Datum|Boolean|Percentage|Duur|geheel getal|getal)\b/g;
     while ((match = types.exec(line)) !== null) {
       builder.push(lineNum, match.index, match[0].length,
         tokenTypeMap.get(SemanticTokenTypes.type)!, 0);
     }
     
-    // Match numbers
-    const numbers = /\b\d+(\.\d+)?\b/g;
-    while ((match = numbers.exec(line)) !== null) {
-      builder.push(lineNum, match.index, match[0].length,
-        tokenTypeMap.get(SemanticTokenTypes.number)!, 0);
-    }
-    
-    // Match strings
-    const strings = /"[^"]*"|'[^']*'/g;
-    while ((match = strings.exec(line)) !== null) {
-      builder.push(lineNum, match.index, match[0].length,
-        tokenTypeMap.get(SemanticTokenTypes.string)!, 0);
-    }
-    
-    // Match operators
+    // Basic operators (AST doesn't give these separate locations)
     const operators = /(\+|-|\*|\/|=|<|>|<=|>=|!=)/g;
     while ((match = operators.exec(line)) !== null) {
       builder.push(lineNum, match.index, match[0].length,
