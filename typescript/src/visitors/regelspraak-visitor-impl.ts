@@ -48,7 +48,7 @@ import { ObjectTypeDefinition, KenmerkSpecification, AttributeSpecification, Dat
 import { ParameterDefinition } from '../ast/parameters';
 import { AttributeReference, StringLiteral, Literal } from '../ast/expressions';
 import { UnitSystemDefinition, UnitDefinition, UnitConversion } from '../ast/unit-systems';
-import { createSourceLocation, LocationMap } from '../ast/location';
+import { createSourceLocation } from '../ast/location';
 import { Dimension, DimensionLabel, DimensionedAttributeReference } from '../ast/dimensions';
 import { FeitType, Rol } from '../ast/feittype';
 import { DomainModel } from '../ast/domain-model';
@@ -57,22 +57,13 @@ import { DomainModel } from '../ast/domain-model';
  * Implementation of ANTLR4 visitor that builds our AST
  */
 export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements RegelSpraakVisitor<any> {
-  // DEPRECATED: WeakMap is being phased out in favor of node.location
-  private locationMap: LocationMap = new WeakMap();
-  
-  getLocationMap(): LocationMap {
-    return this.locationMap;
-  }
-  
   /**
-   * Helper to set location both in WeakMap (for compatibility) 
-   * and directly on node (the right way)
+   * Set location directly on the node.
+   * No more WeakMap. Location is part of the node.
    */
   private setLocation(node: any, ctx: any): void {
-    const location = createSourceLocation(ctx);
-    this.locationMap.set(node, location);
-    if (node && typeof node === 'object') {
-      node.location = location;
+    if (node && typeof node === 'object' && ctx) {
+      node.location = createSourceLocation(ctx);
     }
   }
   
@@ -1922,7 +1913,7 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
   visitDomeinRef(ctx: any): DomainReference {
     const domain = this.extractText(ctx);
     const node = {
-      type: 'DomainReference',
+      type: 'DomainReference' as const,
       domain
     };
     this.setLocation(node, ctx);

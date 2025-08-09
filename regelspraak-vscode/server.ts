@@ -981,14 +981,14 @@ connection.onRequest('textDocument/semanticTokens/full', (params: SemanticTokens
   // Use AST-based approach with location tracking
   try {
     const parser = new AntlrParser();
-    const { model, locationMap } = parser.parseWithLocations(text);
+    const { model } = parser.parseWithLocations(text);
     
-    // Walk AST and use locationMap for each node
+    // Walk AST and use node.location directly
     const walkNode = (node: any) => {
       if (!node || typeof node !== 'object') return;
       
-      // Try node.location first (new way), fall back to locationMap (old way)
-      const location = node.location || locationMap?.get(node);
+      // Use node.location directly - no more WeakMap
+      const location = node.location;
       if (location && node.type) {
         // Map node types to semantic token types
         let tokenType: string | undefined;

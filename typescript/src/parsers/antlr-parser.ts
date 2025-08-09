@@ -8,7 +8,7 @@ import { DecisionTable } from '../ast/decision-tables';
 import { ObjectTypeDefinition } from '../ast/object-types';
 import { ParameterDefinition } from '../ast/parameters';
 import { DomainModel } from '../ast/domain-model';
-import { LocationMap } from '../ast/location';
+// LocationMap no longer needed - locations stored directly on nodes
 import { SimpleAutocompleteService } from './simple-autocomplete';
 import { ParserBasedAutocompleteService } from './parser-based-autocomplete';
 
@@ -32,7 +32,7 @@ class CustomErrorListener extends ErrorListener<any> {
  */
 export interface ParseResult {
   model: DomainModel;
-  locationMap: LocationMap;
+  locationMap?: WeakMap<any, any>; // Deprecated, kept for compatibility
 }
 
 export class AntlrParser {
@@ -122,8 +122,8 @@ export class AntlrParser {
     try {
       const visitor = new RegelSpraakVisitorImpl();
       const model = visitor.visit(tree);
-      const locationMap = visitor.getLocationMap();
-      return { model, locationMap };
+      // LocationMap removed - locations are now stored directly on nodes
+      return { model, locationMap: new WeakMap() }; // Empty map for compatibility
     } catch (error) {
       console.error('Visitor error:', error);
       console.error('Stack:', (error as Error).stack);
