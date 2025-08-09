@@ -12,7 +12,12 @@ import {
   WorkspaceEdit,
   InsertTextFormat,
   CompletionItem,
-  CompletionItemKind
+  CompletionItemKind,
+  SemanticTokens,
+  SemanticTokensParams,
+  SemanticTokensBuilder,
+  SemanticTokenTypes,
+  SemanticTokenModifiers
 } from 'vscode-languageserver/node';
 import { TextDocument } from 'vscode-languageserver-textdocument';
 
@@ -22,6 +27,34 @@ import { SemanticAnalyzer } from '@regelspraak/parser/analyzer';
 
 const connection = createConnection();
 const documents: TextDocuments<TextDocument> = new TextDocuments(TextDocument);
+
+// Define semantic token types and modifiers
+const tokenTypes = [
+  SemanticTokenTypes.keyword,      // 0: Keywords (Parameter, Regel, Objecttype, etc.)
+  SemanticTokenTypes.variable,     // 1: Parameter references
+  SemanticTokenTypes.type,         // 2: Type names (Bedrag, Numeriek, etc.)
+  SemanticTokenTypes.class,        // 3: Object types
+  SemanticTokenTypes.property,     // 4: Attributes/Kenmerken
+  SemanticTokenTypes.function,     // 5: Function calls
+  SemanticTokenTypes.number,       // 6: Number literals
+  SemanticTokenTypes.string,       // 7: String literals
+  SemanticTokenTypes.operator,     // 8: Operators
+  SemanticTokenTypes.comment,      // 9: Comments
+  SemanticTokenTypes.namespace,    // 10: Domains
+  SemanticTokenTypes.enum,         // 11: Domain values
+  SemanticTokenTypes.struct        // 12: Dimensies
+];
+
+const tokenModifiers = [
+  SemanticTokenModifiers.declaration,  // 0: Declarations
+  SemanticTokenModifiers.definition,   // 1: Definitions
+  SemanticTokenModifiers.readonly,     // 2: Constants
+  SemanticTokenModifiers.defaultLibrary // 3: Built-in functions
+];
+
+// Create token type/modifier maps for faster lookup
+const tokenTypeMap = new Map(tokenTypes.map((type, index) => [type, index]));
+const tokenModifierMap = new Map(tokenModifiers.map((mod, index) => [mod, 1 << index]));
 
 connection.onInitialize(() => ({
   capabilities: {
@@ -35,7 +68,14 @@ connection.onInitialize(() => ({
     },
     definitionProvider: true,
     referencesProvider: true,
-    codeActionProvider: true
+    codeActionProvider: true,
+    semanticTokensProvider: {
+      legend: {
+        tokenTypes: tokenTypes,
+        tokenModifiers: tokenModifiers
+      },
+      full: true
+    }
   }
 }));
 
@@ -926,6 +966,363 @@ connection.onCodeAction((params) => {
   }
   
   return actions;
+});
+
+// Handle semantic tokens requests
+connection.onRequest('textDocument/semanticTokens/full', (params: SemanticTokensParams): SemanticTokens => {
+  const document = documents.get(params.textDocument.uri);
+  if (!document) {
+    return { data: [] };
+  }
+  
+  const builder = new SemanticTokensBuilder();
+  const text = document.getText();
+  
+  // Simple regex-based approach for now
+  const lines = text.split('\n');
+  
+  for (let lineNum = 0; lineNum < lines.length; lineNum++) {
+    const line = lines[lineNum];
+    
+    // Match keywords
+    const keywords = /\b(Parameter|Regel|Objecttype|Domein|Beslistabel|geldig|altijd|indien|wordt|moet|als|dan)\b/g;
+    let match;
+    while ((match = keywords.exec(line)) !== null) {
+      builder.push(lineNum, match.index, match[0].length, 
+        tokenTypeMap.get(SemanticTokenTypes.keyword)!, 0);
+    }
+    
+    // Match type names
+    const types = /\b(Bedrag|Numeriek|Tekst|Datum|Boolean|Percentage|Duur)\b/g;
+    while ((match = types.exec(line)) !== null) {
+      builder.push(lineNum, match.index, match[0].length,
+        tokenTypeMap.get(SemanticTokenTypes.type)!, 0);
+    }
+    
+    // Match numbers
+    const numbers = /\b\d+(\.\d+)?\b/g;
+    while ((match = numbers.exec(line)) !== null) {
+      builder.push(lineNum, match.index, match[0].length,
+        tokenTypeMap.get(SemanticTokenTypes.number)!, 0);
+    }
+    
+    // Match strings
+    const strings = /"[^"]*"|'[^']*'/g;
+    while ((match = strings.exec(line)) !== null) {
+      builder.push(lineNum, match.index, match[0].length,
+        tokenTypeMap.get(SemanticTokenTypes.string)!, 0);
+    }
+    
+    // Match operators
+    const operators = /(\+|-|\*|\/|=|<|>|<=|>=|!=)/g;
+    while ((match = operators.exec(line)) !== null) {
+      builder.push(lineNum, match.index, match[0].length,
+        tokenTypeMap.get(SemanticTokenTypes.operator)!, 0);
+    }
+  }
+  
+  return builder.build();
+  
+  /* TODO: Re-enable AST-based approach once locations are properly tracked
+  try {
+    // Parse with locations to get AST and location info
+    const parser = new AntlrParser();
+    const { model, locationMap } = parser.parseWithLocations(text);
+    const analyzer = new SemanticAnalyzer();
+    
+    // Build a simple symbol map for reference resolution
+    const symbols = new Map<string, string>();
+    
+    // Collect parameters
+    if (model.parameters) {
+      for (const param of model.parameters) {
+        if (param.name) symbols.set(param.name, 'parameter');
+      }
+    }
+    
+    // Collect object types
+    if (model.objectTypes) {
+      for (const objType of model.objectTypes) {
+        if (objType.name) symbols.set(objType.name, 'object_type');
+      }
+    }
+    
+    // Collect domains
+    if (model.domains) {
+      for (const domain of model.domains) {
+        if (domain.name) symbols.set(domain.name, 'domain');
+      }
+    }
+    
+    // Helper function to add a token
+    const addToken = (
+      location: any, 
+      tokenType: string, 
+      tokenModifiers: string[] = []
+    ) => {
+      if (!location) return;
+      
+      const startLine = (location.start?.line || location.line || 1) - 1;
+      const startChar = location.start?.column || location.column || 0;
+      const endLine = location.stop?.line || location.end?.line || startLine + 1;
+      const endChar = location.stop?.column || location.end?.column || startChar + 10;
+      
+      // Calculate length (handle multi-line tokens)
+      let length = endChar - startChar + 1;
+      if (endLine > startLine + 1) {
+        // For multi-line, just highlight first line
+        const lineEnd = text.indexOf('\n', document.offsetAt({ line: startLine, character: 0 }));
+        length = lineEnd - document.offsetAt({ line: startLine, character: startChar });
+      }
+      
+      const typeIndex = tokenTypeMap.get(tokenType);
+      if (typeIndex === undefined) return;
+      
+      let modifierBits = 0;
+      for (const mod of tokenModifiers) {
+        const bit = tokenModifierMap.get(mod);
+        if (bit) modifierBits |= bit;
+      }
+      
+      builder.push(startLine, startChar, length, typeIndex, modifierBits);
+    };
+    
+    // Walk the AST and generate tokens
+    const visitNode = (node: any) => {
+      if (!node) return;
+      
+      const location = locationMap?.get(node);
+      
+      // Handle different node types
+      switch (node.type) {
+        case 'ParameterDefinition':
+          // "Parameter" keyword would be separate, here we mark the name
+          if (location && node.name) {
+            // Find "Parameter" keyword location in text
+            const lineStart = document.offsetAt({ line: location.start.line - 1, character: 0 });
+            const lineText = text.substring(lineStart, text.indexOf('\n', lineStart));
+            const keywordIndex = lineText.indexOf('Parameter');
+            if (keywordIndex >= 0) {
+              addToken(
+                { start: { line: location.start.line, column: keywordIndex }, 
+                  stop: { line: location.start.line, column: keywordIndex + 8 } },
+                SemanticTokenTypes.keyword
+              );
+            }
+            // Add parameter name as declaration
+            const nameMatch = lineText.match(/Parameter\s+(?:de\s+|het\s+)?(\w+)/);
+            if (nameMatch) {
+              const nameStart = lineText.indexOf(nameMatch[1]);
+              addToken(
+                { start: { line: location.start.line, column: nameStart },
+                  stop: { line: location.start.line, column: nameStart + nameMatch[1].length - 1 } },
+                SemanticTokenTypes.variable,
+                [SemanticTokenModifiers.declaration]
+              );
+            }
+          }
+          break;
+          
+        case 'ObjectTypeDefinition':
+          if (location && node.name) {
+            // Mark "Objecttype" keyword
+            const lineStart = document.offsetAt({ line: location.start.line - 1, character: 0 });
+            const lineText = text.substring(lineStart, text.indexOf('\n', lineStart));
+            const keywordIndex = lineText.indexOf('Objecttype');
+            if (keywordIndex >= 0) {
+              addToken(
+                { start: { line: location.start.line, column: keywordIndex },
+                  stop: { line: location.start.line, column: keywordIndex + 9 } },
+                SemanticTokenTypes.keyword
+              );
+            }
+            // Add object type name
+            const nameMatch = lineText.match(/Objecttype\s+(\w+)/);
+            if (nameMatch) {
+              const nameStart = lineText.indexOf(nameMatch[1]);
+              addToken(
+                { start: { line: location.start.line, column: nameStart },
+                  stop: { line: location.start.line, column: nameStart + nameMatch[1].length - 1 } },
+                SemanticTokenTypes.class,
+                [SemanticTokenModifiers.declaration]
+              );
+            }
+          }
+          // Visit members
+          if (node.members) {
+            for (const member of node.members) {
+              visitNode(member);
+            }
+          }
+          break;
+          
+        case 'VariableReference':
+          if (location && node.name) {
+            // Check if it's a parameter or object type reference
+            const symbolKind = symbols.get(node.name);
+            const tokenType = symbolKind === 'parameter' ? SemanticTokenTypes.variable :
+                            symbolKind === 'object_type' ? SemanticTokenTypes.class :
+                            symbolKind === 'domain' ? SemanticTokenTypes.namespace :
+                            SemanticTokenTypes.variable;
+            addToken(location, tokenType);
+          }
+          break;
+          
+        case 'FunctionCall':
+          if (location && node.name) {
+            addToken(location, SemanticTokenTypes.function, 
+              node.isBuiltin ? [SemanticTokenModifiers.defaultLibrary] : []);
+          }
+          // Visit arguments
+          if (node.arguments) {
+            for (const arg of node.arguments) {
+              visitNode(arg);
+            }
+          }
+          break;
+          
+        case 'Literal':
+          if (location) {
+            if (typeof node.value === 'number') {
+              addToken(location, SemanticTokenTypes.number);
+            } else if (typeof node.value === 'string') {
+              addToken(location, SemanticTokenTypes.string);
+            }
+          }
+          break;
+          
+        case 'BinaryExpression':
+        case 'UnaryExpression':
+          if (location && node.operator) {
+            // We'd need to find the operator position in the text
+            // For now, visit operands
+            visitNode(node.left);
+            visitNode(node.right);
+            visitNode(node.operand);
+          }
+          break;
+          
+        case 'Rule':
+        case 'Gelijkstelling':
+        case 'Initialisatie':
+          // Mark "Regel" keyword
+          if (location) {
+            const lineStart = document.offsetAt({ line: location.start.line - 1, character: 0 });
+            const lineText = text.substring(lineStart, text.indexOf('\n', lineStart));
+            const keywordIndex = lineText.indexOf('Regel');
+            if (keywordIndex >= 0) {
+              addToken(
+                { start: { line: location.start.line, column: keywordIndex },
+                  stop: { line: location.start.line, column: keywordIndex + 4 } },
+                SemanticTokenTypes.keyword
+              );
+            }
+          }
+          // Visit conditions and body
+          if (node.conditions) {
+            for (const cond of node.conditions) {
+              visitNode(cond);
+            }
+          }
+          if (node.body) {
+            visitNode(node.body);
+          }
+          if (node.expression) {
+            visitNode(node.expression);
+          }
+          break;
+          
+        case 'DomainDefinition':
+          if (location && node.name) {
+            addToken(location, SemanticTokenTypes.namespace, 
+              [SemanticTokenModifiers.declaration]);
+          }
+          // Visit domain values
+          if (node.values) {
+            for (const value of node.values) {
+              visitNode(value);
+            }
+          }
+          break;
+          
+        case 'DomainValue':
+          if (location) {
+            addToken(location, SemanticTokenTypes.enum);
+          }
+          break;
+          
+        case 'DecisionTable':
+          // Mark "Beslistabel" keyword
+          if (location) {
+            const lineStart = document.offsetAt({ line: location.start.line - 1, character: 0 });
+            const lineText = text.substring(lineStart, text.indexOf('\n', lineStart));
+            const keywordIndex = lineText.indexOf('Beslistabel');
+            if (keywordIndex >= 0) {
+              addToken(
+                { start: { line: location.start.line, column: keywordIndex },
+                  stop: { line: location.start.line, column: keywordIndex + 10 } },
+                SemanticTokenTypes.keyword
+              );
+            }
+          }
+          break;
+          
+        default:
+          // Recursively visit children for unknown types
+          if (typeof node === 'object') {
+            for (const key in node) {
+              const value = node[key];
+              if (Array.isArray(value)) {
+                for (const item of value) {
+                  visitNode(item);
+                }
+              } else if (typeof value === 'object' && value !== null) {
+                visitNode(value);
+              }
+            }
+          }
+      }
+    };
+    
+    // Visit all top-level elements
+    if (model.parameters) {
+      for (const param of model.parameters) {
+        visitNode(param);
+      }
+    }
+    if (model.objectTypes) {
+      for (const objType of model.objectTypes) {
+        visitNode(objType);
+      }
+    }
+    if (model.rules) {
+      for (const rule of model.rules) {
+        visitNode(rule);
+      }
+    }
+    if (model.domains) {
+      for (const domain of model.domains) {
+        visitNode(domain);
+      }
+    }
+    if (model.decisionTables) {
+      for (const table of model.decisionTables) {
+        visitNode(table);
+      }
+    }
+    if (model.dimensions) {
+      for (const dim of model.dimensions) {
+        visitNode(dim);
+      }
+    }
+    
+    return builder.build();
+  } catch (e) {
+    // Return empty tokens on parse error
+    console.error('Semantic tokens error:', e);
+    return { data: [] };
+  }
+  */
 });
 
 documents.listen(connection);
