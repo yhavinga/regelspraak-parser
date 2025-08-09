@@ -45,11 +45,11 @@ describe('Find All References', () => {
           if (response.id === 2) {
             // This is our references response
             assert.ok(Array.isArray(response.result), 'Should return array of locations');
-            assert.equal(response.result.length, 3, 'Should find 3 references to "loon"');
+            assert.equal(response.result.length, 4, 'Should find 4 references to "loon"');
             
-            // Check that we found the definition and both uses
+            // Check that we found the definition and all uses
             const lines = response.result.map((loc: any) => loc.range.start.line).sort();
-            assert.deepEqual(lines, [0, 3, 5], 'Should find references on lines 0, 3, and 5');
+            assert.deepEqual(lines, [0, 4, 5, 8], 'Should find references on lines 0, 4, 5, and 8');
             
             server.kill();
             done();
@@ -77,11 +77,12 @@ describe('Find All References', () => {
       const text = `Parameter loon: Bedrag;
 Parameter bonus: Bedrag;
 Regel BerekenTotaal
-  geldig indien loon groter is dan 1000
-    Het totaal wordt loon + bonus.
+geldig altijd
+  indien loon > 1000
+    Het totaal van een persoon moet berekend worden als loon + bonus.
 Regel ControleerLoon
-  geldig altijd
-    Het minimum wordt loon.`;
+geldig altijd
+  Het minimum van een persoon moet berekend worden als loon.`;
       
       sendMessage({
         jsonrpc: '2.0',

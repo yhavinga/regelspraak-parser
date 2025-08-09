@@ -267,7 +267,7 @@ async function testGoToDefinition() {
 Parameter bonus: Bedrag;
 Regel Totaal
   geldig altijd
-    Het totaal wordt salaris + bonus.`
+    Het totaal van een persoon moet berekend worden als salaris + bonus.`
       }
     }
   });
@@ -286,7 +286,7 @@ Regel Totaal
     method: 'textDocument/definition',
     params: {
       textDocument: { uri: 'file:///gotodef-test.rs' },
-      position: { line: 4, character: 21 }  // On "salaris" in expression (line: "    Het totaal wordt salaris + bonus.")
+      position: { line: 4, character: 56 }  // On "salaris" in expression
     }
   });
   
