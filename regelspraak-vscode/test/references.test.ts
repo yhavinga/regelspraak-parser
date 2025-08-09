@@ -79,7 +79,7 @@ Parameter bonus: Bedrag;
 Regel BerekenTotaal
 geldig altijd
   indien loon > 1000
-    Het totaal van een persoon moet berekend worden als loon + bonus.
+    Het totaal van een persoon moet berekend worden als loon plus bonus.
 Regel ControleerLoon
 geldig altijd
   Het minimum van een persoon moet berekend worden als loon.`;

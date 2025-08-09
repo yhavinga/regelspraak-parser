@@ -67,7 +67,7 @@ describe('Go to Definition', () => {
 Parameter bonus: Bedrag;
 Regel Totaal
 geldig altijd
-  Het totaal van een persoon moet berekend worden als salaris + bonus.`;
+  Het totaal van een persoon moet berekend worden als salaris plus bonus.`;
       
       const openNotification = JSON.stringify({
         jsonrpc: '2.0',

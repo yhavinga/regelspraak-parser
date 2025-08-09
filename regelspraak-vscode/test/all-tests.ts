@@ -267,7 +267,7 @@ async function testGoToDefinition() {
 Parameter bonus: Bedrag;
 Regel Totaal
   geldig altijd
-    Het totaal van een persoon moet berekend worden als salaris + bonus.`
+    Het totaal van een persoon moet berekend worden als salaris plus bonus.`
       }
     }
   });

@@ -688,7 +688,7 @@ connection.onReferences((params) => {
   
   try {
     const parser = new AntlrParser();
-    const { model } = parser.parseWithLocations(document.getText());
+    const { model, locationMap } = parser.parseWithLocations(document.getText());
     
     // Find what symbol we're looking for
     const node = findNodeAtPosition(model, params.position);
@@ -716,7 +716,7 @@ connection.onReferences((params) => {
       
       // Check if this is a reference to our symbol
       if (node.type === 'VariableReference' && node.variableName === symbolName) {
-        const location = locationMap.get(node);
+        const location = locationMap?.get(node) || node.location;
         if (location) {
           references.push({
             uri: params.textDocument.uri,
@@ -731,7 +731,7 @@ connection.onReferences((params) => {
       // Include the definition if requested
       if (params.context.includeDeclaration) {
         if (node.type === 'ParameterDefinition' && node.name === symbolName) {
-          const location = locationMap.get(node);
+          const location = locationMap?.get(node) || node.location;
           if (location) {
             references.push({
               uri: params.textDocument.uri,
