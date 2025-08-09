@@ -284,20 +284,21 @@ connection.onDocumentSymbol((params) => {
 });
 
 // Helper to find node at a given position
-function findNodeAtPosition(node: any, position: { line: number; character: number }, locationMap: WeakMap<any, any>, depth: number = 0): any {
-  const location = locationMap.get(node);
+function findNodeAtPosition(node: any, position: { line: number; character: number }, depth: number = 0): any {
+  // Use location property directly from node
+  const location = node?.location;
   if (!location) {
     // If no location for this node, try its children
-    for (const key of Object.keys(node)) {
+    for (const key of Object.keys(node || {})) {
       const value = node[key];
       if (value && typeof value === 'object') {
         if (Array.isArray(value)) {
           for (const item of value) {
-            const result = findNodeAtPosition(item, position, locationMap, depth + 1);
+            const result = findNodeAtPosition(item, position, depth + 1);
             if (result) return result;
           }
         } else {
-          const result = findNodeAtPosition(value, position, locationMap, depth + 1);
+          const result = findNodeAtPosition(value, position, depth + 1);
           if (result) return result;
         }
       }
@@ -338,7 +339,7 @@ function findNodeAtPosition(node: any, position: { line: number; character: numb
         // Check each item in array
         for (const item of value) {
           if (item && typeof item === 'object') {
-            const childMatch = findNodeAtPosition(item, position, locationMap, depth + 1);
+            const childMatch = findNodeAtPosition(item, position, depth + 1);
             if (childMatch) {
               bestMatch = childMatch;
             }
@@ -346,7 +347,7 @@ function findNodeAtPosition(node: any, position: { line: number; character: numb
         }
       } else {
         // Always check the object, regardless of whether it has location
-        const childMatch = findNodeAtPosition(value, position, locationMap, depth + 1);
+        const childMatch = findNodeAtPosition(value, position, depth + 1);
         if (childMatch) {
           bestMatch = childMatch;
         }
@@ -367,10 +368,10 @@ connection.onHover((params) => {
   
   try {
     const parser = new AntlrParser();
-    const { model, locationMap } = parser.parseWithLocations(document.getText());
+    const { model } = parser.parseWithLocations(document.getText());
     
     // Find node at position
-    const node = findNodeAtPosition(model, params.position, locationMap);
+    const node = findNodeAtPosition(model, params.position);
     if (!node) {
       return null;
     }
@@ -606,10 +607,10 @@ connection.onDefinition((params) => {
   
   try {
     const parser = new AntlrParser();
-    const { model, locationMap } = parser.parseWithLocations(document.getText());
+    const { model } = parser.parseWithLocations(document.getText());
     
     // Find what's at the cursor position
-    let node = findNodeAtPosition(model, params.position, locationMap);
+    let node = findNodeAtPosition(model, params.position);
     if (!node) {
       return null;
     }
@@ -620,7 +621,7 @@ connection.onDefinition((params) => {
       // Search for parameter definition
       for (const param of model.parameters) {
         if (param.name === node.variableName) {
-          const location = locationMap.get(param);
+          const location = param.location;
           if (location) {
             return {
               uri: params.textDocument.uri,
@@ -638,7 +639,7 @@ connection.onDefinition((params) => {
     if (node.type === 'DomainReference' && node.domain) {
       for (const domain of model.domains) {
         if (domain.name === node.domain) {
-          const location = locationMap.get(domain);
+          const location = domain.location;
           if (location) {
             return {
               uri: params.textDocument.uri,
@@ -657,7 +658,7 @@ connection.onDefinition((params) => {
       const typeName = node.objectType || node.name;
       for (const objType of model.objectTypes) {
         if (objType.name === typeName) {
-          const location = locationMap.get(objType);
+          const location = objType.location;
           if (location) {
             return {
               uri: params.textDocument.uri,
@@ -687,10 +688,10 @@ connection.onReferences((params) => {
   
   try {
     const parser = new AntlrParser();
-    const { model, locationMap } = parser.parseWithLocations(document.getText());
+    const { model } = parser.parseWithLocations(document.getText());
     
     // Find what symbol we're looking for
-    const node = findNodeAtPosition(model, params.position, locationMap);
+    const node = findNodeAtPosition(model, params.position);
     if (!node) {
       return [];
     }

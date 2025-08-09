@@ -1,4 +1,5 @@
 import { Engine } from '../../src';
+import { stripLocations } from '../test-utils';
 
 describe('Engine - Object Type Definitions', () => {
   let engine: Engine;
@@ -14,7 +15,7 @@ describe('Engine - Object Type Definitions', () => {
       const result = engine.parse(source);
       
       expect(result.success).toBe(true);
-      expect(result.ast).toEqual({
+      expect(stripLocations(result.ast)).toEqual({
         type: 'ObjectTypeDefinition',
         name: 'persoon',
         animated: false,
@@ -28,7 +29,7 @@ describe('Engine - Object Type Definitions', () => {
       const result = engine.parse(source);
       
       expect(result.success).toBe(true);
-      expect(result.ast).toEqual({
+      expect(stripLocations(result.ast)).toEqual({
         type: 'ObjectTypeDefinition',
         name: 'persoon',
         plural: ['personen'],
@@ -43,7 +44,7 @@ describe('Engine - Object Type Definitions', () => {
       const result = engine.parse(source);
       
       expect(result.success).toBe(true);
-      expect(result.ast).toEqual({
+      expect(stripLocations(result.ast)).toEqual({
         type: 'ObjectTypeDefinition',
         name: 'persoon',
         animated: true,
@@ -60,7 +61,7 @@ describe('Engine - Object Type Definitions', () => {
       const result = engine.parse(source);
       
       expect(result.success).toBe(true);
-      expect(result.ast).toEqual({
+      expect(stripLocations(result.ast)).toEqual({
         type: 'ObjectTypeDefinition',
         name: 'persoon',
         animated: false,
@@ -78,7 +79,7 @@ describe('Engine - Object Type Definitions', () => {
       const result = engine.parse(source);
       
       expect(result.success).toBe(true);
-      expect(result.ast?.members[0]).toEqual({
+      expect(stripLocations(result.ast?.members[0])).toEqual({
         type: 'KenmerkSpecification',
         name: 'gelukkig',
         kenmerkType: 'bijvoeglijk'
@@ -92,7 +93,7 @@ describe('Engine - Object Type Definitions', () => {
       const result = engine.parse(source);
       
       expect(result.success).toBe(true);
-      expect(result.ast?.members[0]).toEqual({
+      expect(stripLocations(result.ast?.members[0])).toEqual({
         type: 'KenmerkSpecification',
         name: 'gehuwd',
         kenmerkType: 'bezittelijk'
@@ -108,7 +109,7 @@ describe('Engine - Object Type Definitions', () => {
       const result = engine.parse(source);
       
       expect(result.success).toBe(true);
-      expect(result.ast?.members[0]).toEqual({
+      expect(stripLocations(result.ast?.members[0])).toEqual({
         type: 'AttributeSpecification',
         name: 'naam',
         dataType: { type: 'Tekst' }
@@ -122,7 +123,7 @@ describe('Engine - Object Type Definitions', () => {
       const result = engine.parse(source);
       
       expect(result.success).toBe(true);
-      expect(result.ast?.members[0]).toEqual({
+      expect(stripLocations(result.ast?.members[0])).toEqual({
         type: 'AttributeSpecification',
         name: 'leeftijd',
         dataType: { type: 'Numeriek', specification: 'geheel getal' }
@@ -139,7 +140,7 @@ describe('Engine - Object Type Definitions', () => {
       const result = engine.parse(source);
       
       expect(result.success).toBe(true);
-      expect(result.ast?.members[0]).toEqual({
+      expect(stripLocations(result.ast?.members[0])).toEqual({
         type: 'AttributeSpecification',
         name: 'snelheid',
         dataType: { type: 'Numeriek', specification: 'getal' },
@@ -154,7 +155,7 @@ describe('Engine - Object Type Definitions', () => {
       const result = engine.parse(source);
       
       expect(result.success).toBe(true);
-      expect(result.ast?.members[0]).toEqual({
+      expect(stripLocations(result.ast?.members[0])).toEqual({
         type: 'AttributeSpecification',
         name: 'prijs',
         dataType: { type: 'DomainReference', domain: 'Bedrag' },
@@ -171,7 +172,7 @@ describe('Engine - Object Type Definitions', () => {
       const result = engine.parse(source);
       
       expect(result.success).toBe(true);
-      expect(result.ast?.members[0]).toEqual({
+      expect(stripLocations(result.ast?.members[0])).toEqual({
         type: 'AttributeSpecification',
         name: 'omzet',
         dataType: { type: 'DomainReference', domain: 'Bedrag' },
@@ -186,7 +187,7 @@ describe('Engine - Object Type Definitions', () => {
       const result = engine.parse(source);
       
       expect(result.success).toBe(true);
-      expect(result.ast?.members[0]).toEqual({
+      expect(stripLocations(result.ast?.members[0])).toEqual({
         type: 'AttributeSpecification',
         name: 'inkomen',
         dataType: { type: 'DomainReference', domain: 'Bedrag' },
@@ -206,7 +207,7 @@ describe('Engine - Object Type Definitions', () => {
       const result = engine.parse(source);
       
       expect(result.success).toBe(true);
-      expect(result.ast).toEqual({
+      expect(stripLocations(result.ast)).toEqual({
         type: 'ObjectTypeDefinition',
         name: 'persoon',
         plural: ['personen'],

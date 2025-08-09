@@ -1130,7 +1130,8 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
           attribute: this.extractParameterName(cleanAttrText),
           object: {
             type: 'VariableReference',
-            variableName: 'persoon' // TODO: Extract this properly
+            variableName: 'persoon', // TODO: Extract this properly
+            location: createSourceLocation(ctx)
           }
         } as NavigationExpression;
         
@@ -1858,7 +1859,7 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
     // Check for timeline
     const timeline = ctx.tijdlijn && ctx.tijdlijn() ? true : undefined;
     
-    const node = {
+    const node: AttributeSpecification = {
       type: 'AttributeSpecification',
       name,
       dataType,
@@ -1873,11 +1874,15 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
   visitDatatype(ctx: any): DataType {
     // Check which specific datatype it is
     if (ctx.tekstDatatype && ctx.tekstDatatype()) {
-      const node = { type: 'Tekst' };
+      const node: DataType = { type: 'Tekst' };
+      this.setLocation(node, ctx);
+      return node;
     } else if (ctx.numeriekDatatype && ctx.numeriekDatatype()) {
       return this.visitNumeriekDatatype(ctx.numeriekDatatype());
     } else if (ctx.booleanDatatype && ctx.booleanDatatype()) {
-      return { type: 'Boolean' };
+      const node: DataType = { type: 'Boolean' };
+      this.setLocation(node, ctx);
+      return node;
     } else if (ctx.datumTijdDatatype && ctx.datumTijdDatatype()) {
       return this.visitDatumTijdDatatype(ctx.datumTijdDatatype());
     }
@@ -1903,7 +1908,7 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
   visitDatumTijdDatatype(ctx: any): DataType {
     // Check if it's DATUM or DATUM_TIJD
     const text = this.extractText(ctx);
-    const node = text.toLowerCase().includes('tijd') 
+    const node: DataType = text.toLowerCase().includes('tijd') 
       ? { type: 'DatumTijd' }
       : { type: 'Datum' };
     this.setLocation(node, ctx);
@@ -2088,7 +2093,7 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
       cardinalityDescription = this.extractCardinalityLine(cardinalityLineCtx);
     }
     
-    const node = {
+    const node: FeitType = {
       type: 'FeitType',
       naam,
       wederkerig,
@@ -2139,7 +2144,7 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
       meervoud = this.extractTextWithSpaces(ctx._meervoud);
     }
     
-    const node = {
+    const node: Rol = {
       type: 'Rol',
       naam: roleName,
       meervoud,
@@ -2199,7 +2204,7 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
     // Complex compound conditions (toplevelSamengesteldeVoorwaarde) can be added later
     if (ctx.expressie && ctx.expressie()) {
       const expression = this.visit(ctx.expressie());
-      const node = {
+      const node: Voorwaarde = {
         type: 'Voorwaarde',
         expression
       };
@@ -2406,7 +2411,7 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
       throw new Error('Failed to parse uniqueness target');
     }
     
-    const node = {
+    const node: Consistentieregel = {
       type: 'Consistentieregel',
       criteriumType: 'uniek',
       target: target
@@ -2432,7 +2437,7 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
     
     // Create an AttributeReference that represents "attribute of all ObjectType"
     // The path structure represents the navigation: [attribute, "alle", object_type]
-    const node = {
+    const node: AttributeReference = {
       type: 'AttributeReference',
       path: [attrName, 'alle', objTypeName]
     };
@@ -2442,7 +2447,7 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
   
   visitInconsistentResultaat(ctx: any): Consistentieregel {
     // Handle inconsistency check
-    const node = {
+    const node: Consistentieregel = {
       type: 'Consistentieregel',
       criteriumType: 'inconsistent'
     };
@@ -2692,7 +2697,7 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
     // Visit all unit entries
     const units = ctx.eenheidEntry_list().map((entry: any) => this.visit(entry));
     
-    const node = {
+    const node: UnitSystemDefinition = {
       type: 'UnitSystemDefinition',
       name,
       units

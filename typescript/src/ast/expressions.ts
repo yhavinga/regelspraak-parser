@@ -6,7 +6,7 @@ import { SourceLocation } from './location';
 
 export interface Expression {
   type: string;
-  location?: SourceLocation;  // Optional for now, but visitor will always set it
+  location?: SourceLocation;  // Set by visitor - guaranteed to exist after parsing
 }
 
 export interface NumberLiteral extends Expression {

@@ -1,5 +1,21 @@
 import { Engine } from '../../src';
 
+// Helper to strip location properties from AST nodes for testing
+function stripLocations(obj: any): any {
+  if (obj === null || obj === undefined) return obj;
+  if (typeof obj !== 'object') return obj;
+  if (Array.isArray(obj)) {
+    return obj.map(stripLocations);
+  }
+  const result: any = {};
+  for (const key in obj) {
+    if (key !== 'location') {
+      result[key] = stripLocations(obj[key]);
+    }
+  }
+  return result;
+}
+
 describe('Engine - Parameter Definitions', () => {
   let engine: Engine;
 
@@ -18,7 +34,7 @@ describe('Engine - Parameter Definitions', () => {
       }
       
       expect(result.success).toBe(true);
-      expect(result.ast).toEqual({
+      expect(stripLocations(result.ast)).toEqual({
         type: 'ParameterDefinition',
         name: 'volwassenleeftijd',
         dataType: { type: 'Numeriek', specification: 'geheel getal' }
@@ -35,7 +51,7 @@ describe('Engine - Parameter Definitions', () => {
       }
       
       expect(result.success).toBe(true);
-      expect(result.ast).toEqual({
+      expect(stripLocations(result.ast)).toEqual({
         type: 'ParameterDefinition',
         name: 'volwassenleeftijd',
         dataType: { type: 'Numeriek', specification: 'geheel getal' },
@@ -53,7 +69,7 @@ describe('Engine - Parameter Definitions', () => {
       }
       
       expect(result.success).toBe(true);
-      expect(result.ast).toEqual({
+      expect(stripLocations(result.ast)).toEqual({
         type: 'ParameterDefinition',
         name: 'aantal kinderen',
         dataType: { type: 'DomainReference', domain: 'AantalKinderen' }
@@ -70,7 +86,7 @@ describe('Engine - Parameter Definitions', () => {
       }
       
       expect(result.success).toBe(true);
-      expect(result.ast).toEqual({
+      expect(stripLocations(result.ast)).toEqual({
         type: 'ParameterDefinition',
         name: 'standaard locatie',
         dataType: { type: 'Tekst' }
@@ -87,7 +103,7 @@ describe('Engine - Parameter Definitions', () => {
       }
       
       expect(result.success).toBe(true);
-      expect(result.ast).toEqual({
+      expect(stripLocations(result.ast)).toEqual({
         type: 'ParameterDefinition',
         name: 'startdatum',
         dataType: { type: 'Datum' }
@@ -104,7 +120,7 @@ describe('Engine - Parameter Definitions', () => {
       }
       
       expect(result.success).toBe(true);
-      expect(result.ast).toEqual({
+      expect(stripLocations(result.ast)).toEqual({
         type: 'ParameterDefinition',
         name: 'startdatum',
         dataType: { type: 'Datum' },
@@ -122,7 +138,7 @@ describe('Engine - Parameter Definitions', () => {
       }
       
       expect(result.success).toBe(true);
-      expect(result.ast).toEqual({
+      expect(stripLocations(result.ast)).toEqual({
         type: 'ParameterDefinition',
         name: 'initiele belasting',
         dataType: { type: 'DomainReference', domain: 'Bedrag' },
@@ -140,7 +156,7 @@ describe('Engine - Parameter Definitions', () => {
       }
       
       expect(result.success).toBe(true);
-      expect(result.ast).toEqual({
+      expect(stripLocations(result.ast)).toEqual({
         type: 'ParameterDefinition',
         name: 'volwassenleeftijd',
         dataType: { type: 'Numeriek', specification: 'geheel getal' },

@@ -3,6 +3,7 @@
  */
 
 import { Expression, AttributeReference } from './expressions';
+import { SourceLocation } from './location';
 
 export interface Rule {
   type: 'Rule';
@@ -10,6 +11,7 @@ export interface Rule {
   version: RuleVersion;
   result: ResultPart;
   condition?: Voorwaarde; // Optional condition (indien X)
+  location?: SourceLocation;  // Set by visitor - guaranteed to exist after parsing
 }
 
 export interface RuleVersion {

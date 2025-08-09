@@ -2,12 +2,15 @@
  * AST nodes for object type definitions in RegelSpraak
  */
 
+import { SourceLocation } from './location';
+
 export interface ObjectTypeDefinition {
   type: 'ObjectTypeDefinition';
   name: string;
   plural?: string[];
   animated?: boolean; // bezield
   members: ObjectTypeMember[];
+  location?: SourceLocation;  // Set by visitor - guaranteed to exist after parsing
 }
 
 export type ObjectTypeMember = KenmerkSpecification | AttributeSpecification;
