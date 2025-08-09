@@ -2,8 +2,11 @@
  * AST nodes for expressions
  */
 
+import { SourceLocation } from './location';
+
 export interface Expression {
   type: string;
+  location?: SourceLocation;  // Optional for now, but visitor will always set it
 }
 
 export interface NumberLiteral extends Expression {

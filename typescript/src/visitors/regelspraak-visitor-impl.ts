@@ -179,12 +179,14 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
     const opText = opToken.getText();
     const operator = opText.toLowerCase() === 'en' ? '&&' : '||';
     
-    return {
+    const node = {
       type: 'BinaryExpression',
       operator: operator as any,
       left,
       right
     } as BinaryExpression;
+    this.locationMap.set(node, createSourceLocation(ctx));
+    return node;
   }
 
   visitComparisonExpression(ctx: any): Expression {
@@ -261,12 +263,14 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
         throw new Error(`Unknown comparison operator: ${opText}`);
     }
     
-    return {
+    const node = {
       type: 'BinaryExpression',
       operator: operator as any,
       left,
       right
     } as BinaryExpression;
+    this.locationMap.set(node, createSourceLocation(ctx));
+    return node;
   }
 
   visitUnaryConditionExpr(ctx: any): Expression {
@@ -322,7 +326,7 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
     }
     
     // Create a binary expression with the dagsoort name as right side
-    return {
+    const node = {
       type: 'BinaryExpression',
       operator: binaryOp as any,
       left: expr,
@@ -331,17 +335,21 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
         value: dagsoortName
       }
     } as BinaryExpression;
+    this.locationMap.set(node, createSourceLocation(ctx));
+    return node;
   }
 
   visitUnaryUniekCondition(ctx: any): Expression {
     // ref=onderwerpReferentie MOETEN_UNIEK_ZIJN
     const ref = this.visit(ctx.onderwerpReferentie());
     
-    return {
+    const node = {
       type: 'UnaryExpression',
       operator: 'moeten uniek zijn',
       operand: ref
     } as UnaryExpression;
+    this.locationMap.set(node, createSourceLocation(ctx));
+    return node;
   }
 
   visitAdditiveExpression(ctx: AdditiveExpressionContext): Expression {
@@ -428,17 +436,21 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
     const unitCtx = ctx.unitIdentifier();
     if (unitCtx) {
       const unit = unitCtx.getText();
-      return {
+      const node = {
         type: 'NumberLiteral',
         value,
         unit
       } as NumberLiteral;
+    this.locationMap.set(node, createSourceLocation(ctx));
+    return node;
     }
     
-    return {
+    const node = {
       type: 'NumberLiteral',
       value
     } as NumberLiteral;
+    this.locationMap.set(node, createSourceLocation(ctx));
+    return node;
   }
 
   visitIdentifierExpr(ctx: IdentifierExprContext): Expression {
@@ -478,12 +490,14 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
     // Create binary expression
     const operator = ctx.PLUS() ? '+' : '-';
     
-    return {
+    const node = {
       type: 'BinaryExpression',
       operator: operator,
       left: left,
       right: right
     } as BinaryExpression;
+    this.locationMap.set(node, createSourceLocation(ctx));
+    return node;
   }
 
   visitOnderwerpRefExpr(ctx: any): Expression {
@@ -540,10 +554,12 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
     // Remove surrounding quotes
     const value = text.slice(1, -1);
     
-    return {
+    const node = {
       type: 'StringLiteral',
       value
     } as Expression;
+    this.locationMap.set(node, createSourceLocation(ctx));
+    return node;
   }
 
   visitEnumLiteralExpr(ctx: any): Expression {
@@ -553,32 +569,38 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
     // Remove surrounding quotes
     const value = text.slice(1, -1);
     
-    return {
+    const node = {
       type: 'StringLiteral',  // Treat enum literals as string literals for now
       value
     } as Expression;
+    this.locationMap.set(node, createSourceLocation(ctx));
+    return node;
   }
 
   visitUnaryNietExpr(ctx: UnaryNietExprContext): Expression {
     // Get the operand expression
     const operand = this.visit(ctx.primaryExpression());
     
-    return {
+    const node = {
       type: 'UnaryExpression',
       operator: '!',
       operand
     } as UnaryExpression;
+    this.locationMap.set(node, createSourceLocation(ctx));
+    return node;
   }
 
   visitUnaryMinusExpr(ctx: UnaryMinusExprContext): Expression {
     // Get the operand expression
     const operand = this.visit(ctx.primaryExpression());
     
-    return {
+    const node = {
       type: 'UnaryExpression',
       operator: '-',
       operand
     } as UnaryExpression;
+    this.locationMap.set(node, createSourceLocation(ctx));
+    return node;
   }
 
   visitWortelFuncExpr(ctx: any): Expression {
@@ -593,11 +615,13 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
       throw new Error('Invalid argument for "de wortel van"');
     }
     
-    return {
+    const node = {
       type: 'FunctionCall',
       functionName: 'sqrt',
       arguments: [arg]
     } as FunctionCall;
+    this.locationMap.set(node, createSourceLocation(ctx));
+    return node;
   }
 
   visitAbsValFuncExpr(ctx: any): Expression {
@@ -612,11 +636,13 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
       throw new Error('Invalid argument for "de absolute waarde van"');
     }
     
-    return {
+    const node = {
       type: 'FunctionCall',
       functionName: 'abs',
       arguments: [arg]
     } as FunctionCall;
+    this.locationMap.set(node, createSourceLocation(ctx));
+    return node;
   }
 
   visitTijdsduurFuncExpr(ctx: any): Expression {
@@ -669,11 +695,13 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
       }
     }
     
-    return {
+    const node = {
       type: 'FunctionCall',
       functionName: 'som',
       arguments: args
     } as FunctionCall;
+    this.locationMap.set(node, createSourceLocation(ctx));
+    return node;
   }
   
   visitSomAlleAttribuutExpr(ctx: any): Expression {
@@ -685,11 +713,13 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
       throw new Error('No attribute reference found in som_van function');
     }
     
-    return {
+    const node = {
       type: 'FunctionCall',
       functionName: 'som_van',
       arguments: [attrRef]
     } as FunctionCall;
+    this.locationMap.set(node, createSourceLocation(ctx));
+    return node;
   }
   
   private _stripArticle(text: string): string {
@@ -774,20 +804,24 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
         };
         
         // Return FunctionCall with both arguments
-        return {
+        const node = {
           type: 'FunctionCall',
           functionName,
           arguments: [attrRef, collectionRef]
         } as FunctionCall;
+    this.locationMap.set(node, createSourceLocation(ctx));
+    return node;
       }
     }
     
     // No collection specified, just return function with attribute
-    return {
+    const node = {
       type: 'FunctionCall',
       functionName,
       arguments: [attrRef]
     } as FunctionCall;
+    this.locationMap.set(node, createSourceLocation(ctx));
+    return node;
   }
   
   visitAantalFuncExpr(ctx: any): Expression {
@@ -816,22 +850,26 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
           path: [objectType]
         } as AttributeReference;
         
-        return {
+        const node = {
           type: 'FunctionCall',
           functionName: 'aantal',
           arguments: [attrRef]
         } as FunctionCall;
+    this.locationMap.set(node, createSourceLocation(ctx));
+    return node;
       }
     }
     
     // Normal case: just visit the onderwerp reference
     const onderwerpExpr = this.visit(onderwerpCtx);
     
-    return {
+    const node = {
       type: 'FunctionCall',
       functionName: 'aantal',
       arguments: [onderwerpExpr]
     } as FunctionCall;
+    this.locationMap.set(node, createSourceLocation(ctx));
+    return node;
   }
 
   visitHetAantalDagenInExpr(ctx: any): Expression {
@@ -862,11 +900,13 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
       datatype: 'string'
     };
     
-    return {
+    const node = {
       type: 'FunctionCall',
       functionName: 'aantal_dagen_in',
       arguments: [periodLiteral, conditionExpr]
     } as FunctionCall;
+    this.locationMap.set(node, createSourceLocation(ctx));
+    return node;
   }
 
   visitSubordinateIsWithExpr(ctx: any): Expression {
@@ -1090,11 +1130,13 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
           }
         } as NavigationExpression;
         
-        return {
+        const node = {
           type: 'DimensionedAttributeReference',
           baseAttribute: navExpr,
           dimensionLabels
         } as DimensionedAttributeReference;
+    this.locationMap.set(node, createSourceLocation(ctx));
+    return node;
       }
     }
     
@@ -1138,11 +1180,13 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
         
         // If we have dimension labels, wrap in DimensionedAttributeReference
         if (dimensionLabels.length > 0) {
-          return {
+          const node = {
             type: 'DimensionedAttributeReference',
             baseAttribute: navExpr,
             dimensionLabels
           } as DimensionedAttributeReference;
+    this.locationMap.set(node, createSourceLocation(ctx));
+    return node;
         }
         
         return navExpr;
@@ -1156,11 +1200,13 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
       
       // If we have dimension labels, wrap in DimensionedAttributeReference
       if (dimensionLabels.length > 0) {
-        return {
+        const node = {
           type: 'DimensionedAttributeReference',
           baseAttribute: navExpr,
           dimensionLabels
         } as DimensionedAttributeReference;
+    this.locationMap.set(node, createSourceLocation(ctx));
+    return node;
       }
       
       return navExpr;
@@ -1183,11 +1229,13 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
       
       // If we have dimension labels, wrap in DimensionedAttributeReference
       if (dimensionLabels.length > 0) {
-        return {
+        const node = {
           type: 'DimensionedAttributeReference',
           baseAttribute: navExpr,
           dimensionLabels
         } as DimensionedAttributeReference;
+    this.locationMap.set(node, createSourceLocation(ctx));
+    return node;
       }
       
       return navExpr;
@@ -1208,11 +1256,13 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
     
     // If we have dimension labels, wrap in DimensionedAttributeReference
     if (dimensionLabels.length > 0) {
-      return {
+      const node = {
         type: 'DimensionedAttributeReference',
         baseAttribute: attrRef,
         dimensionLabels
       } as DimensionedAttributeReference;
+    this.locationMap.set(node, createSourceLocation(ctx));
+    return node;
     }
     
     return attrRef;
@@ -1234,11 +1284,13 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
       const baseExpression = this.visitOnderwerpBasis(ctx.onderwerpBasis());
       const predicaat = this.visitPredicaat(predicaatCtx);
       
-      return {
+      const node = {
         type: 'SubselectieExpression',
         collection: baseExpression,
         predicaat
       } as SubselectieExpression;
+    this.locationMap.set(node, createSourceLocation(ctx));
+    return node;
     }
     
     // No subselectie, just process the onderwerpBasis
@@ -1351,10 +1403,12 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
     // Simple kenmerk pattern like "minderjarig zijn"
     if (text.endsWith(' zijn')) {
       const kenmerk = text.replace(/ zijn$/, '').trim();
-      return {
+      const node = {
         type: 'KenmerkPredicaat',
         kenmerk
       } as KenmerkPredicaat;
+    this.locationMap.set(node, createSourceLocation(ctx));
+    return node;
     }
     
     // TODO: Handle samengesteldPredicaat
@@ -1413,12 +1467,14 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
     const exprCtx = ctx.expressie();
     const expr = this.visit(exprCtx);
     
-    return {
+    const node = {
       type: 'AttributeComparisonPredicaat',
       attribute: attrName,
       operator,
       value: expr
     } as AttributeComparisonPredicaat;
+    this.locationMap.set(node, createSourceLocation(ctx));
+    return node;
   }
   
   visitObjectPredicaat(ctx: any): KenmerkPredicaat {
@@ -1428,10 +1484,12 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
     // Remove trailing "zijn" if present
     const kenmerk = text.replace(/ zijn$/, '').trim();
     
-    return {
+    const node = {
       type: 'KenmerkPredicaat',
       kenmerk
     } as KenmerkPredicaat;
+    this.locationMap.set(node, createSourceLocation(ctx));
+    return node;
   }
 
   visitRegelVersie(ctx: any): any {
@@ -2192,17 +2250,21 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
   }
   
   visitBooleanTrueLiteralExpr(ctx: any): Expression {
-    return {
+    const node = {
       type: 'BooleanLiteral',
       value: true
     } as Expression;
+    this.locationMap.set(node, createSourceLocation(ctx));
+    return node;
   }
   
   visitBooleanFalseLiteralExpr(ctx: any): Expression {
-    return {
+    const node = {
       type: 'BooleanLiteral',
       value: false
     } as Expression;
+    this.locationMap.set(node, createSourceLocation(ctx));
+    return node;
   }
 
   visitKenmerkFeitResultaat(ctx: any): any {

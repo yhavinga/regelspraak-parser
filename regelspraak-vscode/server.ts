@@ -978,7 +978,94 @@ connection.onRequest('textDocument/semanticTokens/full', (params: SemanticTokens
   const builder = new SemanticTokensBuilder();
   const text = document.getText();
   
-  // Simple regex-based approach for now
+  // Use AST-based approach with location tracking
+  try {
+    const parser = new AntlrParser();
+    const { model, locationMap } = parser.parseWithLocations(text);
+    
+    // Walk AST and use locationMap for each node
+    const walkNode = (node: any) => {
+      if (!node || typeof node !== 'object') return;
+      
+      const location = locationMap?.get(node);
+      if (location && node.type) {
+        // Map node types to semantic token types
+        let tokenType: string | undefined;
+        let modifiers: string[] = [];
+        
+        switch (node.type) {
+          case 'ParameterDefinition':
+            tokenType = SemanticTokenTypes.variable;
+            modifiers = [SemanticTokenModifiers.declaration];
+            break;
+          case 'VariableReference':
+            tokenType = SemanticTokenTypes.variable;
+            break;
+          case 'NumberLiteral':
+            tokenType = SemanticTokenTypes.number;
+            break;
+          case 'StringLiteral':
+            tokenType = SemanticTokenTypes.string;
+            break;
+          case 'FunctionCall':
+            tokenType = SemanticTokenTypes.function;
+            break;
+          case 'ObjectTypeDefinition':
+            tokenType = SemanticTokenTypes.class;
+            modifiers = [SemanticTokenModifiers.declaration];
+            break;
+          case 'Rule':
+          case 'Gelijkstelling':
+            // Rules don't need tokens themselves, just their contents
+            break;
+          case 'DomainDefinition':
+            tokenType = SemanticTokenTypes.namespace;
+            modifiers = [SemanticTokenModifiers.declaration];
+            break;
+        }
+        
+        if (tokenType) {
+          const typeIndex = tokenTypeMap.get(tokenType);
+          if (typeIndex !== undefined) {
+            let modifierBits = 0;
+            for (const mod of modifiers) {
+              const bit = tokenModifierMap.get(mod);
+              if (bit) modifierBits |= bit;
+            }
+            
+            // ANTLR locations are 1-based lines, 0-based columns
+            const line = location.startLine - 1;
+            const char = location.startColumn;
+            const length = location.endColumn - location.startColumn + 1;
+            
+            if (line >= 0 && char >= 0 && length > 0) {
+              builder.push(line, char, length, typeIndex, modifierBits);
+            }
+          }
+        }
+      }
+      
+      // Recursively walk children
+      for (const key in node) {
+        const value = node[key];
+        if (Array.isArray(value)) {
+          value.forEach(walkNode);
+        } else if (typeof value === 'object' && value !== null && key !== 'location') {
+          walkNode(value);
+        }
+      }
+    };
+    
+    // Walk the entire model
+    walkNode(model);
+    
+    return builder.build();
+  } catch (e) {
+    // Fall back to regex approach if AST parsing fails
+    console.log('AST parsing failed, using regex fallback:', e);
+  }
+  
+  // Fallback: Simple regex-based approach
   const lines = text.split('\n');
   
   for (let lineNum = 0; lineNum < lines.length; lineNum++) {
