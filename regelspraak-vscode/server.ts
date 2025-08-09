@@ -987,7 +987,8 @@ connection.onRequest('textDocument/semanticTokens/full', (params: SemanticTokens
     const walkNode = (node: any) => {
       if (!node || typeof node !== 'object') return;
       
-      const location = locationMap?.get(node);
+      // Try node.location first (new way), fall back to locationMap (old way)
+      const location = node.location || locationMap?.get(node);
       if (location && node.type) {
         // Map node types to semantic token types
         let tokenType: string | undefined;

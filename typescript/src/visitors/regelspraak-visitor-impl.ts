@@ -57,10 +57,23 @@ import { DomainModel } from '../ast/domain-model';
  * Implementation of ANTLR4 visitor that builds our AST
  */
 export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements RegelSpraakVisitor<any> {
+  // DEPRECATED: WeakMap is being phased out in favor of node.location
   private locationMap: LocationMap = new WeakMap();
   
   getLocationMap(): LocationMap {
     return this.locationMap;
+  }
+  
+  /**
+   * Helper to set location both in WeakMap (for compatibility) 
+   * and directly on node (the right way)
+   */
+  private setLocation(node: any, ctx: any): void {
+    const location = createSourceLocation(ctx);
+    this.locationMap.set(node, location);
+    if (node && typeof node === 'object') {
+      node.location = location;
+    }
   }
   
   visitRegelSpraakDocument(ctx: RegelSpraakDocumentContext): DomainModel {
@@ -185,7 +198,7 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
       left,
       right
     } as BinaryExpression;
-    this.locationMap.set(node, createSourceLocation(ctx));
+    this.setLocation(node, ctx);
     return node;
   }
 
@@ -269,7 +282,7 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
       left,
       right
     } as BinaryExpression;
-    this.locationMap.set(node, createSourceLocation(ctx));
+    this.setLocation(node, ctx);
     return node;
   }
 
@@ -335,7 +348,7 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
         value: dagsoortName
       }
     } as BinaryExpression;
-    this.locationMap.set(node, createSourceLocation(ctx));
+    this.setLocation(node, ctx);
     return node;
   }
 
@@ -348,7 +361,7 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
       operator: 'moeten uniek zijn',
       operand: ref
     } as UnaryExpression;
-    this.locationMap.set(node, createSourceLocation(ctx));
+    this.setLocation(node, ctx);
     return node;
   }
 
@@ -441,7 +454,7 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
         value,
         unit
       } as NumberLiteral;
-    this.locationMap.set(node, createSourceLocation(ctx));
+    this.setLocation(node, ctx);
     return node;
     }
     
@@ -449,7 +462,7 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
       type: 'NumberLiteral',
       value
     } as NumberLiteral;
-    this.locationMap.set(node, createSourceLocation(ctx));
+    this.setLocation(node, ctx);
     return node;
   }
 
@@ -460,7 +473,7 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
     } as VariableReference;
     
     // Store location for this variable reference
-    this.locationMap.set(ref, createSourceLocation(ctx));
+    this.setLocation(ref, ctx);
     
     return ref;
   }
@@ -496,7 +509,7 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
       left: left,
       right: right
     } as BinaryExpression;
-    this.locationMap.set(node, createSourceLocation(ctx));
+    this.setLocation(node, ctx);
     return node;
   }
 
@@ -519,7 +532,7 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
           variableName
         } as VariableReference;
         // Store location for this variable reference
-        this.locationMap.set(ref, createSourceLocation(ctx));
+        this.setLocation(ref, ctx);
         return ref;
       } else if (identifiers) {
         // Single identifier
@@ -528,7 +541,7 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
           variableName: identifiers.getText()
         } as VariableReference;
         // Store location for this variable reference
-        this.locationMap.set(ref, createSourceLocation(ctx));
+        this.setLocation(ref, ctx);
         return ref;
       }
     }
@@ -543,7 +556,7 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
       variableName
     } as VariableReference;
     // Store location for this variable reference
-    this.locationMap.set(ref, createSourceLocation(ctx));
+    this.setLocation(ref, ctx);
     return ref;
   }
 
@@ -558,7 +571,7 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
       type: 'StringLiteral',
       value
     } as Expression;
-    this.locationMap.set(node, createSourceLocation(ctx));
+    this.setLocation(node, ctx);
     return node;
   }
 
@@ -573,7 +586,7 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
       type: 'StringLiteral',  // Treat enum literals as string literals for now
       value
     } as Expression;
-    this.locationMap.set(node, createSourceLocation(ctx));
+    this.setLocation(node, ctx);
     return node;
   }
 
@@ -586,7 +599,7 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
       operator: '!',
       operand
     } as UnaryExpression;
-    this.locationMap.set(node, createSourceLocation(ctx));
+    this.setLocation(node, ctx);
     return node;
   }
 
@@ -599,7 +612,7 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
       operator: '-',
       operand
     } as UnaryExpression;
-    this.locationMap.set(node, createSourceLocation(ctx));
+    this.setLocation(node, ctx);
     return node;
   }
 
@@ -620,7 +633,7 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
       functionName: 'sqrt',
       arguments: [arg]
     } as FunctionCall;
-    this.locationMap.set(node, createSourceLocation(ctx));
+    this.setLocation(node, ctx);
     return node;
   }
 
@@ -641,7 +654,7 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
       functionName: 'abs',
       arguments: [arg]
     } as FunctionCall;
-    this.locationMap.set(node, createSourceLocation(ctx));
+    this.setLocation(node, ctx);
     return node;
   }
 
@@ -700,7 +713,7 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
       functionName: 'som',
       arguments: args
     } as FunctionCall;
-    this.locationMap.set(node, createSourceLocation(ctx));
+    this.setLocation(node, ctx);
     return node;
   }
   
@@ -718,7 +731,7 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
       functionName: 'som_van',
       arguments: [attrRef]
     } as FunctionCall;
-    this.locationMap.set(node, createSourceLocation(ctx));
+    this.setLocation(node, ctx);
     return node;
   }
   
@@ -809,7 +822,7 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
           functionName,
           arguments: [attrRef, collectionRef]
         } as FunctionCall;
-    this.locationMap.set(node, createSourceLocation(ctx));
+    this.setLocation(node, ctx);
     return node;
       }
     }
@@ -820,7 +833,7 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
       functionName,
       arguments: [attrRef]
     } as FunctionCall;
-    this.locationMap.set(node, createSourceLocation(ctx));
+    this.setLocation(node, ctx);
     return node;
   }
   
@@ -855,7 +868,7 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
           functionName: 'aantal',
           arguments: [attrRef]
         } as FunctionCall;
-    this.locationMap.set(node, createSourceLocation(ctx));
+    this.setLocation(node, ctx);
     return node;
       }
     }
@@ -868,7 +881,7 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
       functionName: 'aantal',
       arguments: [onderwerpExpr]
     } as FunctionCall;
-    this.locationMap.set(node, createSourceLocation(ctx));
+    this.setLocation(node, ctx);
     return node;
   }
 
@@ -905,7 +918,7 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
       functionName: 'aantal_dagen_in',
       arguments: [periodLiteral, conditionExpr]
     } as FunctionCall;
-    this.locationMap.set(node, createSourceLocation(ctx));
+    this.setLocation(node, ctx);
     return node;
   }
 
@@ -1019,7 +1032,7 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
       };
       
       // Store location separately
-      this.locationMap.set(rule, createSourceLocation(ctx));
+      this.setLocation(rule, ctx);
       
       return rule;
     } catch (e) {
@@ -1070,7 +1083,7 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
     };
     
     // Store location separately
-    this.locationMap.set(group, createSourceLocation(ctx));
+    this.setLocation(group, ctx);
     
     return group;
   }
@@ -1135,7 +1148,7 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
           baseAttribute: navExpr,
           dimensionLabels
         } as DimensionedAttributeReference;
-    this.locationMap.set(node, createSourceLocation(ctx));
+    this.setLocation(node, ctx);
     return node;
       }
     }
@@ -1185,7 +1198,7 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
             baseAttribute: navExpr,
             dimensionLabels
           } as DimensionedAttributeReference;
-    this.locationMap.set(node, createSourceLocation(ctx));
+    this.setLocation(node, ctx);
     return node;
         }
         
@@ -1205,7 +1218,7 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
           baseAttribute: navExpr,
           dimensionLabels
         } as DimensionedAttributeReference;
-    this.locationMap.set(node, createSourceLocation(ctx));
+    this.setLocation(node, ctx);
     return node;
       }
       
@@ -1234,7 +1247,7 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
           baseAttribute: navExpr,
           dimensionLabels
         } as DimensionedAttributeReference;
-    this.locationMap.set(node, createSourceLocation(ctx));
+    this.setLocation(node, ctx);
     return node;
       }
       
@@ -1261,7 +1274,7 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
         baseAttribute: attrRef,
         dimensionLabels
       } as DimensionedAttributeReference;
-    this.locationMap.set(node, createSourceLocation(ctx));
+    this.setLocation(node, ctx);
     return node;
     }
     
@@ -1289,7 +1302,7 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
         collection: baseExpression,
         predicaat
       } as SubselectieExpression;
-    this.locationMap.set(node, createSourceLocation(ctx));
+    this.setLocation(node, ctx);
     return node;
     }
     
@@ -1313,7 +1326,7 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
         type: 'VariableReference',
         variableName
       } as VariableReference;
-      this.locationMap.set(ref, createSourceLocation(ctx));
+      this.setLocation(ref, ctx);
       return ref;
     }
     
@@ -1338,7 +1351,7 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
         type: 'VariableReference',
         variableName: objectTypeName
       } as VariableReference;
-      this.locationMap.set(ref, createSourceLocation(ctx));
+      this.setLocation(ref, ctx);
       return ref;
     }
     
@@ -1348,7 +1361,7 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
         type: 'VariableReference',
         variableName: 'hij'
       } as VariableReference;
-      this.locationMap.set(ref, createSourceLocation(ctx));
+      this.setLocation(ref, ctx);
       return ref;
     }
     
@@ -1359,7 +1372,7 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
       type: 'VariableReference',
       variableName
     } as VariableReference;
-    this.locationMap.set(ref, createSourceLocation(ctx));
+    this.setLocation(ref, ctx);
     return ref;
   }
   
@@ -1407,7 +1420,7 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
         type: 'KenmerkPredicaat',
         kenmerk
       } as KenmerkPredicaat;
-    this.locationMap.set(node, createSourceLocation(ctx));
+    this.setLocation(node, ctx);
     return node;
     }
     
@@ -1473,7 +1486,7 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
       operator,
       value: expr
     } as AttributeComparisonPredicaat;
-    this.locationMap.set(node, createSourceLocation(ctx));
+    this.setLocation(node, ctx);
     return node;
   }
   
@@ -1488,17 +1501,19 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
       type: 'KenmerkPredicaat',
       kenmerk
     } as KenmerkPredicaat;
-    this.locationMap.set(node, createSourceLocation(ctx));
+    this.setLocation(node, ctx);
     return node;
   }
 
   visitRegelVersie(ctx: any): any {
     const geldigheid = this.visit(ctx.versieGeldigheid());
     
-    return {
+    const node = {
       type: 'RuleVersion',
       validity: geldigheid
     };
+    this.setLocation(node, ctx);
+    return node;
   }
 
   visitVersieGeldigheid(ctx: any): string {
@@ -1564,7 +1579,7 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
     };
     
     // Store location for this gelijkstelling
-    this.locationMap.set(result, createSourceLocation(ctx));
+    this.setLocation(result, ctx);
     
     return result;
   }
@@ -1609,11 +1624,13 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
       }
     }
     
-    return {
+    const node = {
       type: 'ObjectCreation',
       objectType,
       attributeInits
     };
+    this.setLocation(node, ctx);
+    return node;
   }
 
   extractObjectTypeName(text: string): string {
@@ -1757,7 +1774,7 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
     };
     
     // Store location separately
-    this.locationMap.set(objType, createSourceLocation(ctx));
+    this.setLocation(objType, ctx);
     
     return objType;
   }
@@ -1850,7 +1867,7 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
     // Check for timeline
     const timeline = ctx.tijdlijn && ctx.tijdlijn() ? true : undefined;
     
-    return {
+    const node = {
       type: 'AttributeSpecification',
       name,
       dataType,
@@ -1858,12 +1875,14 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
       dimensions: dimensions.length > 0 ? dimensions : undefined,
       timeline: timeline || undefined
     };
+    this.setLocation(node, ctx);
+    return node;
   }
 
   visitDatatype(ctx: any): DataType {
     // Check which specific datatype it is
     if (ctx.tekstDatatype && ctx.tekstDatatype()) {
-      return { type: 'Tekst' };
+      const node = { type: 'Tekst' };
     } else if (ctx.numeriekDatatype && ctx.numeriekDatatype()) {
       return this.visitNumeriekDatatype(ctx.numeriekDatatype());
     } else if (ctx.booleanDatatype && ctx.booleanDatatype()) {
@@ -1886,24 +1905,28 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
       result.specification = spec;
     }
     
+    this.setLocation(result, ctx);
     return result;
   }
   
   visitDatumTijdDatatype(ctx: any): DataType {
     // Check if it's DATUM or DATUM_TIJD
     const text = this.extractText(ctx);
-    if (text.toLowerCase().includes('tijd')) {
-      return { type: 'DatumTijd' };
-    }
-    return { type: 'Datum' };
+    const node = text.toLowerCase().includes('tijd') 
+      ? { type: 'DatumTijd' }
+      : { type: 'Datum' };
+    this.setLocation(node, ctx);
+    return node;
   }
 
   visitDomeinRef(ctx: any): DomainReference {
     const domain = this.extractText(ctx);
-    return {
+    const node = {
       type: 'DomainReference',
       domain
     };
+    this.setLocation(node, ctx);
+    return node;
   }
 
   // Parameter parsing visitor methods
@@ -1967,7 +1990,7 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
     };
     
     // Store location separately
-    this.locationMap.set(result, createSourceLocation(ctx));
+    this.setLocation(result, ctx);
     
     if (unit) {
       result.unit = unit;
@@ -2040,7 +2063,7 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
     };
     
     // Store location separately
-    this.locationMap.set(dimension, createSourceLocation(ctx));
+    this.setLocation(dimension, ctx);
     
     return dimension;
   }
@@ -2074,13 +2097,15 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
       cardinalityDescription = this.extractCardinalityLine(cardinalityLineCtx);
     }
     
-    return {
+    const node = {
       type: 'FeitType',
       naam,
       wederkerig,
       rollen,
       cardinalityDescription
     };
+    this.setLocation(node, ctx);
+    return node;
   }
 
   visitRolDefinition(ctx: any): Rol | null {
@@ -2123,12 +2148,14 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
       meervoud = this.extractTextWithSpaces(ctx._meervoud);
     }
     
-    return {
+    const node = {
       type: 'Rol',
       naam: roleName,
       meervoud,
       objectType
     };
+    this.setLocation(node, ctx);
+    return node;
   }
 
   private extractCardinalityLine(ctx: any): string {
@@ -2181,10 +2208,12 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
     // Complex compound conditions (toplevelSamengesteldeVoorwaarde) can be added later
     if (ctx.expressie && ctx.expressie()) {
       const expression = this.visit(ctx.expressie());
-      return {
+      const node = {
         type: 'Voorwaarde',
         expression
       };
+    this.setLocation(node, ctx);
+    return node;
     }
     
     // TODO: Support toplevelSamengesteldeVoorwaarde for compound conditions
@@ -2226,11 +2255,13 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
       throw new Error('Unknown unary check operator');
     }
     
-    return {
+    const node = {
       type: 'UnaryExpression',
       operator: operator,
       operand: operand
     };
+    this.setLocation(node, ctx);
+    return node;
   }
 
   visitBezieldeRefExpr(ctx: any): any {
@@ -2243,10 +2274,12 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
     const attribute = identifierCtx ? identifierCtx.getText() : 'unknown';
     
     // Return an AttributeReference with 'self' path, matching Python implementation
-    return {
+    const node = {
       type: 'AttributeReference',
       path: ['self', attribute]
     };
+    this.setLocation(node, ctx);
+    return node;
   }
   
   visitBooleanTrueLiteralExpr(ctx: any): Expression {
@@ -2254,7 +2287,7 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
       type: 'BooleanLiteral',
       value: true
     } as Expression;
-    this.locationMap.set(node, createSourceLocation(ctx));
+    this.setLocation(node, ctx);
     return node;
   }
   
@@ -2263,7 +2296,7 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
       type: 'BooleanLiteral',
       value: false
     } as Expression;
-    this.locationMap.set(node, createSourceLocation(ctx));
+    this.setLocation(node, ctx);
     return node;
   }
 
@@ -2282,11 +2315,13 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
       throw new Error('Could not extract characteristic from kenmerktoekenning');
     }
     
-    return {
+    const node = {
       type: 'Kenmerktoekenning',
       subject,
       characteristic
     };
+    this.setLocation(node, ctx);
+    return node;
   }
 
   // Default visitor - fall back to visitChildren
@@ -2357,13 +2392,15 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
     }
     
     // Return as a Rule with Consistentieregel as the result
-    return {
+    const node = {
       type: 'Rule',
       name: naam,
       version: { type: 'RuleVersion', validity: 'altijd' },
       result: resultaat,
       condition: voorwaarde
     };
+    this.setLocation(node, ctx);
+    return node;
   }
   
   visitUniekzijnResultaat(ctx: any): Consistentieregel {
@@ -2378,11 +2415,13 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
       throw new Error('Failed to parse uniqueness target');
     }
     
-    return {
+    const node = {
       type: 'Consistentieregel',
       criteriumType: 'uniek',
       target: target
     };
+    this.setLocation(node, ctx);
+    return node;
   }
   
   visitAlleAttributenVanObjecttype(ctx: any): AttributeReference {
@@ -2402,18 +2441,22 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
     
     // Create an AttributeReference that represents "attribute of all ObjectType"
     // The path structure represents the navigation: [attribute, "alle", object_type]
-    return {
+    const node = {
       type: 'AttributeReference',
       path: [attrName, 'alle', objTypeName]
     };
+    this.setLocation(node, ctx);
+    return node;
   }
   
   visitInconsistentResultaat(ctx: any): Consistentieregel {
     // Handle inconsistency check
-    return {
+    const node = {
       type: 'Consistentieregel',
       criteriumType: 'inconsistent'
     };
+    this.setLocation(node, ctx);
+    return node;
   }
   
   visitVerdelingResultaat(ctx: any): any {
@@ -2463,13 +2506,15 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
       }
     }
     
-    return {
+    const node = {
       type: 'Verdeling',
       sourceAmount,
       targetCollection,
       distributionMethods,
       remainderTarget
     };
+    this.setLocation(node, ctx);
+    return node;
   }
   
   visitVerdelingGelijkeDelen(ctx: any): any {
@@ -2478,46 +2523,56 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
   
   visitVerdelingNaarRato(ctx: any): any {
     const ratioExpression = this.visit(ctx._ratioExpression);
-    return {
+    const node = {
       type: 'VerdelingNaarRato',
       ratioExpression
     };
+    this.setLocation(node, ctx);
+    return node;
   }
   
   visitVerdelingOpVolgorde(ctx: any): any {
     const orderDirection = ctx._orderDirection?.text || 'toenemende';
     const orderExpression = this.visit(ctx._orderExpression);
-    return {
+    const node = {
       type: 'VerdelingOpVolgorde',
       orderDirection: orderDirection as 'toenemende' | 'afnemende',
       orderExpression
     };
+    this.setLocation(node, ctx);
+    return node;
   }
   
   visitVerdelingTieBreak(ctx: any): any {
     const tieBreakMethod = this.visit(ctx._tieBreakMethod);
-    return {
+    const node = {
       type: 'VerdelingTieBreak',
       tieBreakMethod
     };
+    this.setLocation(node, ctx);
+    return node;
   }
   
   visitVerdelingMaximum(ctx: any): any {
     const maxExpression = this.visit(ctx._maxExpression);
-    return {
+    const node = {
       type: 'VerdelingMaximum',
       maxExpression
     };
+    this.setLocation(node, ctx);
+    return node;
   }
   
   visitVerdelingAfronding(ctx: any): any {
     const decimals = ctx._decimals ? parseInt(ctx._decimals.text) : 0;
     const roundDirection = ctx._roundDirection?.text || 'naar beneden';
-    return {
+    const node = {
       type: 'VerdelingAfronding',
       decimals,
       roundDirection: roundDirection as 'naar beneden' | 'naar boven'
     };
+    this.setLocation(node, ctx);
+    return node;
   }
 
   // --- Decision Table (Beslistabel) Visitor Methods ---
@@ -2543,7 +2598,7 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
     };
     
     // Store location separately
-    this.locationMap.set(decisionTable, createSourceLocation(ctx));
+    this.setLocation(decisionTable, ctx);
     
     return decisionTable;
   }
@@ -2555,10 +2610,12 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
     // Visit all rows
     const rows = ctx.beslistabelRow_list().map((row: any) => this.visit(row));
     
-    return {
+    const node = {
       ...header,
       rows
     };
+    this.setLocation(node, ctx);
+    return node;
   }
   
   visitBeslistabelHeader(ctx: any): any {
@@ -2570,10 +2627,12 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
       ctx._conditionColumns.map((col: any) => this.getFullText(col)) : 
       [];
     
-    return {
+    const node = {
       resultColumn,
       conditionColumns
     };
+    this.setLocation(node, ctx);
+    return node;
   }
   
   // Helper to get full text including hidden whitespace
@@ -2606,12 +2665,14 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
       ctx._conditionValues.map((value: any) => this.visit(value)) : 
       [];
     
-    return {
+    const node = {
       type: 'DecisionTableRow',
       rowNumber,
       resultExpression,
       conditionValues
     };
+    this.setLocation(node, ctx);
+    return node;
   }
   
   visitBeslistabelCellValue(ctx: any): any {
@@ -2640,11 +2701,13 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
     // Visit all unit entries
     const units = ctx.eenheidEntry_list().map((entry: any) => this.visit(entry));
     
-    return {
+    const node = {
       type: 'UnitSystemDefinition',
       name,
       units
     };
+    this.setLocation(node, ctx);
+    return node;
   }
   
   visitEenheidEntry(ctx: any): UnitDefinition {
@@ -2684,13 +2747,15 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
       };
     }
     
-    return {
+    const node = {
       name: unitName,
       plural,
       abbreviation: abbrev,
       symbol,
       conversion
     };
+    this.setLocation(node, ctx);
+    return node;
   }
   
 }
