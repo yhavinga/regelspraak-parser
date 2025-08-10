@@ -1,3 +1,4 @@
+import { describe, it, beforeEach, afterEach, expect } from '@jest/globals';
 import { spawn, ChildProcess } from 'child_process';
 import * as path from 'path';
 

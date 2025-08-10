@@ -1,3 +1,4 @@
+import { describe, it, beforeEach, afterEach } from '@jest/globals';
 import { strict as assert } from 'assert';
 import * as path from 'path';
 import { spawn } from 'child_process';
@@ -8,7 +9,7 @@ describe('Semantic Tokens', () => {
   beforeEach(() => {
     // Start server
     const serverPath = path.join(__dirname, '..', 'dist', 'server.js');
-    serverProcess = spawn('node', [serverPath], {
+    serverProcess = spawn('node', [serverPath, '--stdio'], {
       stdio: ['pipe', 'pipe', 'pipe']
     });
   });

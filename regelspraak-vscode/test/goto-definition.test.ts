@@ -1,3 +1,4 @@
+import { describe, it } from '@jest/globals';
 import * as assert from 'assert';
 import { spawn } from 'child_process';
 import * as path from 'path';
@@ -5,7 +6,7 @@ import * as path from 'path';
 describe('Go to Definition', () => {
   it('should find parameter definition from expression', (done) => {
     const serverPath = path.join(__dirname, '..', 'dist', 'server.js');
-    const server = spawn('node', [serverPath], {
+    const server = spawn('node', [serverPath, '--stdio'], {
       stdio: ['pipe', 'pipe', 'pipe']
     });
     

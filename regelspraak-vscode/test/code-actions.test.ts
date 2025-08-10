@@ -2,34 +2,55 @@ import { describe, it, expect, beforeAll, afterAll } from '@jest/globals';
 import * as path from 'path';
 import { spawn } from 'child_process';
 
-// Helper to send LSP message
-function sendMessage(proc: any, message: any): Promise<any> {
+// Helper to send LSP request (expects response)
+function sendRequest(proc: any, method: string, params: any, id: number): Promise<any> {
   return new Promise((resolve, reject) => {
+    const message = { jsonrpc: '2.0', id, method, params };
     const content = JSON.stringify(message);
     const header = `Content-Length: ${Buffer.byteLength(content)}\r\n\r\n`;
     
     proc.stdin.write(header + content);
     
     // Collect response
-    let buffer = '';
+    let buffer = Buffer.alloc(0);
     const handler = (data: Buffer) => {
-      buffer += data.toString();
+      buffer = Buffer.concat([buffer, data]);
       
-      // Try to parse response
-      const match = buffer.match(/Content-Length: (\d+)\r\n\r\n/);
-      if (match) {
-        const contentLength = parseInt(match[1]);
-        const messageStart = match.index! + match[0].length;
+      // Parse LSP messages with headers
+      while (true) {
+        const headerEndBytes = Buffer.from('\r\n\r\n');
+        const headerEnd = buffer.indexOf(headerEndBytes);
+        if (headerEnd === -1) break;
         
-        if (buffer.length >= messageStart + contentLength) {
-          const content = buffer.substring(messageStart, messageStart + contentLength);
-          try {
-            const response = JSON.parse(content);
+        const header = buffer.slice(0, headerEnd).toString();
+        const contentLengthMatch = header.match(/Content-Length: (\d+)/);
+        if (!contentLengthMatch) {
+          buffer = buffer.slice(headerEnd + 4);
+          continue;
+        }
+        
+        const contentLength = parseInt(contentLengthMatch[1], 10);
+        const contentStart = headerEnd + 4;
+        const contentEnd = contentStart + contentLength;
+        
+        if (buffer.length < contentEnd) break; // Wait for more data
+        
+        const content = buffer.slice(contentStart, contentEnd).toString('utf8');
+        buffer = buffer.slice(contentEnd);
+        
+        try {
+          const response = JSON.parse(content);
+          if (response.id === id) {
             proc.stdout.off('data', handler);
-            resolve(response);
-          } catch (e) {
-            reject(e);
+            if (response.error) {
+              reject(new Error(response.error.message));
+            } else {
+              resolve(response);
+            }
+            return;
           }
+        } catch (e) {
+          // Continue looking
         }
       }
     };
@@ -44,6 +65,14 @@ function sendMessage(proc: any, message: any): Promise<any> {
   });
 }
 
+// Helper to send LSP notification (no response expected)
+function sendNotification(proc: any, method: string, params: any): void {
+  const message = { jsonrpc: '2.0', method, params };
+  const content = JSON.stringify(message);
+  const header = `Content-Length: ${Buffer.byteLength(content)}\r\n\r\n`;
+  proc.stdin.write(header + content);
+}
+
 describe('Code Actions', () => {
   let serverProcess: any;
   let messageId = 1;
@@ -51,27 +80,18 @@ describe('Code Actions', () => {
   beforeAll(async () => {
     // Start the server
     const serverPath = path.join(__dirname, '..', 'dist', 'server.js');
-    serverProcess = spawn('node', [serverPath], {
+    serverProcess = spawn('node', [serverPath, '--stdio'], {
       stdio: ['pipe', 'pipe', 'pipe']
     });
     
     // Initialize
-    await sendMessage(serverProcess, {
-      jsonrpc: '2.0',
-      id: messageId++,
-      method: 'initialize',
-      params: {
-        processId: process.pid,
-        capabilities: {},
-        rootUri: null
-      }
-    });
+    await sendRequest(serverProcess, 'initialize', {
+      processId: process.pid,
+      capabilities: {},
+      rootUri: null
+    }, messageId++);
     
-    await sendMessage(serverProcess, {
-      jsonrpc: '2.0',
-      method: 'initialized',
-      params: {}
-    });
+    sendNotification(serverProcess, 'initialized', {});
   });
   
   afterAll(() => {
@@ -85,16 +105,12 @@ describe('Code Actions', () => {
       const uri = 'file:///test.regelspraak';
       
       // Open document with minus sign error
-      await sendMessage(serverProcess, {
-        jsonrpc: '2.0',
-        method: 'textDocument/didOpen',
-        params: {
-          textDocument: {
-            uri,
-            languageId: 'regelspraak',
-            version: 1,
-            text: 'Parameter salaris: Bedrag;\nRegel BerekenNetto\n  geldig altijd\n    Het netto wordt salaris - belasting.'
-          }
+      sendNotification(serverProcess, 'textDocument/didOpen', {
+        textDocument: {
+          uri,
+          languageId: 'regelspraak',
+          version: 1,
+          text: 'Parameter salaris: Bedrag;\nRegel BerekenNetto\n  geldig altijd\n    Het netto wordt salaris - belasting.'
         }
       });
       
@@ -102,11 +118,7 @@ describe('Code Actions', () => {
       await new Promise(resolve => setTimeout(resolve, 500));
       
       // Request code actions
-      const response = await sendMessage(serverProcess, {
-        jsonrpc: '2.0',
-        id: messageId++,
-        method: 'textDocument/codeAction',
-        params: {
+      const response = await sendRequest(serverProcess, 'textDocument/codeAction', {
           textDocument: { uri },
           range: {
             start: { line: 3, character: 28 },
@@ -121,11 +133,12 @@ describe('Code Actions', () => {
               message: 'no viable alternative at input "-"',
               severity: 1
             }]
-          }
         }
-      });
+      }, messageId++);
       
+      expect(response).toBeDefined();
       expect(response.result).toBeDefined();
+      expect(Array.isArray(response.result)).toBe(true);
       expect(response.result.length).toBeGreaterThan(0);
       
       const minusAction = response.result.find((a: any) => 
@@ -139,16 +152,12 @@ describe('Code Actions', () => {
       const uri = 'file:///test2.regelspraak';
       
       // Open document with division sign error
-      await sendMessage(serverProcess, {
-        jsonrpc: '2.0',
-        method: 'textDocument/didOpen',
-        params: {
-          textDocument: {
-            uri,
-            languageId: 'regelspraak',
-            version: 1,
-            text: 'Parameter totaal: Bedrag;\nParameter aantal: Aantal;\nRegel BerekenGemiddelde\n  geldig altijd\n    Het gemiddelde wordt totaal / aantal.'
-          }
+      sendNotification(serverProcess, 'textDocument/didOpen', {
+        textDocument: {
+          uri,
+          languageId: 'regelspraak',
+          version: 1,
+          text: 'Parameter totaal: Bedrag;\nParameter aantal: Aantal;\nRegel BerekenGemiddelde\n  geldig altijd\n    Het gemiddelde wordt totaal / aantal.'
         }
       });
       
@@ -156,11 +165,7 @@ describe('Code Actions', () => {
       await new Promise(resolve => setTimeout(resolve, 500));
       
       // Request code actions
-      const response = await sendMessage(serverProcess, {
-        jsonrpc: '2.0',
-        id: messageId++,
-        method: 'textDocument/codeAction',
-        params: {
+      const response = await sendRequest(serverProcess, 'textDocument/codeAction', {
           textDocument: { uri },
           range: {
             start: { line: 4, character: 32 },
@@ -175,9 +180,8 @@ describe('Code Actions', () => {
               message: 'no viable alternative at input "/"',
               severity: 1
             }]
-          }
         }
-      });
+      }, messageId++);
       
       const divAction = response.result.find((a: any) => 
         a.title === 'Replace "/" with "gedeeld door"'
@@ -192,16 +196,12 @@ describe('Code Actions', () => {
       const uri = 'file:///test3.regelspraak';
       
       // Open document with "if" instead of "indien"
-      await sendMessage(serverProcess, {
-        jsonrpc: '2.0',
-        method: 'textDocument/didOpen',
-        params: {
-          textDocument: {
-            uri,
-            languageId: 'regelspraak',
-            version: 1,
-            text: 'Parameter leeftijd: Aantal;\nRegel CheckVolwassen\n  geldig if leeftijd >= 18\n    Het resultaat wordt waar.'
-          }
+      sendNotification(serverProcess, 'textDocument/didOpen', {
+        textDocument: {
+          uri,
+          languageId: 'regelspraak',
+          version: 1,
+          text: 'Parameter leeftijd: Aantal;\nRegel CheckVolwassen\n  geldig if leeftijd >= 18\n    Het resultaat wordt waar.'
         }
       });
       
@@ -209,11 +209,7 @@ describe('Code Actions', () => {
       await new Promise(resolve => setTimeout(resolve, 500));
       
       // Request code actions
-      const response = await sendMessage(serverProcess, {
-        jsonrpc: '2.0',
-        id: messageId++,
-        method: 'textDocument/codeAction',
-        params: {
+      const response = await sendRequest(serverProcess, 'textDocument/codeAction', {
           textDocument: { uri },
           range: {
             start: { line: 2, character: 9 },
@@ -228,9 +224,8 @@ describe('Code Actions', () => {
               message: 'no viable alternative at input "if"',
               severity: 1
             }]
-          }
         }
-      });
+      }, messageId++);
       
       const ifAction = response.result.find((a: any) => 
         a.title === 'Replace "if" with "indien"'
@@ -243,16 +238,12 @@ describe('Code Actions', () => {
       const uri = 'file:///test4.regelspraak';
       
       // Open document with "Rule" instead of "Regel"
-      await sendMessage(serverProcess, {
-        jsonrpc: '2.0',
-        method: 'textDocument/didOpen',
-        params: {
-          textDocument: {
-            uri,
-            languageId: 'regelspraak',
-            version: 1,
-            text: 'Parameter salaris: Bedrag;\nRule CalculateBonus\n  geldig altijd\n    Het resultaat wordt 100.'
-          }
+      sendNotification(serverProcess, 'textDocument/didOpen', {
+        textDocument: {
+          uri,
+          languageId: 'regelspraak',
+          version: 1,
+          text: 'Parameter salaris: Bedrag;\nRule CalculateBonus\n  geldig altijd\n    Het resultaat wordt 100.'
         }
       });
       
@@ -260,11 +251,7 @@ describe('Code Actions', () => {
       await new Promise(resolve => setTimeout(resolve, 500));
       
       // Request code actions
-      const response = await sendMessage(serverProcess, {
-        jsonrpc: '2.0',
-        id: messageId++,
-        method: 'textDocument/codeAction',
-        params: {
+      const response = await sendRequest(serverProcess, 'textDocument/codeAction', {
           textDocument: { uri },
           range: {
             start: { line: 1, character: 0 },
@@ -279,9 +266,8 @@ describe('Code Actions', () => {
               message: 'mismatched input "Rule"',
               severity: 1
             }]
-          }
         }
-      });
+      }, messageId++);
       
       const ruleAction = response.result.find((a: any) => 
         a.title === 'Replace "Rule" with "Regel"'
@@ -296,16 +282,12 @@ describe('Code Actions', () => {
       const uri = 'file:///test5.regelspraak';
       
       // Test "Paramater" misspelling
-      await sendMessage(serverProcess, {
-        jsonrpc: '2.0',
-        method: 'textDocument/didOpen',
-        params: {
-          textDocument: {
-            uri,
-            languageId: 'regelspraak',
-            version: 1,
-            text: 'Paramater salaris: Bedrag;'
-          }
+      sendNotification(serverProcess, 'textDocument/didOpen', {
+        textDocument: {
+          uri,
+          languageId: 'regelspraak',
+          version: 1,
+          text: 'Paramater salaris: Bedrag;'
         }
       });
       
@@ -313,11 +295,7 @@ describe('Code Actions', () => {
       await new Promise(resolve => setTimeout(resolve, 500));
       
       // Request code actions
-      const response = await sendMessage(serverProcess, {
-        jsonrpc: '2.0',
-        id: messageId++,
-        method: 'textDocument/codeAction',
-        params: {
+      const response = await sendRequest(serverProcess, 'textDocument/codeAction', {
           textDocument: { uri },
           range: {
             start: { line: 0, character: 0 },
@@ -332,9 +310,8 @@ describe('Code Actions', () => {
               message: 'mismatched input "Paramater"',
               severity: 1
             }]
-          }
         }
-      });
+      }, messageId++);
       
       const spellingAction = response.result.find((a: any) => 
         a.title.includes('Fix spelling')
@@ -349,16 +326,12 @@ describe('Code Actions', () => {
       const uri = 'file:///test6.regelspraak';
       
       // Parameter missing colon before type
-      await sendMessage(serverProcess, {
-        jsonrpc: '2.0',
-        method: 'textDocument/didOpen',
-        params: {
-          textDocument: {
-            uri,
-            languageId: 'regelspraak',
-            version: 1,
-            text: 'Parameter salaris;'
-          }
+      sendNotification(serverProcess, 'textDocument/didOpen', {
+        textDocument: {
+          uri,
+          languageId: 'regelspraak',
+          version: 1,
+          text: 'Parameter salaris;'
         }
       });
       
@@ -366,11 +339,7 @@ describe('Code Actions', () => {
       await new Promise(resolve => setTimeout(resolve, 500));
       
       // Request code actions
-      const response = await sendMessage(serverProcess, {
-        jsonrpc: '2.0',
-        id: messageId++,
-        method: 'textDocument/codeAction',
-        params: {
+      const response = await sendRequest(serverProcess, 'textDocument/codeAction', {
           textDocument: { uri },
           range: {
             start: { line: 0, character: 17 },
@@ -385,9 +354,8 @@ describe('Code Actions', () => {
               message: "mismatched input ';' expecting ':'",
               severity: 1
             }]
-          }
         }
-      });
+      }, messageId++);
       
       const colonAction = response.result.find((a: any) => 
         a.title === 'Add missing colon before type'
