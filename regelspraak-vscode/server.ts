@@ -823,7 +823,9 @@ connection.onReferences((params) => {
     
     // Find what symbol we're looking for
     const node = findNodeAtPosition(model, params.position);
+    connection.console.log(`DEBUG onReferences: position=${params.position.line}:${params.position.character}, node=${node?.type || 'null'}, model.parameters=${model.parameters?.length || 0}`);
     if (!node) {
+      connection.console.log('DEBUG: No node found at position, returning empty');
       return [];
     }
     
@@ -905,6 +907,7 @@ connection.onCodeAction((params) => {
   
   const actions: CodeAction[] = [];
   const diagnostics = params.context.diagnostics;
+  connection.console.log(`DEBUG onCodeAction: ${diagnostics.length} diagnostics in context`);
   
   for (const diagnostic of diagnostics) {
     const message = diagnostic.message;
@@ -2036,6 +2039,15 @@ function formatResult(result: any, indent: string): string[] {
       const source = formatExpression(result.sourceAmount);
       const collection = formatExpression(result.targetCollection);
       lines.push(`${indent}Verdeel ${source} over ${collection}.`);
+      break;
+    
+    case 'Initialisatie':
+      // Format as "Het/De target wordt expression"
+      if (result.target) {
+        const target = formatExpression(result.target);
+        const expr = formatExpression(result.expression);
+        lines.push(`${indent}${target} wordt ${expr};`);
+      }
       break;
     
     default:

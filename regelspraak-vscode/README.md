@@ -2,17 +2,20 @@
 
 Language Server Protocol (LSP) implementation for RegelSpraak, providing IDE support for VSCode and other LSP-compatible editors.
 
-## Status
+## Features
 
-**Implemented & Tested:**
+All core IDE features implemented in 1554 lines of TypeScript:
+
 - ✅ **Diagnostics** - Real-time syntax and semantic error checking
 - ✅ **Document Symbols** - Outline view of parameters, rules, domains, etc.
-- ✅ **Hover** - Shows type information for parameters and rule names
-
-**Next Steps:**
-- ❌ **Go to Definition** - Navigate to symbol definitions (reuses hover's node-finding logic)
-- ❌ **Completion** - Autocomplete for keywords and symbols
-- ❌ **Find References** - Find all usages of a symbol
+- ✅ **Hover** - Type information for parameters and rule names
+- ✅ **Autocomplete** - Context-aware suggestions with type filtering
+- ✅ **Go to Definition** - Navigate to symbol definitions
+- ✅ **Find References** - Find all usages of a symbol
+- ✅ **Code Actions** - Quick fixes for common errors (6 different fixes)
+- ✅ **Snippets** - Code templates for common patterns
+- ✅ **Format Document** - Aligns parameter colons, formats domains and object types (rules not yet formatted)
+- ✅ **Semantic Highlighting** - Syntax coloring for keywords, types, literals
 
 ## Architecture
 
@@ -32,24 +35,44 @@ npm run build
 ```
 
 ### Test
+
+The test suite uses Jest for unit and integration testing.
+
 ```bash
 # Run comprehensive test suite
 npm test
+# Or using Makefile:
+make test
 
-# Tests cover:
-# - Server initialization with all capabilities
-# - Diagnostics for syntax/semantic errors  
-# - Document symbols extraction (parameters, rules, etc.)
-# - Hover information for parameters
+# Run tests with coverage
+npm run test:coverage
+# Or: make test-coverage
+
+# Run tests in watch mode (for development)
+npm run test:watch
+# Or: make test-watch
+
+# Run specific test file
+npm test -- test/lsp-integration.test.ts
+# Or: make test-file FILE=test/lsp-integration.test.ts
+
+# Run specific test suite
+npm test -- -t "Diagnostics"
+# Or: make test-suite SUITE="Diagnostics"
+
+# Debug helpers (JavaScript files for quick testing)
+make test-references    # Test Find References
+make test-code-action   # Test Code Actions  
+make test-symbols       # Test Document Symbols
+
+# Direct LSP testing without VSCode
+echo '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{}}' | node dist/server.js
 ```
 
-### Important Rules
+#### Common Test Issues
 
-1. **TypeScript only for production code** - Test files should be `.ts`, not `.js`
-2. **No subdirectories** - Keep it flat and simple
-3. **Bundle everything** - Use esbuild to create self-contained server
-4. **Keep VSCode libs external** - Only bundle the parser, not LSP libraries
-5. **No overengineering** - Ship the simplest thing that works
+If you see `No tests found` when running `npm test`, this is often because Jest is receiving unexpected arguments. Use the Makefile targets or ensure you're not passing extra arguments to npm test.
+
 
 ## How It Works
 
@@ -77,23 +100,10 @@ RegelSpraak constructs map to LSP SymbolKind:
 - Beslistabel → Struct
 - And more...
 
-## How Hover Works
+## Position-Based Features
 
-The hover implementation demonstrates the core pattern for position-based features:
+All position-based features (hover, go-to-definition, find references) use the same pattern:
 
-1. **Finding the node at cursor position:**
-   - Start with the root AST node
-   - If node has no location in WeakMap, traverse its children
-   - For nodes with locations, check if cursor is within bounds
-   - Recursively search children for more specific matches
-   - Return the deepest (most specific) node
-
-2. **Node type detection:**
-   - Check `node.type` field to identify construct type
-   - Extract relevant info (name, dataType, etc.)
-   - Format as markdown for display
-
-This same node-finding logic can be reused for:
-- **Go to Definition** - Return the node's location
-- **Find References** - Search for nodes referencing this symbol
-- **Rename** - Find all occurrences to update
+1. **Find the node at cursor position** using the locationMap
+2. **Identify the node type** (Parameter, Rule, Domain, etc.)
+3. **Return appropriate response** (hover text, definition location, reference list)
