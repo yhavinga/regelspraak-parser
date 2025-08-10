@@ -509,6 +509,97 @@ const snippets: Map<string, CompletionItem> = new Map([
     insertTextFormat: InsertTextFormat.Snippet,
     documentation: 'Insert a validity clause',
     detail: 'Validity snippet'
+  }],
+  
+  // Complex structure snippets
+  ['regelcond', {
+    label: 'Regel met conditie',
+    kind: CompletionItemKind.Snippet,
+    insertText: 'Regel ${1:BerekenKorting}\n  geldig indien ${2:klant.leeftijd} >= ${3:65}\n    ${4:De} ${5:korting} wordt ${6:10} %;\n    ${7:Het} ${8:totaal} wordt ${9:prijs} min ${10:korting};',
+    insertTextFormat: InsertTextFormat.Snippet,
+    documentation: 'Rule with conditional validity and multiple assignments',
+    detail: 'Complex rule snippet'
+  }],
+  
+  ['beslistabel2', {
+    label: 'Beslistabel complex',
+    kind: CompletionItemKind.Snippet,
+    insertText: 'Beslistabel ${1:BepaalTarief}\n  ${2:leeftijd < 18} | ${3:student} | ${4:inkomen < 1000} | ${5:tarief}\n  ja               | -          | -                | ${6:5}\n  nee              | ja         | -                | ${7:10}\n  nee              | nee        | ja               | ${8:15}\n  nee              | nee        | nee              | ${9:25};',
+    insertTextFormat: InsertTextFormat.Snippet,
+    documentation: 'Decision table with multiple conditions',
+    detail: 'Complex decision table'
+  }],
+  
+  ['tijdlijn', {
+    label: 'Tijdlijn expressie',
+    kind: CompletionItemKind.Snippet,
+    insertText: '${1:de} ${2:waarde} van ${3:parameter} vanaf ${4:startdatum} tot ${5:einddatum}',
+    insertTextFormat: InsertTextFormat.Snippet,
+    documentation: 'Timeline expression for temporal values',
+    detail: 'Timeline snippet'
+  }],
+  
+  ['aggregatie', {
+    label: 'Aggregatiefunctie',
+    kind: CompletionItemKind.Snippet,
+    insertText: '${1|de som,het gemiddelde,het maximum,het minimum,het aantal|} van ${2:verzameling}${3: waarbij ${4:conditie}}',
+    insertTextFormat: InsertTextFormat.Snippet,
+    documentation: 'Aggregation function with optional filter',
+    detail: 'Aggregation snippet'
+  }],
+  
+  ['objectrel', {
+    label: 'Objecttype met relatie',
+    kind: CompletionItemKind.Snippet,
+    insertText: 'Objecttype ${1:de} ${2:Persoon}\n  ${3:naam}: Tekst;\n  ${4:leeftijd}: Aantal;\n  ${5:partner}: ${6:Persoon};\n  ${7:kinderen}: ${8:Persoon}*;',
+    insertTextFormat: InsertTextFormat.Snippet,
+    documentation: 'Object type with relationships',
+    detail: 'Object relationship snippet'
+  }],
+  
+  ['verdeling', {
+    label: 'Verdeling regel',
+    kind: CompletionItemKind.Snippet,
+    insertText: 'Verdeling ${1:VerdeelKosten}\n  ${2:totaal}: ${3:1000} EUR\n  ${4:persoon1}: ${5:40} %\n  ${6:persoon2}: ${7:35} %\n  ${8:persoon3}: ${9:25} %;',
+    insertTextFormat: InsertTextFormat.Snippet,
+    documentation: 'Distribution rule for dividing amounts',
+    detail: 'Distribution snippet'
+  }],
+  
+  ['recursie', {
+    label: 'Recursieve regel',
+    kind: CompletionItemKind.Snippet,
+    insertText: 'Regel ${1:BerekenFactoriaal}\n  geldig indien ${2:n} > 0\n    ${3:Het} ${4:resultaat} wordt\n      indien ${5:n} = 1\n      dan 1\n      anders ${6:n} maal ${7:BerekenFactoriaal}(${8:n} min 1);',
+    insertTextFormat: InsertTextFormat.Snippet,
+    documentation: 'Recursive rule pattern',
+    detail: 'Recursion snippet'
+  }],
+  
+  ['subselectie', {
+    label: 'Subselectie',
+    kind: CompletionItemKind.Snippet,
+    insertText: '${1:de} ${2:verzameling} die ${3:conditie} ${4|voldoet aan,groter is dan,kleiner is dan,gelijk is aan|} ${5:waarde}',
+    insertTextFormat: InsertTextFormat.Snippet,
+    documentation: 'Filtered collection (subselectie)',
+    detail: 'Filter snippet'
+  }],
+  
+  ['samengesteld', {
+    label: 'Samengesteld predicaat',
+    kind: CompletionItemKind.Snippet,
+    insertText: 'Samengesteld predicaat ${1:AlleCriteriaVoldaan}\n  ${2|alle,geen van de,ten minste ${3:2},ten hoogste ${3:2},precies ${3:2}|} van onderstaande predicaten ${4|moeten,mogen|} waar zijn:\n  • ${5:predicaat1}\n  • ${6:predicaat2}\n  • ${7:predicaat3};',
+    insertTextFormat: InsertTextFormat.Snippet,
+    documentation: 'Compound predicate with multiple conditions',
+    detail: 'Compound predicate snippet'
+  }],
+  
+  ['datum', {
+    label: 'Datum berekening',
+    kind: CompletionItemKind.Snippet,
+    insertText: '${1:vandaag} ${2|plus,min|} ${3:30} ${4|dagen,maanden,jaren|}',
+    insertTextFormat: InsertTextFormat.Snippet,
+    documentation: 'Date arithmetic expression',
+    detail: 'Date calculation snippet'
   }]
 ]);
 
@@ -537,6 +628,16 @@ connection.onCompletion((params) => {
         // Clone the snippet and adjust sort order
         const item = { ...snippet };
         item.sortText = '0000'; // Snippets first
+        completions.push(item);
+      }
+    }
+  } else {
+    // If no current word, show all snippets at the beginning of a line
+    const lineStart = currentLine.substring(0, params.position.character).trim() === '';
+    if (lineStart) {
+      for (const [prefix, snippet] of snippets) {
+        const item = { ...snippet };
+        item.sortText = '0000' + prefix; // Snippets first, ordered by prefix
         completions.push(item);
       }
     }
