@@ -84,17 +84,26 @@ connection.onInitialize(() => ({
 // Error message improvement moved to src/error-improver.ts
 // This comment documents where the function was moved for maintainability
 
+// The onDidChangeContent event also fires when a document is first opened,
+// so we don't need a separate onDidOpen handler
+
+// Handle document changes AND initial open
 documents.onDidChangeContent(async (change) => {
+  await validateDocument(change.document);
+});
+
+// Shared validation logic
+async function validateDocument(document: any) {
   const parser = new AntlrParser();
   const analyzer = new SemanticAnalyzer();
   
   try {
-    const { model } = parser.parseWithLocations(change.document.getText());
+    const { model } = parser.parseWithLocations(document.getText());
     analyzer.analyze(model);
     
     // No errors - send empty diagnostics
     connection.sendDiagnostics({ 
-      uri: change.document.uri, 
+      uri: document.uri, 
       diagnostics: [] 
     });
   } catch (e: any) {
@@ -108,12 +117,12 @@ documents.onDidChangeContent(async (change) => {
       // Improve the error message with helpful hints
       const improvedMessage = improveErrorMessage(
         e.message, 
-        change.document.getText(),
+        document.getText(),
         line
       );
       
       connection.sendDiagnostics({
-        uri: change.document.uri,
+        uri: document.uri,
         diagnostics: [{
           severity: DiagnosticSeverity.Error,
           range: {
@@ -128,12 +137,12 @@ documents.onDidChangeContent(async (change) => {
       // Fallback for errors without line:column
       const improvedMessage = improveErrorMessage(
         e.message || 'Unknown error',
-        change.document.getText(),
+        document.getText(),
         0
       );
       
       connection.sendDiagnostics({
-        uri: change.document.uri,
+        uri: document.uri,
         diagnostics: [{
           severity: DiagnosticSeverity.Error,
           range: {
@@ -146,7 +155,7 @@ documents.onDidChangeContent(async (change) => {
       });
     }
   }
-});
+}
 
 // Handle document symbol requests
 connection.onDocumentSymbol((params) => {
@@ -298,7 +307,7 @@ connection.onDocumentSymbol((params) => {
     return symbols;
   } catch (e: any) {
     // Log error for debugging
-    console.error('Document symbols error:', e.message || e);
+    connection.console.error('Document symbols error: ' + (e.message || e));
     // Return empty array if parsing fails
     return [];
   }
