@@ -24,6 +24,7 @@ import { TextDocument } from 'vscode-languageserver-textdocument';
 // Import the parser directly from dist files
 import { AntlrParser } from '@regelspraak/parser/parser';
 import { SemanticAnalyzer } from '@regelspraak/parser/analyzer';
+import { improveErrorMessage } from './src/error-improver';
 
 const connection = createConnection();
 const documents: TextDocuments<TextDocument> = new TextDocuments(TextDocument);
@@ -80,6 +81,9 @@ connection.onInitialize(() => ({
   }
 }));
 
+// Error message improvement moved to src/error-improver.ts
+// This comment documents where the function was moved for maintainability
+
 documents.onDidChangeContent(async (change) => {
   const parser = new AntlrParser();
   const analyzer = new SemanticAnalyzer();
@@ -98,20 +102,36 @@ documents.onDidChangeContent(async (change) => {
     const match = e.message?.match(/line (\d+):(\d+)/);
     
     if (match) {
+      const line = parseInt(match[1]) - 1;  // Convert to 0-based
+      const character = parseInt(match[2]);
+      
+      // Improve the error message with helpful hints
+      const improvedMessage = improveErrorMessage(
+        e.message, 
+        change.document.getText(),
+        line
+      );
+      
       connection.sendDiagnostics({
         uri: change.document.uri,
         diagnostics: [{
           severity: DiagnosticSeverity.Error,
           range: {
-            start: { line: parseInt(match[1]) - 1, character: parseInt(match[2]) },
-            end: { line: parseInt(match[1]) - 1, character: parseInt(match[2]) + 10 }
+            start: { line, character },
+            end: { line, character: character + 10 }
           },
-          message: e.message,
+          message: improvedMessage,
           source: 'regelspraak'
         }]
       });
     } else {
       // Fallback for errors without line:column
+      const improvedMessage = improveErrorMessage(
+        e.message || 'Unknown error',
+        change.document.getText(),
+        0
+      );
+      
       connection.sendDiagnostics({
         uri: change.document.uri,
         diagnostics: [{
@@ -120,7 +140,7 @@ documents.onDidChangeContent(async (change) => {
             start: { line: 0, character: 0 },
             end: { line: 0, character: 10 }
           },
-          message: e.message || 'Unknown error',
+          message: improvedMessage,
           source: 'regelspraak'
         }]
       });

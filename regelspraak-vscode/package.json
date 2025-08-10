@@ -4,7 +4,10 @@
   "main": "dist/server.js",
   "scripts": {
     "build": "node build-lsp.js",
-    "test": "npx tsc test/all-tests.ts --target ES2022 --module commonjs --outDir test && node test/all-tests.js",
+    "test": "jest",
+    "test:watch": "jest --watch",
+    "test:coverage": "jest --coverage",
+    "test:old": "npx tsc test/all-tests.ts --target ES2022 --module commonjs --outDir test && node test/all-tests.js",
     "test:simple": "node test/simple-test.js"
   },
   "keywords": [],
@@ -18,8 +21,11 @@
     "vscode-languageserver-textdocument": "^1.0.12"
   },
   "devDependencies": {
+    "@types/jest": "^30.0.0",
     "@types/node": "^24.2.0",
     "esbuild": "^0.25.8",
+    "jest": "^30.0.5",
+    "ts-jest": "^29.4.1",
     "ts-node": "^10.9.2",
     "typescript": "^5.9.2"
   }
