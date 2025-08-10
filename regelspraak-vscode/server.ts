@@ -985,6 +985,186 @@ connection.onCodeAction((params) => {
         actions.push(action);
       }
     }
+    
+    // Fix for minus sign instead of "min"
+    if (message.includes("no viable alternative") && message.includes("-")) {
+      const lineNumber = diagnostic.range.start.line;
+      const line = document.getText().split('\n')[lineNumber];
+      const minusMatch = line.match(/(\s+)-(\s+)/);
+      
+      if (minusMatch) {
+        const startChar = line.indexOf(minusMatch[0]);
+        const endChar = startChar + minusMatch[0].length;
+        
+        const action: CodeAction = {
+          title: 'Replace "-" with "min"',
+          kind: CodeActionKind.QuickFix,
+          edit: {
+            changes: {
+              [params.textDocument.uri]: [{
+                range: {
+                  start: { line: lineNumber, character: startChar },
+                  end: { line: lineNumber, character: endChar }
+                },
+                newText: ' min '
+              }]
+            }
+          }
+        };
+        actions.push(action);
+      }
+    }
+    
+    // Fix for division sign instead of "gedeeld door"
+    if (message.includes("no viable alternative") && message.includes("/")) {
+      const lineNumber = diagnostic.range.start.line;
+      const line = document.getText().split('\n')[lineNumber];
+      const divMatch = line.match(/(\s+)\/(\s+)/);
+      
+      if (divMatch) {
+        const startChar = line.indexOf(divMatch[0]);
+        const endChar = startChar + divMatch[0].length;
+        
+        const action: CodeAction = {
+          title: 'Replace "/" with "gedeeld door"',
+          kind: CodeActionKind.QuickFix,
+          edit: {
+            changes: {
+              [params.textDocument.uri]: [{
+                range: {
+                  start: { line: lineNumber, character: startChar },
+                  end: { line: lineNumber, character: endChar }
+                },
+                newText: ' gedeeld door '
+              }]
+            }
+          }
+        };
+        actions.push(action);
+      }
+    }
+    
+    // Fix for "if" instead of "indien"
+    if (message.includes("no viable alternative") && message.includes("if")) {
+      const lineNumber = diagnostic.range.start.line;
+      const line = document.getText().split('\n')[lineNumber];
+      const ifMatch = line.match(/\bif\b/i);
+      
+      if (ifMatch) {
+        const startChar = line.toLowerCase().indexOf('if');
+        if (startChar >= 0) {
+          const endChar = startChar + 2;
+          
+          const action: CodeAction = {
+            title: 'Replace "if" with "indien"',
+            kind: CodeActionKind.QuickFix,
+            edit: {
+              changes: {
+                [params.textDocument.uri]: [{
+                  range: {
+                    start: { line: lineNumber, character: startChar },
+                    end: { line: lineNumber, character: endChar }
+                  },
+                  newText: 'indien'
+                }]
+              }
+            }
+          };
+          actions.push(action);
+        }
+      }
+    }
+    
+    // Fix for "Rule" instead of "Regel"
+    if (message.includes("extraneous input 'Rule'") || message.includes("mismatched input 'Rule'")) {
+      const lineNumber = diagnostic.range.start.line;
+      const line = document.getText().split('\n')[lineNumber];
+      const ruleMatch = line.match(/\bRule\b/);
+      
+      if (ruleMatch) {
+        const startChar = line.indexOf('Rule');
+        const endChar = startChar + 4;
+        
+        const action: CodeAction = {
+          title: 'Replace "Rule" with "Regel"',
+          kind: CodeActionKind.QuickFix,
+          edit: {
+            changes: {
+              [params.textDocument.uri]: [{
+                range: {
+                  start: { line: lineNumber, character: startChar },
+                  end: { line: lineNumber, character: endChar }
+                },
+                newText: 'Regel'
+              }]
+            }
+          }
+        };
+        actions.push(action);
+      }
+    }
+    
+    // Fix for misspelled "Parameter" keywords
+    if (message.includes("mismatched input 'Paramater'") || 
+        message.includes("mismatched input 'Paramter'") ||
+        message.includes("mismatched input 'Parmaeter'")) {
+      const lineNumber = diagnostic.range.start.line;
+      const line = document.getText().split('\n')[lineNumber];
+      const misspelledMatch = line.match(/\b(Paramater|Paramter|Parmaeter)\b/);
+      
+      if (misspelledMatch) {
+        const misspelled = misspelledMatch[1];
+        const startChar = line.indexOf(misspelled);
+        const endChar = startChar + misspelled.length;
+        
+        const action: CodeAction = {
+          title: `Fix spelling: "${misspelled}" → "Parameter"`,
+          kind: CodeActionKind.QuickFix,
+          edit: {
+            changes: {
+              [params.textDocument.uri]: [{
+                range: {
+                  start: { line: lineNumber, character: startChar },
+                  end: { line: lineNumber, character: endChar }
+                },
+                newText: 'Parameter'
+              }]
+            }
+          }
+        };
+        actions.push(action);
+      }
+    }
+    
+    // Fix for missing colon in parameter declaration
+    if (message.includes("mismatched input ';' expecting ':'")) {
+      const lineNumber = diagnostic.range.start.line;
+      const line = document.getText().split('\n')[lineNumber];
+      
+      // Look for pattern like "Parameter naam;" where colon is missing
+      const paramMatch = line.match(/^(\s*Parameter\s+\w+)(\s*);/);
+      
+      if (paramMatch) {
+        const beforeSemicolon = paramMatch[1].length;
+        
+        const action: CodeAction = {
+          title: 'Add missing colon before type',
+          kind: CodeActionKind.QuickFix,
+          edit: {
+            changes: {
+              [params.textDocument.uri]: [{
+                range: {
+                  start: { line: lineNumber, character: beforeSemicolon },
+                  end: { line: lineNumber, character: beforeSemicolon }
+                },
+                newText: ': Bedrag'
+              }]
+            }
+          }
+        };
+        actions.push(action);
+      }
+    }
   }
   
   return actions;
