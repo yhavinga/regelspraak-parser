@@ -1766,8 +1766,6 @@ connection.onDocumentFormatting((params) => {
       return [];
     }
     
-    // Log what we're formatting
-    console.error('Formatting model with rules:', parseResult.model.rules?.length || 0);
     
     // Format the AST back to text
     const formatted = formatModel(parseResult.model);
@@ -1848,21 +1846,30 @@ function formatModel(model: any): string {
     }
   }
   
-  // Format rules - simplified version that preserves most structure
-  if (model.rules && model.rules.length > 0) {
-    for (const rule of model.rules) {
+  // Format rules (note: they're called 'regels' in the model, not 'rules')
+  if (model.regels && model.regels.length > 0) {
+    for (const rule of model.regels) {
       lines.push(`Regel ${rule.name}`);
       
-      // Format validity
-      if (rule.version) {
-        lines.push(`  geldig ${rule.version.validity || 'altijd'}`);
+      // Format validity - properly handle both version.validity and condition
+      let validityLine = '  geldig ';
+      if (rule.condition && rule.condition.expression) {
+        // Rule has a condition (indien)
+        validityLine += `indien ${formatExpression(rule.condition.expression)}`;
+      } else if (rule.version && rule.version.validity) {
+        // Rule has version validity
+        validityLine += rule.version.validity;
       } else {
-        lines.push(`  geldig altijd`);
+        // Default to altijd
+        validityLine += 'altijd';
       }
+      lines.push(validityLine);
       
-      // For now, just add a placeholder for the rule body
-      // Full expression formatting would require more complex logic
-      lines.push(`    # Regel inhoud behouden`);
+      // Format result if present
+      if (rule.result) {
+        const resultLines = formatResult(rule.result, '    ');
+        lines.push(...resultLines);
+      }
       lines.push('');
     }
   }
@@ -1945,9 +1952,38 @@ function formatResult(result: any, indent: string): string[] {
   
   switch (result.type) {
     case 'Gelijkstelling':
-      const target = formatExpression(result.target);
-      const expr = formatExpression(result.expression);
-      lines.push(`${indent}${target} wordt ${expr};`);
+      // Format as "Het/De attribute van object moet berekend worden als expression"
+      if (result.target && result.target.type === 'AttributeReference') {
+        const path = result.target.path || [];
+        let formatted = indent;
+        
+        // Add article (Het/De) - default to Het for now
+        formatted += 'Het ';
+        
+        // Add attribute path
+        if (path.length > 1) {
+          // Has object reference: "attribute van object"
+          // The path is [attribute, object] so we need the first element and "van" the rest
+          formatted += `${path[0]} van een ${path.slice(1).join('.')}`;
+        } else if (path.length === 1) {
+          // Just attribute
+          formatted += path[0];
+        } else {
+          formatted += 'resultaat';
+        }
+        
+        // Add the assignment part
+        formatted += ' moet berekend worden als ';
+        formatted += formatExpression(result.expression);
+        formatted += '.';
+        
+        lines.push(formatted);
+      } else {
+        // Fallback for other target types
+        const target = formatExpression(result.target);
+        const expr = formatExpression(result.expression);
+        lines.push(`${indent}${target} wordt ${expr}.`);
+      }
       break;
     
     case 'MultipleResults':
@@ -1957,36 +1993,45 @@ function formatResult(result: any, indent: string): string[] {
       break;
     
     case 'ObjectCreation':
-      lines.push(`${indent}Maak ${result.objectType}`);
-      for (const init of result.attributeInits) {
-        const value = formatExpression(init.value);
-        lines.push(`${indent}  ${init.attribute}: ${value}`);
+      // Format as "Er wordt een nieuw Type aangemaakt"
+      lines.push(`${indent}Er wordt een nieuw ${result.objectType} aangemaakt`);
+      if (result.attributeInits && result.attributeInits.length > 0) {
+        for (let i = 0; i < result.attributeInits.length; i++) {
+          const init = result.attributeInits[i];
+          const value = formatExpression(init.value);
+          if (i === 0) {
+            lines.push(`${indent}met ${init.attribute} ${value}`);
+          } else {
+            lines.push(`${indent}en ${init.attribute} ${value}`);
+          }
+        }
       }
-      lines.push(`${indent};`);
+      lines[lines.length - 1] += '.';
       break;
     
     case 'Kenmerktoekenning':
       const subject = formatExpression(result.subject);
-      lines.push(`${indent}${subject} heeft kenmerk ${result.characteristic};`);
+      lines.push(`${indent}${subject} heeft kenmerk ${result.characteristic}.`);
       break;
     
     case 'Consistentieregel':
       if (result.criteriumType === 'uniek') {
         const target = formatExpression(result.target);
-        lines.push(`${indent}${target} is uniek;`);
+        lines.push(`${indent}${target} is uniek.`);
       } else {
-        lines.push(`${indent}inconsistent indien ${formatExpression(result.condition)};`);
+        lines.push(`${indent}inconsistent indien ${formatExpression(result.condition)}.`);
       }
       break;
     
     case 'Verdeling':
       const source = formatExpression(result.sourceAmount);
       const collection = formatExpression(result.targetCollection);
-      lines.push(`${indent}Verdeel ${source} over ${collection};`);
+      lines.push(`${indent}Verdeel ${source} over ${collection}.`);
       break;
     
     default:
-      lines.push(`${indent}[result];`);
+      // Fallback - just show we have a result
+      lines.push(`${indent}[regel resultaat].`);
       break;
   }
   
