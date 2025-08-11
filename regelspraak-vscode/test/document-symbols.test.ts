@@ -24,6 +24,77 @@ interface DocumentSymbol {
   children?: DocumentSymbol[];
 }
 
+// Helper to send LSP request (expects response)
+function sendRequest(proc: any, method: string, params: any, id: number): Promise<any> {
+  return new Promise((resolve, reject) => {
+    const message = { jsonrpc: '2.0', id, method, params };
+    const content = JSON.stringify(message);
+    const header = `Content-Length: ${Buffer.byteLength(content)}\r\n\r\n`;
+    
+    proc.stdin.write(header + content);
+    
+    // Collect response
+    let buffer = Buffer.alloc(0);
+    const handler = (data: Buffer) => {
+      buffer = Buffer.concat([buffer, data]);
+      
+      // Parse LSP messages with headers
+      while (true) {
+        const headerEndBytes = Buffer.from('\r\n\r\n');
+        const headerEnd = buffer.indexOf(headerEndBytes);
+        if (headerEnd === -1) break;
+        
+        const header = buffer.slice(0, headerEnd).toString();
+        const contentLengthMatch = header.match(/Content-Length: (\d+)/);
+        if (!contentLengthMatch) {
+          buffer = buffer.slice(headerEnd + 4);
+          continue;
+        }
+        
+        const contentLength = parseInt(contentLengthMatch[1], 10);
+        const contentStart = headerEnd + 4;
+        const contentEnd = contentStart + contentLength;
+        
+        if (buffer.length < contentEnd) break; // Wait for more data
+        
+        const content = buffer.slice(contentStart, contentEnd).toString('utf8');
+        buffer = buffer.slice(contentEnd);
+        
+        try {
+          const response = JSON.parse(content);
+          if (response.id === id) {
+            proc.stdout.off('data', handler);
+            if (response.error) {
+              reject(new Error(response.error.message));
+            } else {
+              resolve(response);
+            }
+            return;
+          }
+        } catch (e) {
+          // Continue looking
+        }
+      }
+    };
+    
+    proc.stdout.on('data', handler);
+    
+    // Timeout after 2 seconds
+    setTimeout(() => {
+      proc.stdout.off('data', handler);
+      reject(new Error('Timeout waiting for response'));
+    }, 2000);
+  });
+}
+
+// Helper to send LSP notification (no response expected)
+function sendNotification(proc: any, method: string, params: any): void {
+  const message = { jsonrpc: '2.0', method, params };
+  const content = JSON.stringify(message);
+  const header = `Content-Length: ${Buffer.byteLength(content)}\r\n\r\n`;
+  proc.stdin.write(header + content);
+}
+
 describe('Document Symbols', () => {
   let server: ChildProcess;
   let messageId = 1;
@@ -31,93 +102,38 @@ describe('Document Symbols', () => {
   beforeEach(() => {
     const serverPath = path.join(__dirname, '../dist/server.js');
     server = spawn('node', [serverPath, '--stdio']);
+    messageId = 1; // Reset for each test
   });
 
   afterEach(() => {
     server.kill();
   });
 
-  function sendMessage(msg: LSPMessage): void {
-    const content = JSON.stringify(msg);
-    const header = `Content-Length: ${Buffer.byteLength(content)}\r\n\r\n`;
-    server.stdin!.write(header + content);
-  }
-
-  function waitForResponse(id: number): Promise<LSPMessage> {
-    return new Promise((resolve, reject) => {
-      let buffer = '';
-      const timeout = setTimeout(() => {
-        server.stdout!.removeAllListeners();
-        reject(new Error('Timeout waiting for response'));
-      }, 5000);
-
-      server.stdout!.on('data', (data) => {
-        buffer += data.toString();
-        
-        // Try to parse complete messages
-        const messages = buffer.split('\r\n\r\n');
-        for (let i = 0; i < messages.length - 1; i++) {
-          const message = messages[i];
-          const contentMatch = message.match(/Content-Length: \\d+\\r?\\n/);
-          if (contentMatch) {
-            const contentStart = message.indexOf('\\n') + 1;
-            const content = message.substring(contentStart);
-            try {
-              const json = JSON.parse(content);
-              if (json.id === id) {
-                clearTimeout(timeout);
-                server.stdout!.removeAllListeners();
-                resolve(json);
-                return;
-              }
-            } catch (e) {
-              // Continue parsing
-            }
-          }
-        }
-        buffer = messages[messages.length - 1];
-      });
-    });
-  }
-
   test('should return symbols for parameters', async () => {
     // Initialize
-    sendMessage({
-      jsonrpc: '2.0',
-      id: messageId++,
-      method: 'initialize',
-      params: { rootUri: null, capabilities: {} }
-    });
-    
-    await waitForResponse(messageId - 1);
+    await sendRequest(server, 'initialize', {
+      rootUri: null,
+      capabilities: {}
+    }, messageId++);
 
     // Send document
-    sendMessage({
-      jsonrpc: '2.0',
-      method: 'textDocument/didOpen',
-      params: {
-        textDocument: {
-          uri: 'file:///test.regelspraak',
-          languageId: 'regelspraak',
-          version: 1,
-          text: `Parameter loon: Bedrag;
+    sendNotification(server, 'textDocument/didOpen', {
+      textDocument: {
+        uri: 'file:///test.regelspraak',
+        languageId: 'regelspraak',
+        version: 1,
+        text: `Parameter loon: Bedrag;
 Parameter leeftijd: Numeriek (geheel getal);`
-        }
       }
     });
+    
+    // Wait for processing
+    await new Promise(resolve => setTimeout(resolve, 100));
 
     // Request symbols
-    const symbolsId = messageId++;
-    sendMessage({
-      jsonrpc: '2.0',
-      id: symbolsId,
-      method: 'textDocument/documentSymbol',
-      params: {
-        textDocument: { uri: 'file:///test.regelspraak' }
-      }
-    });
-
-    const response = await waitForResponse(symbolsId);
+    const response = await sendRequest(server, 'textDocument/documentSymbol', {
+      textDocument: { uri: 'file:///test.regelspraak' }
+    }, messageId++);
     const symbols = response.result as DocumentSymbol[];
 
     expect(symbols).toHaveLength(2);
@@ -130,41 +146,28 @@ Parameter leeftijd: Numeriek (geheel getal);`
 
   test('should return empty array for invalid document', async () => {
     // Initialize
-    sendMessage({
-      jsonrpc: '2.0',
-      id: messageId++,
-      method: 'initialize',
-      params: { rootUri: null, capabilities: {} }
-    });
-    
-    await waitForResponse(messageId - 1);
+    await sendRequest(server, 'initialize', {
+      rootUri: null,
+      capabilities: {}
+    }, messageId++);
 
     // Send invalid document
-    sendMessage({
-      jsonrpc: '2.0',
-      method: 'textDocument/didOpen',
-      params: {
-        textDocument: {
-          uri: 'file:///invalid.regelspraak',
-          languageId: 'regelspraak',
-          version: 1,
-          text: 'This is not valid RegelSpraak syntax'
-        }
+    sendNotification(server, 'textDocument/didOpen', {
+      textDocument: {
+        uri: 'file:///invalid.regelspraak',
+        languageId: 'regelspraak',
+        version: 1,
+        text: 'This is not valid RegelSpraak syntax'
       }
     });
+    
+    // Wait for processing
+    await new Promise(resolve => setTimeout(resolve, 100));
 
     // Request symbols
-    const symbolsId = messageId++;
-    sendMessage({
-      jsonrpc: '2.0',
-      id: symbolsId,
-      method: 'textDocument/documentSymbol',
-      params: {
-        textDocument: { uri: 'file:///invalid.regelspraak' }
-      }
-    });
-
-    const response = await waitForResponse(symbolsId);
+    const response = await sendRequest(server, 'textDocument/documentSymbol', {
+      textDocument: { uri: 'file:///invalid.regelspraak' }
+    }, messageId++);
     expect(response.result).toEqual([]);
   });
 });

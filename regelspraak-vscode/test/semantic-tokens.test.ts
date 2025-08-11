@@ -3,8 +3,80 @@ import { strict as assert } from 'assert';
 import * as path from 'path';
 import { spawn } from 'child_process';
 
+// Helper to send LSP request (expects response)
+function sendRequest(proc: any, method: string, params: any, id: number): Promise<any> {
+  return new Promise((resolve, reject) => {
+    const message = { jsonrpc: '2.0', id, method, params };
+    const content = JSON.stringify(message);
+    const header = `Content-Length: ${Buffer.byteLength(content)}\r\n\r\n`;
+    
+    proc.stdin.write(header + content);
+    
+    // Collect response
+    let buffer = Buffer.alloc(0);
+    const handler = (data: Buffer) => {
+      buffer = Buffer.concat([buffer, data]);
+      
+      // Parse LSP messages with headers
+      while (true) {
+        const headerEndBytes = Buffer.from('\r\n\r\n');
+        const headerEnd = buffer.indexOf(headerEndBytes);
+        if (headerEnd === -1) break;
+        
+        const header = buffer.slice(0, headerEnd).toString();
+        const contentLengthMatch = header.match(/Content-Length: (\d+)/);
+        if (!contentLengthMatch) {
+          buffer = buffer.slice(headerEnd + 4);
+          continue;
+        }
+        
+        const contentLength = parseInt(contentLengthMatch[1], 10);
+        const contentStart = headerEnd + 4;
+        const contentEnd = contentStart + contentLength;
+        
+        if (buffer.length < contentEnd) break; // Wait for more data
+        
+        const content = buffer.slice(contentStart, contentEnd).toString('utf8');
+        buffer = buffer.slice(contentEnd);
+        
+        try {
+          const response = JSON.parse(content);
+          if (response.id === id) {
+            proc.stdout.off('data', handler);
+            if (response.error) {
+              reject(new Error(response.error.message));
+            } else {
+              resolve(response);
+            }
+            return;
+          }
+        } catch (e) {
+          // Continue looking
+        }
+      }
+    };
+    
+    proc.stdout.on('data', handler);
+    
+    // Timeout after 2 seconds
+    setTimeout(() => {
+      proc.stdout.off('data', handler);
+      reject(new Error('Timeout waiting for response'));
+    }, 2000);
+  });
+}
+
+// Helper to send LSP notification (no response expected)
+function sendNotification(proc: any, method: string, params: any): void {
+  const message = { jsonrpc: '2.0', method, params };
+  const content = JSON.stringify(message);
+  const header = `Content-Length: ${Buffer.byteLength(content)}\r\n\r\n`;
+  proc.stdin.write(header + content);
+}
+
 describe('Semantic Tokens', () => {
   let serverProcess: any;
+  let messageId = 1;
   
   beforeEach(() => {
     // Start server
@@ -12,6 +84,7 @@ describe('Semantic Tokens', () => {
     serverProcess = spawn('node', [serverPath, '--stdio'], {
       stdio: ['pipe', 'pipe', 'pipe']
     });
+    messageId = 1; // Reset for each test
   });
   
   afterEach(() => {
@@ -20,91 +93,36 @@ describe('Semantic Tokens', () => {
     }
   });
   
-  function sendMessage(message: any): Promise<any> {
-    return new Promise((resolve, reject) => {
-      const content = JSON.stringify(message);
-      const header = `Content-Length: ${Buffer.byteLength(content)}\r\n\r\n`;
-      
-      let response = '';
-      let contentLength = 0;
-      let headerComplete = false;
-      
-      serverProcess.stdout.on('data', (data: Buffer) => {
-        response += data.toString();
-        
-        if (!headerComplete) {
-          const headerEnd = response.indexOf('\r\n\r\n');
-          if (headerEnd !== -1) {
-            const header = response.substring(0, headerEnd);
-            const lengthMatch = header.match(/Content-Length: (\d+)/);
-            if (lengthMatch) {
-              contentLength = parseInt(lengthMatch[1]);
-            }
-            response = response.substring(headerEnd + 4);
-            headerComplete = true;
-          }
-        }
-        
-        if (headerComplete && response.length >= contentLength) {
-          const jsonStr = response.substring(0, contentLength);
-          try {
-            const result = JSON.parse(jsonStr);
-            resolve(result);
-          } catch (e) {
-            reject(e);
-          }
-        }
-      });
-      
-      serverProcess.stderr.on('data', (data: Buffer) => {
-        console.error('Server error:', data.toString());
-      });
-      
-      serverProcess.stdin.write(header + content);
-    });
-  }
-  
   it('should provide semantic tokens for parameters', async () => {
     // Initialize
-    const initResponse = await sendMessage({
-      jsonrpc: '2.0',
-      id: 1,
-      method: 'initialize',
-      params: {
-        rootUri: null,
-        capabilities: {}
-      }
-    });
+    const initResponse = await sendRequest(serverProcess, 'initialize', {
+      rootUri: null,
+      capabilities: {}
+    }, messageId++);
     
     assert(initResponse.result.capabilities.semanticTokensProvider);
     assert(initResponse.result.capabilities.semanticTokensProvider.legend);
     assert(Array.isArray(initResponse.result.capabilities.semanticTokensProvider.legend.tokenTypes));
     
     // Open document
-    await sendMessage({
-      jsonrpc: '2.0',
-      method: 'textDocument/didOpen',
-      params: {
-        textDocument: {
-          uri: 'file:///test.regelspraak',
-          languageId: 'regelspraak',
-          version: 1,
-          text: 'Parameter loon: Bedrag;'
-        }
+    sendNotification(serverProcess, 'textDocument/didOpen', {
+      textDocument: {
+        uri: 'file:///test.regelspraak',
+        languageId: 'regelspraak',
+        version: 1,
+        text: 'Parameter loon: Bedrag;'
       }
     });
     
+    // Wait for processing
+    await new Promise(resolve => setTimeout(resolve, 100));
+    
     // Request semantic tokens
-    const tokensResponse = await sendMessage({
-      jsonrpc: '2.0',
-      id: 2,
-      method: 'textDocument/semanticTokens/full',
-      params: {
-        textDocument: {
-          uri: 'file:///test.regelspraak'
-        }
+    const tokensResponse = await sendRequest(serverProcess, 'textDocument/semanticTokens/full', {
+      textDocument: {
+        uri: 'file:///test.regelspraak'
       }
-    });
+    }, messageId++);
     
     // Should have tokens
     assert(tokensResponse.result);
@@ -122,41 +140,30 @@ describe('Semantic Tokens', () => {
   
   it('should provide semantic tokens for object types', async () => {
     // Initialize
-    await sendMessage({
-      jsonrpc: '2.0',
-      id: 1,
-      method: 'initialize',
-      params: {
-        rootUri: null,
-        capabilities: {}
-      }
-    });
+    await sendRequest(serverProcess, 'initialize', {
+      rootUri: null,
+      capabilities: {}
+    }, messageId++);
     
     // Open document with object type
-    await sendMessage({
-      jsonrpc: '2.0',
-      method: 'textDocument/didOpen',
-      params: {
-        textDocument: {
-          uri: 'file:///test.regelspraak',
-          languageId: 'regelspraak',
-          version: 1,
-          text: 'Objecttype Persoon\n  naam: Tekst;\n  leeftijd: Numeriek;'
-        }
+    sendNotification(serverProcess, 'textDocument/didOpen', {
+      textDocument: {
+        uri: 'file:///test.regelspraak',
+        languageId: 'regelspraak',
+        version: 1,
+        text: 'Objecttype Persoon\n  naam: Tekst;\n  leeftijd: Numeriek;'
       }
     });
     
+    // Wait for processing
+    await new Promise(resolve => setTimeout(resolve, 100));
+    
     // Request semantic tokens
-    const tokensResponse = await sendMessage({
-      jsonrpc: '2.0',
-      id: 2,
-      method: 'textDocument/semanticTokens/full',
-      params: {
-        textDocument: {
-          uri: 'file:///test.regelspraak'
-        }
+    const tokensResponse = await sendRequest(serverProcess, 'textDocument/semanticTokens/full', {
+      textDocument: {
+        uri: 'file:///test.regelspraak'
       }
-    });
+    }, messageId++);
     
     assert(tokensResponse.result);
     assert(Array.isArray(tokensResponse.result.data));
@@ -165,41 +172,30 @@ describe('Semantic Tokens', () => {
   
   it('should provide semantic tokens for rules', async () => {
     // Initialize
-    await sendMessage({
-      jsonrpc: '2.0',
-      id: 1,
-      method: 'initialize',
-      params: {
-        rootUri: null,
-        capabilities: {}
-      }
-    });
+    await sendRequest(serverProcess, 'initialize', {
+      rootUri: null,
+      capabilities: {}
+    }, messageId++);
     
     // Open document with rule
-    await sendMessage({
-      jsonrpc: '2.0',
-      method: 'textDocument/didOpen',
-      params: {
-        textDocument: {
-          uri: 'file:///test.regelspraak',
-          languageId: 'regelspraak',
-          version: 1,
-          text: 'Parameter salaris: Bedrag;\n\nRegel bereken_bonus\n  geldig altijd\n    Het bonus wordt salaris * 0.1;'
-        }
+    sendNotification(serverProcess, 'textDocument/didOpen', {
+      textDocument: {
+        uri: 'file:///test.regelspraak',
+        languageId: 'regelspraak',
+        version: 1,
+        text: 'Parameter salaris: Bedrag;\n\nRegel bereken_bonus\n  geldig altijd\n    Het bonus wordt salaris * 0.1;'
       }
     });
     
+    // Wait for processing
+    await new Promise(resolve => setTimeout(resolve, 100));
+    
     // Request semantic tokens
-    const tokensResponse = await sendMessage({
-      jsonrpc: '2.0',
-      id: 2,
-      method: 'textDocument/semanticTokens/full',
-      params: {
-        textDocument: {
-          uri: 'file:///test.regelspraak'
-        }
+    const tokensResponse = await sendRequest(serverProcess, 'textDocument/semanticTokens/full', {
+      textDocument: {
+        uri: 'file:///test.regelspraak'
       }
-    });
+    }, messageId++);
     
     assert(tokensResponse.result);
     assert(Array.isArray(tokensResponse.result.data));
