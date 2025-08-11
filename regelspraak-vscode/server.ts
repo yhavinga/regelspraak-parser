@@ -172,7 +172,7 @@ connection.onDocumentSymbol((params) => {
     
     // Helper to convert AST location to LSP range
     const nodeToRange = (node: any): Range => {
-      const location = locationMap.get(node);
+      const location = node.location;  // Locations are now stored directly on nodes
       if (!location) {
         return {
           start: { line: 0, character: 0 },
@@ -849,7 +849,7 @@ connection.onReferences((params) => {
       
       // Check if this is a reference to our symbol
       if (node.type === 'VariableReference' && node.variableName === symbolName) {
-        const location = locationMap?.get(node) || node.location;
+        const location = node.location;  // Locations are now stored directly on nodes
         if (location) {
           references.push({
             uri: params.textDocument.uri,
@@ -864,7 +864,7 @@ connection.onReferences((params) => {
       // Include the definition if requested
       if (params.context.includeDeclaration) {
         if (node.type === 'ParameterDefinition' && node.name === symbolName) {
-          const location = locationMap?.get(node) || node.location;
+          const location = node.location;  // Locations are now stored directly on nodes
           if (location) {
             references.push({
               uri: params.textDocument.uri,
@@ -1527,7 +1527,7 @@ connection.onRequest('textDocument/semanticTokens/full', (params: SemanticTokens
     const visitNode = (node: any) => {
       if (!node) return;
       
-      const location = locationMap?.get(node);
+      const location = node.location;  // Locations are now stored directly on nodes
       
       // Handle different node types
       switch (node.type) {
