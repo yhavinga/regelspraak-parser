@@ -29,7 +29,10 @@ import {
   SubselectieExpression,
   Predicaat,
   KenmerkPredicaat,
-  AttributeComparisonPredicaat
+  AttributeComparisonPredicaat,
+  SamengesteldeVoorwaarde,
+  Kwantificatie,
+  KwantificatieType
 } from '../ast/expressions';
 import { 
   Voorwaarde, 
@@ -46,7 +49,7 @@ import {
 } from '../ast/rules';
 import { ObjectTypeDefinition, KenmerkSpecification, AttributeSpecification, DataType, DomainReference } from '../ast/object-types';
 import { ParameterDefinition } from '../ast/parameters';
-import { AttributeReference, StringLiteral, Literal } from '../ast/expressions';
+import { AttributeReference, StringLiteral, Literal, BooleanLiteral } from '../ast/expressions';
 import { UnitSystemDefinition, UnitDefinition, UnitConversion } from '../ast/unit-systems';
 import { createSourceLocation } from '../ast/location';
 import { Dimension, DimensionLabel, DimensionedAttributeReference } from '../ast/dimensions';
@@ -2200,24 +2203,193 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
   visitVoorwaardeDeel(ctx: any): Voorwaarde {
     // voorwaardeDeel : INDIEN ( expressie | toplevelSamengesteldeVoorwaarde )
     
-    // For now, we only support simple expressions
-    // Complex compound conditions (toplevelSamengesteldeVoorwaarde) can be added later
     if (ctx.expressie && ctx.expressie()) {
       const expression = this.visit(ctx.expressie());
       const node: Voorwaarde = {
         type: 'Voorwaarde',
         expression
       };
+      this.setLocation(node, ctx);
+      return node;
+    }
+    
+    if (ctx.toplevelSamengesteldeVoorwaarde && ctx.toplevelSamengesteldeVoorwaarde()) {
+      const expression = this.visitToplevelSamengesteldeVoorwaarde(ctx.toplevelSamengesteldeVoorwaarde());
+      const node: Voorwaarde = {
+        type: 'Voorwaarde',
+        expression
+      };
+      this.setLocation(node, ctx);
+      return node;
+    }
+    
+    throw new Error('Expected expression or compound condition in voorwaardeDeel');
+  }
+
+  visitToplevelSamengesteldeVoorwaarde(ctx: any): SamengesteldeVoorwaarde {
+    // Extract the quantifier
+    const kwantificatie = this.visitVoorwaardeKwantificatie(ctx.voorwaardeKwantificatie());
+    
+    // Extract all condition parts
+    const voorwaarden: Expression[] = [];
+    
+    // In ANTLR4 TypeScript, use the _list method to get all items
+    const onderdeelContexts = ctx.samengesteldeVoorwaardeOnderdeel_list();
+    
+    if (onderdeelContexts) {
+      for (const onderdeelCtx of onderdeelContexts) {
+        const condition = this.visitSamengesteldeVoorwaardeOnderdeel(onderdeelCtx);
+        if (condition) {
+          voorwaarden.push(condition);
+        }
+      }
+    }
+    
+    if (voorwaarden.length === 0) {
+      throw new Error('No conditions found in compound condition');
+    }
+    
+    const node: SamengesteldeVoorwaarde = {
+      type: 'SamengesteldeVoorwaarde',
+      kwantificatie,
+      voorwaarden
+    };
     this.setLocation(node, ctx);
     return node;
+  }
+
+  extractNumber(ctx: any): number {
+    // Extract number from quantifier context
+    if (ctx.NUMBER && ctx.NUMBER()) {
+      return parseInt(ctx.NUMBER().getText(), 10);
+    } else if (ctx.EEN && ctx.EEN()) {
+      return 1;
+    } else if (ctx.EEN_TELWOORD && ctx.EEN_TELWOORD()) {
+      return 1;
+    } else if (ctx.TWEE_TELWOORD && ctx.TWEE_TELWOORD()) {
+      return 2;
+    } else if (ctx.DRIE_TELWOORD && ctx.DRIE_TELWOORD()) {
+      return 3;
+    } else if (ctx.VIER_TELWOORD && ctx.VIER_TELWOORD()) {
+      return 4;
+    }
+    throw new Error('Could not extract number from quantifier');
+  }
+
+  visitVoorwaardeKwantificatie(ctx: any): Kwantificatie {
+    if (ctx.ALLE && ctx.ALLE()) {
+      return {
+        type: KwantificatieType.ALLE
+      };
+    } else if (ctx.GEEN_VAN_DE && ctx.GEEN_VAN_DE()) {
+      return {
+        type: KwantificatieType.GEEN
+      };
+    } else if (ctx.TEN_MINSTE && ctx.TEN_MINSTE()) {
+      const number = this.extractNumber(ctx);
+      return {
+        type: KwantificatieType.TEN_MINSTE,
+        aantal: number
+      };
+    } else if (ctx.TEN_HOOGSTE && ctx.TEN_HOOGSTE()) {
+      const number = this.extractNumber(ctx);
+      return {
+        type: KwantificatieType.TEN_HOOGSTE,
+        aantal: number
+      };
+    } else if (ctx.PRECIES && ctx.PRECIES()) {
+      const number = this.extractNumber(ctx);
+      return {
+        type: KwantificatieType.PRECIES,
+        aantal: number
+      };
     }
     
-    // TODO: Support toplevelSamengesteldeVoorwaarde for compound conditions
-    if (ctx.toplevelSamengesteldeVoorwaarde && ctx.toplevelSamengesteldeVoorwaarde()) {
-      throw new Error('Compound conditions (samengestelde voorwaarde) not yet supported');
+    throw new Error('Unknown quantifier in compound condition');
+  }
+
+  visitSamengesteldeVoorwaardeOnderdeel(ctx: any): Expression | null {
+    // Skip the bullet prefix and visit the actual condition
+    if (ctx.elementaireVoorwaarde && ctx.elementaireVoorwaarde()) {
+      return this.visitElementaireVoorwaarde(ctx.elementaireVoorwaarde());
+    } else if (ctx.genesteSamengesteldeVoorwaarde && ctx.genesteSamengesteldeVoorwaarde()) {
+      return this.visitGenesteSamengesteldeVoorwaarde(ctx.genesteSamengesteldeVoorwaarde());
     }
     
-    throw new Error('Expected expression in voorwaardeDeel');
+    return null;
+  }
+
+  visitElementaireVoorwaarde(ctx: any): Expression {
+    // Elementary condition is just an expression
+    return this.visit(ctx.expressie());
+  }
+
+  visitGenesteSamengesteldeVoorwaarde(ctx: any): SamengesteldeVoorwaarde {
+    // Extract the quantifier
+    const kwantificatie = this.visitVoorwaardeKwantificatie(ctx.voorwaardeKwantificatie());
+    
+    // Extract all condition parts
+    const voorwaarden: Expression[] = [];
+    
+    // In ANTLR4 TypeScript, use the _list method to get all items
+    const onderdeelContexts = ctx.samengesteldeVoorwaardeOnderdeel_list();
+    
+    if (onderdeelContexts) {
+      for (const onderdeelCtx of onderdeelContexts) {
+        const condition = this.visitSamengesteldeVoorwaardeOnderdeel(onderdeelCtx);
+        if (condition) {
+          voorwaarden.push(condition);
+        }
+      }
+    }
+    
+    if (voorwaarden.length === 0) {
+      throw new Error('No conditions found in nested compound condition');
+    }
+    
+    const node: SamengesteldeVoorwaarde = {
+      type: 'SamengesteldeVoorwaarde',
+      kwantificatie,
+      voorwaarden
+    };
+    this.setLocation(node, ctx);
+    return node;
+  }
+
+  visitHeeftKenmerkExpr(ctx: any): BinaryExpression {
+    // Handle "heeft kenmerk" expressions (e.g., "hij heeft ervaring")
+    const left = this.visit(ctx._left || ctx.additiveExpression());
+    const kenmerk = ctx.naamwoord().getText();
+    
+    const node: BinaryExpression = {
+      type: 'BinaryExpression',
+      operator: '==',
+      left,
+      right: {
+        type: 'BooleanLiteral',
+        value: true
+      } as Expression
+    };
+    this.setLocation(node, ctx);
+    return node;
+  }
+
+  visitSubordinateIsKenmerkExpr(ctx: any): BinaryExpression {
+    // Handle "is kenmerk" expressions in subordinate clauses (e.g., "hij is student")
+    const subject = this.visitOnderwerpReferentie(ctx._subject || ctx.onderwerpReferentie());
+    const kenmerk = ctx._kenmerk ? ctx._kenmerk.getText() : ctx.naamwoord().getText();
+    
+    const node: BinaryExpression = {
+      type: 'BinaryExpression',
+      operator: '==',
+      left: subject,
+      right: {
+        type: 'BooleanLiteral',
+        value: true
+      } as Expression
+    };
+    this.setLocation(node, ctx);
+    return node;
   }
 
   visitUnaryCheckCondition(ctx: any): any {

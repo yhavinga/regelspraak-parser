@@ -106,3 +106,23 @@ export interface AttributeComparisonPredicaat {
   operator: string;
   value: Expression;
 }
+
+// Compound condition types
+export enum KwantificatieType {
+  ALLE = 'alle',
+  GEEN = 'geen',
+  TEN_MINSTE = 'ten_minste',
+  TEN_HOOGSTE = 'ten_hoogste',
+  PRECIES = 'precies'
+}
+
+export interface Kwantificatie {
+  type: KwantificatieType;
+  aantal?: number; // For TEN_MINSTE, TEN_HOOGSTE, PRECIES
+}
+
+export interface SamengesteldeVoorwaarde extends Expression {
+  type: 'SamengesteldeVoorwaarde';
+  kwantificatie: Kwantificatie;
+  voorwaarden: Expression[];
+}

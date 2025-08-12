@@ -88,8 +88,6 @@ describe('Find All References', () => {
       }, 1);
       
       // Send document
-      // NOTE: TypeScript parser doesn't support "indien" conditionals yet
-      // Using valid TypeScript parser syntax that works
       const text = `Parameter loon: Bedrag;
 Parameter bonus: Bedrag;
 Regel BerekenTotaal
