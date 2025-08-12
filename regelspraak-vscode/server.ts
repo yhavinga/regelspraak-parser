@@ -754,11 +754,17 @@ connection.onDefinition((params) => {
         if (param.name === node.variableName) {
           const location = param.location;
           if (location) {
+            // Calculate precise location of parameter name within the declaration
+            // Parameter declarations follow the pattern: "Parameter <name>: <type>"
+            // The name starts after "Parameter " (10 characters)
+            const nameStartChar = location.startColumn + 10; // "Parameter " is 10 chars
+            const nameEndChar = nameStartChar + param.name.length;
+            
             return {
               uri: params.textDocument.uri,
               range: {
-                start: { line: location.startLine - 1, character: location.startColumn },
-                end: { line: location.endLine - 1, character: location.endColumn }
+                start: { line: location.startLine - 1, character: nameStartChar },
+                end: { line: location.startLine - 1, character: nameEndChar }
               }
             };
           }
@@ -824,6 +830,14 @@ connection.onReferences((params) => {
     // Find what symbol we're looking for
     const node = findNodeAtPosition(model, params.position);
     connection.console.log(`DEBUG onReferences: position=${params.position.line}:${params.position.character}, node=${node?.type || 'null'}, model.parameters=${model.parameters?.length || 0}`);
+    
+    // Debug: Check if we can find the parameter directly
+    if (!node && model.parameters) {
+      for (const param of model.parameters) {
+        connection.console.log(`DEBUG: Parameter ${param.name} at ${JSON.stringify(param.location)}`);
+      }
+    }
+    
     if (!node) {
       connection.console.log('DEBUG: No node found at position, returning empty');
       return [];
@@ -866,11 +880,17 @@ connection.onReferences((params) => {
         if (node.type === 'ParameterDefinition' && node.name === symbolName) {
           const location = node.location;  // Locations are now stored directly on nodes
           if (location) {
+            // Calculate precise location of parameter name within the declaration
+            // Parameter declarations follow the pattern: "Parameter <name>: <type>"
+            // The name starts after "Parameter " (10 characters)
+            const nameStartChar = location.startColumn + 10; // "Parameter " is 10 chars
+            const nameEndChar = nameStartChar + node.name.length;
+            
             references.push({
               uri: params.textDocument.uri,
               range: {
-                start: { line: location.startLine - 1, character: location.startColumn },
-                end: { line: location.endLine - 1, character: location.endColumn }
+                start: { line: location.startLine - 1, character: nameStartChar },
+                end: { line: location.startLine - 1, character: nameEndChar }
               }
             });
           }
