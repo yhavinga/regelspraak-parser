@@ -1766,16 +1766,18 @@ class RegelSpraakModelBuilder(RegelSpraakVisitor):
                         if expr:
                             args.append(expr)
                 
-                # Process the optional time condition
-                if hasattr(ctx, 'condition') and ctx.condition:
-                    cond_ctx = ctx.condition
-                    # Handle case where condition might be a list
-                    if isinstance(cond_ctx, list):
-                        cond_ctx = cond_ctx[0] if cond_ctx else None
-                    if cond_ctx:
-                        condition_expr = self.visitExpressie(cond_ctx)
-                        if condition_expr:
-                            args.append(condition_expr)
+                # Process the optional time condition (conditieBijExpressie)
+                if hasattr(ctx, 'conditieBijExpressie') and ctx.conditieBijExpressie():
+                    cond_bij_ctx = ctx.conditieBijExpressie()
+                    # Handle case where conditieBijExpressie() returns a list
+                    if isinstance(cond_bij_ctx, list):
+                        cond_bij_ctx = cond_bij_ctx[0] if cond_bij_ctx else None
+                    if cond_bij_ctx:
+                        # Check if it's GEDURENDE_DE_TIJD_DAT with a condition expression
+                        if hasattr(cond_bij_ctx, 'condition') and cond_bij_ctx.condition:
+                            condition_expr = self.visitExpressie(cond_bij_ctx.condition)
+                            if condition_expr:
+                                args.append(condition_expr)
                 
                 return FunctionCall(
                     function_name=func_name,

@@ -15,6 +15,8 @@ export class ExpressionEvaluator implements IEvaluator {
     'aantal': this.aantal.bind(this),
     'som': this.som.bind(this),
     'som_van': this.som_van.bind(this),
+    'totaal_van': this.totaal_van.bind(this),
+    'tijdsevenredig_deel': this.tijdsevenredig_deel.bind(this),
     'tijdsduur_van': this.tijdsduur_van.bind(this),
     'abs_tijdsduur_van': this.abs_tijdsduur_van.bind(this),
     'aantal_dagen_in': this.aantal_dagen_in.bind(this)
@@ -573,6 +575,70 @@ export class ExpressionEvaluator implements IEvaluator {
     } else {
       throw new Error(`som_van expects an array argument, got ${arg.type}`);
     }
+  }
+
+  private totaal_van(args: Value[]): Value {
+    // Total aggregation - similar to som_van but handles temporal conditions
+    // For now, implement basic totaling without temporal condition support
+    if (args.length < 1 || args.length > 2) {
+      throw new Error('totaal_van expects 1 or 2 arguments');
+    }
+    
+    const mainArg = args[0];
+    
+    // TODO: Handle temporal condition (second argument) when provided
+    if (args.length === 2) {
+      // This would need timeline support to properly filter periods
+      console.warn('Temporal conditions in totaal_van not yet fully implemented in TypeScript');
+    }
+    
+    // For now, just sum like som_van
+    if (mainArg.type === 'array') {
+      const values = mainArg.value as Value[];
+      let total = 0;
+      
+      for (const val of values) {
+        if (val.type !== 'number') {
+          throw new Error(`totaal_van expects numeric values, got ${val.type}`);
+        }
+        total += val.value as number;
+      }
+      
+      return {
+        type: 'number',
+        value: total
+      };
+    } else if (mainArg.type === 'number') {
+      // Single value, return as-is
+      return mainArg;
+    } else {
+      throw new Error(`totaal_van expects numeric or array argument, got ${mainArg.type}`);
+    }
+  }
+
+  private tijdsevenredig_deel(args: Value[]): Value {
+    // Time-proportional part calculation
+    // Format: HET_TIJDSEVENREDIG_DEEL_PER (MAAND | JAAR) VAN expressie
+    if (args.length < 2) {
+      throw new Error('tijdsevenredig_deel expects at least 2 arguments (period type and value)');
+    }
+    
+    // First argument should be the period type ("maand" or "jaar")
+    const periodType = args[0];
+    if (periodType.type !== 'string') {
+      throw new Error('tijdsevenredig_deel first argument should be period type');
+    }
+    
+    const value = args[1];
+    if (value.type !== 'number') {
+      throw new Error('tijdsevenredig_deel expects a numeric value');
+    }
+    
+    // TODO: Implement actual time-proportional calculation based on period
+    // For now, return a placeholder implementation
+    console.warn('tijdsevenredig_deel not fully implemented in TypeScript');
+    
+    return value; // Placeholder: return the value as-is
   }
 
   private tijdsduur_van(args: Value[], unitConversion?: string): Value {

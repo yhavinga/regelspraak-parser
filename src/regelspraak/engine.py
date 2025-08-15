@@ -1693,7 +1693,15 @@ class Evaluator:
             return self._is_timeline_expression(expr.operand)
         
         elif isinstance(expr, FunctionCall):
-            # Check if any argument is a timeline
+            # Aggregation functions like totaal_van produce scalar results even with timeline arguments
+            aggregation_functions = {
+                'totaal_van', 'som_van', 'gemiddelde_van', 'minimum_van', 'maximum_van',
+                'aantal', 'aantal_van', 'aantal_dagen_in'
+            }
+            if expr.function_name in aggregation_functions:
+                # These functions aggregate timeline values into scalars
+                return False
+            # For other functions, check if any argument is a timeline
             return any(self._is_timeline_expression(arg) for arg in expr.arguments)
         
         elif isinstance(expr, Subselectie):
@@ -4825,11 +4833,32 @@ class Evaluator:
         return latest
     
     def _func_totaal_van(self, expr: FunctionCall, args: List[Value]) -> Value:
-        """Total aggregation function - similar to som_van."""
-        # For now, implement same as gemiddelde_van but return sum instead of average
-        # This handles the simple concatenation case
-        if not args:
+        """Total aggregation function with optional temporal condition support.
+        
+        Handles:
+        - Simple totals: het totaal van X
+        - Timeline aggregation: het totaal van X per maand
+        - Conditional timeline: het totaal van X per maand gedurende de tijd dat [condition]
+        """
+        if not expr.arguments:
             raise RegelspraakError("Function 'totaal_van' requires at least one argument", span=expr.span)
+        
+        # Check if this is a timeline aggregation with temporal condition
+        # The pattern is: totaal_van(expression, condition) where condition is for "gedurende de tijd dat"
+        if len(expr.arguments) == 2 and not args:
+            # This might be the temporal condition pattern - args not evaluated yet
+            main_expr = expr.arguments[0]
+            condition_expr = expr.arguments[1]
+            
+            # Check if the main expression involves timelines
+            if self._is_timeline_expression(main_expr):
+                # Evaluate as timeline with conditional filtering
+                return self._evaluate_totaal_van_with_condition(main_expr, condition_expr, expr.span)
+        
+        # Handle pre-evaluated arguments (simple case or already processed)
+        if not args:
+            # Need to evaluate arguments ourselves
+            args = [self.evaluate_expression(arg) for arg in expr.arguments]
         
         # Filter out None values
         non_none_values = []
@@ -4852,6 +4881,79 @@ class Evaluator:
         # Calculate total
         total_value = sum(non_none_values)
         return Value(value=Decimal(total_value), datatype=datatype, unit=unit)
+    
+    def _evaluate_totaal_van_with_condition(self, main_expr: Expression, condition_expr: Expression, span) -> Value:
+        """Evaluate totaal van with temporal condition (gedurende de tijd dat).
+        
+        This aggregates timeline values only for periods where the condition is true.
+        """
+        from .timeline_utils import merge_knips, get_evaluation_periods
+        from .runtime import TimelineValue
+        
+        # Collect timeline operands from main expression
+        timelines = self._collect_timeline_operands(main_expr)
+        
+        if not timelines:
+            # No timeline values - evaluate normally with condition check
+            saved_date = self.context.evaluation_date
+            try:
+                # Evaluate condition
+                cond_result = self.evaluate_expression(condition_expr)
+                if cond_result.value is True:
+                    # Condition is true, include the value
+                    return self.evaluate_expression(main_expr)
+                else:
+                    # Condition is false, return 0
+                    result_value = self.evaluate_expression(main_expr)
+                    return Value(value=Decimal(0), datatype=result_value.datatype, unit=result_value.unit)
+            finally:
+                self.context.evaluation_date = saved_date
+        
+        # Merge all knips from timeline operands
+        all_knips = merge_knips(*timelines)
+        
+        # Get evaluation periods between knips
+        periods = get_evaluation_periods(all_knips)
+        
+        # Accumulate total across periods where condition is true
+        total = Decimal(0)
+        datatype = None
+        unit = None
+        
+        # First, get the datatype and unit by evaluating the expression once
+        if periods:
+            saved_date = self.context.evaluation_date
+            self.context.evaluation_date = periods[0][0]  # Use first period's start date
+            try:
+                sample_value = self._evaluate_expression_non_timeline(main_expr)
+                datatype = sample_value.datatype
+                unit = sample_value.unit
+            finally:
+                self.context.evaluation_date = saved_date
+        
+        for start_date, end_date in periods:
+            # Set evaluation date to start of period
+            saved_date = self.context.evaluation_date
+            self.context.evaluation_date = start_date
+            
+            try:
+                # Evaluate condition for this period
+                cond_result = self._evaluate_expression_non_timeline(condition_expr)
+                
+                if cond_result.value is True:
+                    # Condition is true for this period, include in total
+                    period_value = self._evaluate_expression_non_timeline(main_expr)
+                    
+                    if period_value.value is not None:
+                        # Add to total
+                        total += period_value.to_decimal()
+                
+            finally:
+                # Restore evaluation date
+                self.context.evaluation_date = saved_date
+        
+        # Return the total
+        return Value(value=total, datatype=datatype or "Numeriek", unit=unit)
     
     def _func_aantal_dagen_in(self, expr: FunctionCall, args: Optional[List[Value]]) -> Value:
         """Count number of days in a month or year where a condition is true.
