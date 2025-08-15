@@ -4892,29 +4892,62 @@ class Evaluator:
             else:
                 raise RegelspraakError("First argument to aantal_dagen_in must be 'maand' or 'jaar'", span=expr.span)
             
-            # For now, since we don't have time-dependent expression evaluation,
-            # we'll return a placeholder value. Full implementation would:
-            # 1. Determine the current evaluation context's date/period
-            # 2. Iterate through each day in that period
-            # 3. Evaluate the condition for each day
-            # 4. Count days where condition is true
+            # Get the evaluation date to determine which period to check
+            eval_date = self.context.evaluation_date
+            if not eval_date:
+                # Use current date if no evaluation date is set
+                from datetime import datetime, date
+                eval_date = datetime.now().date()
+            else:
+                from datetime import date
+            
+            # Determine the period boundaries
+            if period_type == "maand":
+                # Count days in the current month
+                start_date = date(eval_date.year, eval_date.month, 1)
+                if eval_date.month == 12:
+                    end_date = date(eval_date.year + 1, 1, 1)
+                else:
+                    end_date = date(eval_date.year, eval_date.month + 1, 1)
+            elif period_type == "jaar":
+                # Count days in the current year
+                start_date = date(eval_date.year, 1, 1)
+                end_date = date(eval_date.year + 1, 1, 1)
+            else:
+                raise RegelspraakError(f"Invalid period type: {period_type}", span=expr.span)
+            
+            # Count days where condition is true
+            count = 0
+            current_date = start_date
+            while current_date < end_date:
+                # Save current evaluation date
+                old_eval_date = self.context.evaluation_date
+                try:
+                    # Set evaluation date to the day we're checking
+                    self.context.evaluation_date = current_date
+                    
+                    # Evaluate the condition for this day
+                    result = self.evaluate_expression(condition_expr)
+                    
+                    # Count if the condition is true
+                    if result.value is True:
+                        count += 1
+                finally:
+                    # Restore evaluation date
+                    self.context.evaluation_date = old_eval_date
+                
+                # Move to next day
+                from datetime import timedelta
+                current_date = current_date + timedelta(days=1)
             
             if self.context.trace_sink:
                 self.context.trace_sink.value_calculated(
                     expression=expr,
                     value=f"aantal_dagen_in({period_type}, <condition>)",
-                    result="placeholder implementation"
+                    result=f"{count} dagen"
                 )
             
-            # Placeholder: return typical days in period
-            if period_type == "jaar":
-                # Return 365 as placeholder (non-leap year)
-                return Value(value=Decimal(365), datatype="Numeriek", unit="dagen")
-            elif period_type == "maand":
-                # Return 30 as placeholder (average month)
-                return Value(value=Decimal(30), datatype="Numeriek", unit="dagen")
-            else:
-                raise RegelspraakError(f"Invalid period type: {period_type}", span=expr.span)
+            return Value(value=Decimal(count), datatype="Numeriek", unit="dagen")
         
         # Legacy pattern with evaluated arguments (for backward compatibility)
         elif len(args) == 1:
