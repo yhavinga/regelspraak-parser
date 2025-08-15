@@ -56,9 +56,18 @@ The RegelSpraak parser implementation is approximately **95-97% complete** for c
 ## ⚠️ Partially Implemented Features
 
 ### Timeline Support (Tijdlijnen)
-- **Status**: Foundation exists in Python, minimal in TypeScript
-- **Missing**: Complete time-dependent evaluation logic
-- **Impact**: Cannot fully handle time-varying data and temporal aggregations
+- **Status**: ~95% complete in Python, minimal in TypeScript
+- **Implemented**:
+  - Timeline infrastructure (Timeline, Period, TimelineValue classes)
+  - Timeline parsing and storage ("voor elke dag/maand/jaar")
+  - Timeline expression evaluation with knips (change points)
+  - "gedurende de tijd dat" temporal conditions (3 tests passing)
+  - "het aantal dagen in ... dat ..." conditional day counting (4 tests passing)
+  - Timeline-aware rule execution
+- **Missing**: 
+  - Timeline-aware aggregations that return timeline results (currently returns scalars)
+  - TypeScript implementation lacks most timeline features
+- **Impact**: Cannot produce timeline results from aggregations, limiting some business rule patterns
 
 ### Recursion (Recursie)
 - **Status**: Basic loop in Python with iteration limit
@@ -84,14 +93,8 @@ The RegelSpraak parser implementation is approximately **95-97% complete** for c
   - ✓ With constraints (maximum, rounding, remainder handling)
 - **Test Coverage**: Comprehensive tests passing in both Python and TypeScript
 
-#### 2. Advanced Time-Dependent Features
-- **Missing**:
-  - `gedurende de tijd dat` (during the time that) conditions
-  - Time-aware aggregations
-  - `het aantal dagen in ... dat ...` pattern
-- **Impact**: Cannot evaluate rules based on changing data over time
 
-#### 3. Specialized Validation Predicates
+#### 2. Specialized Validation Predicates
 - **getalcontrole** - Number validation rules
 - **dagsoortcontrole** - Day type validation
 - **Full elfproef** - Complete Dutch bank account validation
@@ -99,11 +102,11 @@ The RegelSpraak parser implementation is approximately **95-97% complete** for c
 
 ### Minor Gaps
 
-#### 4. Context-Specific Keywords
+#### 3. Context-Specific Keywords
 - **Issue**: `of` vs `en` in concatenation within equality conditions
 - **Impact**: Minor semantic difference in specific contexts
 
-#### 5. Percentage as First-Class Datatype
+#### 4. Percentage as First-Class Datatype
 - **Status**: Commented out in grammar
 - **Workaround**: Using Numeriek with percentage units
 

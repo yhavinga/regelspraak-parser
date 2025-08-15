@@ -166,6 +166,8 @@ class Evaluator:
                 except Exception as e:
                     # Capture unexpected errors
                     print(f"Unexpected Error executing rule '{rule.naam}' for instance '{instance.instance_id}': {e}")
+                    import traceback
+                    traceback.print_exc()
                     results.setdefault(rule.naam, []).append({"instance_id": instance.instance_id, "status": "unexpected_error", "message": str(e)})
                 finally:
                     # Restore original instance context
@@ -781,8 +783,38 @@ class Evaluator:
                     if attr_def and attr_def.timeline:
                         target_is_timeline = True
             
+            # Always evaluate the expression first to check if it returns a TimelineValue
+            # This handles cases like totaal_van that can return TimelineValue
+            try:
+                logger.debug(f"Gelijkstelling: About to evaluate expression: {res.expressie}")
+                expr_result = self.evaluate_expression(res.expressie)
+                logger.debug(f"Gelijkstelling: Evaluated expression result type: {type(expr_result)}, value: {expr_result}")
+            except AttributeError as e:
+                logger.error(f"AttributeError during expression evaluation: {e}")
+                import traceback
+                logger.error(traceback.format_exc())
+                raise
+            
+            # Check if the result is a TimelineValue (from timeline-aware aggregation)
+            if isinstance(expr_result, TimelineValue):
+                logger.debug(f"Gelijkstelling: Result is TimelineValue, setting as timeline attribute")
+                # Get the target attribute
+                target_ref = res.target
+                if isinstance(target_ref, DimensionedAttributeReference):
+                    raise RegelspraakError("Timeline expressions with dimensioned attributes not yet supported", span=res.span)
+                elif not target_ref.path:
+                    raise RegelspraakError("Gelijkstelling target path is empty.", span=target_ref.span)
+                
+                attr_name = target_ref.path[0]
+                
+                # Set the timeline value directly
+                self.context.set_timeline_attribute(instance, attr_name, expr_result, span=res.span)
+                return
+            
             # If target is timeline or expression contains timeline operands, evaluate as timeline
-            if target_is_timeline or self._is_timeline_expression(res.expressie):
+            # BUT only if we didn't already get a TimelineValue from the expression
+            if (target_is_timeline or self._is_timeline_expression(res.expressie)) and not isinstance(expr_result, TimelineValue):
+                logger.debug(f"Gelijkstelling: Evaluating as timeline expression (target_is_timeline={target_is_timeline})")
                 # Get the target attribute
                 target_ref = res.target
                 if isinstance(target_ref, DimensionedAttributeReference):
@@ -794,8 +826,8 @@ class Evaluator:
                 
                 # Check if there's a period definition
                 if res.period_definition:
-                    # Evaluate the expression to get a single value
-                    value = self.evaluate_expression(res.expressie)
+                    # Use pre-evaluated result
+                    value = expr_result
                     
                     # Get attribute definition to find unit and granularity
                     granularity = "dag"  # Default
@@ -835,7 +867,8 @@ class Evaluator:
                 return
             
             # Regular non-timeline expression evaluation
-            value = self.evaluate_expression(res.expressie)
+            # Use the pre-evaluated result
+            value = expr_result
             # Handle both AttributeReference and DimensionedAttributeReference
             target_ref = res.target
             if isinstance(target_ref, DimensionedAttributeReference):
@@ -1151,7 +1184,9 @@ class Evaluator:
             saved_is_timeline = self._in_timeline_evaluation
             self._in_timeline_evaluation = True
             try:
-                return self._evaluate_expression_non_timeline(expr)
+                result = self._evaluate_expression_non_timeline(expr)
+                logger.debug(f"evaluate_expression: timeline path result type: {type(result)}")
+                return result
             finally:
                 self._in_timeline_evaluation = saved_is_timeline
         
@@ -1643,11 +1678,13 @@ class Evaluator:
         finally:
             # Trace expression evaluation end (even if there was an error)
             if self.context.trace_sink:
-                self.context.trace_sink.expression_eval_end(
-                    expr,
-                    result,
-                    instance_id=instance_id
-                )
+                # Skip tracing for TimelineValue to avoid attribute errors
+                if not isinstance(result, TimelineValue):
+                    self.context.trace_sink.expression_eval_end(
+                        expr,
+                        result,
+                        instance_id=instance_id
+                    )
                 
         return result
 
@@ -1657,8 +1694,9 @@ class Evaluator:
         if isinstance(expr, ParameterReference):
             param_def = self.context.domain_model.parameters.get(expr.parameter_name)
             if param_def and param_def.timeline:
-                # Check if there's a timeline value stored
-                return expr.parameter_name in self.context.timeline_parameters
+                # Return True if the parameter is defined as a timeline parameter
+                # regardless of whether there's a value stored
+                return True
         
         elif isinstance(expr, AttributeReference):
             if self.context.current_instance and expr.path:
@@ -1682,8 +1720,9 @@ class Evaluator:
                     if obj_type_def:
                         attr_def = obj_type_def.attributen.get(attr_name)
                         if attr_def and attr_def.timeline:
-                            # Check if there's a timeline value stored
-                            return attr_name in self.context.current_instance.timeline_attributen
+                            # Return True if the attribute is defined as a timeline attribute
+                            # regardless of whether there's a value stored
+                            return True
         
         elif isinstance(expr, BinaryExpression):
             # Either operand being a timeline makes the whole expression a timeline
@@ -1699,7 +1738,8 @@ class Evaluator:
                 'aantal', 'aantal_van', 'aantal_dagen_in'
             }
             if expr.function_name in aggregation_functions:
-                # These functions aggregate timeline values into scalars
+                # These functions aggregate timeline values into scalars (or timelines for totaal_van)
+                # but should not be treated as timeline expressions themselves
                 return False
             # For other functions, check if any argument is a timeline
             return any(self._is_timeline_expression(arg) for arg in expr.arguments)
@@ -2122,11 +2162,13 @@ class Evaluator:
         finally:
             # Trace expression evaluation end (even if there was an error)
             if self.context.trace_sink:
-                self.context.trace_sink.expression_eval_end(
-                    expr,
-                    result,
-                    instance_id=instance_id
-                )
+                # Skip tracing for TimelineValue to avoid attribute errors
+                if not isinstance(result, TimelineValue):
+                    self.context.trace_sink.expression_eval_end(
+                        expr,
+                        result,
+                        instance_id=instance_id
+                    )
                 
         return result
 
@@ -2335,7 +2377,9 @@ class Evaluator:
         # Check if this function is registered
         if func_name in self._function_registry:
             # For non-timeline calls, pass None as args since we can't evaluate recursively
-            return self._function_registry[func_name](expr, None)
+            result = self._function_registry[func_name](expr, None)
+            logger.debug(f"_handle_function_call_non_timeline: result type: {type(result)}")
+            return result
         else:
             # Debug logging
             logger.error(f"Function lookup failed in non-timeline context")
@@ -4081,6 +4125,7 @@ class Evaluator:
         instance_id = current_instance.instance_id if current_instance else None
         
         func_name = expr.function_name.lower().replace(' ', '_') # Normalize name
+        logger.debug(f"_handle_function_call: func_name='{func_name}', args={len(expr.arguments)}")
         
         # Special case: Check for aggregation patterns BEFORE evaluating args
         # This avoids errors when trying to evaluate attributes on wrong instances
@@ -4089,25 +4134,45 @@ class Evaluator:
                                 "aantal", "het_aantal"]
         
         if func_name in aggregation_functions:
+            logger.debug(f"Processing aggregation function: {func_name}")
             # Normalize function name (remove articles)
             base_func_name = func_name
             if func_name.startswith("het_"):
                 base_func_name = func_name[4:]
             elif func_name.startswith("de_"):
                 base_func_name = func_name[3:]
+            logger.debug(f"Base function name: {base_func_name}")
                 
             # Single argument case: "som van alle bedragen" or "totaal van X"
             if len(expr.arguments) == 1:
                 arg = expr.arguments[0]
+                logger.debug(f"Single arg: type={type(arg)}, path={arg.path if hasattr(arg, 'path') else 'N/A'}")
                 
-                if isinstance(arg, AttributeReference) and len(arg.path) == 1 and arg.path[0].endswith("en"):
-                    # Handle the "functie van alle X" pattern specially
-                    return self._handle_aggregation_alle_pattern(expr, base_func_name, arg.path[0])
+                if isinstance(arg, AttributeReference) and len(arg.path) == 1:
+                    path_elem = arg.path[0]
+                    # Check for explicit "alle X" pattern or plural collection pattern
+                    # But exclude timeline attributes
+                    if path_elem.startswith("alle "):
+                        # Explicit "alle X" pattern
+                        logger.debug(f"Matched explicit 'alle' pattern")
+                        plural_name = path_elem[5:]  # Remove "alle " prefix
+                        return self._handle_aggregation_alle_pattern(expr, base_func_name, plural_name)
+                    elif path_elem.endswith("en") and base_func_name != "totaal_van":
+                        # Plural pattern ending with "en" (like "bedragen")
+                        # But skip for totaal_van to allow timeline detection
+                        logger.debug(f"Matched plural collection pattern")
+                        return self._handle_aggregation_alle_pattern(expr, base_func_name, path_elem)
                 elif base_func_name == "aantal" or func_name == "het_aantal":
                     # Don't evaluate arguments for het_aantal - let the registry function handle it
-                    pass
+                    logger.debug(f"Matched aantal pattern")
+                    args = None
+                elif base_func_name == "totaal_van":
+                    # Don't evaluate arguments for totaal_van - let it handle timeline detection
+                    logger.debug(f"Matched totaal_van pattern - setting args=None")
+                    args = None
                 else:
                     # Single argument that's not "alle" pattern - evaluate normally
+                    logger.debug(f"Default case - evaluating args normally")
                     args = [self.evaluate_expression(arg) for arg in expr.arguments]
             
             # Two argument case: "som van X van alle Y" (from DimensieAggExpr)
@@ -4140,12 +4205,16 @@ class Evaluator:
         try:
             # Use function registry for cleaner dispatch
             if func_name in self._function_registry:
+                logger.debug(f"Found {func_name} in registry, calling handler")
                 # For aggregation functions, pass None for args if they haven't been evaluated yet
                 # This allows the function to handle special patterns before evaluation
-                if func_name in ["som_van", "aantal", "het_aantal"] and 'args' not in locals():
+                if func_name in ["som_van", "aantal", "het_aantal", "totaal_van"] and ('args' not in locals() or args is None):
+                    logger.debug(f"Calling registry with args=None for {func_name}")
                     result = self._function_registry[func_name](expr, None)
                 else:
+                    logger.debug(f"Calling registry with evaluated args for {func_name}")
                     result = self._function_registry[func_name](expr, args if 'args' in locals() else None)
+                logger.debug(f"Registry function returned: {type(result)}")
                 
                 # If registry function returns a value, we're done
                 # If it returns None, fall through to special handling below
@@ -4837,9 +4906,10 @@ class Evaluator:
         
         Handles:
         - Simple totals: het totaal van X
-        - Timeline aggregation: het totaal van X per maand
+        - Timeline aggregation: het totaal van X per maand (returns TimelineValue)
         - Conditional timeline: het totaal van X per maand gedurende de tijd dat [condition]
         """
+        logger.debug(f"_func_totaal_van called with args={args}, expr.arguments={len(expr.arguments) if expr.arguments else 0}")
         if not expr.arguments:
             raise RegelspraakError("Function 'totaal_van' requires at least one argument", span=expr.span)
         
@@ -4855,10 +4925,36 @@ class Evaluator:
                 # Evaluate as timeline with conditional filtering
                 return self._evaluate_totaal_van_with_condition(main_expr, condition_expr, expr.span)
         
+        # Check if we're aggregating timeline values without pre-evaluated args
+        if not args and len(expr.arguments) == 1:
+            main_expr = expr.arguments[0]
+            # Always try to detect timeline expression first
+            is_timeline = self._is_timeline_expression(main_expr)
+            logger.debug(f"_func_totaal_van: is_timeline_expression={is_timeline}")
+            if is_timeline:
+                # Return timeline-aware aggregation
+                result = self._aggregate_timeline_to_timeline(main_expr, expr.span)
+                logger.debug(f"_func_totaal_van: returning TimelineValue from _aggregate_timeline_to_timeline")
+                return result
+            
+            # If not detected as timeline expression, evaluate and check result
+            result = self.evaluate_expression(main_expr)
+            logger.debug(f"_func_totaal_van: evaluated result type={type(result)}")
+            if isinstance(result, TimelineValue):
+                # Wrap single timeline value in a list and aggregate
+                aggregated = self._aggregate_timeline_values([result], expr.span)
+                logger.debug(f"_func_totaal_van: returning TimelineValue from _aggregate_timeline_values")
+                return aggregated
+        
         # Handle pre-evaluated arguments (simple case or already processed)
         if not args:
             # Need to evaluate arguments ourselves
             args = [self.evaluate_expression(arg) for arg in expr.arguments]
+        
+        # Check if any args are TimelineValues - if so, aggregate them to timeline
+        timeline_args = [arg for arg in args if isinstance(arg, TimelineValue)]
+        if timeline_args:
+            return self._aggregate_timeline_values(timeline_args, expr.span)
         
         # Filter out None values
         non_none_values = []
@@ -4954,6 +5050,125 @@ class Evaluator:
         
         # Return the total
         return Value(value=total, datatype=datatype or "Numeriek", unit=unit)
+    
+    def _aggregate_timeline_to_timeline(self, expr: Expression, span) -> TimelineValue:
+        """Aggregate a timeline expression to produce a timeline result.
+        
+        This evaluates the expression across all timeline periods and returns
+        a TimelineValue where each period contains the aggregated total for that period.
+        """
+        from .timeline_utils import merge_knips, get_evaluation_periods
+        
+        # Collect timeline operands
+        timelines = self._collect_timeline_operands(expr)
+        
+        if not timelines:
+            # No timeline values - just evaluate as scalar and return as-is
+            result = self.evaluate_expression(expr)
+            return result
+        
+        # Merge all knips from timeline operands
+        all_knips = merge_knips(*timelines)
+        
+        # Get evaluation periods between knips
+        periods = get_evaluation_periods(all_knips)
+        
+        # Build result timeline with running totals
+        result_periods = []
+        running_total = Decimal(0)
+        datatype = None
+        unit = None
+        
+        for start_date, end_date in periods:
+            # Set evaluation date to start of period
+            saved_date = self.context.evaluation_date
+            self.context.evaluation_date = start_date
+            
+            try:
+                # Evaluate expression for this period
+                period_value = self._evaluate_expression_non_timeline(expr)
+                
+                if datatype is None:
+                    datatype = period_value.datatype
+                    unit = period_value.unit
+                
+                if period_value.value is not None:
+                    # Add to running total
+                    running_total += period_value.to_decimal()
+                
+                # Create period with running total
+                result_periods.append(ast.Period(
+                    start_date=start_date,
+                    end_date=end_date,
+                    value=Value(value=running_total, datatype=datatype, unit=unit)
+                ))
+                
+            finally:
+                # Restore evaluation date
+                self.context.evaluation_date = saved_date
+        
+        # Create timeline with appropriate granularity
+        # Determine granularity based on the smallest timeline granularity
+        granularity = "dag"  # Default to finest granularity
+        for timeline in timelines:
+            if hasattr(timeline, 'timeline') and hasattr(timeline.timeline, 'granularity'):
+                if timeline.timeline.granularity == "jaar":
+                    if granularity != "maand":
+                        granularity = "jaar"
+                elif timeline.timeline.granularity == "maand":
+                    granularity = "maand"
+        
+        return TimelineValue(timeline=ast.Timeline(periods=result_periods, granularity=granularity))
+    
+    def _aggregate_timeline_values(self, timeline_values: List[TimelineValue], span) -> TimelineValue:
+        """Aggregate multiple timeline values into a single timeline result.
+        
+        This merges timeline values and produces a timeline where each period
+        contains the total of all values at that point.
+        """
+        from .timeline_utils import merge_knips, get_evaluation_periods
+        
+        # Merge all knips from timeline values
+        all_knips = merge_knips(*timeline_values)
+        
+        # Get evaluation periods
+        periods = get_evaluation_periods(all_knips)
+        
+        # Build result timeline
+        result_periods = []
+        datatype = None
+        unit = None
+        
+        for start_date, end_date in periods:
+            # Sum values from all timelines at this date
+            period_total = Decimal(0)
+            
+            for tv in timeline_values:
+                value_at_date = tv.get_value_at(start_date)
+                if value_at_date and value_at_date.value is not None:
+                    if datatype is None:
+                        datatype = value_at_date.datatype
+                        unit = value_at_date.unit
+                    period_total += value_at_date.to_decimal()
+            
+            # Create period with total
+            result_periods.append(ast.Period(
+                start_date=start_date,
+                end_date=end_date,
+                value=Value(value=period_total, datatype=datatype or "Numeriek", unit=unit)
+            ))
+        
+        # Determine granularity from input timelines
+        granularity = "dag"
+        for tv in timeline_values:
+            if hasattr(tv, 'timeline') and hasattr(tv.timeline, 'granularity'):
+                if tv.timeline.granularity == "jaar":
+                    if granularity != "maand":
+                        granularity = "jaar"
+                elif tv.timeline.granularity == "maand":
+                    granularity = "maand"
+        
+        return TimelineValue(timeline=ast.Timeline(periods=result_periods, granularity=granularity))
     
     def _func_aantal_dagen_in(self, expr: FunctionCall, args: Optional[List[Value]]) -> Value:
         """Count number of days in a month or year where a condition is true.
