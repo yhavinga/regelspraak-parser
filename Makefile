@@ -50,10 +50,17 @@ parser-ts:
 	@echo "TypeScript parser generation complete."
 
 # Target to run unit tests
+# Usage: make test                    # Run all tests
+#        make test ARGS=test_timeline  # Run specific test module
+#        make test ARGS="tests.test_regel.TestRegelParsing.test_regel_met_indien"  # Run specific test
 .PHONY: test
 test:
 	@echo "Running unit tests..."
-	$(PYTHON) -m unittest discover -s $(TEST_DIR)
+	@if [ -z "$(ARGS)" ]; then \
+		PYTHONPATH=src $(PYTHON) -m unittest discover -s $(TEST_DIR); \
+	else \
+		PYTHONPATH=src $(PYTHON) -m unittest $(ARGS) -v; \
+	fi
 	@echo "Tests complete."
 
 # Target to run TypeScript tests

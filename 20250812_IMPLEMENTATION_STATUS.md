@@ -74,14 +74,15 @@ The RegelSpraak parser implementation is approximately **95-97% complete** for c
 
 ### Major Gaps
 
-#### 1. Verdeling (Distribution Rules)
+#### 1. ~~Verdeling (Distribution Rules)~~ ✅ IMPLEMENTED (2025-08-14)
 - **Specification**: Section 9.7 - Distribute values among recipients
-- **Current State**: Grammar recognizes syntax, no execution logic
-- **Required Methods**:
-  - In gelijke delen (equal parts)
-  - Naar rato van (pro-rata)
-  - Op volgorde van (by order)
-  - With constraints (maximum, rounding)
+- **Current State**: Fully implemented in both Python and TypeScript
+- **Implemented Methods**:
+  - ✓ In gelijke delen (equal parts)
+  - ✓ Naar rato van (pro-rata)
+  - ✓ Op volgorde van (by order)
+  - ✓ With constraints (maximum, rounding, remainder handling)
+- **Test Coverage**: Comprehensive tests passing in both Python and TypeScript
 
 #### 2. Advanced Time-Dependent Features
 - **Missing**:
@@ -125,7 +126,7 @@ The RegelSpraak parser implementation is approximately **95-97% complete** for c
 ## Priority for Completion
 
 ### High Priority (Core Functionality)
-1. **Verdeling Rules** - Important for business rule calculations
+1. ~~**Verdeling Rules** - Important for business rule calculations~~ ✅ DONE
 2. **Complete Timeline Support** - Essential for temporal data
 
 ### Medium Priority (Enhanced Functionality)
