@@ -84,6 +84,10 @@ class Evaluator:
             "totaal": self._func_totaal_van,
             "totaal_van": self._func_totaal_van,
             "aantal_dagen_in": self._func_aantal_dagen_in,
+            
+            # Time-proportional functions
+            "tijdsevenredig_deel_per_maand": self._func_tijdsevenredig_deel_per_maand,
+            "tijdsevenredig_deel_per_jaar": self._func_tijdsevenredig_deel_per_jaar,
         }
 
     def execute_model(self, domain_model: DomainModel, evaluation_date: Optional[datetime] = None):
@@ -5284,6 +5288,222 @@ class Evaluator:
             return Value(value=Decimal(days_count), datatype="Numeriek", unit="dagen")
         
         raise RegelspraakError(f"Function 'aantal_dagen_in' expects 2 arguments (period_type, condition), got {len(expr.arguments)}", span=expr.span)
+    
+    def _func_tijdsevenredig_deel_per_maand(self, expr: FunctionCall, args: Optional[List[Value]]) -> Union[Value, TimelineValue]:
+        """Calculate time-proportional part per month.
+        
+        Per specification section 7.3.2:
+        - Calculates proportional values based on partial periods
+        - Handles calendar-accurate day counting (28/29/30/31 days per month)
+        - Supports temporal conditions ("gedurende de tijd dat")
+        - Returns timeline values with proportional amounts per period
+        
+        Pattern: het tijdsevenredig deel per maand van X [gedurende de tijd dat ...]
+        """
+        if len(expr.arguments) == 0:
+            raise RegelspraakError("Function 'tijdsevenredig_deel_per_maand' requires at least one argument", span=expr.span)
+        
+        # Check if this is a pattern with temporal condition
+        if len(expr.arguments) == 2:
+            # Pattern: tijdsevenredig_deel_per_maand(base_value, condition)
+            base_expr = expr.arguments[0]
+            condition_expr = expr.arguments[1]
+            return self._evaluate_tijdsevenredig_with_condition(base_expr, condition_expr, "maand", expr.span)
+        
+        # Simple case: just the base value
+        base_expr = expr.arguments[0]
+        
+        # Check if this is a timeline expression
+        if self._is_timeline_expression(base_expr):
+            return self._evaluate_tijdsevenredig_timeline(base_expr, "maand", expr.span)
+        
+        # Evaluate as scalar - no proportional calculation needed for non-timeline values
+        if args is None:
+            result = self.evaluate_expression(base_expr)
+        else:
+            result = args[0]
+        
+        # For scalar values, tijdsevenredig has no effect
+        return result
+    
+    def _func_tijdsevenredig_deel_per_jaar(self, expr: FunctionCall, args: Optional[List[Value]]) -> Union[Value, TimelineValue]:
+        """Calculate time-proportional part per year.
+        
+        Per specification section 7.3.2:
+        - Calculates proportional values based on partial periods
+        - Handles calendar-accurate day counting (365/366 days per year)
+        - Supports temporal conditions ("gedurende de tijd dat")
+        - Returns timeline values with proportional amounts per period
+        
+        Pattern: het tijdsevenredig deel per jaar van X [gedurende de tijd dat ...]
+        """
+        if len(expr.arguments) == 0:
+            raise RegelspraakError("Function 'tijdsevenredig_deel_per_jaar' requires at least one argument", span=expr.span)
+        
+        # Check if this is a pattern with temporal condition
+        if len(expr.arguments) == 2:
+            # Pattern: tijdsevenredig_deel_per_jaar(base_value, condition)
+            base_expr = expr.arguments[0]
+            condition_expr = expr.arguments[1]
+            return self._evaluate_tijdsevenredig_with_condition(base_expr, condition_expr, "jaar", expr.span)
+        
+        # Simple case: just the base value
+        base_expr = expr.arguments[0]
+        
+        # Check if this is a timeline expression
+        if self._is_timeline_expression(base_expr):
+            return self._evaluate_tijdsevenredig_timeline(base_expr, "jaar", expr.span)
+        
+        # Evaluate as scalar - no proportional calculation needed for non-timeline values
+        if args is None:
+            result = self.evaluate_expression(base_expr)
+        else:
+            result = args[0]
+        
+        # For scalar values, tijdsevenredig has no effect
+        return result
+    
+    def _evaluate_tijdsevenredig_with_condition(self, base_expr: Expression, condition_expr: Expression, period_type: str, span) -> TimelineValue:
+        """Evaluate tijdsevenredig deel with temporal condition.
+        
+        This calculates proportional values for periods where the condition is true.
+        """
+        from .timeline_utils import merge_knips, get_evaluation_periods, calculate_proportional_value
+        from datetime import datetime, timedelta
+        import calendar
+        
+        # Collect timeline operands from both base and condition
+        base_timelines = self._collect_timeline_operands(base_expr)
+        condition_timelines = self._collect_timeline_operands(condition_expr)
+        
+        # Merge all knips
+        all_timelines = base_timelines + condition_timelines
+        if all_timelines:
+            all_knips = merge_knips(*all_timelines)
+        else:
+            # No timeline values - create default period
+            if self.context.evaluation_date:
+                eval_date = self.context.evaluation_date
+            else:
+                eval_date = datetime.now()
+            
+            # Create knips for the evaluation period
+            if period_type == "maand":
+                start_date = datetime(eval_date.year, eval_date.month, 1)
+                if eval_date.month == 12:
+                    end_date = datetime(eval_date.year + 1, 1, 1)
+                else:
+                    end_date = datetime(eval_date.year, eval_date.month + 1, 1)
+            else:  # jaar
+                start_date = datetime(eval_date.year, 1, 1)
+                end_date = datetime(eval_date.year + 1, 1, 1)
+            
+            all_knips = [start_date, end_date]
+        
+        # Get evaluation periods
+        periods = get_evaluation_periods(all_knips)
+        
+        # Calculate proportional values for each period
+        timeline_periods = []
+        
+        for start, end in periods:
+            # Save and set evaluation date
+            saved_date = self.context.evaluation_date
+            self.context.evaluation_date = start
+            
+            try:
+                # Evaluate condition
+                condition_result = self.evaluate_expression(condition_expr)
+                
+                if condition_result.value is True:
+                    # Condition is true - calculate proportional value
+                    base_value = self.evaluate_expression(base_expr)
+                    
+                    # Calculate proportion based on period type
+                    proportional_value = calculate_proportional_value(
+                        base_value, start, end, period_type
+                    )
+                    
+                    timeline_periods.append(Period(
+                        start_date=start,
+                        end_date=end,
+                        value=proportional_value
+                    ))
+                else:
+                    # Condition is false - no value for this period
+                    timeline_periods.append(Period(
+                        start_date=start,
+                        end_date=end,
+                        value=Value(value=None, datatype="Numeriek", unit=None)
+                    ))
+            finally:
+                self.context.evaluation_date = saved_date
+        
+        # Create timeline with appropriate granularity
+        timeline = Timeline(periods=timeline_periods, granularity=period_type)
+        return TimelineValue(timeline=timeline)
+    
+    def _evaluate_tijdsevenredig_timeline(self, base_expr: Expression, period_type: str, span) -> TimelineValue:
+        """Evaluate tijdsevenredig deel for a timeline expression.
+        
+        This applies proportional calculations based on the period type and actual period lengths.
+        """
+        from .timeline_utils import align_date, next_period, calculate_proportional_value
+        from datetime import datetime
+        
+        # Evaluate the base expression as a timeline
+        result = self._evaluate_timeline_expression(base_expr)
+        
+        if not isinstance(result, TimelineValue):
+            # Not a timeline - return as-is
+            return result
+        
+        # Split timeline into requested period type
+        new_periods = []
+        
+        for period in result.timeline.periods:
+            if period.value and period.value.value is not None:
+                # Split this period into months or years as requested
+                current = align_date(period.start_date, period_type)
+                
+                while current < period.end_date:
+                    next_date = next_period(current, period_type)
+                    # Determine actual period boundaries
+                    period_start = max(current, period.start_date)
+                    period_end = min(next_date, period.end_date)
+                    
+                    # Check if this is a full period or partial
+                    is_full_period = (period_start == current and period_end == next_date)
+                    
+                    if is_full_period:
+                        # Full period - use the value as-is
+                        new_periods.append(Period(
+                            start_date=period_start,
+                            end_date=period_end,
+                            value=period.value
+                        ))
+                    else:
+                        # Partial period - calculate proportional value
+                        proportional_value = calculate_proportional_value(
+                            period.value,
+                            period_start,
+                            period_end,
+                            period_type
+                        )
+                        new_periods.append(Period(
+                            start_date=period_start,
+                            end_date=period_end,
+                            value=proportional_value
+                        ))
+                    
+                    current = next_date
+            else:
+                # Keep empty period as-is
+                new_periods.append(period)
+        
+        # Create new timeline with the requested granularity
+        timeline = Timeline(periods=new_periods, granularity=period_type)
+        return TimelineValue(timeline=timeline)
 
     def _to_date(self, value: Value) -> Optional[date]:
         """Convert a Value to a date object.

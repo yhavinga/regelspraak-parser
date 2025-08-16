@@ -163,6 +163,87 @@ def periods_overlap(period1: ast.Period, period2: ast.Period) -> bool:
     return period1.start_date < period2.end_date and period2.start_date < period1.end_date
 
 
+def calculate_proportional_value(base_value: 'Value', start_date: datetime, end_date: datetime, period_type: str) -> 'Value':
+    """Calculate time-proportional value for a partial period.
+    
+    Per specification section 7.3.2:
+    - For months: proportion = days_in_period / total_days_in_month
+    - For years: proportion = days_in_period / total_days_in_year
+    
+    Args:
+        base_value: The value to calculate proportion of
+        start_date: Start of the period
+        end_date: End of the period
+        period_type: "maand" or "jaar"
+    
+    Returns:
+        Value with proportional amount
+    """
+    from decimal import Decimal
+    from .runtime import Value
+    import calendar
+    
+    if base_value.value is None:
+        return base_value
+    
+    # Calculate the number of days in the period
+    period_days = (end_date - start_date).days
+    
+    # Determine the full period boundaries
+    if period_type == "maand":
+        # Find the month this period belongs to
+        # Use the start date's month as the reference
+        month_start = align_to_month(start_date)
+        month_year = month_start.year
+        month_num = month_start.month
+        
+        # Get total days in the month
+        total_days = calendar.monthrange(month_year, month_num)[1]
+        
+        # Check if this is a full month
+        if month_start == start_date:
+            # Check if end_date is the start of next month
+            next_month_start = next_month(month_start)
+            if end_date == next_month_start:
+                # Full month - return value as-is
+                return base_value
+    
+    elif period_type == "jaar":
+        # Find the year this period belongs to
+        year_start = align_to_year(start_date)
+        year_num = year_start.year
+        
+        # Get total days in the year (account for leap years)
+        if calendar.isleap(year_num):
+            total_days = 366
+        else:
+            total_days = 365
+        
+        # Check if this is a full year
+        if year_start == start_date:
+            next_year_start = next_year(year_start)
+            if end_date == next_year_start:
+                # Full year - return value as-is
+                return base_value
+    
+    else:
+        raise ValueError(f"Invalid period type: {period_type}")
+    
+    # Calculate proportion
+    proportion = Decimal(period_days) / Decimal(total_days)
+    
+    # Apply proportion to the value
+    base_decimal = base_value.to_decimal()
+    proportional_amount = base_decimal * proportion
+    
+    # Return new value with proportional amount
+    return Value(
+        value=proportional_amount,
+        datatype=base_value.datatype,
+        unit=base_value.unit
+    )
+
+
 def create_infinite_period(value: 'Value', before: bool = True) -> ast.Period:
     """Create a period that extends to infinity in one direction.
     

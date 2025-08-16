@@ -1585,17 +1585,17 @@ class RegelSpraakModelBuilder(RegelSpraakVisitor):
                 span=self.get_span(ctx)
             )
         elif isinstance(ctx, AntlrParser.TijdsevenredigDeelExprContext):
-            # HET_TIJDSEVENREDIG_DEEL_PER (MAAND | JAAR) VAN expressie (GEDURENDE_DE_TIJD_DAT condition=expressie)?
+            # HET_TIJDSEVENREDIG_DEEL_PER (MAAND | JAAR) VAN expressie conditieBijExpressie?
             expr = self.visitExpressie(ctx.expressie())
             if expr is None: return None
             
             # Determine period type
             period = "maand" if ctx.MAAND() else "jaar"
             
-            # Check for condition
+            # Check for conditional expression
             args = [expr]
-            if ctx.condition:
-                condition = self.visitExpressie(ctx.condition)
+            if ctx.conditieBijExpressie():
+                condition = self.visitConditieBijExpressie(ctx.conditieBijExpressie())
                 if condition:
                     args.append(condition)
             
