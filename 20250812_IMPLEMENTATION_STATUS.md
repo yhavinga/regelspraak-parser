@@ -56,7 +56,7 @@ The RegelSpraak parser implementation is approximately **95-97% complete** for c
 ## ⚠️ Partially Implemented Features
 
 ### Timeline Support (Tijdlijnen)
-- **Status**: ~95% complete in Python, minimal in TypeScript
+- **Status**: ~98% complete in Python, minimal in TypeScript
 - **Implemented**:
   - Timeline infrastructure (Timeline, Period, TimelineValue classes)
   - Timeline parsing and storage ("voor elke dag/maand/jaar")
@@ -64,10 +64,10 @@ The RegelSpraak parser implementation is approximately **95-97% complete** for c
   - "gedurende de tijd dat" temporal conditions (3 tests passing)
   - "het aantal dagen in ... dat ..." conditional day counting (4 tests passing)
   - Timeline-aware rule execution
+  - Timeline aggregation (totaal_van correctly returns scalar sum per spec section 7.1)
 - **Missing**: 
-  - Timeline-aware aggregations that return timeline results (currently returns scalars)
   - TypeScript implementation lacks most timeline features
-- **Impact**: Cannot produce timeline results from aggregations, limiting some business rule patterns
+- **Impact**: Timeline support is now fully compliant with specification
 
 ### Recursion (Recursie)
 - **Status**: Basic loop in Python with iteration limit

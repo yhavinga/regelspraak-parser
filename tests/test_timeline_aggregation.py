@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Test timeline-aware aggregation functions that return TimelineValue results."""
+"""Test timeline aggregation functions that return scalar sums per specification."""
 
 import unittest
 from regelspraak.parsing import parse_text
@@ -11,16 +11,21 @@ from datetime import date, datetime
 
 class TestTimelineAggregation(unittest.TestCase):
     
-    def test_totaal_van_timeline_returns_timeline(self):
-        """Test that 'het totaal van' with timeline input returns a TimelineValue."""
+    def test_totaal_van_timeline_returns_scalar(self):
+        """Test that 'het totaal van' with timeline input returns a scalar sum.
+        
+        Per specification section 7.1:
+        - 'het totaal van' sums ALL values across ALL time periods
+        - Returns a NON-time-dependent scalar value
+        """
         regelspraak_code = """
         Objecttype de Persoon
             de dagelijkse kosten Bedrag voor elke dag;
-            de cumulatieve kosten Bedrag voor elke dag;
+            de totale kosten Bedrag;
         
-        Regel bereken cumulatieve kosten
+        Regel bereken totale kosten
             geldig altijd
-                De cumulatieve kosten van een persoon moet berekend worden als 
+                De totale kosten van een persoon moet berekend worden als 
                 het totaal van zijn dagelijkse kosten.
         """
         
@@ -54,32 +59,29 @@ class TestTimelineAggregation(unittest.TestCase):
         evaluator = Evaluator(context)
         evaluator.execute_model(model)
         
-        # Check result - should be a TimelineValue with running totals
-        # Get the timeline value directly from timeline_attributen
-        self.assertIn("cumulatieve kosten", persoon.timeline_attributen)
-        result = persoon.timeline_attributen["cumulatieve kosten"]
-        self.assertIsInstance(result, TimelineValue)
-        
-        # Check running totals at each date
-        # Day 1: 100
-        self.assertEqual(result.get_value_at(date(2024, 1, 1)).value, Decimal(100))
-        # Day 2: 100 + 150 = 250
-        self.assertEqual(result.get_value_at(date(2024, 1, 2)).value, Decimal(250))
-        # Day 3: 100 + 150 + 200 = 450
-        self.assertEqual(result.get_value_at(date(2024, 1, 3)).value, Decimal(450))
-        # Day 4: 100 + 150 + 200 + 120 = 570
-        self.assertEqual(result.get_value_at(date(2024, 1, 4)).value, Decimal(570))
+        # Check result - should be a scalar Value with the total sum
+        # Total = 100 + 150 + 200 + 120 = 570
+        self.assertIn("totale kosten", persoon.attributen)
+        result = persoon.attributen["totale kosten"]
+        self.assertIsInstance(result, Value)
+        self.assertNotIsInstance(result, TimelineValue)
+        self.assertEqual(result.value, Decimal(570))
+        self.assertEqual(result.datatype, "Bedrag")
+        self.assertEqual(result.unit, "€")
     
-    def test_totaal_van_monthly_aggregation(self):
-        """Test aggregating daily values into monthly totals."""
+    def test_totaal_van_multiple_periods(self):
+        """Test aggregating values across multiple time periods.
+        
+        Per specification: total should be the sum of ALL values across ALL periods.
+        """
         regelspraak_code = """
         Objecttype de Persoon
             de dagelijkse uitgaven Bedrag voor elke dag;
-            de maandelijkse uitgaven Bedrag voor elke maand;
+            de totale uitgaven Bedrag;
         
-        Regel bereken maandelijkse uitgaven
+        Regel bereken totale uitgaven
             geldig altijd
-                De maandelijkse uitgaven van een persoon moet berekend worden als 
+                De totale uitgaven van een persoon moet berekend worden als 
                 het totaal van zijn dagelijkse uitgaven.
         """
         
@@ -117,27 +119,25 @@ class TestTimelineAggregation(unittest.TestCase):
         evaluator = Evaluator(context)
         evaluator.execute_model(model)
         
-        # Check result
-        # Get the timeline value directly from timeline_attributen
-        self.assertIn("maandelijkse uitgaven", persoon.timeline_attributen)
-        result = persoon.timeline_attributen["maandelijkse uitgaven"]
-        self.assertIsInstance(result, TimelineValue)
-        
-        # The timeline should have running totals
-        # After processing Jan 29-31: 50 + 60 + 70 = 180
-        jan_total = result.get_value_at(date(2024, 1, 31))
-        self.assertEqual(jan_total.value, Decimal(180))
-        
-        # After processing Feb 1-2: 180 + 80 + 90 = 350
-        feb_total = result.get_value_at(date(2024, 2, 2))
-        self.assertEqual(feb_total.value, Decimal(350))
+        # Check result - should be scalar sum of all periods
+        # Total: 50 + 60 + 70 + 80 + 90 = 350
+        self.assertIn("totale uitgaven", persoon.attributen)
+        result = persoon.attributen["totale uitgaven"]
+        self.assertIsInstance(result, Value)
+        self.assertNotIsInstance(result, TimelineValue)
+        self.assertEqual(result.value, Decimal(350))
+        self.assertEqual(result.datatype, "Bedrag")
+        self.assertEqual(result.unit, "€")
     
     def test_totaal_van_with_empty_periods(self):
-        """Test timeline aggregation with some empty periods."""
+        """Test timeline aggregation with some empty periods.
+        
+        Empty periods (None values) are skipped in the sum.
+        """
         regelspraak_code = """
         Objecttype de Persoon
             de inkomen Bedrag voor elke maand;
-            de totale inkomen Bedrag voor elke maand;
+            de totale inkomen Bedrag;
         
         Regel bereken totale inkomen
             geldig altijd
@@ -159,7 +159,7 @@ class TestTimelineAggregation(unittest.TestCase):
             Period(date(2024, 1, 1), date(2024, 2, 1), 
                    Value(Decimal(1000), "Bedrag", "€")),
             Period(date(2024, 2, 1), date(2024, 3, 1), 
-                   Value(None, "Bedrag", "€")),  # Empty period
+                   Value(None, "Bedrag", "€")),  # Empty period - skipped in sum
             Period(date(2024, 3, 1), date(2024, 4, 1), 
                    Value(Decimal(1200), "Bedrag", "€")),
         ]
@@ -173,18 +173,15 @@ class TestTimelineAggregation(unittest.TestCase):
         evaluator = Evaluator(context)
         evaluator.execute_model(model)
         
-        # Check result
-        # Get the timeline value directly from timeline_attributen
-        self.assertIn("totale inkomen", persoon.timeline_attributen)
-        result = persoon.timeline_attributen["totale inkomen"]
-        self.assertIsInstance(result, TimelineValue)
-        
-        # Jan: 1000
-        self.assertEqual(result.get_value_at(date(2024, 1, 15)).value, Decimal(1000))
-        # Feb: 1000 (no change, empty period)
-        self.assertEqual(result.get_value_at(date(2024, 2, 15)).value, Decimal(1000))
-        # Mar: 1000 + 1200 = 2200
-        self.assertEqual(result.get_value_at(date(2024, 3, 15)).value, Decimal(2200))
+        # Check result - should be scalar sum, skipping None values
+        # Total: 1000 + 0 (None) + 1200 = 2200
+        self.assertIn("totale inkomen", persoon.attributen)
+        result = persoon.attributen["totale inkomen"]
+        self.assertIsInstance(result, Value)
+        self.assertNotIsInstance(result, TimelineValue)
+        self.assertEqual(result.value, Decimal(2200))
+        self.assertEqual(result.datatype, "Bedrag")
+        self.assertEqual(result.unit, "€")
 
 if __name__ == "__main__":
     unittest.main()

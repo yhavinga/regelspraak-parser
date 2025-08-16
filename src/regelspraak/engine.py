@@ -4904,10 +4904,15 @@ class Evaluator:
     def _func_totaal_van(self, expr: FunctionCall, args: List[Value]) -> Value:
         """Total aggregation function with optional temporal condition support.
         
+        Per specification section 7.1:
+        - Sums ALL values of a timeline attribute across ALL time periods
+        - Returns a NON-time-dependent scalar value (not a TimelineValue)
+        - Example: Total tax reduction = sum of all monthly tax reductions
+        
         Handles:
         - Simple totals: het totaal van X
-        - Timeline aggregation: het totaal van X per maand (returns TimelineValue)
-        - Conditional timeline: het totaal van X per maand gedurende de tijd dat [condition]
+        - Timeline aggregation: het totaal van X per maand (returns scalar sum)
+        - Conditional timeline: het totaal van X gedurende de tijd dat [condition]
         """
         logger.debug(f"_func_totaal_van called with args={args}, expr.arguments={len(expr.arguments) if expr.arguments else 0}")
         if not expr.arguments:
@@ -4922,7 +4927,7 @@ class Evaluator:
             
             # Check if the main expression involves timelines
             if self._is_timeline_expression(main_expr):
-                # Evaluate as timeline with conditional filtering
+                # Evaluate as timeline with conditional filtering, but still return scalar
                 return self._evaluate_totaal_van_with_condition(main_expr, condition_expr, expr.span)
         
         # Check if we're aggregating timeline values without pre-evaluated args
@@ -4932,18 +4937,18 @@ class Evaluator:
             is_timeline = self._is_timeline_expression(main_expr)
             logger.debug(f"_func_totaal_van: is_timeline_expression={is_timeline}")
             if is_timeline:
-                # Return timeline-aware aggregation
-                result = self._aggregate_timeline_to_timeline(main_expr, expr.span)
-                logger.debug(f"_func_totaal_van: returning TimelineValue from _aggregate_timeline_to_timeline")
+                # Aggregate timeline to scalar sum (per specification)
+                result = self._aggregate_timeline_to_scalar(main_expr, expr.span)
+                logger.debug(f"_func_totaal_van: returning scalar Value from _aggregate_timeline_to_scalar")
                 return result
             
             # If not detected as timeline expression, evaluate and check result
             result = self.evaluate_expression(main_expr)
             logger.debug(f"_func_totaal_van: evaluated result type={type(result)}")
             if isinstance(result, TimelineValue):
-                # Wrap single timeline value in a list and aggregate
-                aggregated = self._aggregate_timeline_values([result], expr.span)
-                logger.debug(f"_func_totaal_van: returning TimelineValue from _aggregate_timeline_values")
+                # Sum all values in the timeline and return scalar
+                aggregated = self._sum_timeline_values([result], expr.span)
+                logger.debug(f"_func_totaal_van: returning scalar Value from _sum_timeline_values")
                 return aggregated
         
         # Handle pre-evaluated arguments (simple case or already processed)
@@ -4951,10 +4956,10 @@ class Evaluator:
             # Need to evaluate arguments ourselves
             args = [self.evaluate_expression(arg) for arg in expr.arguments]
         
-        # Check if any args are TimelineValues - if so, aggregate them to timeline
+        # Check if any args are TimelineValues - if so, sum them to scalar
         timeline_args = [arg for arg in args if isinstance(arg, TimelineValue)]
         if timeline_args:
-            return self._aggregate_timeline_values(timeline_args, expr.span)
+            return self._sum_timeline_values(timeline_args, expr.span)
         
         # Filter out None values
         non_none_values = []
@@ -5051,11 +5056,13 @@ class Evaluator:
         # Return the total
         return Value(value=total, datatype=datatype or "Numeriek", unit=unit)
     
-    def _aggregate_timeline_to_timeline(self, expr: Expression, span) -> TimelineValue:
-        """Aggregate a timeline expression to produce a timeline result.
+    def _aggregate_timeline_to_scalar(self, expr: Expression, span) -> Value:
+        """Aggregate a timeline expression to produce a scalar sum.
         
-        This evaluates the expression across all timeline periods and returns
-        a TimelineValue where each period contains the aggregated total for that period.
+        Per specification section 7.1:
+        - Evaluates the expression across ALL timeline periods
+        - Sums ALL values across ALL periods
+        - Returns a single scalar Value (NOT a TimelineValue)
         """
         from .timeline_utils import merge_knips, get_evaluation_periods
         
@@ -5063,8 +5070,11 @@ class Evaluator:
         timelines = self._collect_timeline_operands(expr)
         
         if not timelines:
-            # No timeline values - just evaluate as scalar and return as-is
+            # No timeline values - just evaluate as scalar
             result = self.evaluate_expression(expr)
+            # If it's a TimelineValue, sum its periods
+            if isinstance(result, TimelineValue):
+                return self._sum_single_timeline(result)
             return result
         
         # Merge all knips from timeline operands
@@ -5073,9 +5083,8 @@ class Evaluator:
         # Get evaluation periods between knips
         periods = get_evaluation_periods(all_knips)
         
-        # Build result timeline with running totals
-        result_periods = []
-        running_total = Decimal(0)
+        # Sum values across ALL periods
+        total = Decimal(0)
         datatype = None
         unit = None
         
@@ -5093,82 +5102,59 @@ class Evaluator:
                     unit = period_value.unit
                 
                 if period_value.value is not None:
-                    # Add to running total
-                    running_total += period_value.to_decimal()
-                
-                # Create period with running total
-                result_periods.append(ast.Period(
-                    start_date=start_date,
-                    end_date=end_date,
-                    value=Value(value=running_total, datatype=datatype, unit=unit)
-                ))
+                    # Add to total sum (not running total)
+                    total += period_value.to_decimal()
                 
             finally:
                 # Restore evaluation date
                 self.context.evaluation_date = saved_date
         
-        # Create timeline with appropriate granularity
-        # Determine granularity based on the smallest timeline granularity
-        granularity = "dag"  # Default to finest granularity
-        for timeline in timelines:
-            if hasattr(timeline, 'timeline') and hasattr(timeline.timeline, 'granularity'):
-                if timeline.timeline.granularity == "jaar":
-                    if granularity != "maand":
-                        granularity = "jaar"
-                elif timeline.timeline.granularity == "maand":
-                    granularity = "maand"
-        
-        return TimelineValue(timeline=ast.Timeline(periods=result_periods, granularity=granularity))
+        # Return scalar sum of all periods
+        return Value(value=total, datatype=datatype or "Numeriek", unit=unit)
     
-    def _aggregate_timeline_values(self, timeline_values: List[TimelineValue], span) -> TimelineValue:
-        """Aggregate multiple timeline values into a single timeline result.
+    def _sum_timeline_values(self, timeline_values: List[TimelineValue], span) -> Value:
+        """Sum multiple timeline values into a single scalar result.
         
-        This merges timeline values and produces a timeline where each period
-        contains the total of all values at that point.
+        Per specification section 7.1:
+        - Sums ALL values across ALL periods of ALL timelines
+        - Returns a single scalar Value (NOT a TimelineValue)
         """
-        from .timeline_utils import merge_knips, get_evaluation_periods
-        
-        # Merge all knips from timeline values
-        all_knips = merge_knips(*timeline_values)
-        
-        # Get evaluation periods
-        periods = get_evaluation_periods(all_knips)
-        
-        # Build result timeline
-        result_periods = []
+        total = Decimal(0)
         datatype = None
         unit = None
         
-        for start_date, end_date in periods:
-            # Sum values from all timelines at this date
-            period_total = Decimal(0)
-            
-            for tv in timeline_values:
-                value_at_date = tv.get_value_at(start_date)
-                if value_at_date and value_at_date.value is not None:
-                    if datatype is None:
-                        datatype = value_at_date.datatype
-                        unit = value_at_date.unit
-                    period_total += value_at_date.to_decimal()
-            
-            # Create period with total
-            result_periods.append(ast.Period(
-                start_date=start_date,
-                end_date=end_date,
-                value=Value(value=period_total, datatype=datatype or "Numeriek", unit=unit)
-            ))
-        
-        # Determine granularity from input timelines
-        granularity = "dag"
         for tv in timeline_values:
-            if hasattr(tv, 'timeline') and hasattr(tv.timeline, 'granularity'):
-                if tv.timeline.granularity == "jaar":
-                    if granularity != "maand":
-                        granularity = "jaar"
-                elif tv.timeline.granularity == "maand":
-                    granularity = "maand"
+            # Sum all periods in this timeline
+            for period in tv.timeline.periods:
+                if period.value and period.value.value is not None:
+                    if datatype is None:
+                        datatype = period.value.datatype
+                        unit = period.value.unit
+                    total += period.value.to_decimal()
         
-        return TimelineValue(timeline=ast.Timeline(periods=result_periods, granularity=granularity))
+        # Return scalar sum
+        return Value(value=total, datatype=datatype or "Numeriek", unit=unit)
+    
+    def _sum_single_timeline(self, timeline_value: TimelineValue) -> Value:
+        """Sum all values in a single timeline to a scalar.
+        
+        Helper method to sum all periods in a timeline.
+        """
+        total = Decimal(0)
+        datatype = None
+        unit = None
+        
+        for period in timeline_value.timeline.periods:
+            if period.value and period.value.value is not None:
+                if datatype is None:
+                    datatype = period.value.datatype
+                    unit = period.value.unit
+                total += period.value.to_decimal()
+        
+        return Value(value=total, datatype=datatype or "Numeriek", unit=unit)
+    
+    # Note: _aggregate_timeline_values method removed as it's no longer needed
+    # Timeline aggregation now returns scalar sums per specification
     
     def _func_aantal_dagen_in(self, expr: FunctionCall, args: Optional[List[Value]]) -> Value:
         """Count number of days in a month or year where a condition is true.
