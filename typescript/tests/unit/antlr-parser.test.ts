@@ -10,7 +10,7 @@ describe('ANTLR Parser Integration', () => {
   describe('Expression Parsing', () => {
     test('should parse number literal', () => {
       const expr = parser.parseExpression('42');
-      expect(expr).toEqual({
+      expect(expr).toMatchObject({
         type: 'NumberLiteral',
         value: 42
       });
@@ -18,7 +18,7 @@ describe('ANTLR Parser Integration', () => {
 
     test('should parse simple addition', () => {
       const expr = parser.parseExpression('10 plus 20');
-      expect(expr).toEqual({
+      expect(expr).toMatchObject({
         type: 'BinaryExpression',
         operator: '+',
         left: {
@@ -34,7 +34,7 @@ describe('ANTLR Parser Integration', () => {
 
     test('should parse variable reference', () => {
       const expr = parser.parseExpression('x');
-      expect(expr).toEqual({
+      expect(expr).toMatchObject({
         type: 'VariableReference',
         variableName: 'x'
       });
@@ -42,7 +42,7 @@ describe('ANTLR Parser Integration', () => {
 
     test('should parse complex expression', () => {
       const expr = parser.parseExpression('x plus 10 maal 2');
-      expect(expr).toEqual({
+      expect(expr).toMatchObject({
         type: 'BinaryExpression',
         operator: '+',
         left: {

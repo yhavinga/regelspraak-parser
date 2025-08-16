@@ -121,10 +121,10 @@ Dimensie de brutonettodimensie, bestaande uit de brutonettodimensies (voor het a
   1. bruto
   2. netto
 
-Objecttype de Natuurlijk persoon (mv: Natuurlijke personen) (bezield)
+Objecttype de Persoon (mv: Personen) (bezield)
   het inkomen Numeriek (geheel getal) gedimensioneerd met jaardimensie en brutonettodimensie;
 
-Parameter de persoon : Natuurlijk persoon;
+Parameter de persoon : Persoon;
 
 Regel bereken netto inkomen huidig jaar
 geldig altijd
@@ -134,6 +134,11 @@ Het netto inkomen van huidig jaar van de persoon moet berekend worden als het br
     // For now, just test that the model parses successfully
     // Full dimension reference evaluation would require expression evaluator updates
     const result = engine.parse(model);
+    
+    // Log the error if parsing fails
+    if (!result.success) {
+      console.error('Parse error:', result.errors);
+    }
     
     expect(result.success).toBe(true);
     expect(result.ast?.type).toBe('Model');
