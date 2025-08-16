@@ -43,8 +43,66 @@ export interface TimelineValue {
  */
 export interface TimelineExpression extends Expression {
   type: 'TimelineExpression';
-  operation: 'totaal' | 'aantal_dagen' | 'naar_verhouding';
+  operation: 'totaal' | 'aantal_dagen' | 'naar_verhouding' | 'tijdsevenredig_deel_per_maand' | 'tijdsevenredig_deel_per_jaar';
   target: Expression;
   period?: PeriodDefinition;
   condition?: Expression;
+}
+
+/**
+ * Class implementation of TimelineValue with methods for timeline operations
+ */
+export class TimelineValueImpl implements TimelineValue {
+  type: 'timeline' = 'timeline' as const;
+  value: Timeline;
+
+  constructor(timeline: Timeline) {
+    this.value = timeline;
+  }
+
+  /**
+   * Get the value that applies at a specific date.
+   * Returns null if no period covers the given date.
+   */
+  getValueAt(date: Date): Value | null {
+    for (const period of this.value.periods) {
+      // Check if date falls within this period (inclusive start, exclusive end)
+      if (date >= period.startDate && date < period.endDate) {
+        return period.value;
+      }
+    }
+    return null;
+  }
+
+  /**
+   * Get all periods that overlap with the given date range.
+   */
+  getPeriodsBetween(startDate: Date, endDate: Date): Period[] {
+    const overlapping: Period[] = [];
+    for (const period of this.value.periods) {
+      // Check for overlap
+      if (period.startDate < endDate && period.endDate > startDate) {
+        overlapping.push(period);
+      }
+    }
+    return overlapping;
+  }
+
+  /**
+   * Add a new period to the timeline, maintaining chronological order.
+   */
+  addPeriod(period: Period): void {
+    // Insert in the correct position to maintain order
+    let inserted = false;
+    for (let i = 0; i < this.value.periods.length; i++) {
+      if (period.startDate < this.value.periods[i].startDate) {
+        this.value.periods.splice(i, 0, period);
+        inserted = true;
+        break;
+      }
+    }
+    if (!inserted) {
+      this.value.periods.push(period);
+    }
+  }
 }

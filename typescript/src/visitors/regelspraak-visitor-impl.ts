@@ -901,17 +901,18 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
     const conditionExpr = this.visit(conditionCtx);
     
     // Create literal for period type
-    const periodLiteral = {
-      type: 'Literal',
-      value: periodType,
-      datatype: 'string'
+    const periodLiteral: StringLiteral = {
+      type: 'StringLiteral',
+      value: periodType
     };
     
+    // Return as TimelineExpression for proper timeline handling
     const node = {
-      type: 'FunctionCall',
-      functionName: 'aantal_dagen_in',
-      arguments: [periodLiteral, conditionExpr]
-    } as FunctionCall;
+      type: 'TimelineExpression',
+      operation: 'aantal_dagen',
+      target: periodLiteral,
+      condition: conditionExpr
+    } as any;
     this.setLocation(node, ctx);
     return node;
   }
@@ -2922,6 +2923,69 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
       symbol,
       conversion
     };
+    this.setLocation(node, ctx);
+    return node;
+  }
+  
+  visitTijdsevenredigDeelExpr(ctx: any): Expression {
+    // HET TIJDSEVENREDIG DEEL PER (MAAND|JAAR) VAN expressie [GEDURENDE DE TIJD DAT condition]
+    let periodType: 'tijdsevenredig_deel_per_maand' | 'tijdsevenredig_deel_per_jaar';
+    
+    if (ctx.MAAND && ctx.MAAND()) {
+      periodType = 'tijdsevenredig_deel_per_maand';
+    } else if (ctx.JAAR && ctx.JAAR()) {
+      periodType = 'tijdsevenredig_deel_per_jaar';
+    } else {
+      throw new Error('Expected MAAND or JAAR in tijdsevenredig deel expression');
+    }
+    
+    // Get the target expression after VAN
+    const targetExpr = this.visit(ctx.expressie(0));
+    
+    // Check for optional temporal condition
+    let conditionExpr: Expression | undefined;
+    if (ctx.conditieBijExpressie && ctx.conditieBijExpressie()) {
+      conditionExpr = this.visitConditieBijExpressie(ctx.conditieBijExpressie());
+    }
+    
+    // Return as TimelineExpression
+    const node = {
+      type: 'TimelineExpression',
+      operation: periodType,
+      target: targetExpr,
+      condition: conditionExpr
+    } as any;
+    this.setLocation(node, ctx);
+    return node;
+  }
+  
+  visitConditieBijExpressie(ctx: any): Expression {
+    // GEDURENDE DE TIJD DAT expressie
+    // The actual condition is the expression after DAT
+    const exprCtx = ctx.expressie();
+    if (!exprCtx) {
+      throw new Error('Expected expression in conditieBijExpressie');
+    }
+    return this.visit(exprCtx);
+  }
+  
+  visitTotaalVanExpr(ctx: any): Expression {
+    // HET? TOTAAL VAN expressie [GEDURENDE DE TIJD DAT condition]
+    const targetExpr = this.visit(ctx.expressie(0));
+    
+    // Check for optional temporal condition
+    let conditionExpr: Expression | undefined;
+    if (ctx.conditieBijExpressie && ctx.conditieBijExpressie()) {
+      conditionExpr = this.visitConditieBijExpressie(ctx.conditieBijExpressie());
+    }
+    
+    // Return as TimelineExpression for timeline-aware aggregation
+    const node = {
+      type: 'TimelineExpression',
+      operation: 'totaal',
+      target: targetExpr,
+      condition: conditionExpr
+    } as any;
     this.setLocation(node, ctx);
     return node;
   }

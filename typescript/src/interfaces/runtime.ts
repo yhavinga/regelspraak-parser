@@ -18,4 +18,7 @@ export interface RuntimeContext {
   // Object access
   getObject(type: string, id: string): any | undefined;
   createObject(type: string, id: string, attributes: Record<string, Value>): void;
+  
+  // Timeline evaluation context
+  evaluation_date: Date;
 }

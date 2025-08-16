@@ -1,5 +1,6 @@
 import { RuntimeContext, Value } from '../interfaces';
 import { FeitType } from '../ast/feittype';
+import { TimelineValueImpl } from '../ast/timelines';
 
 /**
  * Represents a relationship instance between two objects
@@ -27,6 +28,13 @@ export class Context implements RuntimeContext {
   
   // Store Feittype definitions
   private feittypen: Map<string, FeitType> = new Map();
+  
+  // Store timeline attributes for objects
+  // Map from object type -> object id -> attribute name -> TimelineValue
+  private timelineAttributes: Map<string, Map<string, Map<string, TimelineValueImpl>>> = new Map();
+  
+  // Store timeline parameters
+  private timelineParameters: Map<string, TimelineValueImpl> = new Map();
 
   getVariable(name: string): Value | undefined {
     // Search from innermost to outermost scope
@@ -97,6 +105,54 @@ export class Context implements RuntimeContext {
     return [...this.executionTrace];
   }
 
+  /**
+   * Get a timeline attribute value at a specific date.
+   */
+  getTimelineAttribute(type: string, id: string, attrName: string, date?: Date): Value | null {
+    const evalDate = date || this.evaluation_date;
+    const typeMap = this.timelineAttributes.get(type);
+    if (!typeMap) return null;
+    
+    const objectMap = typeMap.get(id);
+    if (!objectMap) return null;
+    
+    const timelineValue = objectMap.get(attrName);
+    if (!timelineValue) return null;
+    
+    return timelineValue.getValueAt(evalDate);
+  }
+  
+  /**
+   * Set a timeline attribute value.
+   */
+  setTimelineAttribute(type: string, id: string, attrName: string, timelineValue: TimelineValueImpl): void {
+    if (!this.timelineAttributes.has(type)) {
+      this.timelineAttributes.set(type, new Map());
+    }
+    
+    const typeMap = this.timelineAttributes.get(type)!;
+    if (!typeMap.has(id)) {
+      typeMap.set(id, new Map());
+    }
+    
+    const objectMap = typeMap.get(id)!;
+    objectMap.set(attrName, timelineValue);
+  }
+  
+  /**
+   * Get a timeline parameter value.
+   */
+  getTimelineParameter(name: string): TimelineValueImpl | undefined {
+    return this.timelineParameters.get(name);
+  }
+  
+  /**
+   * Set a timeline parameter value.
+   */
+  setTimelineParameter(name: string, timelineValue: TimelineValueImpl): void {
+    this.timelineParameters.set(name, timelineValue);
+  }
+  
   generateObjectId(type: string): string {
     this.objectCounter++;
     return `${type}_${this.objectCounter}`;

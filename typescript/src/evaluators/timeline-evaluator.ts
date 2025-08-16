@@ -1,7 +1,17 @@
 import { Value, RuntimeContext } from '../interfaces';
-import { Timeline, Period, TimelineValue, TimelineExpression, PeriodDefinition } from '../ast/timelines';
+import { Timeline, Period, TimelineValue, TimelineExpression, PeriodDefinition, TimelineValueImpl } from '../ast/timelines';
 import { Expression } from '../ast/expressions';
 import { ExpressionEvaluator } from './expression-evaluator';
+import { 
+  mergeKnips, 
+  getEvaluationPeriods, 
+  removeRedundantKnips,
+  calculateProportionalValue,
+  alignDate,
+  nextPeriod
+} from '../utils/timeline-utils';
+import { Context } from '../runtime/context';
+import Decimal from 'decimal.js';
 
 /**
  * Evaluator for timeline expressions and operations
@@ -20,6 +30,10 @@ export class TimelineEvaluator {
         return this.evaluateAantalDagen(expr, context);
       case 'naar_verhouding':
         return this.evaluateNaarVerhouding(expr, context);
+      case 'tijdsevenredig_deel_per_maand':
+        return this.evaluateTijdsevenredigPerMaand(expr, context);
+      case 'tijdsevenredig_deel_per_jaar':
+        return this.evaluateTijdsevenredigPerJaar(expr, context);
       default:
         throw new Error(`Unknown timeline operation: ${expr.operation}`);
     }
@@ -121,43 +135,300 @@ export class TimelineEvaluator {
     const timelineValue = targetValue as any as TimelineValue;
     const timeline = timelineValue.value;
     
-    // Sum all values in the timeline
-    let total = 0;
-    for (const period of timeline.periods) {
+    // If there's a temporal condition, filter periods
+    let periodsToSum = timeline.periods;
+    if (expr.condition) {
+      periodsToSum = this.filterPeriodsWithCondition(timeline, expr.condition, context);
+    }
+    
+    // Per specification section 7.1: totaal_van returns a scalar sum
+    // The sum accounts for the actual duration of each period
+    let total = new Decimal(0);
+    
+    for (const period of periodsToSum) {
       if (period.value.type !== 'number') {
         throw new Error('Cannot sum non-numeric timeline values');
       }
-      total += period.value.value as number;
+      
+      // For timeline aggregation, we sum the values directly
+      // The timeline values are already adjusted for their period duration
+      total = total.plus(new Decimal(period.value.value as number));
     }
     
     return {
       type: 'number',
-      value: total,
+      value: total.toNumber(),
       unit: timeline.periods[0]?.value.unit
     };
   }
 
   private evaluateAantalDagen(expr: TimelineExpression, context: RuntimeContext): Value {
-    // Count days that satisfy the condition
+    // Pattern: "het aantal dagen in [period] dat [condition]"
     if (!expr.condition) {
       throw new Error('aantal_dagen requires a condition');
     }
     
-    // This is a simplified implementation
-    // Full implementation would evaluate the condition for each day
+    // Get the period to evaluate
+    let startDate: Date;
+    let endDate: Date;
+    
+    if (expr.period) {
+      // Use the specified period
+      const periodBounds = this.evaluatePeriodDefinition(expr.period, context);
+      startDate = periodBounds.start;
+      endDate = periodBounds.end;
+    } else {
+      // Use current evaluation context period (e.g., current month)
+      startDate = alignDate(context.evaluation_date, 'maand');
+      endDate = nextPeriod(startDate, 'maand');
+    }
+    
+    // Count days where condition is true
+    let dayCount = 0;
+    const currentDate = new Date(startDate);
+    
+    while (currentDate < endDate) {
+      // Save current evaluation date
+      const savedDate = context.evaluation_date;
+      context.evaluation_date = currentDate;
+      
+      // Evaluate condition for this day
+      const conditionResult = this.expressionEvaluator.evaluate(expr.condition, context);
+      
+      // Restore evaluation date
+      context.evaluation_date = savedDate;
+      
+      if (conditionResult.type === 'boolean' && conditionResult.value === true) {
+        dayCount++;
+      }
+      
+      // Move to next day
+      currentDate.setDate(currentDate.getDate() + 1);
+    }
+    
     return {
       type: 'number',
-      value: 0
+      value: dayCount
     };
   }
 
   private evaluateNaarVerhouding(expr: TimelineExpression, context: RuntimeContext): Value {
     // Calculate prorated value based on time duration
-    // This is a placeholder implementation
+    const targetValue = this.expressionEvaluator.evaluate(expr.target, context);
+    
+    if (targetValue.type !== 'number') {
+      throw new Error('naar_verhouding requires a numeric value');
+    }
+    
+    // This would need period information to calculate proportion
+    // For now, return the original value
+    return targetValue;
+  }
+  
+  /**
+   * Evaluate tijdsevenredig deel per maand (time-proportional per month).
+   */
+  private evaluateTijdsevenredigPerMaand(expr: TimelineExpression, context: RuntimeContext): Value | TimelineValue {
+    const targetValue = this.expressionEvaluator.evaluate(expr.target, context);
+    
+    if (targetValue.type === 'timeline') {
+      // Apply tijdsevenredig to a timeline
+      return this.applyTijdsevenredigToTimeline(
+        targetValue as any as TimelineValue,
+        'maand',
+        expr.condition,
+        context
+      );
+    } else if (targetValue.type === 'number') {
+      // Simple scalar value - convert yearly to monthly if needed
+      const value = targetValue.value as number;
+      // Assume the value is per year and convert to per month
+      return {
+        type: 'number',
+        value: value / 12,
+        unit: targetValue.unit
+      };
+    }
+    
+    throw new Error('tijdsevenredig_deel_per_maand requires numeric or timeline value');
+  }
+  
+  /**
+   * Evaluate tijdsevenredig deel per jaar (time-proportional per year).
+   */
+  private evaluateTijdsevenredigPerJaar(expr: TimelineExpression, context: RuntimeContext): Value | TimelineValue {
+    const targetValue = this.expressionEvaluator.evaluate(expr.target, context);
+    
+    if (targetValue.type === 'timeline') {
+      // Apply tijdsevenredig to a timeline
+      return this.applyTijdsevenredigToTimeline(
+        targetValue as any as TimelineValue,
+        'jaar',
+        expr.condition,
+        context
+      );
+    } else if (targetValue.type === 'number') {
+      // Simple scalar value - already per year
+      return targetValue;
+    }
+    
+    throw new Error('tijdsevenredig_deel_per_jaar requires numeric or timeline value');
+  }
+  
+  /**
+   * Apply tijdsevenredig calculation to a timeline.
+   */
+  applyTijdsevenredigToTimeline(
+    timelineValue: TimelineValue,
+    periodType: 'maand' | 'jaar',
+    condition: Expression | undefined,
+    context: RuntimeContext
+  ): TimelineValue {
+    const timeline = timelineValue.value;
+    const resultPeriods: Period[] = [];
+    
+    // If there's a condition, we need to evaluate it for each period
+    for (const period of timeline.periods) {
+      let includeperiod = true;
+      
+      if (condition) {
+        // Evaluate condition at the start of this period
+        const savedDate = context.evaluation_date;
+        context.evaluation_date = period.startDate;
+        const conditionResult = this.expressionEvaluator.evaluate(condition, context);
+        context.evaluation_date = savedDate;
+        
+        includeperiod = conditionResult.type === 'boolean' && conditionResult.value === true;
+      }
+      
+      if (includeperiod) {
+        // Check if this is a partial period
+        const periodStart = alignDate(period.startDate, periodType);
+        const periodEnd = nextPeriod(periodStart, periodType);
+        
+        if (period.startDate > periodStart || period.endDate < periodEnd) {
+          // Partial period - calculate proportional value
+          const proportionalValue = calculateProportionalValue(
+            period.value,
+            period.startDate,
+            period.endDate,
+            periodType
+          );
+          resultPeriods.push({
+            startDate: period.startDate,
+            endDate: period.endDate,
+            value: proportionalValue
+          });
+        } else {
+          // Full period - use original value
+          resultPeriods.push(period);
+        }
+      }
+    }
+    
     return {
-      type: 'number',
-      value: 0
+      type: 'timeline',
+      value: {
+        periods: resultPeriods,
+        granularity: periodType
+      }
     };
+  }
+  
+  /**
+   * Filter periods based on a temporal condition.
+   */
+  private filterPeriodsWithCondition(
+    timeline: Timeline,
+    condition: Expression,
+    context: RuntimeContext
+  ): Period[] {
+    const filteredPeriods: Period[] = [];
+    
+    for (const period of timeline.periods) {
+      // Evaluate condition at the start of this period
+      const savedDate = context.evaluation_date;
+      context.evaluation_date = period.startDate;
+      
+      const conditionResult = this.expressionEvaluator.evaluate(condition, context);
+      
+      context.evaluation_date = savedDate;
+      
+      if (conditionResult.type === 'boolean' && conditionResult.value === true) {
+        filteredPeriods.push(period);
+      }
+    }
+    
+    return filteredPeriods;
+  }
+  
+  /**
+   * Evaluate a period definition to get start and end dates.
+   */
+  private evaluatePeriodDefinition(
+    periodDef: PeriodDefinition,
+    context: RuntimeContext
+  ): { start: Date; end: Date } {
+    let start: Date;
+    let end: Date;
+    
+    switch (periodDef.periodType) {
+      case 'vanaf':
+        if (!periodDef.startDate) {
+          throw new Error('vanaf requires a start date');
+        }
+        const startValue = this.expressionEvaluator.evaluate(periodDef.startDate, context);
+        if (startValue.type !== 'date') {
+          throw new Error('Period start must be a date');
+        }
+        start = startValue.value as Date;
+        // End is open-ended, use a far future date
+        end = new Date(2100, 0, 1);
+        break;
+        
+      case 'tot':
+      case 'tot_en_met':
+        if (!periodDef.endDate) {
+          throw new Error(`${periodDef.periodType} requires an end date`);
+        }
+        // Start is open-ended, use a far past date
+        start = new Date(1900, 0, 1);
+        const endValue = this.expressionEvaluator.evaluate(periodDef.endDate, context);
+        if (endValue.type !== 'date') {
+          throw new Error('Period end must be a date');
+        }
+        end = endValue.value as Date;
+        if (periodDef.periodType === 'tot_en_met') {
+          // Include the end date
+          end = new Date(end);
+          end.setDate(end.getDate() + 1);
+        }
+        break;
+        
+      case 'van_tot':
+      case 'van_tot_en_met':
+        if (!periodDef.startDate || !periodDef.endDate) {
+          throw new Error(`${periodDef.periodType} requires both start and end dates`);
+        }
+        const startVal = this.expressionEvaluator.evaluate(periodDef.startDate, context);
+        const endVal = this.expressionEvaluator.evaluate(periodDef.endDate, context);
+        if (startVal.type !== 'date' || endVal.type !== 'date') {
+          throw new Error('Period bounds must be dates');
+        }
+        start = startVal.value as Date;
+        end = endVal.value as Date;
+        if (periodDef.periodType === 'van_tot_en_met') {
+          // Include the end date
+          end = new Date(end);
+          end.setDate(end.getDate() + 1);
+        }
+        break;
+        
+      default:
+        throw new Error(`Unknown period type: ${periodDef.periodType}`);
+    }
+    
+    return { start, end };
   }
 
   private getValueAtDate(timeline: Timeline, date: Date): Value | null {

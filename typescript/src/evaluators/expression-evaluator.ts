@@ -2,8 +2,9 @@ import { IEvaluator, Value, RuntimeContext } from '../interfaces';
 import { Expression, NumberLiteral, StringLiteral, BinaryExpression, UnaryExpression, VariableReference, FunctionCall, AggregationExpression, NavigationExpression, SubselectieExpression, AllAttributesExpression, Predicaat, KenmerkPredicaat, AttributeComparisonPredicaat, AttributeReference } from '../ast/expressions';
 import { AggregationEngine } from './aggregation-engine';
 import { TimelineEvaluator } from './timeline-evaluator';
-import { TimelineExpression, TimelineValue } from '../ast/timelines';
+import { TimelineExpression, TimelineValue, TimelineValueImpl } from '../ast/timelines';
 import { UnitRegistry, performUnitArithmetic, UnitValue, createUnitValue } from '../units';
+import { Context } from '../runtime/context';
 
 /**
  * Evaluator for expression nodes
@@ -868,12 +869,36 @@ export class ExpressionEvaluator implements IEvaluator {
     // Get the object's attributes
     const objectData = objectValue.value as Record<string, Value>;
     
-    // Look up the attribute
+    // First check for timeline attributes if we have object type and id
+    const ctx = context as Context;
+    const objType = (objectValue as any).objectType;
+    const objId = (objectValue as any).objectId;
+    
+    if (ctx && objType && objId) {
+      // Try to get timeline attribute value at current evaluation date
+      const timelineValue = ctx.getTimelineAttribute(objType, objId, expr.attribute);
+      if (timelineValue !== null) {
+        return timelineValue;
+      }
+      
+      // Check if there's a timeline for this attribute even if no value at current date
+      // This is important for empty timeline handling
+      const timelineAttr = (ctx as any).timelineAttributes?.get(objType)?.get(objId)?.get(expr.attribute);
+      if (timelineAttr) {
+        // Timeline exists but has no value at current date
+        // Per Python specification: return 0 for numeric types
+        return {
+          type: 'number',
+          value: 0
+        };
+      }
+    }
+    
+    // Look up regular attribute
     const attributeValue = objectData[expr.attribute];
     
     if (attributeValue === undefined) {
       // Check if this is a navigation through a Feittype relationship
-      const ctx = context as any;
       // Try to find related objects through Feittype relationships
       const relatedObjects = this.findRelatedObjectsThroughFeittype(expr.attribute, objectValue, ctx);
       if (relatedObjects && relatedObjects.length > 0) {
