@@ -128,38 +128,63 @@ export class TimelineEvaluator {
     // Evaluate the target expression
     const targetValue = this.expressionEvaluator.evaluate(expr.target, context);
     
-    if (targetValue.type !== 'timeline') {
-      throw new Error('totaal operation requires a timeline value');
-    }
-    
-    const timelineValue = targetValue as any as TimelineValue;
-    const timeline = timelineValue.value;
-    
-    // If there's a temporal condition, filter periods
-    let periodsToSum = timeline.periods;
-    if (expr.condition) {
-      periodsToSum = this.filterPeriodsWithCondition(timeline, expr.condition, context);
-    }
-    
-    // Per specification section 7.1: totaal_van returns a scalar sum
-    // The sum accounts for the actual duration of each period
-    let total = new Decimal(0);
-    
-    for (const period of periodsToSum) {
-      if (period.value.type !== 'number') {
-        throw new Error('Cannot sum non-numeric timeline values');
+    // Handle timeline values
+    if (targetValue.type === 'timeline') {
+      const timelineValue = targetValue as any as TimelineValue;
+      const timeline = timelineValue.value;
+      
+      // If there's a temporal condition, filter periods
+      let periodsToSum = timeline.periods;
+      if (expr.condition) {
+        periodsToSum = this.filterPeriodsWithCondition(timeline, expr.condition, context);
       }
       
-      // For timeline aggregation, we sum the values directly
-      // The timeline values are already adjusted for their period duration
-      total = total.plus(new Decimal(period.value.value as number));
+      // Per specification section 7.1: totaal_van returns a scalar sum
+      // The sum accounts for the actual duration of each period
+      let total = new Decimal(0);
+      
+      for (const period of periodsToSum) {
+        if (period.value.type !== 'number') {
+          throw new Error('Cannot sum non-numeric timeline values');
+        }
+        
+        // For timeline aggregation, we sum the values directly
+        // The timeline values are already adjusted for their period duration
+        total = total.plus(new Decimal(period.value.value as number));
+      }
+      
+      return {
+        type: 'number',
+        value: total.toNumber(),
+        unit: timeline.periods[0]?.value.unit
+      };
     }
     
-    return {
-      type: 'number',
-      value: total.toNumber(),
-      unit: timeline.periods[0]?.value.unit
-    };
+    // Handle array values (backward compatibility)
+    if (targetValue.type === 'array') {
+      const values = targetValue.value as Value[];
+      let total = 0;
+      
+      for (const val of values) {
+        if (val.type !== 'number') {
+          throw new Error(`totaal_van expects numeric values, got ${val.type}`);
+        }
+        total += val.value as number;
+      }
+      
+      return {
+        type: 'number',
+        value: total,
+        unit: values[0]?.unit
+      };
+    }
+    
+    // Handle scalar values (single number)
+    if (targetValue.type === 'number') {
+      return targetValue; // The total of a single number is itself
+    }
+    
+    throw new Error(`totaal operation expects a timeline, array, or number value, got ${targetValue.type}`);
   }
 
   private evaluateAantalDagen(expr: TimelineExpression, context: RuntimeContext): Value {

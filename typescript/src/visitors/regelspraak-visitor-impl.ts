@@ -2437,10 +2437,10 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
     // This handles patterns like "zijn burgerservicenummer"
     const bezieldeRef = ctx.bezieldeReferentie();
     
-    // The grammar is: bezieldeReferentie : ZIJN identifier
-    // Get the identifier
-    const identifierCtx = bezieldeRef.identifier();
-    const attribute = identifierCtx ? identifierCtx.getText() : 'unknown';
+    // The grammar is: bezieldeReferentie : ZIJN naamwoord
+    // Get the naamwoord (noun)
+    const naamwoordCtx = bezieldeRef.naamwoord();
+    const attribute = naamwoordCtx ? naamwoordCtx.getText() : 'unknown';
     
     // Return an AttributeReference with 'self' path, matching Python implementation
     const node = {
@@ -2971,6 +2971,29 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
   
   visitTotaalVanExpr(ctx: any): Expression {
     // HET? TOTAAL VAN expressie [GEDURENDE DE TIJD DAT condition]
+    const targetExpr = this.visit(ctx.expressie(0));
+    
+    // Check for optional temporal condition
+    let conditionExpr: Expression | undefined;
+    if (ctx.conditieBijExpressie && ctx.conditieBijExpressie()) {
+      conditionExpr = this.visitConditieBijExpressie(ctx.conditieBijExpressie());
+    }
+    
+    // Return as TimelineExpression for timeline-aware aggregation
+    const node = {
+      type: 'TimelineExpression',
+      operation: 'totaal',
+      target: targetExpr,
+      condition: conditionExpr
+    } as any;
+    this.setLocation(node, ctx);
+    return node;
+  }
+
+  visitCapitalizedTotaalVanExpr(ctx: any): Expression {
+    // identifier+ HET_TOTAAL_VAN expressie [GEDURENDE DE TIJD DAT condition]
+    // This handles cases where "Het totaal van" starts with capital H
+    // The identifiers before HET_TOTAAL_VAN are just capitalized text that we ignore
     const targetExpr = this.visit(ctx.expressie(0));
     
     // Check for optional temporal condition

@@ -196,16 +196,35 @@ describe('Timeline', () => {
       expect(result.value).toBe(600); // 100 + 200 + 300
     });
 
-    test('should throw error for totaal on non-timeline value', () => {
+    test('should handle totaal on non-timeline values for backward compatibility', () => {
+      // Test with scalar value
       context.setVariable('scalar', { type: 'number', value: 42 });
-
-      const expr: TimelineExpression = {
+      const scalarExpr: TimelineExpression = {
         type: 'TimelineExpression',
         operation: 'totaal',
         target: { type: 'VariableReference', variableName: 'scalar' }
       };
+      const scalarResult = evaluator.evaluate(scalarExpr, context);
+      expect(scalarResult.type).toBe('number');
+      expect(scalarResult.value).toBe(42); // Total of a single number is itself
 
-      expect(() => evaluator.evaluate(expr, context)).toThrow('totaal operation requires a timeline value');
+      // Test with array value
+      context.setVariable('array', { 
+        type: 'array', 
+        value: [
+          { type: 'number', value: 10 },
+          { type: 'number', value: 20 },
+          { type: 'number', value: 30 }
+        ]
+      });
+      const arrayExpr: TimelineExpression = {
+        type: 'TimelineExpression',
+        operation: 'totaal',
+        target: { type: 'VariableReference', variableName: 'array' }
+      };
+      const arrayResult = evaluator.evaluate(arrayExpr, context);
+      expect(arrayResult.type).toBe('number');
+      expect(arrayResult.value).toBe(60); // Sum of array elements
     });
 
     test('should handle timeline subtraction', () => {
