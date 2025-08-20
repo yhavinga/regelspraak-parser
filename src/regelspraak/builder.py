@@ -2476,8 +2476,19 @@ class RegelSpraakModelBuilder(RegelSpraakVisitor):
              logger.error(f"Could not parse kenmerk name in {safe_get_text(ctx)}")
              return None
 
+        # Handle timeline if present
+        tijdlijn = None
+        if ctx.tijdlijn():
+            tijdlijn_ctx = ctx.tijdlijn()
+            if tijdlijn_ctx.VOOR_ELKE_DAG():
+                tijdlijn = "dag"
+            elif tijdlijn_ctx.VOOR_ELKE_MAAND():
+                tijdlijn = "maand"
+            elif tijdlijn_ctx.VOOR_ELK_JAAR():
+                tijdlijn = "jaar"
+
         # TODO: Potentially handle BIJVOEGLIJK / BEZITTELIJK if needed by the model
-        return Kenmerk(naam=naam, span=self.get_span(ctx))
+        return Kenmerk(naam=naam, span=self.get_span(ctx), tijdlijn=tijdlijn)
 
     def visitDomeinDefinition(self, ctx: AntlrParser.DomeinDefinitionContext) -> Domein:
          """Visit a domain definition and build a Domein object."""

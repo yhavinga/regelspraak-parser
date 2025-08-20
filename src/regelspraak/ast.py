@@ -242,6 +242,7 @@ class Kenmerk:
     """Represents a characteristic (kenmerk) definition."""
     naam: str
     span: SourceSpan
+    tijdlijn: Optional[str] = None  # 'dag', 'maand', 'jaar' if timeline-based
     # description: Optional[str] = None
 
 @dataclass

@@ -146,7 +146,7 @@ objectTypeMember
 
 // §13.3.2 Kenmerk Specificatie
 kenmerkSpecificatie
-    : (IS? identifier | naamwoord) KENMERK (BIJVOEGLIJK | BEZITTELIJK)?
+    : (IS? identifier | naamwoord) KENMERK (BIJVOEGLIJK | BEZITTELIJK)? tijdlijn?
     ;
 
 // §13.3.2 Attribuut Specificatie
@@ -514,7 +514,7 @@ kenmerkNaam : onderwerpReferentie ; // Reuse onderwerpReferentie structure (as p
 
 // Rule for bezieldeReferentie (Simplified from spec 13.4.16.37 for ZIJN case)
 bezieldeReferentie // Used in primaryExpression
-    : ZIJN identifier
+    : ZIJN naamwoord
     ;
 
 // --- Predicaat Rules (§5.6 and §13.4.14) ---
