@@ -1,5 +1,5 @@
 import { IEvaluator, Value, RuntimeContext } from '../interfaces';
-import { Expression, NumberLiteral, StringLiteral, BinaryExpression, UnaryExpression, VariableReference, FunctionCall, AggregationExpression, NavigationExpression, SubselectieExpression, AllAttributesExpression, Predicaat, KenmerkPredicaat, AttributeComparisonPredicaat, AttributeReference } from '../ast/expressions';
+import { Expression, NumberLiteral, StringLiteral, BinaryExpression, UnaryExpression, VariableReference, FunctionCall, AggregationExpression, NavigationExpression, SubselectieExpression, AllAttributesExpression, Predicaat, KenmerkPredicaat, AttributeComparisonPredicaat, AttributeReference, SamengesteldeVoorwaarde, KwantificatieType } from '../ast/expressions';
 import { AggregationEngine } from './aggregation-engine';
 import { TimelineEvaluator } from './timeline-evaluator';
 import { TimelineExpression, TimelineValue, TimelineValueImpl } from '../ast/timelines';
@@ -76,6 +76,8 @@ export class ExpressionEvaluator implements IEvaluator {
         return this.evaluateDimensionedAttributeReference(expr as any, context);
       case 'AllAttributesExpression':
         return this.evaluateAllAttributesExpression(expr as AllAttributesExpression, context);
+      case 'SamengesteldeVoorwaarde':
+        return this.evaluateSamengesteldeVoorwaarde(expr as SamengesteldeVoorwaarde, context);
       default:
         throw new Error(`Unknown expression type: ${expr.type}`);
     }
@@ -1390,6 +1392,75 @@ export class ExpressionEvaluator implements IEvaluator {
     return {
       type: 'array',
       value: values
+    };
+  }
+
+  private evaluateSamengesteldeVoorwaarde(voorwaarde: SamengesteldeVoorwaarde, context: RuntimeContext): Value {
+    // Evaluate each condition and count how many are true
+    let conditionsMetCount = 0;
+    const totalConditions = voorwaarde.voorwaarden.length;
+    
+    // Evaluate each condition
+    for (const conditionExpr of voorwaarde.voorwaarden) {
+      // Evaluate the condition expression
+      const result = this.evaluate(conditionExpr, context);
+      
+      // Strict boolean check - each condition must evaluate to boolean
+      if (result.type !== 'boolean') {
+        throw new Error(`Compound condition element must evaluate to boolean, got ${result.type}`);
+      }
+      
+      // Count if condition is true
+      if (result.value === true) {
+        conditionsMetCount++;
+      }
+    }
+    
+    // Apply quantifier logic
+    let finalResult = false;
+    
+    switch (voorwaarde.kwantificatie.type) {
+      case KwantificatieType.ALLE:
+        // All conditions must be true
+        finalResult = conditionsMetCount === totalConditions;
+        break;
+        
+      case KwantificatieType.GEEN:
+        // No conditions can be true
+        finalResult = conditionsMetCount === 0;
+        break;
+        
+      case KwantificatieType.TEN_MINSTE:
+        // At least n conditions must be true
+        if (voorwaarde.kwantificatie.aantal === undefined) {
+          throw new Error('TEN_MINSTE quantifier requires a number');
+        }
+        finalResult = conditionsMetCount >= voorwaarde.kwantificatie.aantal;
+        break;
+        
+      case KwantificatieType.TEN_HOOGSTE:
+        // At most n conditions must be true
+        if (voorwaarde.kwantificatie.aantal === undefined) {
+          throw new Error('TEN_HOOGSTE quantifier requires a number');
+        }
+        finalResult = conditionsMetCount <= voorwaarde.kwantificatie.aantal;
+        break;
+        
+      case KwantificatieType.PRECIES:
+        // Exactly n conditions must be true
+        if (voorwaarde.kwantificatie.aantal === undefined) {
+          throw new Error('PRECIES quantifier requires a number');
+        }
+        finalResult = conditionsMetCount === voorwaarde.kwantificatie.aantal;
+        break;
+        
+      default:
+        throw new Error(`Unknown quantifier type: ${voorwaarde.kwantificatie.type}`);
+    }
+    
+    return {
+      type: 'boolean',
+      value: finalResult
     };
   }
 
