@@ -186,7 +186,30 @@ export class Context implements RuntimeContext {
     return this.feittypen.get(naam);
   }
   
+  /**
+   * Get all registered FeitTypes
+   */
+  getAllFeittypen(): FeitType[] {
+    return Array.from(this.feittypen.values());
+  }
+  
   // --- Relationship Handling ---
+  
+  /**
+   * Find a FeitType that has the given role
+   */
+  findFeittypeByRole(roleName: string): FeitType | undefined {
+    for (const feittype of this.feittypen.values()) {
+      if (!feittype.rollen) continue;
+      
+      for (const rol of feittype.rollen) {
+        if (rol.naam === roleName || rol.meervoud === roleName) {
+          return feittype;
+        }
+      }
+    }
+    return undefined;
+  }
   
   /**
    * Creates and stores a relationship between two objects

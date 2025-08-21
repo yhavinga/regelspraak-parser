@@ -16,11 +16,13 @@ import {
   VerdelingTieBreak,
   VerdelingMaximum,
   VerdelingAfronding,
-  RegelGroep
+  RegelGroep,
+  FeitCreatie
 } from '../ast/rules';
 import { VariableReference, Expression } from '../ast/expressions';
 import { ExpressionEvaluator } from '../evaluators/expression-evaluator';
 import { Context } from '../runtime/context';
+import { FeitExecutor } from './feit-executor';
 
 interface DistributionResult {
   amounts: number[];
@@ -32,6 +34,7 @@ interface DistributionResult {
  */
 export class RuleExecutor implements IRuleExecutor {
   private expressionEvaluator = new ExpressionEvaluator();
+  private feitExecutor = new FeitExecutor();
 
   execute(rule: Rule, context: RuntimeContext): RuleExecutionResult {
     try {
@@ -99,6 +102,9 @@ export class RuleExecutor implements IRuleExecutor {
       
       case 'Verdeling':
         return this.executeVerdeling(result as Verdeling, context);
+      
+      case 'FeitCreatie':
+        return this.feitExecutor.executeFeitCreatie(result as FeitCreatie, context);
       
       default:
         throw new Error(`Unsupported result type: ${(result as any).type}`);

@@ -45,7 +45,8 @@ import {
   VerdelingOpVolgorde,
   VerdelingTieBreak,
   VerdelingMaximum,
-  VerdelingAfronding
+  VerdelingAfronding,
+  FeitCreatie
 } from '../ast/rules';
 import { ObjectTypeDefinition, KenmerkSpecification, AttributeSpecification, DataType, DomainReference } from '../ast/object-types';
 import { ParameterDefinition } from '../ast/parameters';
@@ -1531,7 +1532,7 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
     } else if (ctx.constructor.name === 'DagsoortdefinitieResultaatContext') {
       throw new Error('DagsoortdefinitieResultaat not implemented');
     } else if (ctx.constructor.name === 'FeitCreatieResultaatContext') {
-      throw new Error('FeitCreatieResultaat not implemented');
+      return this.visitFeitCreatieResultaat(ctx);
     } else if (ctx.constructor.name === 'KenmerkFeitResultaatContext') {
       return this.visitKenmerkFeitResultaat(ctx);
     } else if (ctx.constructor.name === 'ObjectCreatieResultaatContext') {
@@ -1575,6 +1576,100 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
     };
     
     // Store location for this gelijkstelling
+    this.setLocation(result, ctx);
+    
+    return result;
+  }
+
+  visitFeitCreatieResultaat(ctx: any): FeitCreatie {
+    // Get the feitCreatiePattern context
+    const patternCtx = ctx.feitCreatiePattern();
+    
+    if (!patternCtx) {
+      throw new Error('FeitCreatieResultaat missing feitCreatiePattern');
+    }
+    
+    // Remove debug logging
+    // console.log('FeitCreatie pattern text:', patternCtx.getText());
+    // console.log('Has role1:', !!patternCtx.role1);
+    // console.log('Has role2:', !!patternCtx.role2);
+    
+    // Extract role1 (left side role name)
+    const role1Words = [];
+    const role1Ctx = patternCtx.role1;
+    if (role1Ctx) {
+      // role1 is a feitCreatieRolPhrase which contains feitCreatieWord+
+      for (const wordCtx of role1Ctx.feitCreatieWord_list()) {
+        role1Words.push(wordCtx.getText());
+      }
+    }
+    const role1 = role1Words.join(' ');
+    
+    // Extract subject1 (left side subject)
+    const subject1Words = [];
+    const subject1Ctx = patternCtx.subject1;
+    if (subject1Ctx) {
+      // subject1 is a feitCreatieSubjectPhrase which contains feitCreatieSubjectWord+
+      for (const wordCtx of subject1Ctx.feitCreatieSubjectWord_list()) {
+        subject1Words.push(wordCtx.getText());
+      }
+    }
+    // Include article if present
+    let subject1Text = subject1Words.join(' ');
+    const article1 = patternCtx.article1;
+    if (article1) {
+      subject1Text = `${article1.getText()} ${subject1Text}`;
+    }
+    
+    // Create subject1 as an AttributeReference
+    const subject1: AttributeReference = {
+      type: 'AttributeReference',
+      path: [subject1Text]
+    };
+    
+    // Extract role2 (right side role name) 
+    const role2Words = [];
+    const role2Ctx = patternCtx.role2;
+    if (role2Ctx) {
+      // role2 is a feitCreatieRolPhrase which contains feitCreatieWord+
+      for (const wordCtx of role2Ctx.feitCreatieWord_list()) {
+        role2Words.push(wordCtx.getText());
+      }
+    }
+    const role2 = role2Words.join(' ');
+    
+    // Extract subject2 (right side subject)
+    const subject2Words = [];
+    const subject2Ctx = patternCtx.subject2;
+    if (subject2Ctx) {
+      // subject2 is a feitCreatieSubjectPhrase which contains feitCreatieSubjectWord+
+      for (const wordCtx of subject2Ctx.feitCreatieSubjectWord_list()) {
+        subject2Words.push(wordCtx.getText());
+      }
+    }
+    // Include article if present
+    let subject2Text = subject2Words.join(' ');
+    const article2 = patternCtx.article2;
+    if (article2) {
+      subject2Text = `${article2.getText()} ${subject2Text}`;
+    }
+    
+    // Create subject2 as an AttributeReference (often a navigation pattern)
+    const subject2: AttributeReference = {
+      type: 'AttributeReference',
+      path: [subject2Text]
+    };
+    
+    // Create the FeitCreatie node
+    const result: FeitCreatie = {
+      type: 'FeitCreatie',
+      role1,
+      subject1,
+      role2,
+      subject2
+    };
+    
+    // Store location
     this.setLocation(result, ctx);
     
     return result;

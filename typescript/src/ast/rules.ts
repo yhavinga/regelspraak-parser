@@ -19,7 +19,7 @@ export interface RuleVersion {
   validity: 'altijd' | 'vanaf' | 'tot'; // Simplified for now
 }
 
-export type ResultPart = Gelijkstelling | ObjectCreation | MultipleResults | Kenmerktoekenning | Consistentieregel | Verdeling;
+export type ResultPart = Gelijkstelling | ObjectCreation | MultipleResults | Kenmerktoekenning | Consistentieregel | Verdeling | FeitCreatie;
 
 export interface Gelijkstelling {
   type: 'Gelijkstelling';
@@ -101,6 +101,14 @@ export interface Verdeling {
   targetCollection: Expression;  // Collection to distribute over
   distributionMethods: VerdelingMethode[];  // Methods and constraints
   remainderTarget?: Expression;  // Where to store remainder
+}
+
+export interface FeitCreatie {
+  type: 'FeitCreatie';
+  role1: string;  // Left side role name (e.g., "passagier met recht op treinmiles")
+  subject1: Expression;  // Left side subject reference
+  role2: string;  // Right side role name (e.g., "passagier")
+  subject2: Expression;  // Right side subject reference (navigation pattern)
 }
 
 export interface RegelGroep {

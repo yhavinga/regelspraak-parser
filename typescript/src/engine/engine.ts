@@ -189,6 +189,13 @@ export class Engine implements IEngine {
           this.registerUnitSystem(unitSystem, context);
         }
         
+        // Register all FeitTypes before executing rules
+        for (const feittype of (ast as any).feittypen || []) {
+          if (context.registerFeittype) {
+            context.registerFeittype(feittype);
+          }
+        }
+        
         // Execute all rules in the model
         let lastResult: ExecutionResult = {
           success: true,
