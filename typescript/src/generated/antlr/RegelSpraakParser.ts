@@ -4701,30 +4701,30 @@ export default class RegelSpraakParser extends Parser {
 			this.state = 930;
 			this.match(RegelSpraakParser.VAN);
 			this.state = 931;
-			localctx._article1 = this._input.LT(1);
-			_la = this._input.LA(1);
-			if(!(((((_la - 206)) & ~0x1F) === 0 && ((1 << (_la - 206)) & 41) !== 0))) {
-			    localctx._article1 = this._errHandler.recoverInline(this);
-			}
-			else {
-				this._errHandler.reportMatch(this);
-			    this.consume();
-			}
+			this.match(RegelSpraakParser.EEN);
 			this.state = 932;
 			localctx._subject1 = this.feitCreatieSubjectPhrase();
 			this.state = 933;
 			this.match(RegelSpraakParser.IS);
 			this.state = 934;
-			this.match(RegelSpraakParser.EEN);
+			localctx._article2 = this._input.LT(1);
+			_la = this._input.LA(1);
+			if(!(((((_la - 206)) & ~0x1F) === 0 && ((1 << (_la - 206)) & 41) !== 0))) {
+			    localctx._article2 = this._errHandler.recoverInline(this);
+			}
+			else {
+				this._errHandler.reportMatch(this);
+			    this.consume();
+			}
 			this.state = 935;
 			localctx._role2 = this.feitCreatieRolPhrase();
 			this.state = 936;
 			this.match(RegelSpraakParser.VAN);
 			this.state = 937;
-			localctx._article2 = this._input.LT(1);
+			localctx._article3 = this._input.LT(1);
 			_la = this._input.LA(1);
 			if(!(((((_la - 206)) & ~0x1F) === 0 && ((1 << (_la - 206)) & 41) !== 0))) {
-			    localctx._article2 = this._errHandler.recoverInline(this);
+			    localctx._article3 = this._errHandler.recoverInline(this);
 			}
 			else {
 				this._errHandler.reportMatch(this);
@@ -10425,7 +10425,7 @@ export default class RegelSpraakParser extends Parser {
 	927,1,0,0,0,924,927,3,130,65,0,925,927,3,276,138,0,926,900,1,0,0,0,926,
 	905,1,0,0,0,926,917,1,0,0,0,926,918,1,0,0,0,926,924,1,0,0,0,926,925,1,0,
 	0,0,927,117,1,0,0,0,928,929,5,209,0,0,929,930,3,120,60,0,930,931,5,232,
-	0,0,931,932,7,15,0,0,932,933,3,122,61,0,933,934,5,112,0,0,934,935,5,209,
+	0,0,931,932,5,209,0,0,932,933,3,122,61,0,933,934,5,112,0,0,934,935,7,15,
 	0,0,935,936,3,120,60,0,936,937,5,232,0,0,937,938,7,15,0,0,938,939,3,122,
 	61,0,939,119,1,0,0,0,940,942,3,126,63,0,941,940,1,0,0,0,942,943,1,0,0,0,
 	943,941,1,0,0,0,943,944,1,0,0,0,944,121,1,0,0,0,945,947,3,124,62,0,946,
@@ -13673,10 +13673,10 @@ export class FeitCreatieResultaatContext extends ResultaatDeelContext {
 
 export class FeitCreatiePatternContext extends ParserRuleContext {
 	public _role1!: FeitCreatieRolPhraseContext;
-	public _article1!: Token;
 	public _subject1!: FeitCreatieSubjectPhraseContext;
-	public _role2!: FeitCreatieRolPhraseContext;
 	public _article2!: Token;
+	public _role2!: FeitCreatieRolPhraseContext;
+	public _article3!: Token;
 	public _subject2!: FeitCreatieSubjectPhraseContext;
 	constructor(parser?: RegelSpraakParser, parent?: ParserRuleContext, invokingState?: number) {
 		super(parent, invokingState);

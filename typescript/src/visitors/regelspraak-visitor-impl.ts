@@ -1614,11 +1614,10 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
         subject1Words.push(wordCtx.getText());
       }
     }
-    // Include article if present
+    // Left side always has "van een" per spec, so prepend "een"
     let subject1Text = subject1Words.join(' ');
-    const article1 = patternCtx.article1;
-    if (article1) {
-      subject1Text = `${article1.getText()} ${subject1Text}`;
+    if (subject1Text) {
+      subject1Text = `een ${subject1Text}`;
     }
     
     // Create subject1 as an AttributeReference
@@ -1649,9 +1648,9 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
     }
     // Include article if present
     let subject2Text = subject2Words.join(' ');
-    const article2 = patternCtx.article2;
-    if (article2) {
-      subject2Text = `${article2.getText()} ${subject2Text}`;
+    const article3 = patternCtx.article3;
+    if (article3) {
+      subject2Text = `${article3.getText()} ${subject2Text}`;
     }
     
     // Create subject2 as an AttributeReference (often a navigation pattern)

@@ -372,8 +372,8 @@ resultaatDeel
 // FeitCreatie pattern - parse the whole pattern as one unit
 // Looking for: Een X van Y is een Z van W
 feitCreatiePattern
-    : EEN role1=feitCreatieRolPhrase VAN article1=(EEN|DE|HET) subject1=feitCreatieSubjectPhrase
-      IS EEN role2=feitCreatieRolPhrase VAN article2=(EEN|DE|HET) subject2=feitCreatieSubjectPhrase
+    : EEN role1=feitCreatieRolPhrase VAN EEN subject1=feitCreatieSubjectPhrase
+      IS article2=(EEN|DE|HET) role2=feitCreatieRolPhrase VAN article3=(EEN|DE|HET) subject2=feitCreatieSubjectPhrase
     ;
 
 // Role phrase in FeitCreatie - everything up to "van"

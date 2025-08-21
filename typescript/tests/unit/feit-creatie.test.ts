@@ -278,8 +278,7 @@ Regel malformed
   });
 
   describe('Integration with FeitType definitions', () => {
-    it.skip('should respect FeitType cardinality', () => {
-      // This test is skipped because the pattern needs to be fixed
+    it('should respect FeitType cardinality', () => {
       const code = `
 Objecttype de Persoon
   de naam Tekst;
