@@ -136,6 +136,14 @@ class Subselectie(Expression):
     onderwerp: Expression  # The collection to filter
     predicaat: 'Predicaat'  # The filter condition
 
+@dataclass
+class RegelStatusExpression(Expression):
+    """Represents a rule status check expression.
+    Examples: "regelversie X is gevuurd", "regelversie Y is inconsistent"
+    """
+    regel_naam: str  # Name of the rule to check
+    check: str  # "gevuurd" or "inconsistent"
+
 
 # --- Predicaat Model ---
 

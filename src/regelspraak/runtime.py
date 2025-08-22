@@ -186,6 +186,9 @@ class RuntimeContext:
     current_instance: Optional[RuntimeObject] = None
     # Stores relationships between objects
     relationships: List[Relationship] = field(default_factory=list)
+    # Rule execution tracking for regel status conditions
+    executed_rules: Set[str] = field(default_factory=set)  # Rules that have been executed (fired)
+    inconsistent_rules: Set[str] = field(default_factory=set)  # Consistency rules that found inconsistencies
 
     # --- Parameter Handling ---
 
@@ -269,6 +272,24 @@ class RuntimeContext:
             raise RuntimeError(f"Parameter '{name}' is not defined as a timeline parameter")
         
         self.timeline_parameters[name] = timeline_value
+
+    # --- Rule Execution Tracking (for regel status conditions) ---
+
+    def mark_rule_executed(self, regel_naam: str):
+        """Mark a rule as having been executed (fired)."""
+        self.executed_rules.add(regel_naam)
+
+    def mark_rule_inconsistent(self, regel_naam: str):
+        """Mark a consistency rule as having found an inconsistency."""
+        self.inconsistent_rules.add(regel_naam)
+
+    def is_rule_executed(self, regel_naam: str) -> bool:
+        """Check if a rule has been executed (fired)."""
+        return regel_naam in self.executed_rules
+
+    def is_rule_inconsistent(self, regel_naam: str) -> bool:
+        """Check if a consistency rule found an inconsistency."""
+        return regel_naam in self.inconsistent_rules
 
     # --- Variable Handling (Rule Scope) ---
 

@@ -35,6 +35,10 @@ export class Context implements RuntimeContext {
   
   // Store timeline parameters
   private timelineParameters: Map<string, TimelineValueImpl> = new Map();
+  
+  // Rule execution tracking for regel status conditions
+  private executedRules: Set<string> = new Set();  // Rules that have been executed (fired)
+  private inconsistentRules: Set<string> = new Set();  // Consistency rules that found inconsistencies
 
   getVariable(name: string): Value | undefined {
     // Search from innermost to outermost scope
@@ -277,6 +281,24 @@ export class Context implements RuntimeContext {
       }
     }
     return related;
+  }
+
+  // --- Rule Execution Tracking (for regel status conditions) ---
+  
+  markRuleExecuted(regelNaam: string): void {
+    this.executedRules.add(regelNaam);
+  }
+
+  markRuleInconsistent(regelNaam: string): void {
+    this.inconsistentRules.add(regelNaam);
+  }
+
+  isRuleExecuted(regelNaam: string): boolean {
+    return this.executedRules.has(regelNaam);
+  }
+
+  isRuleInconsistent(regelNaam: string): boolean {
+    return this.inconsistentRules.has(regelNaam);
   }
   
   /**

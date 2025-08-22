@@ -21,7 +21,7 @@ from .ast import (
     ParameterReference, SourceSpan, Beslistabel, BeslistabelRow,
     BeslistabelCondition, BeslistabelResult, Dimension, DimensionLabel,
     DimensionedAttributeReference, PeriodDefinition,
-    Subselectie, Predicaat, ObjectPredicaat, VergelijkingsPredicaat,
+    Subselectie, RegelStatusExpression, Predicaat, ObjectPredicaat, VergelijkingsPredicaat,
     GetalPredicaat, TekstPredicaat, DatumPredicaat, SamengesteldPredicaat,
     Kwantificatie, KwantificatieType, GenesteVoorwaardeInPredicaat, VergelijkingInPredicaat,
     SamengesteldeVoorwaarde
@@ -2272,6 +2272,37 @@ class RegelSpraakModelBuilder(RegelSpraakVisitor):
         
         # TODO: Handle other unaryCondition alternatives
         logger.warning(f"Unhandled unary condition type: {type(ctx).__name__}")
+        return None
+
+    def visitRegelStatusCondition(self, ctx: AntlrParser.RegelStatusConditionContext) -> Optional[Expression]:
+        """Visit rule status condition expressions (regelversie X is gevuurd/inconsistent)."""
+        logger.debug(f"Visiting regel status condition: {safe_get_text(ctx)}")
+        
+        # Handle regelStatusCheck alternative  
+        if isinstance(ctx, AntlrParser.RegelStatusCheckContext):
+            # Extract rule name from naamwoord
+            regel_naam_text = self._extract_canonical_name(ctx.name)
+            if not regel_naam_text:
+                logger.error(f"Could not extract rule name from: {safe_get_text(ctx.name)}")
+                return None
+            
+            # Extract check type from op token
+            op_token = ctx.op
+            if op_token.type == AntlrLexer.GEVUURD:
+                check_type = "gevuurd"
+            elif op_token.type == AntlrLexer.INCONSISTENT:
+                check_type = "inconsistent"
+            else:
+                logger.warning(f"Unhandled regel status operator: {op_token.text}")
+                return None
+            
+            return RegelStatusExpression(
+                regel_naam=regel_naam_text,
+                check=check_type,
+                span=self.get_span(ctx)
+            )
+        
+        logger.warning(f"Unhandled regel status condition type: {type(ctx).__name__}")
         return None
 
     def visitConcatenatieExpressie(self, ctx) -> Optional[FunctionCall]:

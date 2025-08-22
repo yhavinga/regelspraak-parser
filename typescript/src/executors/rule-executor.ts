@@ -73,6 +73,26 @@ export class RuleExecutor implements IRuleExecutor {
         }
       }
       
+      // Mark rule as executed for regel status tracking
+      const ctx = context as any;
+      if (ctx.markRuleExecuted) {
+        ctx.markRuleExecuted(rule.name);
+      }
+      
+      // Set current rule name for consistency rule tracking
+      ctx._currentRuleName = rule.name;
+      
+      // Special handling for inconsistent-type consistency rules
+      if (rule.result.type === 'Consistentieregel') {
+        const consistentieregel = rule.result as Consistentieregel;
+        if (consistentieregel.criteriumType === 'inconsistent' && rule.condition) {
+          // For inconsistent rules, condition being true means inconsistency was found
+          if (ctx.markRuleInconsistent) {
+            ctx.markRuleInconsistent(rule.name);
+          }
+        }
+      }
+      
       // Execute the result part(s)
       return this.executeResultPart(rule.result, context);
     } catch (error) {
@@ -451,6 +471,11 @@ export class RuleExecutor implements IRuleExecutor {
         const stringKey = JSON.stringify(value.value);
         if (uniqueValues.has(stringKey)) {
           hasNonUniqueValues = true;
+          // Mark rule as inconsistent for regel status tracking
+          const ctx = context as any;
+          if (ctx.markRuleInconsistent && ctx._currentRuleName) {
+            ctx.markRuleInconsistent(ctx._currentRuleName);
+          }
           break;
         }
         uniqueValues.add(stringKey);

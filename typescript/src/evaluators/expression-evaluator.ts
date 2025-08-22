@@ -1,5 +1,5 @@
 import { IEvaluator, Value, RuntimeContext } from '../interfaces';
-import { Expression, NumberLiteral, StringLiteral, BinaryExpression, UnaryExpression, VariableReference, FunctionCall, AggregationExpression, NavigationExpression, SubselectieExpression, AllAttributesExpression, Predicaat, KenmerkPredicaat, AttributeComparisonPredicaat, AttributeReference, SamengesteldeVoorwaarde, KwantificatieType } from '../ast/expressions';
+import { Expression, NumberLiteral, StringLiteral, BinaryExpression, UnaryExpression, VariableReference, FunctionCall, AggregationExpression, NavigationExpression, SubselectieExpression, RegelStatusExpression, AllAttributesExpression, Predicaat, KenmerkPredicaat, AttributeComparisonPredicaat, AttributeReference, SamengesteldeVoorwaarde, KwantificatieType } from '../ast/expressions';
 import { AggregationEngine } from './aggregation-engine';
 import { TimelineEvaluator } from './timeline-evaluator';
 import { TimelineExpression, TimelineValue, TimelineValueImpl } from '../ast/timelines';
@@ -81,6 +81,8 @@ export class ExpressionEvaluator implements IEvaluator {
         return this.evaluateAllAttributesExpression(expr as AllAttributesExpression, context);
       case 'SamengesteldeVoorwaarde':
         return this.evaluateSamengesteldeVoorwaarde(expr as SamengesteldeVoorwaarde, context);
+      case 'RegelStatusExpression':
+        return this.evaluateRegelStatusExpression(expr as RegelStatusExpression, context);
       default:
         throw new Error(`Unknown expression type: ${expr.type}`);
     }
@@ -1481,6 +1483,27 @@ export class ExpressionEvaluator implements IEvaluator {
       type: 'array',
       value: values
     };
+  }
+
+  private evaluateRegelStatusExpression(expr: RegelStatusExpression, context: RuntimeContext): Value {
+    // Evaluate rule status check (gevuurd/inconsistent)
+    const ctx = context as any;  // Cast to access Context methods
+    
+    if (expr.check === 'gevuurd') {
+      const isExecuted = ctx.isRuleExecuted?.(expr.regelNaam) ?? false;
+      return {
+        type: 'boolean',
+        value: isExecuted
+      };
+    } else if (expr.check === 'inconsistent') {
+      const isInconsistent = ctx.isRuleInconsistent?.(expr.regelNaam) ?? false;
+      return {
+        type: 'boolean',
+        value: isInconsistent
+      };
+    } else {
+      throw new Error(`Unknown regel status check: ${expr.check}`);
+    }
   }
 
   private evaluateSamengesteldeVoorwaarde(voorwaarde: SamengesteldeVoorwaarde, context: RuntimeContext): Value {

@@ -17,7 +17,7 @@ from .ast import (
     Beslistabel, BeslistabelRow,
     DimensionedAttributeReference, DimensionLabel,
     PeriodDefinition, Period, Timeline,
-    Subselectie, Predicaat, ObjectPredicaat, VergelijkingsPredicaat,
+    Subselectie, RegelStatusExpression, Predicaat, ObjectPredicaat, VergelijkingsPredicaat,
     GetalPredicaat, TekstPredicaat, DatumPredicaat, SamengesteldPredicaat,
     Kwantificatie, KwantificatieType, GenesteVoorwaardeInPredicaat, VergelijkingInPredicaat,
     SamengesteldeVoorwaarde
@@ -523,6 +523,14 @@ class Evaluator:
                 if self.context.trace_sink:
                     # Log rule firing
                     self.context.trace_sink.rule_fired(rule)
+                # Mark rule as executed for regel status tracking
+                self.context.mark_rule_executed(rule.naam)
+                
+                # Special handling for inconsistent-type consistency rules
+                if isinstance(rule.resultaat, Consistentieregel) and rule.resultaat.criterium_type == "inconsistent":
+                    # For inconsistent rules, condition being true means inconsistency was found
+                    self.context.mark_rule_inconsistent(rule.naam)
+                    
                 self._apply_resultaat(rule.resultaat)
             else:
                 # Log rule skipped due to condition
@@ -1124,6 +1132,10 @@ class Evaluator:
             # These rules return a boolean result (true=consistent, false=inconsistent)
             result = self._apply_consistentieregel(res)
             
+            # Track rule inconsistency for regel status conditions
+            if not result and hasattr(self, '_current_rule') and self._current_rule:
+                self.context.mark_rule_inconsistent(self._current_rule.naam)
+            
             # Store the result for use in other rules
             # For now, we log it and trace it
             if self.context.trace_sink:
@@ -1673,6 +1685,17 @@ class Evaluator:
             elif isinstance(expr, Subselectie):
                 result = self._evaluate_subselectie(expr)
                 
+            elif isinstance(expr, RegelStatusExpression):
+                # Evaluate rule status check (gevuurd/inconsistent)
+                if expr.check == "gevuurd":
+                    is_executed = self.context.is_rule_executed(expr.regel_naam)
+                    result = Value(value=is_executed, datatype="Boolean")
+                elif expr.check == "inconsistent":
+                    is_inconsistent = self.context.is_rule_inconsistent(expr.regel_naam)
+                    result = Value(value=is_inconsistent, datatype="Boolean")
+                else:
+                    raise RegelspraakError(f"Unknown regel status check: {expr.check}", span=expr.span)
+                
             elif isinstance(expr, SamengesteldeVoorwaarde):
                 # Handle compound condition as expression
                 result_bool = self._evaluate_samengestelde_voorwaarde(expr, self.context.current_instance)
@@ -2156,6 +2179,17 @@ class Evaluator:
                 
             elif isinstance(expr, Subselectie):
                 result = self._evaluate_subselectie(expr)
+                
+            elif isinstance(expr, RegelStatusExpression):
+                # Evaluate rule status check (gevuurd/inconsistent)
+                if expr.check == "gevuurd":
+                    is_executed = self.context.is_rule_executed(expr.regel_naam)
+                    result = Value(value=is_executed, datatype="Boolean")
+                elif expr.check == "inconsistent":
+                    is_inconsistent = self.context.is_rule_inconsistent(expr.regel_naam)
+                    result = Value(value=is_inconsistent, datatype="Boolean")
+                else:
+                    raise RegelspraakError(f"Unknown regel status check: {expr.check}", span=expr.span)
                 
             elif isinstance(expr, SamengesteldeVoorwaarde):
                 # Handle compound condition as expression
@@ -2951,6 +2985,9 @@ class Evaluator:
                                     "consistent": False
                                 }
                             ))
+                            # Mark rule as inconsistent for regel status tracking
+                            if hasattr(self, '_current_rule') and self._current_rule:
+                                self.context.mark_rule_inconsistent(self._current_rule.naam)
                             return False  # Not unique = inconsistent
                         seen_values.add(value_str)
             

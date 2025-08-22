@@ -86,6 +86,12 @@ export interface SubselectieExpression extends Expression {
   predicaat: Predicaat;
 }
 
+export interface RegelStatusExpression extends Expression {
+  type: 'RegelStatusExpression';
+  regelNaam: string;
+  check: 'gevuurd' | 'inconsistent';
+}
+
 export interface AllAttributesExpression extends Expression {
   type: 'AllAttributesExpression';
   attribute: string;  // e.g., "burgerservicenummer"

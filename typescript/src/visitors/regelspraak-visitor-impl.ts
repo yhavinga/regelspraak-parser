@@ -27,6 +27,7 @@ import {
   FunctionCall,
   NavigationExpression,
   SubselectieExpression,
+  RegelStatusExpression,
   Predicaat,
   KenmerkPredicaat,
   AttributeComparisonPredicaat,
@@ -205,6 +206,8 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
       return this.visitBinaryComparisonExpr(ctx);
     } else if (contextName === 'UnaryConditionExprContext') {
       return this.visitUnaryConditionExpr(ctx);
+    } else if (contextName === 'RegelStatusConditionExprContext') {
+      return this.visitRegelStatusConditionExpr(ctx);
     } else {
       // Fallback - try to visit it generically
       return this.visit(ctx);
@@ -285,6 +288,40 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
     // UnaryConditionExpr wraps unaryCondition in comparisonExpression
     const unaryConditionCtx = ctx.unaryCondition();
     return this.visitUnaryCondition(unaryConditionCtx);
+  }
+
+  visitRegelStatusConditionExpr(ctx: any): Expression {
+    // RegelStatusConditionExpr wraps regelStatusCondition in comparisonExpression
+    const regelStatusConditionCtx = ctx.regelStatusCondition();
+    return this.visitRegelStatusCondition(regelStatusConditionCtx);
+  }
+
+  visitRegelStatusCondition(ctx: any): Expression {
+    // Extract rule name from naamwoord
+    const naamwoordCtx = ctx.name;
+    const rawName = this.extractTextWithSpaces(naamwoordCtx);
+    const regelNaam = this.extractParameterName(rawName);
+    
+    // Extract check type from op token
+    const opToken = ctx.op;
+    let check: 'gevuurd' | 'inconsistent';
+    
+    if (opToken.type === RegelSpraakLexer.GEVUURD) {
+      check = 'gevuurd';
+    } else if (opToken.type === RegelSpraakLexer.INCONSISTENT) {
+      check = 'inconsistent';
+    } else {
+      throw new Error(`Unhandled regel status operator: ${opToken.text}`);
+    }
+    
+    const node: RegelStatusExpression = {
+      type: 'RegelStatusExpression',
+      regelNaam,
+      check
+    };
+    
+    this.setLocation(node, ctx);
+    return node;
   }
 
   visitUnaryCondition(ctx: any): Expression {
