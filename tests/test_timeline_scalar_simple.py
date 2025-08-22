@@ -26,7 +26,7 @@ class TestTimelineScalarSimple(unittest.TestCase):
             het verdubbeld salaris Bedrag voor elke maand;
             het gehalveerd salaris Bedrag voor elke maand;
 
-        Parameter de standaard verhoging : Numeriek = 50;
+        Parameter de standaard verhoging : Numeriek;
 
         Regel verhoog salaris
             geldig altijd
@@ -82,7 +82,7 @@ class TestTimelineScalarSimple(unittest.TestCase):
         Regel bereken totaal
             geldig altijd
                 Het totaal inkomen van een werknemer moet gesteld worden op 
-                (zijn basis salaris maal 1.1) plus zijn bonus.
+                (zijn basis salaris maal 110 procent) plus zijn bonus.
         """
         
         # Parse the code
@@ -104,7 +104,7 @@ class TestTimelineScalarSimple(unittest.TestCase):
             het doel bedrag Bedrag voor elke maand;
             het tekort Bedrag voor elke maand;
 
-        Parameter het minimum saldo : Bedrag = 1000;
+        Parameter het minimum saldo : Bedrag;
 
         Regel bereken tekort
             geldig altijd
@@ -126,7 +126,7 @@ class TestTimelineScalarSimple(unittest.TestCase):
         
         code = """
         Objecttype de Afdeling
-            het budget Bedrag voor elke jaar;
+            het budget Bedrag voor elk jaar;
             het maandelijks budget Bedrag voor elke maand;
 
         Regel verdeel budget

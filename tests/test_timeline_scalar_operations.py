@@ -26,6 +26,7 @@ class TestTimelineScalarOperations(unittest.TestCase):
     def setUp(self):
         """Set up test environment."""
         self.domain_model = DomainModel(
+            span=None,
             parameters={},
             domeinen={},
             objecttypes={
@@ -35,11 +36,8 @@ class TestTimelineScalarOperations(unittest.TestCase):
                         'maandBedrag': Attribuut(
                             naam='maandBedrag',
                             datatype='Bedrag',
-                            eenheid='€/maand',
-                            timeline=Timeline(
-                                periods=[],
-                                granularity='maand'
-                            ),
+                            eenheid='€',
+                            timeline='maand',
                             span=None
                         ),
                         'factor': Attribuut(
@@ -56,7 +54,7 @@ class TestTimelineScalarOperations(unittest.TestCase):
                     span=None
                 )
             },
-            feittypes={},
+            feittypen={},
             regels=[]
         )
         
@@ -68,7 +66,7 @@ class TestTimelineScalarOperations(unittest.TestCase):
             object_type_naam='TestObject',
             instance_id='test1'
         )
-        self.context.objects['test1'] = self.test_obj
+        self.context.add_object(self.test_obj)
         self.context.current_instance = self.test_obj
     
     def test_timeline_plus_scalar(self):
@@ -79,12 +77,12 @@ class TestTimelineScalarOperations(unittest.TestCase):
                 Period(
                     start_date=datetime(2024, 1, 1),
                     end_date=datetime(2024, 2, 1),
-                    value=Value(value=Decimal('100'), datatype='Bedrag', unit='€/maand')
+                    value=Value(value=Decimal('100'), datatype='Bedrag', unit='€')
                 ),
                 Period(
                     start_date=datetime(2024, 2, 1),
                     end_date=datetime(2024, 3, 1),
-                    value=Value(value=Decimal('200'), datatype='Bedrag', unit='€/maand')
+                    value=Value(value=Decimal('200'), datatype='Bedrag', unit='€')
                 )
             ],
             granularity='maand'
@@ -102,7 +100,7 @@ class TestTimelineScalarOperations(unittest.TestCase):
         expr = BinaryExpression(
             left=AttributeReference(path=['maandBedrag'], span=None),
             operator=Operator.PLUS,
-            right=Literal(value=Decimal('50'), datatype='Bedrag', unit='€/maand', span=None),
+            right=Literal(value=Decimal('50'), datatype='Bedrag', eenheid='€', span=None),
             span=None
         )
         
@@ -115,11 +113,11 @@ class TestTimelineScalarOperations(unittest.TestCase):
         
         # First period: 100 + 50 = 150
         self.assertEqual(result.timeline.periods[0].value.value, Decimal('150'))
-        self.assertEqual(result.timeline.periods[0].value.unit, '€/maand')
+        self.assertEqual(result.timeline.periods[0].value.unit, '€')
         
         # Second period: 200 + 50 = 250
         self.assertEqual(result.timeline.periods[1].value.value, Decimal('250'))
-        self.assertEqual(result.timeline.periods[1].value.unit, '€/maand')
+        self.assertEqual(result.timeline.periods[1].value.unit, '€')
     
     def test_scalar_plus_timeline(self):
         """Test scalar + timeline operation (commutative)."""
@@ -144,7 +142,7 @@ class TestTimelineScalarOperations(unittest.TestCase):
         
         # Create expression: 50 + maandBedrag
         expr = BinaryExpression(
-            left=Literal(value=Decimal('50'), datatype='Bedrag', unit='€', span=None),
+            left=Literal(value=Decimal('50'), datatype='Bedrag', eenheid='€', span=None),
             operator=Operator.PLUS,
             right=AttributeReference(path=['maandBedrag'], span=None),
             span=None
@@ -180,7 +178,7 @@ class TestTimelineScalarOperations(unittest.TestCase):
         expr = BinaryExpression(
             left=AttributeReference(path=['maandBedrag'], span=None),
             operator=Operator.MIN,
-            right=Literal(value=Decimal('30'), datatype='Bedrag', unit='€', span=None),
+            right=Literal(value=Decimal('30'), datatype='Bedrag', eenheid='€', span=None),
             span=None
         )
         
@@ -211,7 +209,7 @@ class TestTimelineScalarOperations(unittest.TestCase):
         
         # Create expression: 100 - maandBedrag
         expr = BinaryExpression(
-            left=Literal(value=Decimal('100'), datatype='Bedrag', unit='€', span=None),
+            left=Literal(value=Decimal('100'), datatype='Bedrag', eenheid='€', span=None),
             operator=Operator.MIN,
             right=AttributeReference(path=['maandBedrag'], span=None),
             span=None
@@ -229,12 +227,12 @@ class TestTimelineScalarOperations(unittest.TestCase):
                 Period(
                     start_date=datetime(2024, 1, 1),
                     end_date=datetime(2024, 2, 1),
-                    value=Value(value=Decimal('100'), datatype='Bedrag', unit='€/maand')
+                    value=Value(value=Decimal('100'), datatype='Bedrag', unit='€')
                 ),
                 Period(
                     start_date=datetime(2024, 2, 1),
                     end_date=datetime(2024, 3, 1),
-                    value=Value(value=Decimal('200'), datatype='Bedrag', unit='€/maand')
+                    value=Value(value=Decimal('200'), datatype='Bedrag', unit='€')
                 )
             ],
             granularity='maand'
@@ -251,7 +249,7 @@ class TestTimelineScalarOperations(unittest.TestCase):
         expr = BinaryExpression(
             left=AttributeReference(path=['maandBedrag'], span=None),
             operator=Operator.MAAL,
-            right=Literal(value=Decimal('2'), datatype='Numeriek', unit=None, span=None),
+            right=Literal(value=Decimal('2'), datatype='Numeriek', eenheid=None, span=None),
             span=None
         )
         
@@ -262,7 +260,7 @@ class TestTimelineScalarOperations(unittest.TestCase):
         # Second period: 200 * 2 = 400
         self.assertEqual(result.timeline.periods[1].value.value, Decimal('400'))
         # Unit should be preserved
-        self.assertEqual(result.timeline.periods[0].value.unit, '€/maand')
+        self.assertEqual(result.timeline.periods[0].value.unit, '€')
     
     def test_scalar_times_timeline(self):
         """Test scalar * timeline operation (commutative)."""
@@ -286,7 +284,7 @@ class TestTimelineScalarOperations(unittest.TestCase):
         
         # Create expression: 3 * maandBedrag
         expr = BinaryExpression(
-            left=Literal(value=Decimal('3'), datatype='Numeriek', unit=None, span=None),
+            left=Literal(value=Decimal('3'), datatype='Numeriek', eenheid=None, span=None),
             operator=Operator.MAAL,
             right=AttributeReference(path=['maandBedrag'], span=None),
             span=None
@@ -321,7 +319,7 @@ class TestTimelineScalarOperations(unittest.TestCase):
         expr = BinaryExpression(
             left=AttributeReference(path=['maandBedrag'], span=None),
             operator=Operator.GEDEELD_DOOR,
-            right=Literal(value=Decimal('2'), datatype='Numeriek', unit=None, span=None),
+            right=Literal(value=Decimal('2'), datatype='Numeriek', eenheid=None, span=None),
             span=None
         )
         
@@ -352,7 +350,7 @@ class TestTimelineScalarOperations(unittest.TestCase):
         
         # Create expression: 100 / maandBedrag
         expr = BinaryExpression(
-            left=Literal(value=Decimal('100'), datatype='Numeriek', unit=None, span=None),
+            left=Literal(value=Decimal('100'), datatype='Numeriek', eenheid=None, span=None),
             operator=Operator.GEDEELD_DOOR,
             right=AttributeReference(path=['maandBedrag'], span=None),
             span=None
@@ -392,7 +390,7 @@ class TestTimelineScalarOperations(unittest.TestCase):
         expr = BinaryExpression(
             left=AttributeReference(path=['maandBedrag'], span=None),
             operator=Operator.PLUS,
-            right=Literal(value=Decimal('50'), datatype='Bedrag', unit='€', span=None),
+            right=Literal(value=Decimal('50'), datatype='Bedrag', eenheid='€', span=None),
             span=None
         )
         
@@ -429,7 +427,7 @@ class TestTimelineScalarOperations(unittest.TestCase):
         expr = BinaryExpression(
             left=AttributeReference(path=['maandBedrag'], span=None),
             operator=Operator.GEDEELD_DOOR,
-            right=Literal(value=Decimal('0'), datatype='Numeriek', unit=None, span=None),
+            right=Literal(value=Decimal('0'), datatype='Numeriek', eenheid=None, span=None),
             span=None
         )
         
@@ -474,7 +472,7 @@ class TestTimelineScalarOperations(unittest.TestCase):
         expr = BinaryExpression(
             left=AttributeReference(path=['maandBedrag'], span=None),
             operator=Operator.MAAL,
-            right=Literal(value=Decimal('1.1'), datatype='Numeriek', unit=None, span=None),
+            right=Literal(value=Decimal('1.1'), datatype='Numeriek', eenheid=None, span=None),
             span=None
         )
         

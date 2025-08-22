@@ -2278,23 +2278,31 @@ class RegelSpraakModelBuilder(RegelSpraakVisitor):
         """Visit rule status condition expressions (regelversie X is gevuurd/inconsistent)."""
         logger.debug(f"Visiting regel status condition: {safe_get_text(ctx)}")
         
-        # Handle regelStatusCheck alternative  
-        if isinstance(ctx, AntlrParser.RegelStatusCheckContext):
+        # Handle regelStatusGevuurdCheck alternative  
+        if isinstance(ctx, AntlrParser.RegelStatusGevuurdCheckContext):
             # Extract rule name from naamwoord
             regel_naam_text = self._extract_canonical_name(ctx.name)
             if not regel_naam_text:
                 logger.error(f"Could not extract rule name from: {safe_get_text(ctx.name)}")
                 return None
             
-            # Extract check type from op token
-            op_token = ctx.op
-            if op_token.type == AntlrLexer.GEVUURD:
-                check_type = "gevuurd"
-            elif op_token.type == AntlrLexer.INCONSISTENT:
-                check_type = "inconsistent"
-            else:
-                logger.warning(f"Unhandled regel status operator: {op_token.text}")
+            check_type = "gevuurd"
+            
+            return RegelStatusExpression(
+                regel_naam=regel_naam_text,
+                check=check_type,
+                span=self.get_span(ctx)
+            )
+        
+        # Handle regelStatusInconsistentCheck alternative
+        if isinstance(ctx, AntlrParser.RegelStatusInconsistentCheckContext):
+            # Extract rule name from naamwoord
+            regel_naam_text = self._extract_canonical_name(ctx.name)
+            if not regel_naam_text:
+                logger.error(f"Could not extract rule name from: {safe_get_text(ctx.name)}")
                 return None
+            
+            check_type = "inconsistent"
             
             return RegelStatusExpression(
                 regel_naam=regel_naam_text,
@@ -2362,7 +2370,15 @@ class RegelSpraakModelBuilder(RegelSpraakVisitor):
             subject = self.visitOnderwerpReferentie(ctx.subject)
             # The 'object' field might be reserved in Python, check for object_
             object_ctx = ctx.object_ if hasattr(ctx, 'object_') else ctx.object
-            object_name = object_ctx.getText()
+            # Use get_text_with_spaces to preserve spaces and handle articles
+            object_text = get_text_with_spaces(object_ctx)
+            # Remove common articles from the beginning if present
+            for article in ["een ", "het ", "de "]:
+                if object_text.startswith(article):
+                    object_name = object_text[len(article):]
+                    break
+            else:
+                object_name = object_text
             # Transform to normal word order: subject HEEFT object
             left_expr = subject
             right_expr = Literal(value=object_name, datatype="Tekst", span=self.get_span(object_ctx))
@@ -3212,10 +3228,9 @@ class RegelSpraakModelBuilder(RegelSpraakVisitor):
                 logger.error(f"Failed to parse first subject in {safe_get_text(ctx)}")
                 return None
             
-            # Include the article in the subject text if present
-            if pattern_ctx.article1:
-                article1_text = pattern_ctx.article1.text
-                subject1_text = f"{article1_text} {subject1_text}"
+            # First subject always has "een" in front of it in the pattern
+            # Pattern: EEN role1 VAN EEN subject1 IS article2 role2 VAN article3 subject2
+            # So subject1 already has its article (EEN) in the pattern
             
             # For FeitCreatie, subjects are treated as single references
             subject1_ref = AttributeReference(path=[subject1_text], span=self.get_span(pattern_ctx.subject1))
@@ -3232,10 +3247,10 @@ class RegelSpraakModelBuilder(RegelSpraakVisitor):
                 logger.error(f"Failed to parse second subject in {safe_get_text(ctx)}")
                 return None
             
-            # Include the article in the subject text if present
-            if pattern_ctx.article2:
-                article2_text = pattern_ctx.article2.text
-                subject2_text = f"{article2_text} {subject2_text}"
+            # Include the article3 in the subject text if present
+            if pattern_ctx.article3:
+                article3_text = pattern_ctx.article3.text
+                subject2_text = f"{article3_text} {subject2_text}"
             
             # For FeitCreatie, subjects are treated as single references
             subject2_ref = AttributeReference(path=[subject2_text], span=self.get_span(pattern_ctx.subject2))

@@ -121,6 +121,8 @@ class RuntimeObject:
     dimensioned_attributen: Dict[str, List[DimensionedValue]] = field(default_factory=dict)
     # Kenmerken store their current boolean state (True if the object has the kenmerk)
     kenmerken: Dict[str, bool] = field(default_factory=dict)
+    # Timeline kenmerken store TimelineValue objects with boolean values
+    timeline_kenmerken: Dict[str, TimelineValue] = field(default_factory=dict)
     # Unique identifier for the object instance (optional but helpful)
     instance_id: Optional[str] = None # Could be auto-generated or assigned
     
@@ -189,6 +191,24 @@ class RuntimeContext:
     # Rule execution tracking for regel status conditions
     executed_rules: Set[str] = field(default_factory=set)  # Rules that have been executed (fired)
     inconsistent_rules: Set[str] = field(default_factory=set)  # Consistency rules that found inconsistencies
+
+    # --- Rule Status Methods ---
+    
+    def is_rule_executed(self, rule_name: str) -> bool:
+        """Check if a rule has been executed (fired)."""
+        return rule_name in self.executed_rules
+    
+    def is_rule_inconsistent(self, rule_name: str) -> bool:
+        """Check if a consistency rule found an inconsistency."""
+        return rule_name in self.inconsistent_rules
+    
+    def mark_rule_executed(self, rule_name: str):
+        """Mark a rule as executed."""
+        self.executed_rules.add(rule_name)
+    
+    def mark_rule_inconsistent(self, rule_name: str):
+        """Mark a consistency rule as inconsistent."""
+        self.inconsistent_rules.add(rule_name)
 
     # --- Parameter Handling ---
 
@@ -571,6 +591,33 @@ class RuntimeContext:
         if self.trace_sink and old_value != value: # Only trace change
             # TODO: Refine trace event for kenmerken
             self.trace_sink.assignment(instance, f"kenmerk:{kenmerk_name}", old_value, value, span)
+    
+    def set_timeline_kenmerk(self, instance: RuntimeObject, kenmerk_name: str, timeline_value: TimelineValue, span: Optional[ast.SourceSpan] = None):
+        """Sets a timeline kenmerk on an instance."""
+        # Check if kenmerk is defined for the type with timeline
+        obj_type_def = self.domain_model.objecttypes.get(instance.object_type_naam)
+        if not obj_type_def or kenmerk_name not in obj_type_def.kenmerken:
+            raise RuntimeError(f"Cannot set timeline Kenmerk '{kenmerk_name}': Not defined for ObjectType '{instance.object_type_naam}'.")
+        
+        kenmerk_def = obj_type_def.kenmerken[kenmerk_name]
+        if not kenmerk_def.tijdlijn:
+            raise RuntimeError(f"Cannot set timeline for Kenmerk '{kenmerk_name}': Not defined with timeline.")
+        
+        # Store the timeline kenmerk
+        old_value = instance.timeline_kenmerken.get(kenmerk_name)
+        instance.timeline_kenmerken[kenmerk_name] = timeline_value
+        
+        if self.trace_sink and old_value != timeline_value:
+            self.trace_sink.assignment(instance, f"timeline_kenmerk:{kenmerk_name}", old_value, timeline_value, span)
+    
+    def get_timeline_kenmerk(self, instance: RuntimeObject, kenmerk_name: str, evaluation_date: Optional[datetime] = None) -> Optional[Value]:
+        """Gets a timeline kenmerk's value at a specific date."""
+        if kenmerk_name in instance.timeline_kenmerken:
+            timeline_val = instance.timeline_kenmerken[kenmerk_name]
+            if timeline_val and timeline_val.timeline:
+                date_to_use = evaluation_date or self.evaluation_date or datetime.now()
+                return timeline_val.timeline.get_value_at(date_to_use)
+        return None
 
     # --- Data Loading ---
     

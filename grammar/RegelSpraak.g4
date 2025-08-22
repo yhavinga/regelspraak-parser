@@ -852,7 +852,8 @@ unaryCondition // Now potentially part of comparisonExpression
 
 // Represents conditions checking the status of a rule
 regelStatusCondition // Now potentially part of comparisonExpression
-    : REGELVERSIE name=naamwoord IS op=(GEVUURD | INCONSISTENT) # regelStatusCheck
+    : REGELVERSIE name=naamwoord IS_GEVUURD # regelStatusGevuurdCheck
+    | REGELVERSIE name=naamwoord IS_INCONSISTENT # regelStatusInconsistentCheck
     ;
 
 // Dutch subordinate clause expressions (Subject-Object-Verb order)
