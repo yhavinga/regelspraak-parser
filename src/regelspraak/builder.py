@@ -604,10 +604,28 @@ class RegelSpraakModelBuilder(RegelSpraakVisitor):
         # Fallback
         return safe_get_text(ctx)
 
+    def _normalize_kenmerk_name(self, text: str) -> str:
+        """Normalize kenmerk names by stripping verb prefixes.
+        
+        Removes leading verbs like 'is', 'heeft', 'zijn', 'hebben' to ensure
+        consistent kenmerk naming between definition and usage.
+        """
+        # Strip common verb prefixes
+        prefixes = ["is ", "heeft ", "zijn ", "hebben "]
+        normalized = text.strip()
+        for prefix in prefixes:
+            if normalized.lower().startswith(prefix):
+                # Remove prefix preserving the rest of the case
+                normalized = normalized[len(prefix):]
+                break
+        return normalized
+    
     def visitKenmerkNaam(self, ctx: AntlrParser.KenmerkNaamContext) -> str:
         """Extract the name string from a kenmerkNaam context."""
         # Can be identifier or naamwoord
-        return safe_get_text(ctx)
+        raw_name = safe_get_text(ctx)
+        # Normalize to ensure consistent reference
+        return self._normalize_kenmerk_name(raw_name)
 
     def visitBasisOnderwerpToString(self, ctx: AntlrParser.BasisOnderwerpContext) -> str:
         """Extracts a string representation from basisOnderwerp."""
@@ -2522,6 +2540,9 @@ class RegelSpraakModelBuilder(RegelSpraakVisitor):
         if not naam:
              logger.error(f"Could not parse kenmerk name in {safe_get_text(ctx)}")
              return None
+        
+        # Normalize kenmerk name to strip verb prefixes
+        naam = self._normalize_kenmerk_name(naam)
 
         # Handle timeline if present
         tijdlijn = None

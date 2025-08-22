@@ -85,7 +85,6 @@ class TestRegelStatus(unittest.TestCase):
         # The person should NOT have is_volwassen = True
         self.assertFalse(context.get_kenmerk(person, "is volwassen"))
 
-    @unittest.skip("Parser issue with kenmerk name normalization - 'is ongeldig' stored as 'is ongeldig' but accessed as 'ongeldig'")
     def test_regel_is_inconsistent_uniek(self):
         """Test 'regel X is inconsistent' for uniqueness consistency rule."""
         code = """
@@ -98,7 +97,7 @@ class TestRegelStatus(unittest.TestCase):
 
         Regel controleregel
             geldig altijd
-                Een persoon fout indien regelversie uniekheidcontrole is inconsistent.
+                Een persoon heeft fout indien regelversie uniekheidcontrole is inconsistent.
         """
         
         # Parse the model

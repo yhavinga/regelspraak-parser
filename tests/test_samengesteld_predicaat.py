@@ -347,32 +347,32 @@ Regel tel gezond
         persoon1 = RuntimeObject(object_type_naam='Natuurlijk persoon', instance_id='p1')
         context.set_attribute(persoon1, 'naam', 'Jan')
         persoon1.kenmerken['roker'] = False
-        persoon1.kenmerken['heeft overgewicht'] = False
-        persoon1.kenmerken['heeft hoge bloeddruk'] = False
+        persoon1.kenmerken['overgewicht'] = False
+        persoon1.kenmerken['hoge bloeddruk'] = False
         context.add_object(persoon1)
         
         # Person 2: All risk factors (should not be counted - 3 conditions)
         persoon2 = RuntimeObject(object_type_naam='Natuurlijk persoon', instance_id='p2')
         context.set_attribute(persoon2, 'naam', 'Piet')
         persoon2.kenmerken['roker'] = True
-        persoon2.kenmerken['heeft overgewicht'] = True
-        persoon2.kenmerken['heeft hoge bloeddruk'] = True
+        persoon2.kenmerken['overgewicht'] = True
+        persoon2.kenmerken['hoge bloeddruk'] = True
         context.add_object(persoon2)
         
         # Person 3: One risk factor (should be counted - 1 condition)
         persoon3 = RuntimeObject(object_type_naam='Natuurlijk persoon', instance_id='p3')
         context.set_attribute(persoon3, 'naam', 'Marie')
         persoon3.kenmerken['roker'] = False
-        persoon3.kenmerken['heeft overgewicht'] = True
-        persoon3.kenmerken['heeft hoge bloeddruk'] = False
+        persoon3.kenmerken['overgewicht'] = True
+        persoon3.kenmerken['hoge bloeddruk'] = False
         context.add_object(persoon3)
         
         # Person 4: Two risk factors (should not be counted - 2 conditions)
         persoon4 = RuntimeObject(object_type_naam='Natuurlijk persoon', instance_id='p4')
         context.set_attribute(persoon4, 'naam', 'Lisa')
         persoon4.kenmerken['roker'] = True
-        persoon4.kenmerken['heeft overgewicht'] = False
-        persoon4.kenmerken['heeft hoge bloeddruk'] = True
+        persoon4.kenmerken['overgewicht'] = False
+        persoon4.kenmerken['hoge bloeddruk'] = True
         context.add_object(persoon4)
         
         # Create relationships
