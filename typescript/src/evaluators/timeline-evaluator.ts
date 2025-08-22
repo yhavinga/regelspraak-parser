@@ -508,4 +508,90 @@ export class TimelineEvaluator {
     const order = { 'dag': 0, 'maand': 1, 'jaar': 2 };
     return order[g1] < order[g2] ? g1 : g2;
   }
+
+  /**
+   * Evaluate timeline × scalar operation.
+   * Broadcasts the scalar value across all periods in the timeline.
+   */
+  evaluateTimelineScalarOp(
+    timeline: Timeline,
+    scalar: Value,
+    operator: '+' | '-' | '*' | '/',
+    context: RuntimeContext
+  ): TimelineValue {
+    const periods: Period[] = [];
+    
+    // Apply the operation to each period in the timeline
+    for (const period of timeline.periods) {
+      if (period.value) {
+        // Apply binary operation between timeline value and scalar
+        const resultValue = this.performBinaryOp(period.value, scalar, operator);
+        
+        periods.push({
+          startDate: period.startDate,
+          endDate: period.endDate,
+          value: resultValue
+        });
+      } else {
+        // Keep empty periods as-is
+        periods.push(period);
+      }
+    }
+    
+    // Create result timeline with same granularity
+    const cleanedPeriods = removeRedundantKnips(periods, timeline.granularity);
+    const resultTimeline: Timeline = {
+      periods: cleanedPeriods,
+      granularity: timeline.granularity
+    };
+    
+    return {
+      type: 'timeline',
+      value: resultTimeline
+    };
+  }
+
+  /**
+   * Evaluate scalar × timeline operation.
+   * Broadcasts the scalar value across all periods in the timeline.
+   * Order matters for non-commutative operations (-, /).
+   */
+  evaluateScalarTimelineOp(
+    scalar: Value,
+    timeline: Timeline,
+    operator: '+' | '-' | '*' | '/',
+    context: RuntimeContext
+  ): TimelineValue {
+    const periods: Period[] = [];
+    
+    // Apply the operation to each period in the timeline
+    for (const period of timeline.periods) {
+      if (period.value) {
+        // Apply binary operation between scalar and timeline value (order matters!)
+        const resultValue = this.performBinaryOp(scalar, period.value, operator);
+        
+        periods.push({
+          startDate: period.startDate,
+          endDate: period.endDate,
+          value: resultValue
+        });
+      } else {
+        // For operations with empty values, follow specification rules
+        // Most operations with empty values return empty
+        periods.push(period);
+      }
+    }
+    
+    // Create result timeline with same granularity
+    const cleanedPeriods = removeRedundantKnips(periods, timeline.granularity);
+    const resultTimeline: Timeline = {
+      periods: cleanedPeriods,
+      granularity: timeline.granularity
+    };
+    
+    return {
+      type: 'timeline',
+      value: resultTimeline
+    };
+  }
 }

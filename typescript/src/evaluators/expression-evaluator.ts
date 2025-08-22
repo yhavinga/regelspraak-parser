@@ -423,8 +423,12 @@ export class ExpressionEvaluator implements IEvaluator {
     right: Value,
     context: RuntimeContext
   ): Value {
-    // Both must be timelines, or one timeline and one scalar
+    // Check if we can perform the operation
+    const arithmeticOps = ['+', '-', '*', '/'];
+    const isArithmeticOp = arithmeticOps.includes(expr.operator);
+    
     if (left.type === 'timeline' && right.type === 'timeline') {
+      // Both are timelines
       const leftTimeline = (left as any as TimelineValue).value;
       const rightTimeline = (right as any as TimelineValue).value;
       return this.timelineEvaluator.evaluateTimelineBinaryOp(
@@ -433,9 +437,27 @@ export class ExpressionEvaluator implements IEvaluator {
         expr.operator as ('+' | '-' | '*' | '/' | '==' | '!=' | '>' | '<' | '>=' | '<=' | '&&' | '||'),
         context
       );
+    } else if (left.type === 'timeline' && right.type === 'number' && isArithmeticOp) {
+      // Timeline × scalar
+      const leftTimeline = (left as any as TimelineValue).value;
+      return this.timelineEvaluator.evaluateTimelineScalarOp(
+        leftTimeline,
+        right,
+        expr.operator as ('+' | '-' | '*' | '/'),
+        context
+      );
+    } else if (left.type === 'number' && right.type === 'timeline' && isArithmeticOp) {
+      // Scalar × timeline
+      const rightTimeline = (right as any as TimelineValue).value;
+      return this.timelineEvaluator.evaluateScalarTimelineOp(
+        left,
+        rightTimeline,
+        expr.operator as ('+' | '-' | '*' | '/'),
+        context
+      );
     } else {
-      // One timeline and one scalar - not yet implemented
-      throw new Error('Timeline-scalar operations not yet implemented');
+      // Unsupported combination
+      throw new Error(`Cannot apply operator ${expr.operator} to ${left.type} and ${right.type}`);
     }
   }
 
