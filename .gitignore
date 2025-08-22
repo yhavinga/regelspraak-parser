@@ -10,6 +10,12 @@ __pycache__/
 # ANTLR Generated Code
 src/regelspraak/_antlr/
 
+# TypeScript ANTLR Generated Code (kept in repo for distribution)
+# Uncomment during active grammar development to avoid conflicts:
+# typescript/src/generated/antlr/
+# typescript/src/generated/multiword-keywords.json
+# typescript/src/generated/multiword-keywords.ts
+
 # ANTLR Library
 lib/antlr*jar
 
