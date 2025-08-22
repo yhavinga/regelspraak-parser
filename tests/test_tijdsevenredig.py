@@ -21,7 +21,7 @@ class TestTijdsevenredigDeel(unittest.TestCase):
         code = """
         Objecttype de Passagier
             de belastingvermindering Numeriek (getal met 2 decimalen) met eenheid € voor elke maand;
-            het recht op belastingvermindering kenmerk (bezittelijk);
+            het recht op belastingvermindering kenmerk (bezittelijk) voor elke dag;
 
         Parameter de STANDAARD_BELASTINGVERMINDERING : Numeriek (getal met 2 decimalen) met eenheid € voor elk jaar;
 
@@ -75,7 +75,7 @@ class TestTijdsevenredigDeel(unittest.TestCase):
             ],
             granularity="dag"
         )
-        context.set_timeline_attribute(passagier, "recht_op_belastingvermindering", TimelineValue(timeline=recht_timeline))
+        context.set_timeline_kenmerk(passagier, "recht op belastingvermindering", TimelineValue(timeline=recht_timeline))
         
         # Execute the rule
         evaluator = Evaluator(context)
@@ -113,7 +113,7 @@ class TestTijdsevenredigDeel(unittest.TestCase):
         code = """
         Objecttype de Passagier
             de belastingvermindering Numeriek (getal met 2 decimalen) met eenheid € voor elk jaar;
-            het recht op belastingvermindering kenmerk (bezittelijk);
+            het recht op belastingvermindering kenmerk (bezittelijk) voor elke dag;
 
         Parameter de STANDAARD_BELASTINGVERMINDERING : Numeriek (getal met 2 decimalen) met eenheid € voor elk jaar;
 
@@ -167,7 +167,7 @@ class TestTijdsevenredigDeel(unittest.TestCase):
             ],
             granularity="dag"
         )
-        context.set_timeline_attribute(passagier, "recht_op_belastingvermindering", TimelineValue(timeline=recht_timeline))
+        context.set_timeline_kenmerk(passagier, "recht op belastingvermindering", TimelineValue(timeline=recht_timeline))
         
         # Execute the rule
         evaluator = Evaluator(context)
@@ -198,7 +198,7 @@ class TestTijdsevenredigDeel(unittest.TestCase):
         code = """
         Objecttype de Passagier
             de belastingvermindering Numeriek (getal met 2 decimalen) met eenheid € voor elke maand;
-            het recht op belastingvermindering kenmerk (bezittelijk);
+            het recht op belastingvermindering kenmerk (bezittelijk) voor elke dag;
 
         Parameter de STANDAARD_BELASTINGVERMINDERING : Numeriek (getal met 2 decimalen) met eenheid € voor elk jaar;
 
@@ -252,7 +252,7 @@ class TestTijdsevenredigDeel(unittest.TestCase):
             ],
             granularity="dag"
         )
-        context.set_timeline_attribute(passagier, "recht_op_belastingvermindering", TimelineValue(timeline=recht_timeline))
+        context.set_timeline_kenmerk(passagier, "recht op belastingvermindering", TimelineValue(timeline=recht_timeline))
         
         # Execute the rule
         evaluator = Evaluator(context)
