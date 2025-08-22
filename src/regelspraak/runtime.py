@@ -64,18 +64,69 @@ class TimelineValue:
         
         Returns None if no period covers the given date.
         """
+        from datetime import datetime as dt, date as date_type
+        
+        # Convert everything to datetime for consistent comparison
+        if isinstance(date, date_type) and not isinstance(date, dt):
+            # It's a date but not datetime, convert to datetime
+            check_dt = dt.combine(date, dt.min.time())
+        elif isinstance(date, dt):
+            check_dt = date
+        else:
+            # Assume it's already datetime-like
+            check_dt = date
+        
         for period in self.timeline.periods:
+            # Convert period dates to datetime if needed
+            if isinstance(period.start_date, date_type) and not isinstance(period.start_date, dt):
+                period_start = dt.combine(period.start_date, dt.min.time())
+            else:
+                period_start = period.start_date
+                
+            if isinstance(period.end_date, date_type) and not isinstance(period.end_date, dt):
+                period_end = dt.combine(period.end_date, dt.min.time())
+            else:
+                period_end = period.end_date
+            
             # Check if date falls within this period (inclusive start, exclusive end)
-            if period.start_date <= date < period.end_date:
+            if period_start <= check_dt < period_end:
                 return period.value
         return None
     
     def get_periods_between(self, start_date: datetime, end_date: datetime) -> List[ast.Period]:
         """Get all periods that overlap with the given date range."""
+        from datetime import datetime as dt, date as date_type
+        
+        # Convert everything to datetime for consistent comparison
+        if isinstance(start_date, date_type) and not isinstance(start_date, dt):
+            start_dt = dt.combine(start_date, dt.min.time())
+        elif isinstance(start_date, dt):
+            start_dt = start_date
+        else:
+            start_dt = start_date
+            
+        if isinstance(end_date, date_type) and not isinstance(end_date, dt):
+            end_dt = dt.combine(end_date, dt.min.time())
+        elif isinstance(end_date, dt):
+            end_dt = end_date
+        else:
+            end_dt = end_date
+        
         overlapping = []
         for period in self.timeline.periods:
+            # Convert period dates to datetime if needed
+            if isinstance(period.start_date, date_type) and not isinstance(period.start_date, dt):
+                period_start = dt.combine(period.start_date, dt.min.time())
+            else:
+                period_start = period.start_date
+                
+            if isinstance(period.end_date, date_type) and not isinstance(period.end_date, dt):
+                period_end = dt.combine(period.end_date, dt.min.time())
+            else:
+                period_end = period.end_date
+            
             # Check for overlap
-            if period.start_date < end_date and period.end_date > start_date:
+            if period_start < end_dt and period_end > start_dt:
                 overlapping.append(period)
         return overlapping
     

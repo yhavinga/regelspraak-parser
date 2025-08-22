@@ -1754,6 +1754,24 @@ class Evaluator:
                             return True
         
         elif isinstance(expr, BinaryExpression):
+            # Check for kenmerk operators (HEEFT, HEEFT_NIET, IS kenmerk)
+            if expr.operator in [Operator.HEEFT, Operator.HEEFT_NIET, Operator.IS]:
+                # Check if this is a kenmerk check with timeline
+                if isinstance(expr.right, Literal) and expr.right.datatype == "Tekst":
+                    kenmerk_name = expr.right.value
+                    if self.context.current_instance:
+                        obj_type_def = self.context.domain_model.objecttypes.get(
+                            self.context.current_instance.object_type_naam
+                        )
+                        if obj_type_def:
+                            # Check if this kenmerk has a timeline
+                            kenmerk_def = obj_type_def.kenmerken.get(kenmerk_name)
+                            if not kenmerk_def:
+                                # Try with "heeft " prefix for bezittelijk kenmerken
+                                kenmerk_def = obj_type_def.kenmerken.get(f"heeft {kenmerk_name}")
+                            if kenmerk_def and hasattr(kenmerk_def, 'tijdlijn') and kenmerk_def.tijdlijn:
+                                return True
+            
             # Either operand being a timeline makes the whole expression a timeline
             return self._is_timeline_expression(expr.left) or self._is_timeline_expression(expr.right)
         
@@ -2233,8 +2251,24 @@ class Evaluator:
             
             if instance is None:
                 raise RegelspraakError("Could not determine object instance for 'IS' check.", span=expr.left.span)
-                 
-            bool_result = self.context.check_is(instance, right_val.value)
+            
+            kenmerk_name = right_val.value
+            
+            # Check if this is a timeline kenmerk
+            if instance and kenmerk_name in instance.timeline_kenmerken:
+                # Get the timeline value at the current evaluation date
+                timeline_val = instance.timeline_kenmerken[kenmerk_name]
+                if self.context.evaluation_date:
+                    val = timeline_val.get_value_at(self.context.evaluation_date)
+                    bool_result = val.value if val else False
+                else:
+                    # No evaluation date set, use current date
+                    from datetime import datetime
+                    val = timeline_val.get_value_at(datetime.now())
+                    bool_result = val.value if val else False
+            else:
+                # Regular kenmerk or type check
+                bool_result = self.context.check_is(instance, right_val.value)
             return Value(value=bool_result, datatype="Boolean", unit=None)
 
         elif op == Operator.IN:
@@ -2254,7 +2288,24 @@ class Evaluator:
             instance = self.context.current_instance
             if not instance:
                 raise RegelspraakError("Could not determine object instance for 'IS_NIET' check.", span=expr.left.span)
-            bool_result = not self.context.check_is(instance, right_val.value)
+            
+            kenmerk_name = right_val.value
+            
+            # Check if this is a timeline kenmerk
+            if instance and kenmerk_name in instance.timeline_kenmerken:
+                # Get the timeline value at the current evaluation date
+                timeline_val = instance.timeline_kenmerken[kenmerk_name]
+                if self.context.evaluation_date:
+                    val = timeline_val.get_value_at(self.context.evaluation_date)
+                    bool_result = not (val.value if val else False)
+                else:
+                    # No evaluation date set, use current date
+                    from datetime import datetime
+                    val = timeline_val.get_value_at(datetime.now())
+                    bool_result = not (val.value if val else False)
+            else:
+                # Regular kenmerk or type check
+                bool_result = not self.context.check_is(instance, right_val.value)
             return Value(value=bool_result, datatype="Boolean", unit=None)
             
         elif op == Operator.HEEFT:
@@ -2266,17 +2317,32 @@ class Evaluator:
             # Check if the current instance has this kenmerk set to true
             # For bezittelijk kenmerken, we need to check both "heeft X" and "X" forms
             kenmerk_name = right_val.value
-            # First try with "heeft " prefix
-            heeft_kenmerk_name = f"heeft {kenmerk_name}"
-            if self.context.current_instance.object_type_naam in self.context.domain_model.objecttypes:
-                obj_type = self.context.domain_model.objecttypes[self.context.current_instance.object_type_naam]
-                if heeft_kenmerk_name in obj_type.kenmerken:
-                    kenmerk_value = self.context.get_kenmerk(self.context.current_instance, heeft_kenmerk_name)
+            
+            # Check if this is a timeline kenmerk
+            if self.context.current_instance and kenmerk_name in self.context.current_instance.timeline_kenmerken:
+                # Get the timeline value at the current evaluation date
+                timeline_val = self.context.current_instance.timeline_kenmerken[kenmerk_name]
+                if self.context.evaluation_date:
+                    val = timeline_val.get_value_at(self.context.evaluation_date)
+                    kenmerk_value = val.value if val else False
                 else:
-                    # Fall back to just the kenmerk name without "heeft"
-                    kenmerk_value = self.context.get_kenmerk(self.context.current_instance, kenmerk_name)
+                    # No evaluation date set, use current date
+                    from datetime import datetime
+                    val = timeline_val.get_value_at(datetime.now())
+                    kenmerk_value = val.value if val else False
             else:
-                kenmerk_value = self.context.get_kenmerk(self.context.current_instance, kenmerk_name)
+                # Regular kenmerk (not timeline)
+                # First try with "heeft " prefix
+                heeft_kenmerk_name = f"heeft {kenmerk_name}"
+                if self.context.current_instance.object_type_naam in self.context.domain_model.objecttypes:
+                    obj_type = self.context.domain_model.objecttypes[self.context.current_instance.object_type_naam]
+                    if heeft_kenmerk_name in obj_type.kenmerken:
+                        kenmerk_value = self.context.get_kenmerk(self.context.current_instance, heeft_kenmerk_name)
+                    else:
+                        # Fall back to just the kenmerk name without "heeft"
+                        kenmerk_value = self.context.get_kenmerk(self.context.current_instance, kenmerk_name)
+                else:
+                    kenmerk_value = self.context.get_kenmerk(self.context.current_instance, kenmerk_name)
             return Value(value=kenmerk_value, datatype="Boolean")
             
         elif op == Operator.HEEFT_NIET:
@@ -2287,17 +2353,32 @@ class Evaluator:
             # Check if the current instance has this kenmerk set to true
             # For bezittelijk kenmerken, we need to check both "heeft X" and "X" forms
             kenmerk_name = right_val.value
-            # First try with "heeft " prefix
-            heeft_kenmerk_name = f"heeft {kenmerk_name}"
-            if self.context.current_instance.object_type_naam in self.context.domain_model.objecttypes:
-                obj_type = self.context.domain_model.objecttypes[self.context.current_instance.object_type_naam]
-                if heeft_kenmerk_name in obj_type.kenmerken:
-                    kenmerk_value = self.context.get_kenmerk(self.context.current_instance, heeft_kenmerk_name)
+            
+            # Check if this is a timeline kenmerk
+            if self.context.current_instance and kenmerk_name in self.context.current_instance.timeline_kenmerken:
+                # Get the timeline value at the current evaluation date
+                timeline_val = self.context.current_instance.timeline_kenmerken[kenmerk_name]
+                if self.context.evaluation_date:
+                    val = timeline_val.get_value_at(self.context.evaluation_date)
+                    kenmerk_value = val.value if val else False
                 else:
-                    # Fall back to just the kenmerk name without "heeft"
-                    kenmerk_value = self.context.get_kenmerk(self.context.current_instance, kenmerk_name)
+                    # No evaluation date set, use current date
+                    from datetime import datetime
+                    val = timeline_val.get_value_at(datetime.now())
+                    kenmerk_value = val.value if val else False
             else:
-                kenmerk_value = self.context.get_kenmerk(self.context.current_instance, kenmerk_name)
+                # Regular kenmerk (not timeline)
+                # First try with "heeft " prefix
+                heeft_kenmerk_name = f"heeft {kenmerk_name}"
+                if self.context.current_instance.object_type_naam in self.context.domain_model.objecttypes:
+                    obj_type = self.context.domain_model.objecttypes[self.context.current_instance.object_type_naam]
+                    if heeft_kenmerk_name in obj_type.kenmerken:
+                        kenmerk_value = self.context.get_kenmerk(self.context.current_instance, heeft_kenmerk_name)
+                    else:
+                        # Fall back to just the kenmerk name without "heeft"
+                        kenmerk_value = self.context.get_kenmerk(self.context.current_instance, kenmerk_name)
+                else:
+                    kenmerk_value = self.context.get_kenmerk(self.context.current_instance, kenmerk_name)
             return Value(value=not kenmerk_value, datatype="Boolean")
         
         # Handle dagsoort operators
@@ -2793,6 +2874,21 @@ class Evaluator:
                         timelines.append(timeline_val.timeline)
         
         elif isinstance(expr, BinaryExpression):
+            # Special handling for kenmerk operators (HEEFT, HEEFT_NIET, IS kenmerk)
+            if expr.operator in [Operator.HEEFT, Operator.HEEFT_NIET, Operator.IS]:
+                # Check if this references a timeline kenmerk
+                if isinstance(expr.right, Literal) and expr.right.datatype == "Tekst":
+                    kenmerk_name = expr.right.value
+                    if self.context.current_instance:
+                        # Check if this kenmerk has a timeline value stored
+                        timeline_val = self.context.current_instance.timeline_kenmerken.get(kenmerk_name)
+                        if not timeline_val:
+                            # Try with "heeft " prefix for bezittelijk kenmerken
+                            timeline_val = self.context.current_instance.timeline_kenmerken.get(f"heeft {kenmerk_name}")
+                        if timeline_val:
+                            timelines.append(timeline_val.timeline)
+            
+            # Also collect from operands in case they contain timelines
             timelines.extend(self._collect_timeline_operands(expr.left))
             timelines.extend(self._collect_timeline_operands(expr.right))
         
@@ -5299,10 +5395,11 @@ class Evaluator:
     # Note: _aggregate_timeline_values method removed as it's no longer needed
     # Timeline aggregation now returns scalar sums per specification
     
-    def _func_aantal_dagen_in(self, expr: FunctionCall, args: Optional[List[Value]]) -> Value:
+    def _func_aantal_dagen_in(self, expr: FunctionCall, args: Optional[List[Value]]) -> Union[Value, TimelineValue]:
         """Count number of days in a month or year where a condition is true.
         
-        According to spec: "het aantal dagen in" ("de maand" | "het jaar") "dat" <expressie>
+        According to spec section 7.2: "het aantal dagen in" ("de maand" | "het jaar") "dat" <expressie>
+        Returns a timeline with counts per period when in timeline context.
         
         The builder passes:
         - expr.arguments[0]: Literal with period type ("maand" or "jaar")
@@ -5338,62 +5435,150 @@ class Evaluator:
             else:
                 raise RegelspraakError("First argument to aantal_dagen_in must be 'maand' or 'jaar'", span=expr.span)
             
-            # Get the evaluation date to determine which period to check
-            eval_date = self.context.evaluation_date
-            if not eval_date:
-                # Use current date if no evaluation date is set
-                from datetime import datetime, date
-                eval_date = datetime.now().date()
-            else:
-                from datetime import date
+            # Determine the unit for the result based on period type
+            result_unit = f"dagen per {period_type}"
             
-            # Determine the period boundaries
-            if period_type == "maand":
-                # Count days in the current month
-                start_date = date(eval_date.year, eval_date.month, 1)
-                if eval_date.month == 12:
+            # Check if we should return a timeline
+            # This happens when the condition expression is timeline-aware
+            should_return_timeline = self._is_timeline_expression(condition_expr)
+            
+            # If not timeline-aware, fall back to scalar evaluation
+            if not should_return_timeline:
+                # Original scalar implementation for backward compatibility
+                eval_date = self.context.evaluation_date
+                if not eval_date:
+                    from datetime import datetime, date
+                    eval_date = datetime.now().date()
+                else:
+                    from datetime import date
+                
+                # Determine the period boundaries
+                if period_type == "maand":
+                    start_date = date(eval_date.year, eval_date.month, 1)
+                    if eval_date.month == 12:
+                        end_date = date(eval_date.year + 1, 1, 1)
+                    else:
+                        end_date = date(eval_date.year, eval_date.month + 1, 1)
+                elif period_type == "jaar":
+                    start_date = date(eval_date.year, 1, 1)
                     end_date = date(eval_date.year + 1, 1, 1)
                 else:
-                    end_date = date(eval_date.year, eval_date.month + 1, 1)
-            elif period_type == "jaar":
-                # Count days in the current year
-                start_date = date(eval_date.year, 1, 1)
-                end_date = date(eval_date.year + 1, 1, 1)
-            else:
-                raise RegelspraakError(f"Invalid period type: {period_type}", span=expr.span)
-            
-            # Count days where condition is true
-            count = 0
-            current_date = start_date
-            while current_date < end_date:
-                # Save current evaluation date
-                old_eval_date = self.context.evaluation_date
-                try:
-                    # Set evaluation date to the day we're checking
-                    self.context.evaluation_date = current_date
-                    
-                    # Evaluate the condition for this day
-                    result = self.evaluate_expression(condition_expr)
-                    
-                    # Count if the condition is true
-                    if result.value is True:
-                        count += 1
-                finally:
-                    # Restore evaluation date
-                    self.context.evaluation_date = old_eval_date
+                    raise RegelspraakError(f"Invalid period type: {period_type}", span=expr.span)
                 
-                # Move to next day
-                from datetime import timedelta
-                current_date = current_date + timedelta(days=1)
+                # Count days where condition is true
+                count = self._count_days_in_period(start_date, end_date, condition_expr)
+                
+                if self.context.trace_sink:
+                    self.context.trace_sink.value_calculated(
+                        expression=expr,
+                        value=f"aantal_dagen_in({period_type}, <condition>)",
+                        result=f"{count} dagen"
+                    )
+                
+                return Value(value=Decimal(count), datatype="Numeriek", unit=result_unit)
             
-            if self.context.trace_sink:
-                self.context.trace_sink.value_calculated(
-                    expression=expr,
-                    value=f"aantal_dagen_in({period_type}, <condition>)",
-                    result=f"{count} dagen"
-                )
+            # Timeline-aware implementation per specification
+            # Evaluate the condition as a timeline expression
+            logger.debug(f"Evaluating condition as timeline: {condition_expr}")
+            condition_timeline = self._evaluate_timeline_expression(condition_expr)
+            logger.debug(f"Condition timeline result type: {type(condition_timeline)}")
+            if isinstance(condition_timeline, TimelineValue):
+                logger.debug(f"Timeline periods: {len(condition_timeline.timeline.periods)}")
+                for i, p in enumerate(condition_timeline.timeline.periods):
+                    logger.debug(f"  Period {i}: {p.start_date} to {p.end_date}, value={p.value.value if p.value else None}")
             
-            return Value(value=Decimal(count), datatype="Numeriek", unit="dagen")
+            if not isinstance(condition_timeline, TimelineValue):
+                # If not a timeline, treat as constant condition
+                condition_val = condition_timeline
+                if condition_val.value is True:
+                    # Always true - return full day counts
+                    return self._create_full_day_counts_timeline(period_type)
+                else:
+                    # Always false - return zero counts
+                    return self._create_zero_counts_timeline(period_type)
+            
+            # Build result timeline with counts per period
+            result_periods = []
+            
+            # Group timeline periods by the specified granularity (month or year)
+            from datetime import date, timedelta
+            import calendar
+            
+            # Determine the range of months/years covered by the condition timeline
+            min_date = min(p.start_date for p in condition_timeline.timeline.periods)
+            max_date = max(p.end_date for p in condition_timeline.timeline.periods if p.end_date)
+            
+            # Generate periods based on the granularity
+            if period_type == "maand":
+                # Create one period per month
+                current_year = min_date.year
+                current_month = min_date.month
+                
+                while date(current_year, current_month, 1) < max_date:
+                    # Define the month boundaries
+                    period_start = date(current_year, current_month, 1)
+                    if current_month == 12:
+                        period_end = date(current_year + 1, 1, 1)
+                        next_month = 1
+                        next_year = current_year + 1
+                    else:
+                        period_end = date(current_year, current_month + 1, 1)
+                        next_month = current_month + 1
+                        next_year = current_year
+                    
+                    # Count days in this period where condition is true
+                    count = 0
+                    current_date = period_start
+                    while current_date < period_end:
+                        # Get condition value at this date
+                        cond_val = condition_timeline.get_value_at(current_date)
+                        if cond_val and cond_val.value is True:
+                            count += 1
+                        current_date = current_date + timedelta(days=1)
+                    
+                    # Add period to result
+                    result_periods.append(Period(
+                        start_date=period_start,
+                        end_date=period_end,
+                        value=Value(value=Decimal(count), datatype="Numeriek", unit=result_unit)
+                    ))
+                    
+                    # Move to next month
+                    current_month = next_month
+                    current_year = next_year
+            
+            elif period_type == "jaar":
+                # Create one period per year
+                current_year = min_date.year
+                
+                while date(current_year, 1, 1) < max_date:
+                    # Define the year boundaries
+                    period_start = date(current_year, 1, 1)
+                    period_end = date(current_year + 1, 1, 1)
+                    
+                    # Count days in this year where condition is true
+                    count = 0
+                    current_date = period_start
+                    while current_date < period_end and current_date < max_date:
+                        # Get condition value at this date
+                        cond_val = condition_timeline.get_value_at(current_date)
+                        if cond_val and cond_val.value is True:
+                            count += 1
+                        current_date = current_date + timedelta(days=1)
+                    
+                    # Add period to result
+                    result_periods.append(Period(
+                        start_date=period_start,
+                        end_date=period_end,
+                        value=Value(value=Decimal(count), datatype="Numeriek", unit=result_unit)
+                    ))
+                    
+                    # Move to next year
+                    current_year += 1
+            
+            # Create timeline with the appropriate granularity
+            timeline = Timeline(periods=result_periods, granularity=period_type)
+            return TimelineValue(timeline=timeline)
         
         # Legacy pattern with evaluated arguments (for backward compatibility)
         elif len(args) == 1:
@@ -5427,6 +5612,90 @@ class Evaluator:
             return Value(value=Decimal(days_count), datatype="Numeriek", unit="dagen")
         
         raise RegelspraakError(f"Function 'aantal_dagen_in' expects 2 arguments (period_type, condition), got {len(expr.arguments)}", span=expr.span)
+    
+    def _count_days_in_period(self, start_date, end_date, condition_expr: Expression) -> int:
+        """Helper to count days in a period where condition is true."""
+        from datetime import timedelta
+        
+        count = 0
+        current_date = start_date
+        while current_date < end_date:
+            # Save current evaluation date
+            old_eval_date = self.context.evaluation_date
+            try:
+                # Set evaluation date to the day we're checking
+                self.context.evaluation_date = current_date
+                
+                # Evaluate the condition for this day
+                result = self.evaluate_expression(condition_expr)
+                
+                # Handle TimelineValue (shouldn't happen with specific date set, but be safe)
+                if isinstance(result, TimelineValue):
+                    val = result.get_value_at(current_date)
+                    if val and val.value is True:
+                        count += 1
+                elif hasattr(result, 'value') and result.value is True:
+                    count += 1
+            finally:
+                # Restore evaluation date
+                self.context.evaluation_date = old_eval_date
+            
+            # Move to next day
+            current_date = current_date + timedelta(days=1)
+        
+        return count
+    
+    def _create_full_day_counts_timeline(self, period_type: str) -> TimelineValue:
+        """Create a timeline with full day counts for each period."""
+        from datetime import date
+        import calendar
+        
+        # Create a simple timeline for demonstration
+        # In practice, this would need proper period boundaries
+        periods = []
+        if period_type == "maand":
+            # Just return current month for now
+            today = date.today()
+            days_in_month = calendar.monthrange(today.year, today.month)[1]
+            periods.append(Period(
+                start_date=date(today.year, today.month, 1),
+                end_date=date(today.year, today.month + 1, 1) if today.month < 12 else date(today.year + 1, 1, 1),
+                value=Value(value=Decimal(days_in_month), datatype="Numeriek", unit=f"dagen per {period_type}")
+            ))
+        else:  # jaar
+            today = date.today()
+            days_in_year = 366 if calendar.isleap(today.year) else 365
+            periods.append(Period(
+                start_date=date(today.year, 1, 1),
+                end_date=date(today.year + 1, 1, 1),
+                value=Value(value=Decimal(days_in_year), datatype="Numeriek", unit=f"dagen per {period_type}")
+            ))
+        
+        timeline = Timeline(periods=periods, granularity=period_type)
+        return TimelineValue(timeline=timeline)
+    
+    def _create_zero_counts_timeline(self, period_type: str) -> TimelineValue:
+        """Create a timeline with zero counts for each period."""
+        from datetime import date
+        
+        # Create a simple timeline with zero values
+        periods = []
+        today = date.today()
+        if period_type == "maand":
+            periods.append(Period(
+                start_date=date(today.year, today.month, 1),
+                end_date=date(today.year, today.month + 1, 1) if today.month < 12 else date(today.year + 1, 1, 1),
+                value=Value(value=Decimal(0), datatype="Numeriek", unit=f"dagen per {period_type}")
+            ))
+        else:  # jaar
+            periods.append(Period(
+                start_date=date(today.year, 1, 1),
+                end_date=date(today.year + 1, 1, 1),
+                value=Value(value=Decimal(0), datatype="Numeriek", unit=f"dagen per {period_type}")
+            ))
+        
+        timeline = Timeline(periods=periods, granularity=period_type)
+        return TimelineValue(timeline=timeline)
     
     def _func_tijdsevenredig_deel_per_maand(self, expr: FunctionCall, args: Optional[List[Value]]) -> Union[Value, TimelineValue]:
         """Calculate time-proportional part per month.
