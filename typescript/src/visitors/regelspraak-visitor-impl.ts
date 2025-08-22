@@ -1530,7 +1530,7 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
     if (ctx.constructor.name === 'GelijkstellingResultaatContext') {
       return this.visitGelijkstellingResultaat(ctx);
     } else if (ctx.constructor.name === 'DagsoortdefinitieResultaatContext') {
-      throw new Error('DagsoortdefinitieResultaat not implemented');
+      return this.visitDagsoortdefinitieResultaat(ctx);
     } else if (ctx.constructor.name === 'FeitCreatieResultaatContext') {
       return this.visitFeitCreatieResultaat(ctx);
     } else if (ctx.constructor.name === 'KenmerkFeitResultaatContext') {
@@ -2097,6 +2097,34 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
     return result;
   }
   
+  visitDagsoortDefinition(ctx: any): any {
+    // Grammar: DAGSOORT naamwoord ( MV_START plural+=IDENTIFIER+ RPAREN )? SEMICOLON?
+    const nameCtx = ctx.naamwoord();
+    if (!nameCtx) {
+      throw new Error('Expected naamwoord in dagsoort definition');
+    }
+    
+    const name = this.extractTextWithSpaces(nameCtx);
+    
+    // Check for plural form
+    let plural = undefined;
+    if (ctx.MV_START && ctx.MV_START()) {
+      // Get plural identifiers - they are labeled as plural
+      const pluralCtxArray = ctx.plural || [];
+      if (pluralCtxArray.length > 0) {
+        plural = pluralCtxArray.map((t: any) => t.getText()).join(' ');
+      }
+    }
+    
+    const node = {
+      type: 'Dagsoort',
+      name,
+      plural
+    };
+    this.setLocation(node, ctx);
+    return node;
+  }
+  
   visitDimensieDefinition(ctx: any): Dimension {
     // Get dimension name
     const nameCtx = ctx.naamwoord(0); // First naamwoord is the dimension name
@@ -2582,6 +2610,24 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
       type: 'Kenmerktoekenning',
       subject,
       characteristic
+    };
+    this.setLocation(node, ctx);
+    return node;
+  }
+
+  visitDagsoortdefinitieResultaat(ctx: any): any {
+    // Grammar: EEN DAG IS EEN naamwoord
+    // Extract the dagsoort name from naamwoord
+    const naamwoordCtx = ctx.naamwoord();
+    if (!naamwoordCtx) {
+      throw new Error('Expected naamwoord in dagsoortdefinitie');
+    }
+    
+    const dagsoortName = this.extractTextWithSpaces(naamwoordCtx);
+    
+    const node = {
+      type: 'DagsoortDefinitie',
+      dagsoortName
     };
     this.setLocation(node, ctx);
     return node;

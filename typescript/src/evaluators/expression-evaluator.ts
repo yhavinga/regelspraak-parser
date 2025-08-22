@@ -20,7 +20,10 @@ export class ExpressionEvaluator implements IEvaluator {
     'tijdsevenredig_deel': this.tijdsevenredig_deel.bind(this),
     'tijdsduur_van': this.tijdsduur_van.bind(this),
     'abs_tijdsduur_van': this.abs_tijdsduur_van.bind(this),
-    'aantal_dagen_in': this.aantal_dagen_in.bind(this)
+    'aantal_dagen_in': this.aantal_dagen_in.bind(this),
+    'maand_uit': this.maand_uit.bind(this),
+    'dag_uit': this.dag_uit.bind(this),
+    'jaar_uit': this.jaar_uit.bind(this)
   };
   private aggregationEngine: AggregationEngine;
   private timelineEvaluator: TimelineEvaluator;
@@ -1230,27 +1233,67 @@ export class ExpressionEvaluator implements IEvaluator {
       throw new Error('Expected dagsoort name to be a string literal');
     }
     const dagsoortName = (dagsoortExpr as StringLiteral).value;
-    
-    
-    // For now, implement hardcoded dagsoort checks
-    // In a full implementation, this would look up dagsoort definitions in the model
     const date = dateValue.value as Date;
-    let isDagsoort = false;
     
-    switch (dagsoortName.toLowerCase()) {
-      case 'werkdag':
-        isDagsoort = this.isWerkdag(date);
+    // Look up dagsoort rules in the model
+    const dagsoortRules = context.domainModel.regels.filter(regel => {
+      const result = regel.resultaat;
+      return result && 
+             result.type === 'DagsoortDefinitie' && 
+             (result as any).dagsoortName?.toLowerCase() === dagsoortName.toLowerCase();
+    });
+    
+    if (dagsoortRules.length === 0) {
+      // No definition found - return false for positive checks, true for negative
+      console.warn(`No dagsoort definition found for '${dagsoortName}'`);
+      const isPositiveCheck = expr.operator === 'is een dagsoort' || expr.operator === 'zijn een dagsoort';
+      return {
+        type: 'boolean',
+        value: !isPositiveCheck
+      };
+    }
+    
+    // Create a temporary context for evaluating the dagsoort rules
+    const dagContext = context.clone();
+    
+    // Create a temporary dag object
+    const dagObject = {
+      type: 'Dag',
+      id: `dag_${date.toISOString()}`,
+      attributes: {
+        dag: { type: 'date', value: date } as Value,
+        maand: { type: 'number', value: date.getMonth() + 1 } as Value,
+        dag_van_maand: { type: 'number', value: date.getDate() } as Value,
+        jaar: { type: 'number', value: date.getFullYear() } as Value
+      }
+    };
+    
+    // Set the dag object as current instance
+    dagContext.currentInstance = dagObject as any;
+    
+    // Make "de dag" available as a variable
+    dagContext.setVariable('dag', { type: 'date', value: date });
+    
+    // Check each dagsoort rule
+    let isDagsoort = false;
+    for (const regel of dagsoortRules) {
+      if (regel.voorwaarde) {
+        try {
+          // Evaluate the condition
+          const conditionResult = this.evaluate(regel.voorwaarde.expressie, dagContext);
+          if (conditionResult.type === 'boolean' && conditionResult.value === true) {
+            isDagsoort = true;
+            break;
+          }
+        } catch (e) {
+          console.debug(`Error evaluating dagsoort rule '${regel.naam}':`, e);
+          continue;
+        }
+      } else {
+        // No condition means always true
+        isDagsoort = true;
         break;
-      case 'weekend':
-        isDagsoort = this.isWeekend(date);
-        break;
-      case 'feestdag':
-        isDagsoort = this.isFeestdag(date);
-        break;
-      default:
-        // Unknown dagsoort - would normally look up in model
-        isDagsoort = false;
-        break;
+      }
     }
     
     // Apply negation if needed
@@ -1263,48 +1306,71 @@ export class ExpressionEvaluator implements IEvaluator {
     };
   }
 
-  private isWerkdag(date: Date): boolean {
-    // First check if it's a holiday
-    if (this.isFeestdag(date)) {
-      return false;
+  // Date extraction functions
+  private maand_uit(args: Value[]): Value {
+    if (args.length !== 1) {
+      throw new Error(`Function 'maand_uit' expects 1 argument, got ${args.length}`);
     }
     
-    // Check if it's a weekend
-    const dayOfWeek = date.getDay();
-    // Sunday = 0, Saturday = 6
-    return dayOfWeek !== 0 && dayOfWeek !== 6;
-  }
-
-  private isWeekend(date: Date): boolean {
-    const dayOfWeek = date.getDay();
-    // Sunday = 0, Saturday = 6
-    return dayOfWeek === 0 || dayOfWeek === 6;
-  }
-
-  private isFeestdag(date: Date): boolean {
-    // Dutch national holidays (fixed dates)
-    const month = date.getMonth() + 1; // JavaScript months are 0-indexed
-    const day = date.getDate();
-    
-    // Fixed holidays
-    const fixedHolidays = [
-      { month: 1, day: 1 },   // New Year's Day
-      { month: 4, day: 27 },  // King's Day (Koningsdag)
-      { month: 12, day: 25 }, // Christmas Day
-      { month: 12, day: 26 }  // Boxing Day (Tweede Kerstdag)
-    ];
-    
-    // Check if the date matches any fixed holiday
-    for (const holiday of fixedHolidays) {
-      if (month === holiday.month && day === holiday.day) {
-        return true;
-      }
+    const dateValue = args[0];
+    if (dateValue.type !== 'date') {
+      throw new Error(`Function 'maand_uit' requires date argument, got ${dateValue.type}`);
     }
     
-    // TODO: Implement movable holidays (Easter, Pentecost, etc.)
-    // For now, we'll just check fixed holidays
+    const date = dateValue.value as Date;
+    if (!date) {
+      return { type: 'null', value: null };
+    }
     
-    return false;
+    // Return month number (1-12)
+    return {
+      type: 'number',
+      value: date.getMonth() + 1  // JavaScript months are 0-indexed
+    };
+  }
+  
+  private dag_uit(args: Value[]): Value {
+    if (args.length !== 1) {
+      throw new Error(`Function 'dag_uit' expects 1 argument, got ${args.length}`);
+    }
+    
+    const dateValue = args[0];
+    if (dateValue.type !== 'date') {
+      throw new Error(`Function 'dag_uit' requires date argument, got ${dateValue.type}`);
+    }
+    
+    const date = dateValue.value as Date;
+    if (!date) {
+      return { type: 'null', value: null };
+    }
+    
+    // Return day of month (1-31)
+    return {
+      type: 'number',
+      value: date.getDate()
+    };
+  }
+  
+  private jaar_uit(args: Value[]): Value {
+    if (args.length !== 1) {
+      throw new Error(`Function 'jaar_uit' expects 1 argument, got ${args.length}`);
+    }
+    
+    const dateValue = args[0];
+    if (dateValue.type !== 'date') {
+      throw new Error(`Function 'jaar_uit' requires date argument, got ${dateValue.type}`);
+    }
+    
+    const date = dateValue.value as Date;
+    if (!date) {
+      return { type: 'null', value: null };
+    }
+    
+    // Return year
+    return {
+      type: 'number',
+      value: date.getFullYear()
+    };
   }
 
   // Removed duplicate evaluateUnaryExpression - merged into the one above

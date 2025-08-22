@@ -3733,18 +3733,28 @@ class Evaluator:
             logger.warning(f"No dagsoort definition found for '{dagsoort_name}'")
             return False
         
-        # Create a temporary "dag" object to evaluate against
-        # This is a special case where we need to evaluate rules against a date
+        # Store original context state
         original_instance = self.context.current_instance
+        original_variables = dict(self.context.variables)
         
-        # Create a minimal object to hold the date
+        # Create a temporary "dag" object to evaluate against
         dag_object = RuntimeObject(
             object_type_naam="Dag",  # Special object type for date evaluation
             instance_id=f"dag_{date_val.isoformat()}"
         )
         
-        # The date itself is the "dag" attribute
-        dag_object.attributen["dag"] = Value(value=date_val, datatype="Datum")
+        # Set up the date as both an attribute and a variable
+        # This allows "de dag" to be referenced in expressions
+        dag_value = Value(value=date_val, datatype="Datum")
+        dag_object.attributen["dag"] = dag_value
+        
+        # Make "de dag" available as a variable reference
+        self.context.set_variable("dag", dag_value)
+        
+        # Also make date component extraction easy by storing the date parts
+        dag_object.attributen["maand"] = Value(value=Decimal(date_val.month), datatype="Numeriek")
+        dag_object.attributen["dag_van_maand"] = Value(value=Decimal(date_val.day), datatype="Numeriek")
+        dag_object.attributen["jaar"] = Value(value=Decimal(date_val.year), datatype="Numeriek")
         
         try:
             self.context.set_current_instance(dag_object)
@@ -3774,6 +3784,7 @@ class Evaluator:
         finally:
             # Restore original context
             self.context.set_current_instance(original_instance)
+            self.context.variables = original_variables
 
     def _resolve_collection_from_feittype(self, collection_name: str, base_instance: RuntimeObject) -> List[RuntimeObject]:
         """Resolve a collection name through feittype relationships.
