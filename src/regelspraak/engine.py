@@ -2317,6 +2317,25 @@ class Evaluator:
             else:  # IS_GEEN_DAGSOORT, ZIJN_GEEN_DAGSOORT
                 return Value(value=not is_dagsoort, datatype="Boolean", unit=None)
 
+        # Handle numeric exact digits operators
+        elif op in [Operator.IS_NUMERIEK_MET_EXACT, Operator.IS_NIET_NUMERIEK_MET_EXACT,
+                    Operator.ZIJN_NUMERIEK_MET_EXACT, Operator.ZIJN_NIET_NUMERIEK_MET_EXACT]:
+            # Right side should be the digit count
+            right_val = self._evaluate_expression_non_timeline(expr.right)
+            if not isinstance(right_val.value, (int, float)):
+                raise RegelspraakError(f"Right side of numeric exact check must be a number, got {type(right_val.value)}", span=expr.right.span)
+            
+            digit_count = int(right_val.value)
+            
+            # Check if the value is numeric with exact digits
+            is_numeric_exact = self._numeric_exact_check(left_val, digit_count, expr.span)
+            
+            # Return based on operator
+            if op in [Operator.IS_NUMERIEK_MET_EXACT, Operator.ZIJN_NUMERIEK_MET_EXACT]:
+                return Value(value=is_numeric_exact, datatype="Boolean", unit=None)
+            else:  # IS_NIET_NUMERIEK_MET_EXACT, ZIJN_NIET_NUMERIEK_MET_EXACT
+                return Value(value=not is_numeric_exact, datatype="Boolean", unit=None)
+
         # Standard evaluation for other operators
         right_val = self._evaluate_expression_non_timeline(expr.right)
 
@@ -3553,6 +3572,25 @@ class Evaluator:
             else:  # IS_GEEN_DAGSOORT, ZIJN_GEEN_DAGSOORT
                 return Value(value=not is_dagsoort, datatype="Boolean", unit=None)
 
+        # Handle numeric exact digits operators
+        elif op in [Operator.IS_NUMERIEK_MET_EXACT, Operator.IS_NIET_NUMERIEK_MET_EXACT,
+                    Operator.ZIJN_NUMERIEK_MET_EXACT, Operator.ZIJN_NIET_NUMERIEK_MET_EXACT]:
+            # Right side should be the digit count
+            right_val = self.evaluate_expression(expr.right)
+            if not isinstance(right_val.value, (int, float)):
+                raise RegelspraakError(f"Right side of numeric exact check must be a number, got {type(right_val.value)}", span=expr.right.span)
+            
+            digit_count = int(right_val.value)
+            
+            # Check if the value is numeric with exact digits
+            is_numeric_exact = self._numeric_exact_check(left_val, digit_count, expr.span)
+            
+            # Return based on operator
+            if op in [Operator.IS_NUMERIEK_MET_EXACT, Operator.ZIJN_NUMERIEK_MET_EXACT]:
+                return Value(value=is_numeric_exact, datatype="Boolean", unit=None)
+            else:  # IS_NIET_NUMERIEK_MET_EXACT, ZIJN_NIET_NUMERIEK_MET_EXACT
+                return Value(value=not is_numeric_exact, datatype="Boolean", unit=None)
+
         # Standard evaluation for other operators
         right_val = self.evaluate_expression(expr.right)
 
@@ -3846,6 +3884,33 @@ class Evaluator:
             # Restore original context
             self.context.set_current_instance(original_instance)
             self.context.variables = original_variables
+
+    def _numeric_exact_check(self, value: Value, digit_count: int, span: SourceSpan) -> bool:
+        """Check if a value is numeric with exactly the specified number of digits.
+        
+        Args:
+            value: The value to check
+            digit_count: The expected number of digits
+            span: Source span for error reporting
+            
+        Returns:
+            True if the value contains exactly digit_count digits, False otherwise
+        """
+        # Handle null/empty values
+        if value.value is None:
+            return False
+            
+        # Convert the value to string for digit checking
+        str_value = str(value.value)
+        
+        # Check if all characters are digits and count them
+        if not str_value.isdigit():
+            return False
+            
+        # Count the actual digits (this handles leading zeros correctly)
+        actual_digits = len(str_value)
+        
+        return actual_digits == digit_count
 
     def _resolve_collection_from_feittype(self, collection_name: str, base_instance: RuntimeObject) -> List[RuntimeObject]:
         """Resolve a collection name through feittype relationships.

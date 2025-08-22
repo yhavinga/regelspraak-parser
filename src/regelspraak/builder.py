@@ -623,7 +623,8 @@ class RegelSpraakModelBuilder(RegelSpraakVisitor):
     def visitKenmerkNaam(self, ctx: AntlrParser.KenmerkNaamContext) -> str:
         """Extract the name string from a kenmerkNaam context."""
         # Can be identifier or naamwoord
-        raw_name = safe_get_text(ctx)
+        # Use get_text_with_spaces to preserve spaces in multi-word kenmerk names
+        raw_name = get_text_with_spaces(ctx)
         # Normalize to ensure consistent reference
         return self._normalize_kenmerk_name(raw_name)
 
@@ -2285,6 +2286,38 @@ class RegelSpraakModelBuilder(RegelSpraakVisitor):
             return UnaryExpression(
                 operator=Operator.MOETEN_UNIEK_ZIJN,
                 operand=ref,
+                span=self.get_span(ctx)
+            )
+        
+        # Handle unaryNumeriekExactCondition alternative
+        elif isinstance(ctx, AntlrParser.UnaryNumeriekExactConditionContext):
+            # This handles "is numeriek met exact N cijfers"
+            expr = self.visitPrimaryExpression(ctx.expr)
+            if expr is None:
+                return None
+            
+            # Get the digit count from the NUMBER token
+            digit_count = int(ctx.NUMBER().getText())
+            
+            # Map token to operator
+            op_token = ctx.op
+            if op_token.type == AntlrLexer.IS_NUMERIEK_MET_EXACT:
+                operator = Operator.IS_NUMERIEK_MET_EXACT
+            elif op_token.type == AntlrLexer.IS_NIET_NUMERIEK_MET_EXACT:
+                operator = Operator.IS_NIET_NUMERIEK_MET_EXACT
+            elif op_token.type == AntlrLexer.ZIJN_NUMERIEK_MET_EXACT:
+                operator = Operator.ZIJN_NUMERIEK_MET_EXACT
+            elif op_token.type == AntlrLexer.ZIJN_NIET_NUMERIEK_MET_EXACT:
+                operator = Operator.ZIJN_NIET_NUMERIEK_MET_EXACT
+            else:
+                logger.warning(f"Unhandled numeric exact operator: {op_token.text}")
+                return None
+            
+            # Create binary expression with digit count as right operand
+            return BinaryExpression(
+                left=expr,
+                operator=operator,
+                right=Literal(value=digit_count, datatype="Numeriek", span=self.get_span(ctx)),
                 span=self.get_span(ctx)
             )
         

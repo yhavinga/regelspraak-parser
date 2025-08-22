@@ -56,6 +56,12 @@ class Operator(Enum):
     IS_GEEN_DAGSOORT = "is geen dagsoort"
     ZIJN_GEEN_DAGSOORT = "zijn geen dagsoort"
     
+    # Numeric exact digits predicates
+    IS_NUMERIEK_MET_EXACT = "is numeriek met exact"
+    IS_NIET_NUMERIEK_MET_EXACT = "is niet numeriek met exact"
+    ZIJN_NUMERIEK_MET_EXACT = "zijn numeriek met exact"
+    ZIJN_NIET_NUMERIEK_MET_EXACT = "zijn niet numeriek met exact"
+    
     # Uniqueness predicate
     MOETEN_UNIEK_ZIJN = "moeten uniek zijn"
 

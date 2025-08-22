@@ -334,6 +334,8 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
       return this.visitUnaryDagsoortCondition(ctx);
     } else if (contextName === 'UnaryUniekConditionContext') {
       return this.visitUnaryUniekCondition(ctx);
+    } else if (contextName === 'UnaryNumeriekExactConditionContext') {
+      return this.visitUnaryNumeriekExactCondition(ctx);
     } else {
       throw new Error(`Unsupported unary condition type: ${contextName}`);
     }
@@ -393,6 +395,45 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
       operator: 'moeten uniek zijn',
       operand: ref
     } as UnaryExpression;
+    this.setLocation(node, ctx);
+    return node;
+  }
+
+  visitUnaryNumeriekExactCondition(ctx: any): Expression {
+    // expr=primaryExpression op=(IS_NUMERIEK_MET_EXACT | ...) NUMBER CIJFERS
+    const expr = this.visit(ctx.primaryExpression());
+    
+    // Get the digit count from NUMBER token
+    const digitCountToken = ctx.NUMBER();
+    if (!digitCountToken) {
+      throw new Error('Expected digit count in numeric exact condition');
+    }
+    const digitCount = parseInt(digitCountToken.getText());
+    
+    // Map operator token to string
+    let operator: string;
+    if (ctx.IS_NUMERIEK_MET_EXACT()) {
+      operator = 'is numeriek met exact';
+    } else if (ctx.IS_NIET_NUMERIEK_MET_EXACT()) {
+      operator = 'is niet numeriek met exact';
+    } else if (ctx.ZIJN_NUMERIEK_MET_EXACT()) {
+      operator = 'zijn numeriek met exact';
+    } else if (ctx.ZIJN_NIET_NUMERIEK_MET_EXACT()) {
+      operator = 'zijn niet numeriek met exact';
+    } else {
+      throw new Error('Unknown numeric exact operator');
+    }
+    
+    // Create binary expression with digit count as right operand
+    const node = {
+      type: 'BinaryExpression',
+      left: expr,
+      operator: operator,
+      right: {
+        type: 'NumberLiteral',
+        value: digitCount
+      }
+    } as BinaryExpression;
     this.setLocation(node, ctx);
     return node;
   }

@@ -158,6 +158,13 @@ export class ExpressionEvaluator implements IEvaluator {
       return this.evaluateDagsoortExpression(expr, context);
     }
 
+    // Check if this is a numeric exact operator
+    const numericExactOps = ['is numeriek met exact', 'is niet numeriek met exact', 
+                             'zijn numeriek met exact', 'zijn niet numeriek met exact'];
+    if (numericExactOps.includes(expr.operator)) {
+      return this.evaluateNumericExactExpression(expr, context);
+    }
+
     const left = this.evaluate(expr.left, context);
     const right = this.evaluate(expr.right, context);
 
@@ -1301,6 +1308,47 @@ export class ExpressionEvaluator implements IEvaluator {
     // Apply negation if needed
     const isPositiveCheck = expr.operator === 'is een dagsoort' || expr.operator === 'zijn een dagsoort';
     const result = isPositiveCheck ? isDagsoort : !isDagsoort;
+    
+    return {
+      type: 'boolean',
+      value: result
+    };
+  }
+
+  private evaluateNumericExactExpression(expr: BinaryExpression, context: RuntimeContext): Value {
+    // Evaluate the value expression (left side)
+    const valueToCheck = this.evaluate(expr.left, context);
+    
+    // Handle null/missing values
+    if (valueToCheck.type === 'null' || valueToCheck.value === null || valueToCheck.value === undefined) {
+      // For positive checks, null returns false
+      // For negative checks, null returns true
+      const isNegativeCheck = expr.operator.includes('niet');
+      return {
+        type: 'boolean',
+        value: isNegativeCheck
+      };
+    }
+    
+    // Get the expected digit count from the right side
+    const digitCountExpr = expr.right;
+    if (digitCountExpr.type !== 'NumberLiteral') {
+      throw new Error('Expected digit count to be a number literal');
+    }
+    const digitCount = (digitCountExpr as NumberLiteral).value;
+    
+    // Convert value to string for digit checking
+    const strValue = String(valueToCheck.value);
+    
+    // Check if all characters are digits
+    const isAllDigits = /^\d+$/.test(strValue);
+    
+    // Check exact digit count
+    const hasExactDigits = isAllDigits && strValue.length === digitCount;
+    
+    // Apply negation if needed
+    const isPositiveCheck = expr.operator === 'is numeriek met exact' || expr.operator === 'zijn numeriek met exact';
+    const result = isPositiveCheck ? hasExactDigits : !hasExactDigits;
     
     return {
       type: 'boolean',
