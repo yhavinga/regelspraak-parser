@@ -155,6 +155,7 @@ import { TijdsevenredigDeelExprContext } from "./RegelSpraakParser";
 import { CapitalizedTijdsevenredigDeelExprContext } from "./RegelSpraakParser";
 import { AantalAttribuutExprContext } from "./RegelSpraakParser";
 import { ParenExprContext } from "./RegelSpraakParser";
+import { DimensieRangeAggExprContext } from "./RegelSpraakParser";
 import { DatumMetFuncExprContext } from "./RegelSpraakParser";
 import { StringLiteralExprContext } from "./RegelSpraakParser";
 import { PercentageFuncExprContext } from "./RegelSpraakParser";
@@ -206,7 +207,8 @@ import { UnaryKenmerkConditionContext } from "./RegelSpraakParser";
 import { UnaryRolConditionContext } from "./RegelSpraakParser";
 import { UnaryUniekConditionContext } from "./RegelSpraakParser";
 import { UnaryInconsistentDataConditionContext } from "./RegelSpraakParser";
-import { RegelStatusCheckContext } from "./RegelSpraakParser";
+import { RegelStatusGevuurdCheckContext } from "./RegelSpraakParser";
+import { RegelStatusInconsistentCheckContext } from "./RegelSpraakParser";
 import { SubordinateHasExprContext } from "./RegelSpraakParser";
 import { SubordinateIsWithExprContext } from "./RegelSpraakParser";
 import { SubordinateIsKenmerkExprContext } from "./RegelSpraakParser";
@@ -1823,6 +1825,18 @@ export default class RegelSpraakListener extends ParseTreeListener {
 	 */
 	exitParenExpr?: (ctx: ParenExprContext) => void;
 	/**
+	 * Enter a parse tree produced by the `DimensieRangeAggExpr`
+	 * labeled alternative in `RegelSpraakParser.primaryExpression`.
+	 * @param ctx the parse tree
+	 */
+	enterDimensieRangeAggExpr?: (ctx: DimensieRangeAggExprContext) => void;
+	/**
+	 * Exit a parse tree produced by the `DimensieRangeAggExpr`
+	 * labeled alternative in `RegelSpraakParser.primaryExpression`.
+	 * @param ctx the parse tree
+	 */
+	exitDimensieRangeAggExpr?: (ctx: DimensieRangeAggExprContext) => void;
+	/**
 	 * Enter a parse tree produced by the `DatumMetFuncExpr`
 	 * labeled alternative in `RegelSpraakParser.primaryExpression`.
 	 * @param ctx the parse tree
@@ -2409,17 +2423,29 @@ export default class RegelSpraakListener extends ParseTreeListener {
 	 */
 	exitUnaryInconsistentDataCondition?: (ctx: UnaryInconsistentDataConditionContext) => void;
 	/**
-	 * Enter a parse tree produced by the `regelStatusCheck`
+	 * Enter a parse tree produced by the `regelStatusGevuurdCheck`
 	 * labeled alternative in `RegelSpraakParser.regelStatusCondition`.
 	 * @param ctx the parse tree
 	 */
-	enterRegelStatusCheck?: (ctx: RegelStatusCheckContext) => void;
+	enterRegelStatusGevuurdCheck?: (ctx: RegelStatusGevuurdCheckContext) => void;
 	/**
-	 * Exit a parse tree produced by the `regelStatusCheck`
+	 * Exit a parse tree produced by the `regelStatusGevuurdCheck`
 	 * labeled alternative in `RegelSpraakParser.regelStatusCondition`.
 	 * @param ctx the parse tree
 	 */
-	exitRegelStatusCheck?: (ctx: RegelStatusCheckContext) => void;
+	exitRegelStatusGevuurdCheck?: (ctx: RegelStatusGevuurdCheckContext) => void;
+	/**
+	 * Enter a parse tree produced by the `regelStatusInconsistentCheck`
+	 * labeled alternative in `RegelSpraakParser.regelStatusCondition`.
+	 * @param ctx the parse tree
+	 */
+	enterRegelStatusInconsistentCheck?: (ctx: RegelStatusInconsistentCheckContext) => void;
+	/**
+	 * Exit a parse tree produced by the `regelStatusInconsistentCheck`
+	 * labeled alternative in `RegelSpraakParser.regelStatusCondition`.
+	 * @param ctx the parse tree
+	 */
+	exitRegelStatusInconsistentCheck?: (ctx: RegelStatusInconsistentCheckContext) => void;
 	/**
 	 * Enter a parse tree produced by the `SubordinateHasExpr`
 	 * labeled alternative in `RegelSpraakParser.subordinateClauseExpression`.

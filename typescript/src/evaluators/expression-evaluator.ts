@@ -974,6 +974,27 @@ export class ExpressionEvaluator implements IEvaluator {
   }
 
   private evaluateAttributeReference(expr: AttributeReference, context: RuntimeContext): Value {
+    // Handle pronoun-bound dimensional map access like ["self", "betaalde belasting in jaar"]
+    if (expr.path.length === 2 && expr.path[0] === 'self') {
+      const ctxAny = context as any;
+      const currentInstance = ctxAny.current_instance;
+      if (!currentInstance || currentInstance.type !== 'object') {
+        // Fallback to variable
+        const v = context.getVariable(expr.path[1]);
+        return v ?? { type: 'null', value: null };
+      }
+      const objectData = currentInstance.value as Record<string, Value> | Record<string, any>;
+      const attr = expr.path[1];
+      const val = (objectData as any)[attr];
+      if (val === undefined) {
+        return { type: 'null', value: null };
+      }
+      // If plain JS object (dimension map), wrap it
+      if (val && typeof val === 'object' && !('type' in val)) {
+        return { type: 'object', value: val } as Value;
+      }
+      return val as Value;
+    }
     // Handle paths starting with 'self' (pronoun resolution)
     if (expr.path.length >= 2 && expr.path[0] === 'self') {
       // Get the current instance from context
@@ -1269,7 +1290,7 @@ export class ExpressionEvaluator implements IEvaluator {
     
     // Look up dagsoort rules in the model
     // Dagsoort rules can be either DagsoortDefinitie or KenmerkToekenning with format "is een <dagsoort>"
-    const dagsoortRules = context.domainModel.regels.filter(regel => {
+    const dagsoortRules = (context.domainModel.regels || []).filter(regel => {
       // Support both 'result' and 'resultaat' property names
       const result = regel.result || regel.resultaat;
       
@@ -1715,10 +1736,14 @@ export class ExpressionEvaluator implements IEvaluator {
       // The attribute name should be cleaned of dimension keywords
       attributeName = baseAttribute.attribute;
       
-      // Remove dimension keywords from attribute name
-      const dimensionKeywords = ['bruto', 'netto'];
-      for (const keyword of dimensionKeywords) {
-        attributeName = attributeName.replace(keyword, '').trim();
+      // Use dimension registry to identify and remove adjectival dimension labels from attribute name
+      const registry = context.dimensionRegistry;
+      for (const label of expr.dimensionLabels) {
+        const axisName = registry.findAxisForLabel(label);
+        if (axisName && registry.isAdjectival(axisName)) {
+          // Remove adjectival dimension labels from the attribute name
+          attributeName = attributeName.replace(label, '').trim();
+        }
       }
       
       // The object might be nested navigation that includes dimension labels
@@ -1745,10 +1770,14 @@ export class ExpressionEvaluator implements IEvaluator {
       // Extract attribute name and object path
       attributeName = path[0];
       
-      // Remove dimension keywords from attribute name if needed
-      const dimensionKeywords = ['bruto', 'netto'];
-      for (const keyword of dimensionKeywords) {
-        attributeName = attributeName.replace(keyword, '').trim();
+      // Use dimension registry to identify and remove adjectival dimension labels from attribute name
+      const registry = context.dimensionRegistry;
+      for (const label of expr.dimensionLabels) {
+        const axisName = registry.findAxisForLabel(label);
+        if (axisName && registry.isAdjectival(axisName)) {
+          // Remove adjectival dimension labels from the attribute name
+          attributeName = attributeName.replace(label, '').trim();
+        }
       }
       
       // Get the target object - for now, assume it's a variable
@@ -1777,21 +1806,38 @@ export class ExpressionEvaluator implements IEvaluator {
     // The test expects a nested structure like: inkomen['huidig jaar']['netto']
     let currentValue = attrValue;
     
-    // First check for temporal dimensions (jaar)
-    const temporalLabels = ['huidig jaar', 'vorig jaar', 'volgend jaar'];
-    for (const label of expr.dimensionLabels) {
-      if (temporalLabels.includes(label) && currentValue && typeof currentValue === 'object' && label in currentValue) {
-        currentValue = currentValue[label];
-        break;
-      }
-    }
+    // Process dimension labels in order using the registry to determine their axes
+    const registry = context.dimensionRegistry;
+    const processedAxes = new Set<string>();
     
-    // Then check for other dimensions (bruto/netto)
-    const valueLabels = ['bruto', 'netto'];
-    for (const label of expr.dimensionLabels) {
-      if (valueLabels.includes(label) && currentValue && typeof currentValue === 'object' && label in currentValue) {
-        currentValue = currentValue[label];
-        break;
+    // Sort labels by their dimension axis to ensure proper navigation order
+    // Prepositional dimensions (with preposition) usually come first, then adjectival
+    const sortedLabels = [...expr.dimensionLabels].sort((a, b) => {
+      const axisA = registry.findAxisForLabel(a);
+      const axisB = registry.findAxisForLabel(b);
+      
+      if (!axisA || !axisB) return 0;
+      
+      // Prepositional dimensions come first (they're typically the outer structure)
+      const isPrepA = registry.isPrepositional(axisA);
+      const isPrepB = registry.isPrepositional(axisB);
+      
+      if (isPrepA && !isPrepB) return -1;
+      if (!isPrepA && isPrepB) return 1;
+      return 0;
+    });
+    
+    for (const label of sortedLabels) {
+      const axisName = registry.findAxisForLabel(label);
+      if (axisName && !processedAxes.has(axisName)) {
+        processedAxes.add(axisName);
+        
+        if (currentValue && typeof currentValue === 'object' && label in currentValue) {
+          currentValue = currentValue[label];
+        } else {
+          // Label not found in current value structure
+          return { type: 'null', value: null };
+        }
       }
     }
     
@@ -1802,6 +1848,9 @@ export class ExpressionEvaluator implements IEvaluator {
       return { type: 'string', value: currentValue };
     } else if (currentValue === null || currentValue === undefined) {
       return { type: 'null', value: null };
+    } else if (currentValue && typeof currentValue === 'object' && 'type' in currentValue) {
+      // Already a proper Value object
+      return currentValue as Value;
     } else {
       // Return as-is for complex types
       return { type: 'object', value: currentValue };

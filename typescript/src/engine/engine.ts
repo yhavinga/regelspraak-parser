@@ -312,14 +312,43 @@ export class Engine implements IEngine {
   }
 
   run(source: string, context?: RuntimeContext): ExecutionResult {
-    const ctx = context || new Context();
-    
     const parseResult = this.parse(source);
     if (!parseResult.success) {
       return {
         success: false,
         error: new Error(parseResult.errors![0].message)
       };
+    }
+
+    // Create or update context with the parsed model
+    let ctx: RuntimeContext;
+    if (context) {
+      ctx = context;
+      // If the parsed AST contains a model with dimensions, register them in the provided context
+      const ast = parseResult.ast as any;
+      if (ast && (ast.type === 'Model' || (!ast.type && (ast.dimensions || ast.objectTypes)))) {
+        // Update the context's domain model and dimension registry
+        const model = ast.type === 'Model' ? ast : ast;
+        if (model.dimensions && ctx.dimensionRegistry) {
+          // Register dimensions in the existing context
+          for (const dimension of model.dimensions) {
+            ctx.dimensionRegistry.register(dimension);
+          }
+        }
+        // Also update the domain model reference
+        if (!ctx.domainModel || ctx.domainModel.dimensions.length === 0) {
+          ctx.domainModel = model;
+        }
+      }
+    } else {
+      // Create a new context with the parsed model if it's a DomainModel
+      const ast = parseResult.ast as any;
+      if (ast && (ast.type === 'Model' || (!ast.type && (ast.dimensions || ast.objectTypes)))) {
+        const model = ast.type === 'Model' ? ast : ast;
+        ctx = new Context(model);
+      } else {
+        ctx = new Context();
+      }
     }
 
     return this.execute(parseResult.ast!, ctx);

@@ -2,6 +2,8 @@ import { RuntimeContext, Value } from '../interfaces';
 import { FeitType } from '../ast/feittype';
 import { TimelineValueImpl } from '../ast/timelines';
 import { DomainModel } from '../ast/domain-model';
+import { Dimension } from '../ast/dimensions';
+import { DimensionRegistry } from '../model/dimensions';
 
 /**
  * Represents a relationship instance between two objects
@@ -24,6 +26,7 @@ export class Context implements RuntimeContext {
   public current_instance: Value | undefined;
   public evaluation_date: Date = new Date();
   public domainModel: DomainModel;
+  public dimensionRegistry: DimensionRegistry;
   
   // Store relationships between objects
   private relationships: Relationship[] = [];
@@ -59,6 +62,14 @@ export class Context implements RuntimeContext {
         feitTypes: [],
         unitSystems: []
       };
+    }
+    
+    // Initialize dimension registry from model
+    this.dimensionRegistry = new DimensionRegistry();
+    if (this.domainModel.dimensions) {
+      for (const dimension of this.domainModel.dimensions) {
+        this.dimensionRegistry.register(dimension);
+      }
     }
   }
 
@@ -323,6 +334,15 @@ export class Context implements RuntimeContext {
     return this.inconsistentRules.has(regelNaam);
   }
   
+  // --- Dimension Handling ---
+  
+  /**
+   * Get a dimension definition by name
+   */
+  getDimension(name: string): Dimension | undefined {
+    return this.domainModel.dimensions?.find(d => d.name === name);
+  }
+  
   /**
    * Helper to check if two object values represent the same object
    */
@@ -390,6 +410,9 @@ export class Context implements RuntimeContext {
     // Copy rule execution tracking
     cloned.executedRules = new Set(this.executedRules);
     cloned.inconsistentRules = new Set(this.inconsistentRules);
+    
+    // Note: dimensionRegistry is already initialized from domainModel in constructor
+    // It references the same dimension definitions, which is correct since they don't change
     
     return cloned;
   }

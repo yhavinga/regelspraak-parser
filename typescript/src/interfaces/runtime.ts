@@ -1,6 +1,8 @@
 import { Value } from './value';
 import { FeitType } from '../ast/feittype';
 import { DomainModel } from '../ast/domain-model';
+import { Dimension } from '../ast/dimensions';
+import { DimensionRegistry } from '../model/dimensions';
 
 // Relationship interface (minimal definition)
 export interface Relationship {
@@ -46,6 +48,10 @@ export interface RuntimeContext {
   addRelationship?(feittypeNaam: string, subject: Value, object: Value, preposition?: string): Relationship;
   getRelationships?(feittypeNaam: string, subject: Value): Relationship[];
   findRelationships?(criteria: { subject?: Value; object?: Value; feittypeNaam?: string }): Relationship[];
+  
+  // Dimension management
+  dimensionRegistry: DimensionRegistry;
+  getDimension?(name: string): Dimension | undefined;
   
   // Context cloning for temporary evaluation
   clone?(): RuntimeContext;

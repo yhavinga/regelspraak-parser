@@ -973,6 +973,103 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
     return node;
   }
   
+  visitDimensieRangeAggExpr(ctx: any): Expression {
+    // This handles dimension range aggregation patterns like:
+    // "de som van zijn betaalde belasting in jaar vanaf vier jaar geleden t/m een jaar geleden"
+    
+    // Extract the aggregation function name
+    let functionName = '';
+    const funcCtx = ctx.getalAggregatieFunctie ? ctx.getalAggregatieFunctie() : ctx.datumAggregatieFunctie();
+    if (funcCtx) {
+      const text = funcCtx.getText().toLowerCase();
+      if (text.includes('som')) {
+        functionName = 'som_van';
+      } else if (text.includes('gemiddelde')) {
+        functionName = 'gemiddelde_van';
+      } else if (text.includes('maximum') || text.includes('maximale')) {
+        functionName = 'maximum_van';
+      } else if (text.includes('minimum') || text.includes('minimale')) {
+        functionName = 'minimum_van';
+      } else if (text.includes('eerste')) {
+        functionName = 'eerste_van';
+      } else if (text.includes('laatste')) {
+        functionName = 'laatste_van';
+      }
+    }
+    
+    if (!functionName) {
+      throw new Error('Unknown aggregation function in DimensieRangeAggExpr');
+    }
+    
+    // Get the attribute or bezielde reference
+    // Grammar uses attribuutMetLidwoord, but in practice test phrases use pronoun "zijn ..."
+    // Our naamwoord allows ZIJN as article, so detect a leading "zijn " and convert to a self-bound attribute
+    const attrMetLidwoordCtx = ctx.attribuutMetLidwoord ? ctx.attribuutMetLidwoord() : null;
+    const bezieldeCtx = ctx.bezieldeReferentie ? ctx.bezieldeReferentie() : null;
+
+    let attrRef: AttributeReference;
+    if (bezieldeCtx) {
+      // Direct bezielde reference parsed: ZIJN naamwoord
+      const naamwoordCtx = bezieldeCtx.naamwoord();
+      const fullAttrText = naamwoordCtx ? this.extractTextWithSpaces(naamwoordCtx) : '';
+      const cleanAttr = fullAttrText.replace(/^zijn\s+/i, '').trim();
+      attrRef = { type: 'AttributeReference', path: ['self', cleanAttr] };
+    } else if (attrMetLidwoordCtx) {
+      const attrName = this.extractTextWithSpaces(attrMetLidwoordCtx);
+      // If starts with pronoun, treat as self-bound
+      if (/^zijn\s+/i.test(attrName)) {
+        const clean = attrName.replace(/^zijn\s+/i, '').trim();
+        attrRef = { type: 'AttributeReference', path: ['self', clean] };
+      } else {
+        const strippedAttrName = this._stripArticle(attrName);
+        attrRef = { type: 'AttributeReference', path: [strippedAttrName] };
+      }
+    } else {
+      throw new Error('Expected attribute reference in DimensieRangeAggExpr');
+    }
+    
+    // Get the range labels
+    const fromLabelCtx = ctx.naamwoord(0);
+    const toLabelCtx = ctx.naamwoord(1);
+    
+    if (!fromLabelCtx || !toLabelCtx) {
+      throw new Error('Expected from and to labels in DimensieRangeAggExpr');
+    }
+    
+    const fromLabel = this.extractTextWithSpaces(fromLabelCtx);
+    const toLabel = this.extractTextWithSpaces(toLabelCtx);
+
+    // Infer the dimension axis from labels using the dimension registry at runtime
+    // We store labels now; axis will also be included by inference helper in engine, but
+    // we can pre-fill a likely axis if available on this.parserContext
+    // Default to empty; AggregationEngine will infer if needed
+    let inferredAxis = '';
+    try {
+      const runtime = (this as any).runtimeContext || (this as any).context;
+      const registry = runtime?.dimensionRegistry;
+      if (registry && typeof registry.findAxisForLabel === 'function') {
+        inferredAxis = registry.findAxisForLabel(fromLabel) || registry.findAxisForLabel(toLabel) || '';
+      }
+    } catch {
+      // Ignore; engine will infer later
+    }
+
+    // Create the aggregation with dimension range
+    const node = {
+      type: 'AggregationExpression',
+      aggregationType: functionName.replace('_van', ''),
+      target: attrRef,
+      dimensionRange: {
+        dimension: inferredAxis || '',
+        from: fromLabel,
+        to: toLabel
+      }
+    } as any;
+    
+    this.setLocation(node, ctx);
+    return node;
+  }
+  
   visitAantalFuncExpr(ctx: any): Expression {
     // HET? AANTAL (ALLE? onderwerpReferentie)
     // Check if ALLE token is present

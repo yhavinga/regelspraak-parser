@@ -155,6 +155,7 @@ import { TijdsevenredigDeelExprContext } from "./RegelSpraakParser";
 import { CapitalizedTijdsevenredigDeelExprContext } from "./RegelSpraakParser";
 import { AantalAttribuutExprContext } from "./RegelSpraakParser";
 import { ParenExprContext } from "./RegelSpraakParser";
+import { DimensieRangeAggExprContext } from "./RegelSpraakParser";
 import { DatumMetFuncExprContext } from "./RegelSpraakParser";
 import { StringLiteralExprContext } from "./RegelSpraakParser";
 import { PercentageFuncExprContext } from "./RegelSpraakParser";
@@ -206,7 +207,8 @@ import { UnaryKenmerkConditionContext } from "./RegelSpraakParser";
 import { UnaryRolConditionContext } from "./RegelSpraakParser";
 import { UnaryUniekConditionContext } from "./RegelSpraakParser";
 import { UnaryInconsistentDataConditionContext } from "./RegelSpraakParser";
-import { RegelStatusCheckContext } from "./RegelSpraakParser";
+import { RegelStatusGevuurdCheckContext } from "./RegelSpraakParser";
+import { RegelStatusInconsistentCheckContext } from "./RegelSpraakParser";
 import { SubordinateHasExprContext } from "./RegelSpraakParser";
 import { SubordinateIsWithExprContext } from "./RegelSpraakParser";
 import { SubordinateIsKenmerkExprContext } from "./RegelSpraakParser";
@@ -1182,6 +1184,13 @@ export default class RegelSpraakVisitor<Result> extends ParseTreeVisitor<Result>
 	 */
 	visitParenExpr?: (ctx: ParenExprContext) => Result;
 	/**
+	 * Visit a parse tree produced by the `DimensieRangeAggExpr`
+	 * labeled alternative in `RegelSpraakParser.primaryExpression`.
+	 * @param ctx the parse tree
+	 * @return the visitor result
+	 */
+	visitDimensieRangeAggExpr?: (ctx: DimensieRangeAggExprContext) => Result;
+	/**
 	 * Visit a parse tree produced by the `DatumMetFuncExpr`
 	 * labeled alternative in `RegelSpraakParser.primaryExpression`.
 	 * @param ctx the parse tree
@@ -1526,12 +1535,19 @@ export default class RegelSpraakVisitor<Result> extends ParseTreeVisitor<Result>
 	 */
 	visitUnaryInconsistentDataCondition?: (ctx: UnaryInconsistentDataConditionContext) => Result;
 	/**
-	 * Visit a parse tree produced by the `regelStatusCheck`
+	 * Visit a parse tree produced by the `regelStatusGevuurdCheck`
 	 * labeled alternative in `RegelSpraakParser.regelStatusCondition`.
 	 * @param ctx the parse tree
 	 * @return the visitor result
 	 */
-	visitRegelStatusCheck?: (ctx: RegelStatusCheckContext) => Result;
+	visitRegelStatusGevuurdCheck?: (ctx: RegelStatusGevuurdCheckContext) => Result;
+	/**
+	 * Visit a parse tree produced by the `regelStatusInconsistentCheck`
+	 * labeled alternative in `RegelSpraakParser.regelStatusCondition`.
+	 * @param ctx the parse tree
+	 * @return the visitor result
+	 */
+	visitRegelStatusInconsistentCheck?: (ctx: RegelStatusInconsistentCheckContext) => Result;
 	/**
 	 * Visit a parse tree produced by the `SubordinateHasExpr`
 	 * labeled alternative in `RegelSpraakParser.subordinateClauseExpression`.

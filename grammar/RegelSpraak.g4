@@ -75,6 +75,10 @@ identifierOrKeyword
     | IS         // "is" - can be part of kenmerk names like "is met vakantie"
     | KWARTAAL   // "kwartaal" - can be part of attribute names like "kwartaal bedrag"
     | METER      // "meter" - can be part of object type names like "een meter"
+    | EEN_TELWOORD    // "één" - numeric word for dimension labels
+    | TWEE_TELWOORD   // "twee" - numeric word for dimension labels
+    | DRIE_TELWOORD   // "drie" - numeric word for dimension labels
+    | VIER_TELWOORD   // "vier" - numeric word for dimension labels
     ;
 
 // Rule for contexts where IS should not be treated as an identifier
@@ -93,6 +97,10 @@ identifierOrKeywordNoIs
     | INCONSISTENT // "inconsistent" - can appear in consistency rule names
     | KWARTAAL   // "kwartaal" - can be part of attribute names like "kwartaal bedrag"
     | METER      // "meter" - can be part of object type names like "een meter"
+    | EEN_TELWOORD    // "één" - numeric word for dimension labels
+    | TWEE_TELWOORD   // "twee" - numeric word for dimension labels
+    | DRIE_TELWOORD   // "drie" - numeric word for dimension labels
+    | VIER_TELWOORD   // "vier" - numeric word for dimension labels
     ;
 
 naamPhrase // Used within naamwoord
@@ -729,6 +737,8 @@ primaryExpression : // Corresponds roughly to terminals/functions/references in 
     // For aggregations like "de som van de te betalen belasting van alle passagiers"
     // We need a special pattern that doesn't use attribuutReferentie since that consumes "van"
     | (getalAggregatieFunctie | datumAggregatieFunctie) attribuutMetLidwoord dimensieSelectie         # DimensieAggExpr // EBNF 13.4.16.45
+    // For dimension range aggregations like "de som van zijn betaalde belasting in jaar vanaf vier jaar geleden t/m een jaar geleden"
+    | (getalAggregatieFunctie | datumAggregatieFunctie) (bezieldeReferentie | attribuutReferentie) VANAF naamwoord TM naamwoord DOT? # DimensieRangeAggExpr
     
     // References
     | attribuutReferentie                                           # AttrRefExpr
@@ -829,12 +839,12 @@ aggregerenOverAlleDimensies
     : ALLE naamwoord ( (DIE | DAT) predicaat )? // Support filtering with predicates
     ;
 
-aggregerenOverVerzameling // EBNF 13.4.16.48 - Using naamwoord for meervoud, identifier for waarde
-    : DE naamwoord VANAF identifier TM identifier
+aggregerenOverVerzameling // EBNF 13.4.16.48 - Using naamwoord for both dimension name and label values
+    : DE naamwoord VANAF naamwoord TM naamwoord
     ;
 
-aggregerenOverBereik // EBNF 13.4.16.49 - Using naamwoord for meervoud, identifier for waarde
-    : DE naamwoord IN LBRACE identifier (COMMA identifier)* EN identifier RBRACE
+aggregerenOverBereik // EBNF 13.4.16.49 - Using naamwoord for both dimension name and label values
+    : DE naamwoord IN LBRACE naamwoord (COMMA naamwoord)* EN naamwoord RBRACE
     ;
 
 // --- New Unary Conditions and Status Checks ---
