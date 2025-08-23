@@ -3024,11 +3024,23 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
     // Visit the table structure
     const table = this.visit(ctx.beslistabelTable());
     
+    // Import header parser for parsing columns
+    const { DecisionTableHeaderParser } = require('../parsers/decision-table-header-parser');
+    const headerParser = new DecisionTableHeaderParser();
+    
+    // Parse the result and condition columns
+    const parsedResult = headerParser.parseResultColumn(table.resultColumn);
+    const parsedConditions = table.conditionColumns.map((col: string) => 
+      headerParser.parseConditionColumn(col)
+    );
+    
     const decisionTable = {
       type: 'DecisionTable',
       name,
       validity,
-      ...table  // Contains resultColumn, conditionColumns, and rows
+      ...table,  // Contains resultColumn, conditionColumns, and rows
+      parsedResult,
+      parsedConditions
     };
     
     // Store location separately

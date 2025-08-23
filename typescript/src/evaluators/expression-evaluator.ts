@@ -1074,6 +1074,23 @@ export class ExpressionEvaluator implements IEvaluator {
       return obj[attribute];
     }
     
+    // Handle simple single-element paths as variable references
+    if (expr.path.length === 1) {
+      const variableName = expr.path[0];
+      const value = context.getVariable(variableName);
+      if (value) {
+        return value;
+      }
+      // Try with underscores replaced by spaces (for multi-word attributes)
+      const altName = variableName.replace(/_/g, ' ');
+      const altValue = context.getVariable(altName);
+      if (altValue) {
+        return altValue;
+      }
+      // Return null if not found
+      return { type: 'null', value: null };
+    }
+    
     // For other attribute reference patterns, we need more context
     // This might be a navigation pattern or other reference
     throw new Error(`Unsupported AttributeReference pattern: ${expr.path.join(' -> ')}`);

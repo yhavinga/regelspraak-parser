@@ -7,15 +7,18 @@ import { Expression } from './expressions';
 export interface DecisionTableCondition {
   type: 'DecisionTableCondition';
   headerText: string; // Original column header text
-  subjectPath?: string[]; // Attribute path being tested
+  subjectExpression?: Expression; // The expression to evaluate for the subject
   operator?: string; // Comparison operator
+  isKenmerkCheck?: boolean; // Whether this is a kenmerk check
+  kenmerkName?: string; // Name of kenmerk for kenmerk checks
 }
 
 export interface DecisionTableResult {
   type: 'DecisionTableResult';
   headerText: string; // Original column header text
-  targetType: 'attribute'; // For now, only attribute assignments
-  attributePath?: string[]; // Target attribute path
+  targetType: 'attribute' | 'kenmerk'; // Type of assignment
+  targetExpression?: Expression; // The target expression to assign to
+  kenmerkName?: string; // Name of kenmerk for kenmerk assignments
 }
 
 export interface DecisionTableRow {
