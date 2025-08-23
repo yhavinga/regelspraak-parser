@@ -314,22 +314,39 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
     // Extract check type from op token
     const opToken = ctx.op;
     let check: 'gevuurd' | 'inconsistent';
+    let predicateOperator: 'gevuurd' | 'inconsistent';
     
     if (opToken.type === RegelSpraakLexer.GEVUURD) {
       check = 'gevuurd';
+      predicateOperator = 'gevuurd';
     } else if (opToken.type === RegelSpraakLexer.INCONSISTENT) {
       check = 'inconsistent';
+      predicateOperator = 'inconsistent';
     } else {
       throw new Error(`Unhandled regel status operator: ${opToken.text}`);
     }
     
-    const node: RegelStatusExpression = {
+    // Create regel status expression with unified predicate
+    const node: any = {
       type: 'RegelStatusExpression',
       regelNaam,
-      check
+      check,
+      // Add unified predicate representation
+      predicate: {
+        type: 'SimplePredicate',
+        operator: predicateOperator,
+        // Store regel name as a string literal expression
+        left: {
+          type: 'StringLiteral',
+          value: regelNaam
+        } as StringLiteral
+      } as SimplePredicate
     };
     
     this.setLocation(node, ctx);
+    if (node.predicate) {
+      this.setLocation(node.predicate, ctx);
+    }
     return node;
   }
 
@@ -381,17 +398,31 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
       throw new Error(`Unknown dagsoort operator token type: ${opToken.type}`);
     }
     
-    // Create a binary expression with the dagsoort name as right side
-    const node = {
+    // Determine if negated
+    const negated = binaryOp.includes('geen');
+    
+    // Create a binary expression with unified predicate
+    const node: any = {
       type: 'BinaryExpression',
       operator: binaryOp as any,
       left: expr,
       right: {
         type: 'StringLiteral',
         value: dagsoortName
-      }
-    } as BinaryExpression;
+      },
+      // Add unified predicate representation
+      predicate: {
+        type: 'SimplePredicate',
+        operator: 'dagsoort',
+        left: expr,
+        dagsoort: dagsoortName,
+        negated: negated
+      } as SimplePredicate
+    };
     this.setLocation(node, ctx);
+    if (node.predicate) {
+      this.setLocation(node.predicate, ctx);
+    }
     return node;
   }
 
@@ -399,12 +430,22 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
     // ref=onderwerpReferentie MOETEN_UNIEK_ZIJN
     const ref = this.visit(ctx.onderwerpReferentie());
     
-    const node = {
+    // Create unary expression with unified predicate
+    const node: any = {
       type: 'UnaryExpression',
       operator: 'moeten uniek zijn',
-      operand: ref
-    } as UnaryExpression;
+      operand: ref,
+      // Add unified predicate representation
+      predicate: {
+        type: 'SimplePredicate',
+        operator: 'uniek',
+        left: ref
+      } as SimplePredicate
+    };
     this.setLocation(node, ctx);
+    if (node.predicate) {
+      this.setLocation(node.predicate, ctx);
+    }
     return node;
   }
 
@@ -419,31 +460,45 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
     }
     const digitCount = parseInt(digitCountToken.getText());
     
-    // Map operator token to string
+    // Map operator token to string and determine negation
     let operator: string;
+    let negated = false;
     if (ctx.IS_NUMERIEK_MET_EXACT()) {
       operator = 'is numeriek met exact';
     } else if (ctx.IS_NIET_NUMERIEK_MET_EXACT()) {
       operator = 'is niet numeriek met exact';
+      negated = true;
     } else if (ctx.ZIJN_NUMERIEK_MET_EXACT()) {
       operator = 'zijn numeriek met exact';
     } else if (ctx.ZIJN_NIET_NUMERIEK_MET_EXACT()) {
       operator = 'zijn niet numeriek met exact';
+      negated = true;
     } else {
       throw new Error('Unknown numeric exact operator');
     }
     
-    // Create binary expression with digit count as right operand
-    const node = {
+    // Create binary expression with unified predicate
+    const node: any = {
       type: 'BinaryExpression',
       left: expr,
       operator: operator,
       right: {
         type: 'NumberLiteral',
         value: digitCount
-      }
-    } as BinaryExpression;
+      },
+      // Add unified predicate representation
+      predicate: {
+        type: 'SimplePredicate',
+        operator: 'numeriek_exact',
+        left: expr,
+        digits: digitCount,
+        negated: negated
+      } as SimplePredicate
+    };
     this.setLocation(node, ctx);
+    if (node.predicate) {
+      this.setLocation(node.predicate, ctx);
+    }
     return node;
   }
 
@@ -1428,12 +1483,38 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
       const baseExpression = this.visitOnderwerpBasis(ctx.onderwerpBasis());
       const predicaat = this.visitPredicaat(predicaatCtx);
       
+      // Convert predicaat to unified predicate
+      let unifiedPredicate: Predicate | undefined;
+      if ((predicaat as any).predicate) {
+        // Already has unified predicate
+        unifiedPredicate = (predicaat as any).predicate;
+      } else if (predicaat.type === 'KenmerkPredicaat') {
+        unifiedPredicate = {
+          type: 'SimplePredicate',
+          operator: 'kenmerk',
+          kenmerk: (predicaat as KenmerkPredicaat).kenmerk
+        } as SimplePredicate;
+      } else if (predicaat.type === 'AttributeComparisonPredicaat') {
+        const attrPred = predicaat as AttributeComparisonPredicaat;
+        unifiedPredicate = {
+          type: 'AttributePredicate',
+          attribute: attrPred.attribute,
+          operator: attrPred.operator as import('../predicates/predicate-types').ComparisonOperator,
+          value: attrPred.value
+        } as AttributePredicate;
+      }
+      
       const node = {
         type: 'SubselectieExpression',
         collection: baseExpression,
-        predicaat
+        predicaat,
+        // Add unified predicate representation
+        predicate: unifiedPredicate
       } as SubselectieExpression;
     this.setLocation(node, ctx);
+    if (unifiedPredicate) {
+      this.setLocation(unifiedPredicate, ctx);
+    }
     return node;
     }
     
@@ -1547,11 +1628,21 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
     // Simple kenmerk pattern like "minderjarig zijn"
     if (text.endsWith(' zijn')) {
       const kenmerk = text.replace(/ zijn$/, '').trim();
+      // Create old type for backward compatibility
       const node = {
         type: 'KenmerkPredicaat',
-        kenmerk
-      } as KenmerkPredicaat;
+        kenmerk,
+        // Add unified predicate representation
+        predicate: {
+          type: 'SimplePredicate',
+          operator: 'kenmerk',
+          kenmerk
+        } as SimplePredicate
+      } as KenmerkPredicaat & { predicate?: SimplePredicate };
     this.setLocation(node, ctx);
+    if (node.predicate) {
+      this.setLocation(node.predicate, ctx);
+    }
     return node;
     }
     
@@ -1611,13 +1702,24 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
     const exprCtx = ctx.expressie();
     const expr = this.visit(exprCtx);
     
+    // Create old type with unified predicate
     const node = {
       type: 'AttributeComparisonPredicaat',
       attribute: attrName,
       operator,
-      value: expr
-    } as AttributeComparisonPredicaat;
+      value: expr,
+      // Add unified predicate representation
+      predicate: {
+        type: 'AttributePredicate',
+        attribute: attrName,
+        operator: operator as import('../predicates/predicate-types').ComparisonOperator,
+        value: expr
+      } as AttributePredicate
+    } as AttributeComparisonPredicaat & { predicate?: AttributePredicate };
     this.setLocation(node, ctx);
+    if (node.predicate) {
+      this.setLocation(node.predicate, ctx);
+    }
     return node;
   }
   
@@ -1628,11 +1730,21 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
     // Remove trailing "zijn" if present
     const kenmerk = text.replace(/ zijn$/, '').trim();
     
+    // Create old type with unified predicate
     const node = {
       type: 'KenmerkPredicaat',
-      kenmerk
-    } as KenmerkPredicaat;
+      kenmerk,
+      // Add unified predicate representation
+      predicate: {
+        type: 'SimplePredicate',
+        operator: 'kenmerk',
+        kenmerk
+      } as SimplePredicate
+    } as KenmerkPredicaat & { predicate?: SimplePredicate };
     this.setLocation(node, ctx);
+    if (node.predicate) {
+      this.setLocation(node.predicate, ctx);
+    }
     return node;
   }
 
@@ -2506,13 +2618,135 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
       throw new Error('No conditions found in compound condition');
     }
     
+    // Map old quantifier to unified type
+    let unifiedQuantifier: UnifiedQuantifierType;
+    let count: number | undefined;
+    
+    switch (kwantificatie.type) {
+      case KwantificatieType.ALLE:
+        unifiedQuantifier = UnifiedQuantifierType.ALLE;
+        break;
+      case KwantificatieType.GEEN:
+        unifiedQuantifier = UnifiedQuantifierType.GEEN;
+        break;
+      case KwantificatieType.TEN_MINSTE:
+        unifiedQuantifier = UnifiedQuantifierType.TEN_MINSTE;
+        count = kwantificatie.aantal;
+        break;
+      case KwantificatieType.TEN_HOOGSTE:
+        unifiedQuantifier = UnifiedQuantifierType.TEN_HOOGSTE;
+        count = kwantificatie.aantal;
+        break;
+      case KwantificatieType.PRECIES:
+        unifiedQuantifier = UnifiedQuantifierType.PRECIES;
+        count = kwantificatie.aantal;
+        break;
+    }
+    
+    // Convert expressions to predicates
+    const unifiedPredicates: Predicate[] = voorwaarden.map(expr => 
+      this.convertExpressionToPredicate(expr)
+    );
+    
     const node: SamengesteldeVoorwaarde = {
       type: 'SamengesteldeVoorwaarde',
       kwantificatie,
-      voorwaarden
+      voorwaarden,
+      // Add unified predicate representation
+      predicate: {
+        type: 'CompoundPredicate',
+        quantifier: unifiedQuantifier,
+        count,
+        predicates: unifiedPredicates
+      } as CompoundPredicate
     };
     this.setLocation(node, ctx);
+    if (node.predicate) {
+      this.setLocation(node.predicate, ctx);
+    }
     return node;
+  }
+
+  // Helper method to convert expressions to unified predicates
+  private convertExpressionToPredicate(expr: Expression): Predicate {
+    // Handle compound conditions
+    if (expr.type === 'SamengesteldeVoorwaarde') {
+      const compound = expr as SamengesteldeVoorwaarde;
+      if (compound.predicate) {
+        return compound.predicate;
+      }
+      // Fallback: create compound predicate from old structure
+      let quantifier: UnifiedQuantifierType;
+      let count: number | undefined;
+      
+      switch (compound.kwantificatie.type) {
+        case KwantificatieType.ALLE:
+          quantifier = UnifiedQuantifierType.ALLE;
+          break;
+        case KwantificatieType.GEEN:
+          quantifier = UnifiedQuantifierType.GEEN;
+          break;
+        case KwantificatieType.TEN_MINSTE:
+          quantifier = UnifiedQuantifierType.TEN_MINSTE;
+          count = compound.kwantificatie.aantal;
+          break;
+        case KwantificatieType.TEN_HOOGSTE:
+          quantifier = UnifiedQuantifierType.TEN_HOOGSTE;
+          count = compound.kwantificatie.aantal;
+          break;
+        case KwantificatieType.PRECIES:
+          quantifier = UnifiedQuantifierType.PRECIES;
+          count = compound.kwantificatie.aantal;
+          break;
+      }
+      
+      return {
+        type: 'CompoundPredicate',
+        quantifier,
+        count,
+        predicates: compound.voorwaarden.map(v => this.convertExpressionToPredicate(v))
+      } as CompoundPredicate;
+    }
+    
+    // Handle binary expressions (comparisons)
+    if (expr.type === 'BinaryExpression') {
+      const binary = expr as BinaryExpression;
+      return {
+        type: 'SimplePredicate',
+        operator: binary.operator as any,
+        left: binary.left,
+        right: binary.right
+      } as SimplePredicate;
+    }
+    
+    // Handle unary expressions (special predicates)
+    if (expr.type === 'UnaryExpression') {
+      const unary = expr as UnaryExpression;
+      
+      // Map operators to predicate operators
+      if (unary.operator === 'voldoet aan de elfproef') {
+        return {
+          type: 'SimplePredicate',
+          operator: 'elfproef',
+          left: unary.operand
+        } as SimplePredicate;
+      }
+      if (unary.operator === 'voldoet niet aan de elfproef') {
+        return {
+          type: 'SimplePredicate',
+          operator: 'elfproef',
+          left: unary.operand,
+          negated: true
+        } as SimplePredicate;
+      }
+      // Add more mappings as needed
+    }
+    
+    // For other expressions, don't convert to predicate
+    // This preserves the original behavior where non-boolean expressions
+    // in compound conditions will cause a type error
+    // Return the expression as-is (it's not a valid Predicate type)
+    return expr as any;
   }
 
   extractNumber(ctx: any): number {
@@ -2604,12 +2838,52 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
       throw new Error('No conditions found in nested compound condition');
     }
     
+    // Map old quantifier to unified type
+    let unifiedQuantifier: UnifiedQuantifierType;
+    let count: number | undefined;
+    
+    switch (kwantificatie.type) {
+      case KwantificatieType.ALLE:
+        unifiedQuantifier = UnifiedQuantifierType.ALLE;
+        break;
+      case KwantificatieType.GEEN:
+        unifiedQuantifier = UnifiedQuantifierType.GEEN;
+        break;
+      case KwantificatieType.TEN_MINSTE:
+        unifiedQuantifier = UnifiedQuantifierType.TEN_MINSTE;
+        count = kwantificatie.aantal;
+        break;
+      case KwantificatieType.TEN_HOOGSTE:
+        unifiedQuantifier = UnifiedQuantifierType.TEN_HOOGSTE;
+        count = kwantificatie.aantal;
+        break;
+      case KwantificatieType.PRECIES:
+        unifiedQuantifier = UnifiedQuantifierType.PRECIES;
+        count = kwantificatie.aantal;
+        break;
+    }
+    
+    // Convert expressions to predicates
+    const unifiedPredicates: Predicate[] = voorwaarden.map(expr => 
+      this.convertExpressionToPredicate(expr)
+    );
+    
     const node: SamengesteldeVoorwaarde = {
       type: 'SamengesteldeVoorwaarde',
       kwantificatie,
-      voorwaarden
+      voorwaarden,
+      // Add unified predicate representation
+      predicate: {
+        type: 'CompoundPredicate',
+        quantifier: unifiedQuantifier,
+        count,
+        predicates: unifiedPredicates
+      } as CompoundPredicate
     };
     this.setLocation(node, ctx);
+    if (node.predicate) {
+      this.setLocation(node.predicate, ctx);
+    }
     return node;
   }
 
@@ -2659,6 +2933,8 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
     
     // Get the operator text - check which token is present
     let operator: string;
+    let isElfproef = false;
+    let negated = false;
     
     if (ctx.IS_LEEG && ctx.IS_LEEG()) {
       operator = 'is leeg';
@@ -2666,20 +2942,49 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
       operator = 'is gevuld';
     } else if (ctx.VOLDOET_AAN_DE_ELFPROEF && ctx.VOLDOET_AAN_DE_ELFPROEF()) {
       operator = 'voldoet aan de elfproef';
+      isElfproef = true;
     } else if (ctx.VOLDOET_NIET_AAN_DE_ELFPROEF && ctx.VOLDOET_NIET_AAN_DE_ELFPROEF()) {
       operator = 'voldoet niet aan de elfproef';
+      isElfproef = true;
+      negated = true;
     } else if (ctx.ZIJN_LEEG && ctx.ZIJN_LEEG()) {
       operator = 'zijn leeg';
     } else if (ctx.ZIJN_GEVULD && ctx.ZIJN_GEVULD()) {
       operator = 'zijn gevuld';
     } else if (ctx.VOLDOEN_AAN_DE_ELFPROEF && ctx.VOLDOEN_AAN_DE_ELFPROEF()) {
       operator = 'voldoen aan de elfproef';
+      isElfproef = true;
     } else if (ctx.VOLDOEN_NIET_AAN_DE_ELFPROEF && ctx.VOLDOEN_NIET_AAN_DE_ELFPROEF()) {
       operator = 'voldoen niet aan de elfproef';
+      isElfproef = true;
+      negated = true;
     } else {
       throw new Error('Unknown unary check operator');
     }
     
+    // For elfproef checks, create SimplePredicate with unified representation
+    if (isElfproef) {
+      // Create wrapper that looks like UnaryExpression but contains unified predicate
+      const node = {
+        type: 'UnaryExpression',
+        operator: operator,
+        operand: operand,
+        // Add unified predicate representation
+        predicate: {
+          type: 'SimplePredicate',
+          operator: 'elfproef',
+          left: operand,
+          negated: negated
+        } as SimplePredicate
+      } as any;
+      this.setLocation(node, ctx);
+      if (node.predicate) {
+        this.setLocation(node.predicate, ctx);
+      }
+      return node;
+    }
+    
+    // For other checks, keep as UnaryExpression for now
     const node = {
       type: 'UnaryExpression',
       operator: operator,

@@ -103,13 +103,16 @@ export interface AllAttributesExpression extends Expression {
 }
 
 // Predicaat types for filtering
+// @deprecated Use unified predicate types from '../predicates/predicate-types' instead
 export type Predicaat = KenmerkPredicaat | AttributeComparisonPredicaat;
 
+// @deprecated Use SimplePredicate with operator: 'kenmerk' instead
 export interface KenmerkPredicaat {
   type: 'KenmerkPredicaat';
   kenmerk: string;
 }
 
+// @deprecated Use AttributePredicate from unified predicate types instead
 export interface AttributeComparisonPredicaat {
   type: 'AttributeComparisonPredicaat';
   attribute: string;

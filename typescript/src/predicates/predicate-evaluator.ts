@@ -120,8 +120,31 @@ export class PredicateEvaluator {
     // Evaluate each nested predicate
     let trueCount = 0;
     for (const nestedPredicate of predicates) {
-      if (this.evaluate(nestedPredicate, value, context)) {
-        trueCount++;
+      // Check if this is actually a predicate or an expression
+      if (!nestedPredicate || typeof nestedPredicate !== 'object' || !nestedPredicate.type) {
+        throw new Error('Invalid predicate in compound condition');
+      }
+      
+      // If it's not a recognized predicate type, it's an expression that needs evaluation
+      if (!isSimplePredicate(nestedPredicate) && !isCompoundPredicate(nestedPredicate) && 
+          !isNotPredicate(nestedPredicate) && !isAttributePredicate(nestedPredicate)) {
+        // This is an expression, not a predicate
+        // Evaluate it using the expression evaluator
+        const exprResult = this.expressionEvaluator.evaluate(nestedPredicate as any, context);
+        
+        // Strict boolean check - each condition must evaluate to boolean
+        if (exprResult.type !== 'boolean') {
+          throw new Error(`Compound condition element must evaluate to boolean, got ${exprResult.type}`);
+        }
+        
+        if (exprResult.value === true) {
+          trueCount++;
+        }
+      } else {
+        // It's a proper predicate, evaluate normally
+        if (this.evaluate(nestedPredicate, value, context)) {
+          trueCount++;
+        }
       }
     }
 
