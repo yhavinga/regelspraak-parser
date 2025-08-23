@@ -35,6 +35,15 @@ import {
   Kwantificatie,
   KwantificatieType
 } from '../ast/expressions';
+import {
+  Predicate,
+  SimplePredicate,
+  CompoundPredicate,
+  AttributePredicate,
+  QuantifierType as UnifiedQuantifierType,
+  fromLegacyKenmerkPredicaat,
+  fromLegacyAttributeComparison
+} from '../predicates/predicate-types';
 import { 
   Voorwaarde, 
   ObjectCreation, 

@@ -3,6 +3,14 @@ import { Expression, NumberLiteral, StringLiteral, BinaryExpression, UnaryExpres
 import { AggregationEngine } from './aggregation-engine';
 import { TimelineEvaluator } from './timeline-evaluator';
 import { TimelineExpression, TimelineValue, TimelineValueImpl } from '../ast/timelines';
+import { PredicateEvaluator } from '../predicates/predicate-evaluator';
+import { 
+  SimplePredicate, 
+  CompoundPredicate, 
+  AttributePredicate,
+  fromLegacyKenmerkPredicaat,
+  fromLegacyAttributeComparison
+} from '../predicates/predicate-types';
 import { UnitRegistry, performUnitArithmetic, UnitValue, createUnitValue } from '../units';
 import { Context } from '../runtime/context';
 
@@ -28,11 +36,13 @@ export class ExpressionEvaluator implements IEvaluator {
   private aggregationEngine: AggregationEngine;
   private timelineEvaluator: TimelineEvaluator;
   private unitRegistry: UnitRegistry;
+  private predicateEvaluator: PredicateEvaluator;
 
   constructor() {
     this.aggregationEngine = new AggregationEngine(this);
     this.timelineEvaluator = new TimelineEvaluator(this);
     this.unitRegistry = new UnitRegistry();
+    this.predicateEvaluator = new PredicateEvaluator(this);
   }
 
   evaluate(expr: Expression, context: RuntimeContext): Value {
@@ -1109,6 +1119,11 @@ export class ExpressionEvaluator implements IEvaluator {
     
     // Filter the items based on the predicaat
     const filteredItems = items.filter(item => {
+      // Use unified predicate if available
+      if (expr.predicate) {
+        return this.predicateEvaluator.evaluate(expr.predicate, item, context);
+      }
+      // Fallback to legacy evaluation
       return this.evaluatePredicaat(expr.predicaat, item, context);
     });
     
@@ -1602,6 +1617,19 @@ export class ExpressionEvaluator implements IEvaluator {
   }
 
   private evaluateSamengesteldeVoorwaarde(voorwaarde: SamengesteldeVoorwaarde, context: RuntimeContext): Value {
+    // Use unified predicate if available
+    if (voorwaarde.predicate) {
+      // Use the unified predicate evaluator
+      // For compound conditions, we pass a dummy value since conditions don't filter objects
+      const result = this.predicateEvaluator.evaluate(
+        voorwaarde.predicate, 
+        { type: 'null', value: null }, 
+        context
+      );
+      return { type: 'boolean', value: result };
+    }
+    
+    // Fallback to legacy evaluation (to be removed after full migration)
     // Evaluate each condition and count how many are true
     let conditionsMetCount = 0;
     const totalConditions = voorwaarde.voorwaarden.length;

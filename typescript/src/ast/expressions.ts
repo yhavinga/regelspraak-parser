@@ -86,6 +86,8 @@ export interface SubselectieExpression extends Expression {
   type: 'SubselectieExpression';
   collection: Expression;
   predicaat: Predicaat;
+  // Unified predicate for centralized evaluation
+  predicate?: import('../predicates/predicate-types').Predicate;
 }
 
 export interface RegelStatusExpression extends Expression {
@@ -133,4 +135,6 @@ export interface SamengesteldeVoorwaarde extends Expression {
   type: 'SamengesteldeVoorwaarde';
   kwantificatie: Kwantificatie;
   voorwaarden: Expression[];
+  // Unified predicate representation for centralized evaluation
+  predicate?: import('../predicates/predicate-types').CompoundPredicate;
 }
