@@ -1,5 +1,6 @@
 import { Value } from './value';
 import { FeitType } from '../ast/feittype';
+import { DomainModel } from '../ast/domain-model';
 
 // Relationship interface (minimal definition)
 export interface Relationship {
@@ -13,6 +14,9 @@ export interface Relationship {
  * Runtime context for execution
  */
 export interface RuntimeContext {
+  // Domain model
+  domainModel: DomainModel;
+  
   // Variable management
   getVariable(name: string): Value | undefined;
   setVariable(name: string, value: Value): void;
@@ -42,4 +46,7 @@ export interface RuntimeContext {
   addRelationship?(feittypeNaam: string, subject: Value, object: Value, preposition?: string): Relationship;
   getRelationships?(feittypeNaam: string, subject: Value): Relationship[];
   findRelationships?(criteria: { subject?: Value; object?: Value; feittypeNaam?: string }): Relationship[];
+  
+  // Context cloning for temporary evaluation
+  clone?(): RuntimeContext;
 }

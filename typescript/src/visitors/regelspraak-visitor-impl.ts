@@ -106,7 +106,7 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
           model.parameters.push(result);
         } else if (result.type === 'Dimension') {
           model.dimensions.push(result);
-        } else if (result.type === 'DagsoortDefinitie') {
+        } else if (result.type === 'Dagsoort' || result.type === 'DagsoortDefinitie') {
           model.dagsoortDefinities.push(result);
         } else if (result.type === 'DomainReference') {
           model.domains.push(result);
@@ -953,6 +953,54 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
       type: 'FunctionCall',
       functionName: 'aantal',
       arguments: [onderwerpExpr]
+    } as FunctionCall;
+    this.setLocation(node, ctx);
+    return node;
+  }
+
+  visitMaandUitFuncExpr(ctx: any): Expression {
+    // Pattern: DE MAAND UIT primaryExpression
+    const arg = ctx.primaryExpression() ? this.visit(ctx.primaryExpression()) : null;
+    if (!arg) {
+      throw new Error('Missing argument for maand uit function');
+    }
+    
+    const node = {
+      type: 'FunctionCall',
+      functionName: 'maand_uit',
+      arguments: [arg]
+    } as FunctionCall;
+    this.setLocation(node, ctx);
+    return node;
+  }
+
+  visitDagUitFuncExpr(ctx: any): Expression {
+    // Pattern: DE DAG UIT primaryExpression
+    const arg = ctx.primaryExpression() ? this.visit(ctx.primaryExpression()) : null;
+    if (!arg) {
+      throw new Error('Missing argument for dag uit function');
+    }
+    
+    const node = {
+      type: 'FunctionCall',
+      functionName: 'dag_uit',
+      arguments: [arg]
+    } as FunctionCall;
+    this.setLocation(node, ctx);
+    return node;
+  }
+
+  visitJaarUitFuncExpr(ctx: any): Expression {
+    // Pattern: HET JAAR UIT primaryExpression
+    const arg = ctx.primaryExpression() ? this.visit(ctx.primaryExpression()) : null;
+    if (!arg) {
+      throw new Error('Missing argument for jaar uit function');
+    }
+    
+    const node = {
+      type: 'FunctionCall',
+      functionName: 'jaar_uit',
+      arguments: [arg]
     } as FunctionCall;
     this.setLocation(node, ctx);
     return node;

@@ -1,6 +1,7 @@
 import { RuntimeContext, Value } from '../interfaces';
 import { FeitType } from '../ast/feittype';
 import { TimelineValueImpl } from '../ast/timelines';
+import { DomainModel } from '../ast/domain-model';
 
 /**
  * Represents a relationship instance between two objects
@@ -22,6 +23,7 @@ export class Context implements RuntimeContext {
   private objectCounter: number = 0;
   public current_instance: Value | undefined;
   public evaluation_date: Date = new Date();
+  public domainModel: DomainModel;
   
   // Store relationships between objects
   private relationships: Relationship[] = [];
@@ -39,6 +41,26 @@ export class Context implements RuntimeContext {
   // Rule execution tracking for regel status conditions
   private executedRules: Set<string> = new Set();  // Rules that have been executed (fired)
   private inconsistentRules: Set<string> = new Set();  // Consistency rules that found inconsistencies
+
+  constructor(model?: DomainModel) {
+    if (model) {
+      this.domainModel = model;
+    } else {
+      // Create an empty domain model if none provided
+      this.domainModel = {
+        objectTypes: [],
+        parameters: [],
+        regels: [],
+        regelGroepen: [],
+        beslistabels: [],
+        dimensions: [],
+        dagsoortDefinities: [],
+        domains: [],
+        feitTypes: [],
+        unitSystems: []
+      };
+    }
+  }
 
   getVariable(name: string): Value | undefined {
     // Search from innermost to outermost scope
@@ -323,5 +345,52 @@ export class Context implements RuntimeContext {
     
     // If no IDs, compare by reference
     return obj1 === obj2;
+  }
+
+  /**
+   * Clone the context for temporary evaluation
+   */
+  clone(): Context {
+    const cloned = new Context(this.domainModel);
+    
+    // Copy scopes
+    cloned.scopes = this.scopes.map(scope => new Map(scope));
+    
+    // Copy objects
+    cloned.objects = new Map();
+    for (const [type, typeMap] of this.objects) {
+      cloned.objects.set(type, new Map(typeMap));
+    }
+    
+    // Copy other properties
+    cloned.objectCounter = this.objectCounter;
+    cloned.current_instance = this.current_instance;
+    cloned.evaluation_date = this.evaluation_date;
+    cloned.executionTrace = [...this.executionTrace];
+    
+    // Copy relationships
+    cloned.relationships = [...this.relationships];
+    
+    // Copy feittypen
+    cloned.feittypen = new Map(this.feittypen);
+    
+    // Copy timeline attributes
+    cloned.timelineAttributes = new Map();
+    for (const [type, typeMap] of this.timelineAttributes) {
+      const clonedTypeMap = new Map();
+      for (const [id, objectMap] of typeMap) {
+        clonedTypeMap.set(id, new Map(objectMap));
+      }
+      cloned.timelineAttributes.set(type, clonedTypeMap);
+    }
+    
+    // Copy timeline parameters
+    cloned.timelineParameters = new Map(this.timelineParameters);
+    
+    // Copy rule execution tracking
+    cloned.executedRules = new Set(this.executedRules);
+    cloned.inconsistentRules = new Set(this.inconsistentRules);
+    
+    return cloned;
   }
 }

@@ -234,7 +234,15 @@ export function removeRedundantKnips(
 /**
  * Check if two values are equal.
  */
-function areValuesEqual(v1: Value, v2: Value): boolean {
+function areValuesEqual(v1: Value | null | undefined, v2: Value | null | undefined): boolean {
+  // Handle null/undefined cases
+  if ((v1 === null || v1 === undefined) && (v2 === null || v2 === undefined)) {
+    return true;
+  }
+  if (v1 === null || v1 === undefined || v2 === null || v2 === undefined) {
+    return false;
+  }
+  
   if (v1.type !== v2.type) {
     return false;
   }

@@ -4,13 +4,17 @@
 
 import { Expression, AttributeReference } from './expressions';
 import { SourceLocation } from './location';
+import { DagsoortDefinitie } from './dagsoort';
 
 export interface Rule {
   type: 'Rule';
-  name: string;
-  version: RuleVersion;
-  result: ResultPart;
-  condition?: Voorwaarde; // Optional condition (indien X)
+  name?: string;  // Make optional for compatibility
+  version?: RuleVersion;  // Make optional for compatibility
+  resultaat?: ResultPart;  // Also support 'resultaat' property name
+  result?: ResultPart;  // Keep for backward compatibility
+  voorwaarde?: Voorwaarde;  // Also support 'voorwaarde' property name
+  condition?: Voorwaarde; // Keep for backward compatibility
+  naam?: string;  // Alternative property name
   location?: SourceLocation;  // Set by visitor - guaranteed to exist after parsing
 }
 
@@ -19,7 +23,7 @@ export interface RuleVersion {
   validity: 'altijd' | 'vanaf' | 'tot'; // Simplified for now
 }
 
-export type ResultPart = Gelijkstelling | ObjectCreation | MultipleResults | Kenmerktoekenning | Consistentieregel | Verdeling | FeitCreatie;
+export type ResultPart = Gelijkstelling | ObjectCreation | MultipleResults | Kenmerktoekenning | Consistentieregel | Verdeling | FeitCreatie | DagsoortDefinitie;
 
 export interface Gelijkstelling {
   type: 'Gelijkstelling';

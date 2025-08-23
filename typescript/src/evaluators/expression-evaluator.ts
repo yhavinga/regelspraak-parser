@@ -83,6 +83,8 @@ export class ExpressionEvaluator implements IEvaluator {
         return this.evaluateSamengesteldeVoorwaarde(expr as SamengesteldeVoorwaarde, context);
       case 'RegelStatusExpression':
         return this.evaluateRegelStatusExpression(expr as RegelStatusExpression, context);
+      case 'DateLiteral':
+        return this.evaluateDateLiteral(expr as any, context);
       default:
         throw new Error(`Unknown expression type: ${expr.type}`);
     }
@@ -142,6 +144,13 @@ export class ExpressionEvaluator implements IEvaluator {
   private evaluateBooleanLiteral(expr: any): Value {
     return {
       type: 'boolean',
+      value: expr.value
+    };
+  }
+
+  private evaluateDateLiteral(expr: any, context: RuntimeContext): Value {
+    return {
+      type: 'date',
       value: expr.value
     };
   }
@@ -1244,17 +1253,68 @@ export class ExpressionEvaluator implements IEvaluator {
     const dagsoortName = (dagsoortExpr as StringLiteral).value;
     const date = dateValue.value as Date;
     
+    // Check if the dagsoort is declared in the model
+    // Need to check both the full name and the name without article
+    const isDagsoortDeclared = context.domainModel.dagsoortDefinities?.some(
+      d => {
+        const fullName = (d as any).name || (d as any).dagsoortName;
+        if (!fullName) return false;
+        // Check exact match
+        if (fullName.toLowerCase() === dagsoortName.toLowerCase()) return true;
+        // Check without article (de/het/een)
+        const nameWithoutArticle = fullName.replace(/^(de|het|een)\s+/i, '');
+        return nameWithoutArticle.toLowerCase() === dagsoortName.toLowerCase();
+      }
+    );
+    
     // Look up dagsoort rules in the model
+    // Dagsoort rules can be either DagsoortDefinitie or KenmerkToekenning with format "is een <dagsoort>"
     const dagsoortRules = context.domainModel.regels.filter(regel => {
-      const result = regel.resultaat;
-      return result && 
-             result.type === 'DagsoortDefinitie' && 
-             (result as any).dagsoortName?.toLowerCase() === dagsoortName.toLowerCase();
+      // Support both 'result' and 'resultaat' property names
+      const result = regel.result || regel.resultaat;
+      
+      // Check for DagsoortDefinitie type
+      if (result && result.type === 'DagsoortDefinitie' && 
+          (result as any).dagsoortName?.toLowerCase() === dagsoortName.toLowerCase()) {
+        return true;
+      }
+      
+      // Check for Kenmerktoekenning with matching kenmerk
+      if (result && result.type === 'Kenmerktoekenning') {
+        const kt = result as any;
+        // Check if it's "is een <dagsoort>" pattern
+        if (kt.kenmerk === `is een ${dagsoortName}` || 
+            kt.kenmerk === dagsoortName ||
+            kt.kenmerk?.toLowerCase() === dagsoortName.toLowerCase()) {
+          return true;
+        }
+      }
+      
+      return false;
     });
     
     if (dagsoortRules.length === 0) {
+      // If dagsoort is declared but has no rules, return false
+      if (isDagsoortDeclared) {
+        const isPositiveCheck = expr.operator === 'is een dagsoort' || expr.operator === 'zijn een dagsoort';
+        return {
+          type: 'boolean',
+          value: !isPositiveCheck
+        };
+      }
+      
+      // Check for built-in dagsoort types only if not declared
+      const builtInResult = this.evaluateBuiltInDagsoort(date, dagsoortName);
+      if (builtInResult !== undefined) {
+        const isPositiveCheck = expr.operator === 'is een dagsoort' || expr.operator === 'zijn een dagsoort';
+        const result = isPositiveCheck ? builtInResult : !builtInResult;
+        return {
+          type: 'boolean',
+          value: result
+        };
+      }
+      
       // No definition found - return false for positive checks, true for negative
-      console.warn(`No dagsoort definition found for '${dagsoortName}'`);
       const isPositiveCheck = expr.operator === 'is een dagsoort' || expr.operator === 'zijn een dagsoort';
       return {
         type: 'boolean',
@@ -1263,7 +1323,7 @@ export class ExpressionEvaluator implements IEvaluator {
     }
     
     // Create a temporary context for evaluating the dagsoort rules
-    const dagContext = context.clone();
+    const dagContext = context.clone ? context.clone() : context;
     
     // Create a temporary dag object
     const dagObject = {
@@ -1278,7 +1338,7 @@ export class ExpressionEvaluator implements IEvaluator {
     };
     
     // Set the dag object as current instance
-    dagContext.currentInstance = dagObject as any;
+    dagContext.current_instance = dagObject as any;
     
     // Make "de dag" available as a variable
     dagContext.setVariable('dag', { type: 'date', value: date });
@@ -1286,16 +1346,18 @@ export class ExpressionEvaluator implements IEvaluator {
     // Check each dagsoort rule
     let isDagsoort = false;
     for (const regel of dagsoortRules) {
-      if (regel.voorwaarde) {
+      // Support both 'voorwaarde' and 'condition' property names
+      const voorwaarde = regel.voorwaarde || regel.condition;
+      if (voorwaarde) {
         try {
           // Evaluate the condition
-          const conditionResult = this.evaluate(regel.voorwaarde.expressie, dagContext);
+          const conditionResult = this.evaluate(voorwaarde.expression || (voorwaarde as any).expressie, dagContext);
           if (conditionResult.type === 'boolean' && conditionResult.value === true) {
             isDagsoort = true;
             break;
           }
         } catch (e) {
-          console.debug(`Error evaluating dagsoort rule '${regel.naam}':`, e);
+          console.debug(`Error evaluating dagsoort rule '${regel.name || regel.naam}':`, e);
           continue;
         }
       } else {
@@ -1731,5 +1793,70 @@ export class ExpressionEvaluator implements IEvaluator {
       // Return as-is for complex types
       return { type: 'object', value: currentValue };
     }
+  }
+  
+  /**
+   * Evaluate built-in dagsoort types
+   */
+  private evaluateBuiltInDagsoort(date: Date, dagsoortName: string): boolean | undefined {
+    const lowerName = dagsoortName.toLowerCase();
+    
+    // Werkdag: Monday through Friday, not a holiday
+    if (lowerName === 'werkdag') {
+      const dayOfWeek = date.getDay();
+      // 0 = Sunday, 6 = Saturday
+      const isWeekday = dayOfWeek >= 1 && dayOfWeek <= 5;
+      // Check if it's a Dutch public holiday
+      const isHoliday = this.isDutchPublicHoliday(date);
+      return isWeekday && !isHoliday;
+    }
+    
+    // Weekend: Saturday or Sunday
+    if (lowerName === 'weekend' || lowerName === 'weekenddatum') {
+      const dayOfWeek = date.getDay();
+      return dayOfWeek === 0 || dayOfWeek === 6;
+    }
+    
+    // Feestdag: Dutch public holiday
+    if (lowerName === 'feestdag') {
+      return this.isDutchPublicHoliday(date);
+    }
+    
+    // Not a built-in type
+    return undefined;
+  }
+  
+  /**
+   * Check if a date is a Dutch public holiday
+   */
+  private isDutchPublicHoliday(date: Date): boolean {
+    const year = date.getFullYear();
+    const month = date.getMonth(); // 0-indexed
+    const day = date.getDate();
+    
+    // Fixed holidays
+    // New Year's Day (January 1)
+    if (month === 0 && day === 1) return true;
+    
+    // Christmas Day (December 25)
+    if (month === 11 && day === 25) return true;
+    
+    // Boxing Day (December 26)
+    if (month === 11 && day === 26) return true;
+    
+    // King's Day (April 27, or April 26 if 27th is Sunday)
+    if (month === 3) {
+      if (day === 27 && date.getDay() !== 0) return true;
+      if (day === 26 && new Date(year, 3, 27).getDay() === 0) return true;
+    }
+    
+    // Liberation Day (May 5) - every 5 years
+    if (month === 4 && day === 5 && year % 5 === 0) return true;
+    
+    // Easter-based holidays (simplified - would need proper Easter calculation)
+    // For now, return false for movable holidays
+    // TODO: Implement proper Easter calculation for Good Friday, Easter Monday, Ascension Day, Whit Monday
+    
+    return false;
   }
 }

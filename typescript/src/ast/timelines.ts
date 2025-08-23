@@ -8,7 +8,7 @@ import { Expression } from './expressions';
 export interface Period {
   startDate: Date;
   endDate: Date;
-  value: Value;
+  value?: Value;  // Optional - empty periods have no value
 }
 
 /**
@@ -68,7 +68,7 @@ export class TimelineValueImpl implements TimelineValue {
     for (const period of this.value.periods) {
       // Check if date falls within this period (inclusive start, exclusive end)
       if (date >= period.startDate && date < period.endDate) {
-        return period.value;
+        return period.value || null;  // Return null if value is undefined
       }
     }
     return null;

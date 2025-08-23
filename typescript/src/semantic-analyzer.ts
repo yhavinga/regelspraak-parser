@@ -154,11 +154,14 @@ export class SemanticAnalyzer {
 
     // Collect rules
     for (const regel of model.regels || []) {
-      this.globalScope.define(regel.name, {
-        name: regel.name,
-        kind: SymbolKind.RULE,
-        definition: regel
-      });
+      const ruleName = regel.name || regel.naam;
+      if (ruleName) {
+        this.globalScope.define(ruleName, {
+          name: ruleName,
+          kind: SymbolKind.RULE,
+          definition: regel
+        });
+      }
     }
 
     // Collect rule groups

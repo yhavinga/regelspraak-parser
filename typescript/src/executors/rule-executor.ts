@@ -38,11 +38,19 @@ export class RuleExecutor implements IRuleExecutor {
 
   execute(rule: Rule, context: RuntimeContext): RuleExecutionResult {
     try {
+      const result = rule.result || rule.resultaat;
+      if (!result) {
+        return {
+          success: false,
+          error: new Error(`Rule '${rule.name || rule.naam}' has no result part`)
+        };
+      }
+      
       // For Kenmerktoekenning rules with conditions, we handle the condition differently
       // The condition is evaluated per object, not at the rule level
-      if (rule.result.type === 'Kenmerktoekenning' && rule.condition) {
+      if (result.type === 'Kenmerktoekenning' && rule.condition) {
         return this.executeKenmerktoekenningWithCondition(
-          rule.result as Kenmerktoekenning, 
+          result as Kenmerktoekenning, 
           rule.condition, 
           context
         );
@@ -75,16 +83,17 @@ export class RuleExecutor implements IRuleExecutor {
       
       // Mark rule as executed for regel status tracking
       const ctx = context as any;
-      if (ctx.markRuleExecuted) {
-        ctx.markRuleExecuted(rule.name);
+      const ruleName = rule.name || rule.naam;
+      if (ctx.markRuleExecuted && ruleName) {
+        ctx.markRuleExecuted(ruleName);
       }
       
       // Set current rule name for consistency rule tracking
-      ctx._currentRuleName = rule.name;
+      ctx._currentRuleName = ruleName;
       
       // Special handling for inconsistent-type consistency rules
-      if (rule.result.type === 'Consistentieregel') {
-        const consistentieregel = rule.result as Consistentieregel;
+      if (result.type === 'Consistentieregel') {
+        const consistentieregel = result as Consistentieregel;
         if (consistentieregel.criteriumType === 'inconsistent' && rule.condition) {
           // For inconsistent rules, condition being true means inconsistency was found
           if (ctx.markRuleInconsistent) {
@@ -94,7 +103,7 @@ export class RuleExecutor implements IRuleExecutor {
       }
       
       // Execute the result part(s)
-      return this.executeResultPart(rule.result, context);
+      return this.executeResultPart(result, context);
     } catch (error) {
       return {
         success: false,
@@ -1091,7 +1100,8 @@ export class RuleExecutor implements IRuleExecutor {
         
         for (const rule of regelGroep.rules) {
           // Check if this is an object creation rule
-          if (rule.result.type === 'ObjectCreation') {
+          const result = rule.result || rule.resultaat;
+          if (result && result.type === 'ObjectCreation') {
             // Check termination condition
             if (rule.condition) {
               try {

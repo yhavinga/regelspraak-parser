@@ -47,7 +47,7 @@ export class TimelineEvaluator {
     
     for (const period of timeline.periods) {
       if (date >= period.startDate && date < period.endDate) {
-        return period.value;
+        return period.value || null;
       }
     }
     
@@ -144,6 +144,10 @@ export class TimelineEvaluator {
       let total = new Decimal(0);
       
       for (const period of periodsToSum) {
+        if (!period.value) {
+          // Skip empty periods
+          continue;
+        }
         if (period.value.type !== 'number') {
           throw new Error('Cannot sum non-numeric timeline values');
         }
@@ -156,7 +160,7 @@ export class TimelineEvaluator {
       return {
         type: 'number',
         value: total.toNumber(),
-        unit: timeline.periods[0]?.value.unit
+        unit: timeline.periods[0]?.value?.unit
       };
     }
     
@@ -333,17 +337,25 @@ export class TimelineEvaluator {
         
         if (period.startDate > periodStart || period.endDate < periodEnd) {
           // Partial period - calculate proportional value
-          const proportionalValue = calculateProportionalValue(
-            period.value,
-            period.startDate,
-            period.endDate,
-            periodType
-          );
-          resultPeriods.push({
-            startDate: period.startDate,
-            endDate: period.endDate,
-            value: proportionalValue
-          });
+          if (period.value) {
+            const proportionalValue = calculateProportionalValue(
+              period.value,
+              period.startDate,
+              period.endDate,
+              periodType
+            );
+            resultPeriods.push({
+              startDate: period.startDate,
+              endDate: period.endDate,
+              value: proportionalValue
+            });
+          } else {
+            // Empty period - keep as-is
+            resultPeriods.push({
+              startDate: period.startDate,
+              endDate: period.endDate
+            });
+          }
         } else {
           // Full period - use original value
           resultPeriods.push(period);
@@ -459,7 +471,7 @@ export class TimelineEvaluator {
   private getValueAtDate(timeline: Timeline, date: Date): Value | null {
     for (const period of timeline.periods) {
       if (date >= period.startDate && date < period.endDate) {
-        return period.value;
+        return period.value || null;
       }
     }
     return null;
@@ -533,8 +545,12 @@ export class TimelineEvaluator {
           value: resultValue
         });
       } else {
-        // Keep empty periods as-is
-        periods.push(period);
+        // Keep empty periods but ensure value is undefined, not null
+        periods.push({
+          startDate: period.startDate,
+          endDate: period.endDate
+          // Omit value property entirely for empty periods
+        });
       }
     }
     
@@ -578,7 +594,11 @@ export class TimelineEvaluator {
       } else {
         // For operations with empty values, follow specification rules
         // Most operations with empty values return empty
-        periods.push(period);
+        periods.push({
+          startDate: period.startDate,
+          endDate: period.endDate
+          // Omit value property entirely for empty periods
+        });
       }
     }
     
