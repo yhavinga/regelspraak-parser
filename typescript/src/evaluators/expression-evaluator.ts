@@ -16,7 +16,7 @@ export class ExpressionEvaluator implements IEvaluator {
     'aantal': this.aantal.bind(this),
     'som': this.som.bind(this),
     'som_van': this.som_van.bind(this),
-    'totaal_van': this.totaal_van.bind(this),
+    // 'totaal_van' removed - handled via TimelineExpression
     'tijdsevenredig_deel': this.tijdsevenredig_deel.bind(this),
     'tijdsduur_van': this.tijdsduur_van.bind(this),
     'abs_tijdsduur_van': this.abs_tijdsduur_van.bind(this),
@@ -506,6 +506,11 @@ export class ExpressionEvaluator implements IEvaluator {
       return this.aantal_dagen_in_special(expr, context);
     }
     
+    // Defensive check: totaal_van should be handled via TimelineExpression, not FunctionCall
+    if (expr.functionName === 'totaal_van') {
+      throw new Error('totaal_van should be handled via TimelineExpression. Grammar may have changed unexpectedly.');
+    }
+    
     // Evaluate all arguments first
     const evaluatedArgs = expr.arguments.map(arg => this.evaluate(arg, context));
     
@@ -623,44 +628,7 @@ export class ExpressionEvaluator implements IEvaluator {
     }
   }
 
-  private totaal_van(args: Value[]): Value {
-    // Total aggregation - similar to som_van but handles temporal conditions
-    // For now, implement basic totaling without temporal condition support
-    if (args.length < 1 || args.length > 2) {
-      throw new Error('totaal_van expects 1 or 2 arguments');
-    }
-    
-    const mainArg = args[0];
-    
-    // TODO: Handle temporal condition (second argument) when provided
-    if (args.length === 2) {
-      // This would need timeline support to properly filter periods
-      console.warn('Temporal conditions in totaal_van not yet fully implemented in TypeScript');
-    }
-    
-    // For now, just sum like som_van
-    if (mainArg.type === 'array') {
-      const values = mainArg.value as Value[];
-      let total = 0;
-      
-      for (const val of values) {
-        if (val.type !== 'number') {
-          throw new Error(`totaal_van expects numeric values, got ${val.type}`);
-        }
-        total += val.value as number;
-      }
-      
-      return {
-        type: 'number',
-        value: total
-      };
-    } else if (mainArg.type === 'number') {
-      // Single value, return as-is
-      return mainArg;
-    } else {
-      throw new Error(`totaal_van expects numeric or array argument, got ${mainArg.type}`);
-    }
-  }
+  // totaal_van method removed - handled via TimelineExpression in timeline-evaluator
 
   private tijdsevenredig_deel(args: Value[]): Value {
     // Time-proportional part calculation

@@ -845,9 +845,8 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
         functionName = 'maximum_van';
       } else if (text.includes('minimale')) {
         functionName = 'minimum_van';
-      } else if (text.includes('totaal')) {
-        functionName = 'totaal_van';
       }
+      // Note: 'totaal' removed - grammar doesn't allow it in dimensieAggExpr
     }
     
     if (!functionName) {
