@@ -1044,13 +1044,13 @@ export class ExpressionEvaluator implements IEvaluator {
   }
 
   private evaluateAttributeReference(expr: AttributeReference, context: RuntimeContext): Value {
-    // Check if the first element is an aggregation function
+    // Check if the last element is an aggregation function (object-first order)
     if (expr.path.length > 1) {
-      const firstElement = expr.path[0].toLowerCase();
-      if (firstElement === 'aantal' || firstElement === 'som' || firstElement === 'totaal') {
-        // This is an aggregation pattern: ['aantal', 'alle passagiers', 'vlucht']
-        // Navigate through the remaining path to collect objects
-        const remainingPath = expr.path.slice(1);
+      const lastElement = expr.path[expr.path.length - 1].toLowerCase();
+      if (lastElement === 'aantal' || lastElement === 'som' || lastElement === 'totaal') {
+        // This is an aggregation pattern: ['vlucht', 'alle passagiers', 'aantal']
+        // Navigate through the path except the last element to collect objects
+        const remainingPath = expr.path.slice(0, -1);
         
         // Create a new AttributeReference for the navigation part
         const navExpr: AttributeReference = {
@@ -1062,7 +1062,7 @@ export class ExpressionEvaluator implements IEvaluator {
         const collectionValue = this.evaluateAttributeReference(navExpr, context);
         
         // Apply the aggregation
-        if (firstElement === 'aantal') {
+        if (lastElement === 'aantal') {
           // Count the items
           if (collectionValue.type === 'array') {
             const items = collectionValue.value as Value[];
@@ -1074,7 +1074,7 @@ export class ExpressionEvaluator implements IEvaluator {
             // Single item counts as 1
             return { type: 'number', value: 1 };
           }
-        } else if (firstElement === 'som' || firstElement === 'totaal') {
+        } else if (lastElement === 'som' || lastElement === 'totaal') {
           // Sum the values
           if (collectionValue.type !== 'array' && collectionValue.type !== 'list') {
             throw new Error(`Cannot sum non-collection type: ${collectionValue.type}`);
@@ -1165,9 +1165,9 @@ export class ExpressionEvaluator implements IEvaluator {
     
     // Check if this is the special "alle" pattern for uniqueness checks
     if (expr.path.length === 3 && expr.path[1] === 'alle') {
-      // Pattern: ["attributeName", "alle", "objectType"]
-      const attributeName = expr.path[0];
-      const objectType = expr.path[2];
+      // Pattern: ["objectType", "alle", "attributeName"] (object-first order)
+      const objectType = expr.path[0];
+      const attributeName = expr.path[2];
       
       // Get all objects of the specified type from context
       const ctx = context as any;  // Cast to access implementation-specific methods
@@ -1195,10 +1195,11 @@ export class ExpressionEvaluator implements IEvaluator {
     }
     
     // Check for "alle <role> van <object>" pattern (e.g., "alle passagiers van de vlucht")
-    if (expr.path.length === 2 && expr.path[0].startsWith('alle ')) {
+    // With object-first order: ["vlucht", "alle passagiers"]
+    if (expr.path.length === 2 && expr.path[1].startsWith('alle ')) {
       // Extract the role name from "alle passagiers"
-      const roleName = expr.path[0].substring(5); // Remove "alle " prefix
-      const objectRef = expr.path[1];
+      const roleName = expr.path[1].substring(5); // Remove "alle " prefix
+      const objectRef = expr.path[0];
       
       // First get the object
       const objectValue = this.evaluateVariableReference({ 
@@ -1228,9 +1229,9 @@ export class ExpressionEvaluator implements IEvaluator {
       };
     }
     
-    // Handle simple navigation patterns like ["naam", "persoon"]
+    // Handle simple navigation patterns like ["persoon", "naam"] (object-first order)
     if (expr.path.length === 2) {
-      const [attribute, objectName] = expr.path;
+      const [objectName, attribute] = expr.path;
       
       // Check if this is a pronoun-based Feittype navigation like ["vluchtdatum", "zijn reis"]
       if (objectName.startsWith('zijn ') || objectName.startsWith('haar ')) {
@@ -1332,8 +1333,36 @@ export class ExpressionEvaluator implements IEvaluator {
       return { type: 'null', value: null };
     }
     
-    // For other attribute reference patterns, we need more context
-    // This might be a navigation pattern or other reference
+    // Handle multi-element navigation paths (3 or more elements)
+    // Use the navigation utility to resolve complex paths
+    if (expr.path.length > 2) {
+      const { resolveNavigationPath } = require('../utils/navigation');
+      const navResult = resolveNavigationPath(expr.path, context);
+      
+      if (navResult.error) {
+        throw new Error(navResult.error);
+      }
+      
+      if (!navResult.targetObject) {
+        throw new Error(`Navigation failed for path: ${expr.path.join(' -> ')}`);
+      }
+      
+      // Get the attribute from the target object
+      if (navResult.targetObject.type !== 'object') {
+        throw new Error(`Cannot get attribute '${navResult.attributeName}' from non-object`);
+      }
+      
+      const objectData = navResult.targetObject.value as Record<string, Value>;
+      const value = objectData[navResult.attributeName];
+      
+      if (value === undefined) {
+        throw new Error(`Attribute '${navResult.attributeName}' not found on object`);
+      }
+      
+      return value;
+    }
+    
+    // For other unhandled patterns
     throw new Error(`Unsupported AttributeReference pattern: ${expr.path.join(' -> ')}`);
   }
 
@@ -1977,8 +2006,8 @@ export class ExpressionEvaluator implements IEvaluator {
         throw new Error('AttributeReference in dimensional context must have at least 2 path elements');
       }
       
-      // Extract attribute name and object path
-      attributeName = path[0];
+      // Extract attribute name and object path (object-first order)
+      attributeName = path[path.length - 1];  // Last element is the attribute
       
       // Use dimension registry to identify and remove adjectival dimension labels from attribute name
       const registry = context.dimensionRegistry;
@@ -1990,8 +2019,8 @@ export class ExpressionEvaluator implements IEvaluator {
         }
       }
       
-      // Get the target object - for now, assume it's a variable
-      const objectName = path[path.length - 1];
+      // Get the target object - with object-first order, first element is the object
+      const objectName = path[0];
       targetObject = context.getVariable(objectName) || { type: 'null', value: null };
     } else {
       throw new Error(`Unsupported base attribute type for dimensional reference: ${baseAttribute.type}`);

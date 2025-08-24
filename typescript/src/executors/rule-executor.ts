@@ -173,7 +173,8 @@ export class RuleExecutor implements IRuleExecutor {
     
     // Check if this is an object-scoped rule
     if (isObjectScopedRule(targetPath)) {
-      const objectType = targetPath[targetPath.length - 1];
+      // With object-first order, the object type is the first element
+      const objectType = targetPath[0];
       
       // Handle multi-word object types - "Natuurlijkpersoon" should match "Natuurlijk persoon"
       // Try exact match first
@@ -213,12 +214,12 @@ export class RuleExecutor implements IRuleExecutor {
             
             // Navigate through the path to set the attribute
             // For "De vluchtdatum van de reis van een Natuurlijk persoon"
-            // path = ["vluchtdatum", "reis", "Natuurlijkpersoon"]
+            // path = ["Natuurlijkpersoon", "reis", "vluchtdatum"] (object-first order)
             // Start from current object (Natuurlijk persoon) and navigate to reis (Vlucht)
             
             let currentObj = obj;
-            // Navigate through intermediate segments (skip first=attribute and last=object type)
-            for (let i = targetPath.length - 2; i > 0; i--) {
+            // Navigate through intermediate segments (skip first=object type and last=attribute)
+            for (let i = 1; i < targetPath.length - 1; i++) {
               const navSegment = targetPath[i];
               
               // First check if this is a Feittype role navigation
@@ -278,8 +279,8 @@ export class RuleExecutor implements IRuleExecutor {
             }
             
             if (currentObj) {
-              // Set the attribute on the final object
-              const attributeName = targetPath[0];
+              // Set the attribute on the final object (last element in path)
+              const attributeName = targetPath[targetPath.length - 1];
               const objData = currentObj.value as Record<string, Value>;
               objData[attributeName] = value;
               // Successfully set the attribute
@@ -311,9 +312,9 @@ export class RuleExecutor implements IRuleExecutor {
         value
       };
     } else if (targetPath.length === 2) {
-      // Pattern like ["resultaat", "berekening"] - attribute on object
-      const attributeName = targetPath[0];
-      const objectName = targetPath[1];
+      // Pattern like ["berekening", "resultaat"] - object-first order
+      const objectName = targetPath[0];
+      const attributeName = targetPath[1];
       
       // First, try to get the object as a variable
       const objectValue = context.getVariable(objectName);
@@ -625,11 +626,11 @@ export class RuleExecutor implements IRuleExecutor {
     } else if (verdeling.targetCollection.type === 'AttributeReference') {
       const attrRef = verdeling.targetCollection as any;
       
-      // For AttributeReference with path like ["ontvangen aantal", "personen"]
-      // The first element is the attribute name, the second is the collection
+      // For AttributeReference with path like ["personen", "ontvangen aantal"]
+      // With object-first order: first is collection, second is attribute
       if (attrRef.path.length === 2) {
-        attributeName = attrRef.path[0];
-        const collectionName = attrRef.path[1];
+        const collectionName = attrRef.path[0];
+        attributeName = attrRef.path[1];
         
         // Look up the collection as a variable
         const collectionValue = this.expressionEvaluator.evaluate({
@@ -715,7 +716,8 @@ export class RuleExecutor implements IRuleExecutor {
     if (remainderTarget.type === 'AttributeReference') {
       const attrRef = remainderTarget as any;
       if (attrRef.path && attrRef.path.length > 0) {
-        const attrName = attrRef.path[0];
+        // With object-first order, attribute is the last element
+        const attrName = attrRef.path[attrRef.path.length - 1];
         // Set on current instance or specified object
         const ctx = context as Context;
         if (ctx.current_instance) {
@@ -1120,21 +1122,22 @@ export class RuleExecutor implements IRuleExecutor {
   private extractPathFromNavigationExpression(navExpr: any): string[] {
     // NavigationExpression has structure: { attribute: string, object: Expression }
     // We need to build a path from the navigation chain
-    const path: string[] = [];
+    // Dutch right-to-left navigation: object-first order
+    const pathReversed: string[] = [];
     
-    // Add the attribute first
-    path.push(navExpr.attribute);
+    // Start with the attribute (will be last in final path)
+    pathReversed.push(navExpr.attribute);
     
     // Traverse the object chain
     let current = navExpr.object;
     while (current) {
       if (current.type === 'NavigationExpression') {
         // Another navigation expression - add its attribute
-        path.push(current.attribute);
+        pathReversed.push(current.attribute);
         current = current.object;
       } else if (current.type === 'VariableReference') {
         // End of chain - this should be the object type
-        path.push(current.variableName);
+        pathReversed.push(current.variableName);
         break;
       } else {
         // Unknown expression type in navigation chain
@@ -1142,7 +1145,8 @@ export class RuleExecutor implements IRuleExecutor {
       }
     }
     
-    return path;
+    // Reverse to get object-first order
+    return pathReversed.reverse();
   }
   
   executeRegelGroep(regelGroep: RegelGroep, context: RuntimeContext): RuleExecutionResult {

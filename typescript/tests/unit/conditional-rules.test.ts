@@ -28,7 +28,7 @@ indien de verkoop groter is dan 1000.`;
           type: 'Gelijkstelling',
           target: {
             type: 'AttributeReference',
-            path: ['bonus', 'berekening']
+            path: ['berekening', 'bonus']  // Dutch right-to-left navigation: object-first
           },
           expression: {
             type: 'NumberLiteral',

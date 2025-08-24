@@ -71,12 +71,13 @@ function navigateThroughFeittype(roleName: string, fromObject: Value, context: C
 /**
  * Resolves a complex navigation path to find the target object and attribute.
  * 
- * For a path like ["leeftijd", "passagier", "vlucht"], this will:
+ * Dutch right-to-left navigation per specification:
+ * For a path like ["vlucht", "passagier", "leeftijd"], this will:
  * 1. Start from the base object (vlucht)
  * 2. Navigate to passagier
  * 3. Return the passagier object and "leeftijd" as the attribute to set
  * 
- * @param path The navigation path from attribute to base object
+ * @param path The navigation path from base object to attribute (object-first order)
  * @param context The runtime context
  * @param startObject Optional starting object, otherwise uses current instance
  * @returns Navigation result with target object and attribute name
@@ -104,9 +105,10 @@ export function resolveNavigationPath(
     };
   }
 
-  // Extract the attribute name (first element) and navigation chain (rest)
-  const attributeName = path[0];
-  const navigationChain = path.slice(1);
+  // Path is now object-first: ["vlucht", "passagier", "leeftijd"]
+  // Extract the attribute name (last element) and navigation chain (everything except last)
+  const attributeName = path[path.length - 1];
+  const navigationChain = path.slice(0, -1);
 
   // Start with the provided start object or current instance
   let currentObject = startObject;
@@ -116,8 +118,8 @@ export function resolveNavigationPath(
     currentObject = ctx.current_instance;
     
     if (!currentObject) {
-      // As a fallback, try to get the last element as a variable
-      const baseName = navigationChain[navigationChain.length - 1];
+      // As a fallback, try to get the first element (base object) as a variable
+      const baseName = navigationChain[0];
       currentObject = ctx.getVariable(baseName);
       
       if (!currentObject) {
@@ -131,16 +133,16 @@ export function resolveNavigationPath(
   }
 
   // Navigate through the chain from the current object
-  // For path ["naam", "eigenaar", "gebouw"], we navigate through ["eigenaar"] 
-  // (skipping the last element if it matches the current object type)
+  // For path ["gebouw", "eigenaar", "naam"], we navigate through ["eigenaar"] 
+  // (skipping the first element if it matches the current object type)
   let navPath = navigationChain;
   
-  // Check if the last element is the object type
+  // Check if the first element is the object type
   const currentObjType = (currentObject.value as any).__type || 
                          (currentObject as any).objectType;
-  if (navPath.length > 0 && navPath[navPath.length - 1].toLowerCase() === currentObjType?.toLowerCase()) {
-    // Skip the last element as it's just referring to the current object type
-    navPath = navPath.slice(0, -1);
+  if (navPath.length > 0 && navPath[0].toLowerCase() === currentObjType?.toLowerCase()) {
+    // Skip the first element as it's just referring to the current object type
+    navPath = navPath.slice(1);
   }
   
   // Navigate through the path
@@ -184,10 +186,10 @@ export function resolveNavigationPath(
 
 /**
  * Checks if a path represents an object-scoped rule pattern.
- * Object-scoped rules have the pattern: ["attribute", ..., "ObjectType"]
- * where the last element is a capitalized object type name.
+ * Object-scoped rules have the pattern: ["ObjectType", ..., "attribute"]
+ * where the first element is a capitalized object type name.
  * 
- * @param path The navigation path
+ * @param path The navigation path (object-first order)
  * @returns True if this is an object-scoped rule pattern
  */
 export function isObjectScopedRule(path: string[]): boolean {
@@ -195,9 +197,9 @@ export function isObjectScopedRule(path: string[]): boolean {
     return false;
   }
   
-  const lastElement = path[path.length - 1];
-  // Check if the last element starts with a capital letter (object type convention)
-  return !!(lastElement && lastElement[0] === lastElement[0].toUpperCase());
+  const firstElement = path[0];
+  // Check if the first element starts with a capital letter (object type convention)
+  return !!(firstElement && firstElement[0] === firstElement[0].toUpperCase());
 }
 
 /**

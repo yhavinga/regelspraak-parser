@@ -1566,8 +1566,9 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
     const objectPath = this.visitOnderwerpReferentieToPath(onderwerpCtx);
     
     // Build the full path for AttributeReference
-    // For "Het dagen aantal van een Test", this becomes ["dagen aantal", "Test"]
-    const fullPath = [attrName, ...objectPath];
+    // Dutch right-to-left navigation per specification
+    // For "de naam van de Manager", this becomes ["Manager", "naam"]
+    const fullPath = [...objectPath, attrName];
     
     // Create AttributeReference with the full path
     const attrRef = {
