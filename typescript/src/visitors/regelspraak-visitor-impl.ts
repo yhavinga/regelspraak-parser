@@ -614,7 +614,8 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
       const day = parseInt(parts[0], 10);
       const month = parseInt(parts[1], 10) - 1; // JavaScript months are 0-indexed
       const year = parseInt(parts[2], 10);
-      const date = new Date(year, month, day);
+      // Create UTC date to avoid timezone issues
+      const date = new Date(Date.UTC(year, month, day));
       
       const node = {
         type: 'DateLiteral',
@@ -2617,15 +2618,49 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
     // Get object type - it's labeled as _objecttype
     let objectType = '';
     if (ctx._objecttype) {
-      objectType = this.extractText(ctx._objecttype);
+      // rolObjectType is defined as identifierOrKeyword+ so we need to extract all words
+      const objectTypeWords: string[] = [];
+      if (ctx._objecttype.children) {
+        for (const child of ctx._objecttype.children) {
+          if (child.getText) {
+            const text = child.getText();
+            objectTypeWords.push(text);
+          }
+        }
+      }
+      objectType = objectTypeWords.join(' ');
+      
+      // Fallback to extractTextWithSpaces if no children found
+      if (!objectType) {
+        objectType = this.extractTextWithSpaces(ctx._objecttype);
+      }
     }
     
     // Determine role name based on the words
     let roleName = '';
     if (!objectType && words.length > 0) {
-      // No explicit object type, so last word is the object type
-      objectType = words[words.length - 1];
-      roleName = words.slice(0, -1).join(' ');
+      // No explicit object type, so we need to determine where the role ends and object type begins
+      // Handle known multi-word object types
+      if (words[words.length - 1] === 'Natuurlijk') {
+        // "Natuurlijk persoon" is a common multi-word object type
+        objectType = 'Natuurlijk persoon';
+        roleName = words.slice(0, -1).join(' ');
+      } else if (words[words.length - 1] === 'Bedrijf' || 
+                 words[words.length - 1] === 'Persoon' ||
+                 words[words.length - 1] === 'Vlucht' ||
+                 words[words.length - 1] === 'Gebouw') {
+        // Single-word object types
+        objectType = words[words.length - 1];
+        roleName = words.slice(0, -1).join(' ');
+      } else if (words.length >= 2 && words[words.length - 2] === 'Natuurlijk') {
+        // In case "Natuurlijk persoon" was parsed as two separate words in content
+        objectType = 'Natuurlijk persoon';
+        roleName = words.slice(0, -2).join(' ');
+      } else {
+        // Default: last word is the object type
+        objectType = words[words.length - 1];
+        roleName = words.slice(0, -1).join(' ');
+      }
     } else {
       // Object type is explicit, so all words are the role name
       roleName = words.join(' ');

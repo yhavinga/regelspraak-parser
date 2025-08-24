@@ -1,4 +1,4 @@
-import { Engine, Context } from '../../src';
+import { Engine, Context, Value } from '../../src';
 
 describe('Feittype Relationship Navigation', () => {
   let engine: Engine;
@@ -15,8 +15,8 @@ describe('Feittype Relationship Navigation', () => {
       // Natuurlijk persoon to Vlucht through the Feittype relationship
       const code = `
 Feittype vlucht van natuurlijke personen
-  de reis Vlucht
-  de passagier Natuurlijk persoon
+  de reis	Vlucht
+  de passagier	Natuurlijk persoon
 
 Objecttype de Natuurlijk persoon
   de naam Tekst;
@@ -42,28 +42,24 @@ geldig altijd
         naam: { type: 'string', value: 'Jan' },
         leeftijd: { type: 'number', value: 30 }
       });
+      // Create Value object for the relationship
       const persoon: Value = {
         type: 'object',
         objectType: 'Natuurlijk persoon',
         objectId: 'persoon1',
-        value: {
-          naam: { type: 'string', value: 'Jan' },
-          leeftijd: { type: 'number', value: 30 }
-        }
+        value: context.getObject('Natuurlijk persoon', 'persoon1')
       };
 
       context.createObject('Vlucht', 'vlucht1', {
         vluchtdatum: { type: 'date', value: new Date('2023-01-01') },
         bestemming: { type: 'string', value: 'Amsterdam' }
       });
+      // Create Value object for the relationship
       const vlucht: Value = {
         type: 'object',
         objectType: 'Vlucht',
         objectId: 'vlucht1',
-        value: {
-          vluchtdatum: { type: 'date', value: new Date('2023-01-01') },
-          bestemming: { type: 'string', value: 'Amsterdam' }
-        }
+        value: context.getObject('Vlucht', 'vlucht1')
       };
 
       // Create relationship through Feittype
@@ -71,6 +67,10 @@ geldig altijd
 
       // Run the rule
       const runResult = engine.run(code, context);
+      if (!runResult.success) {
+        console.error('Run failed:', runResult.error);
+        console.error('Error stack:', (runResult.error as any)?.stack);
+      }
       expect(runResult.success).toBe(true);
 
       // Verify the vluchtdatum was updated
@@ -81,12 +81,12 @@ geldig altijd
     test('should navigate through multiple Feittype relationships', () => {
       const code = `
 Feittype eigendom relatie
-  de eigenaar Persoon
-  het gebouw Gebouw
+  de eigenaar	Persoon
+  het gebouw	Gebouw
 
 Feittype werkrelatie  
-  de werkgever Bedrijf
-  de werknemer Persoon
+  de werkgever	Bedrijf
+  de werknemer	Persoon
 
 Objecttype de Persoon
   de naam Tekst;
@@ -114,7 +114,7 @@ geldig altijd
         type: 'object',
         objectType: 'Persoon',
         objectId: 'persoon1',
-        value: { naam: { type: 'string', value: 'Jan' } }
+        value: context.getObject('Persoon', 'persoon1')
       };
 
       context.createObject('Gebouw', 'gebouw1', {
@@ -124,7 +124,7 @@ geldig altijd
         type: 'object',
         objectType: 'Gebouw',
         objectId: 'gebouw1',
-        value: { adres: { type: 'string', value: 'Main St 1' } }
+        value: context.getObject('Gebouw', 'gebouw1')
       };
 
       context.createObject('Bedrijf', 'bedrijf1', {
@@ -134,7 +134,7 @@ geldig altijd
         type: 'object',
         objectType: 'Bedrijf',
         objectId: 'bedrijf1',
-        value: { bedrijfsnaam: { type: 'string', value: 'Old Name' } }
+        value: context.getObject('Bedrijf', 'bedrijf1')
       };
 
       // Create relationships
@@ -153,8 +153,8 @@ geldig altijd
     test('should handle navigation when relationship does not exist', () => {
       const code = `
 Feittype eigendom relatie
-  de eigenaar Persoon
-  het gebouw Gebouw
+  de eigenaar	Persoon
+  het gebouw	Gebouw
 
 Objecttype de Persoon
   de naam Tekst;
@@ -178,7 +178,7 @@ geldig altijd
         type: 'object',
         objectType: 'Gebouw',
         objectId: 'gebouw1',
-        value: { adres: { type: 'string', value: 'Main St 1' } }
+        value: context.getObject('Gebouw', 'gebouw1')
       };
 
       // Run should handle gracefully when relationship doesn't exist
@@ -190,8 +190,8 @@ geldig altijd
     test('should support collection navigation through Feittype', () => {
       const code = `
 Feittype vlucht van natuurlijke personen
-  de reis Vlucht
-  de passagier Natuurlijk persoon
+  de reis	Vlucht
+  de passagier	Natuurlijk persoon
 
 Objecttype de Natuurlijk persoon
   de naam Tekst;
@@ -217,7 +217,7 @@ geldig altijd
         type: 'object',
         objectType: 'Vlucht',
         objectId: 'vlucht1',
-        value: { vluchtnummer: { type: 'string', value: 'KL123' } }
+        value: context.getObject('Vlucht', 'vlucht1')
       };
 
       // Create multiple passengers
@@ -229,10 +229,7 @@ geldig altijd
         type: 'object',
         objectType: 'Natuurlijk persoon',
         objectId: 'persoon1',
-        value: {
-          naam: { type: 'string', value: 'Jan' },
-          leeftijd: { type: 'number', value: 30 }
-        }
+        value: context.getObject('Natuurlijk persoon', 'persoon1')
       };
 
       context.createObject('Natuurlijk persoon', 'persoon2', {
@@ -243,10 +240,7 @@ geldig altijd
         type: 'object',
         objectType: 'Natuurlijk persoon',
         objectId: 'persoon2',
-        value: {
-          naam: { type: 'string', value: 'Marie' },
-          leeftijd: { type: 'number', value: 25 }
-        }
+        value: context.getObject('Natuurlijk persoon', 'persoon2')
       };
 
       // Create relationships
@@ -267,8 +261,8 @@ geldig altijd
       // From TOKA spec section 4.4
       const code = `
 Feittype vlucht van natuurlijke personen
-  de reis Vlucht
-  de passagier Natuurlijk persoon
+  de reis	Vlucht
+  de passagier	Natuurlijk persoon
 
 Objecttype de Natuurlijk persoon
   de geboortedatum Datum in dagen;
@@ -295,10 +289,7 @@ geldig altijd
         type: 'object',
         objectType: 'Natuurlijk persoon',
         objectId: 'persoon1',
-        value: {
-          geboortedatum: { type: 'date', value: new Date('1990-01-01') },
-          leeftijd: { type: 'number', value: 0 }
-        }
+        value: context.getObject('Natuurlijk persoon', 'persoon1')
       };
 
       context.createObject('Vlucht', 'vlucht1', {
@@ -308,7 +299,7 @@ geldig altijd
         type: 'object',
         objectType: 'Vlucht',
         objectId: 'vlucht1',
-        value: { vluchtdatum: { type: 'date', value: new Date('2024-01-01') } }
+        value: context.getObject('Vlucht', 'vlucht1')
       };
 
       // Create relationship

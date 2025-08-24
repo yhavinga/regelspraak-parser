@@ -941,30 +941,46 @@ export class ExpressionEvaluator implements IEvaluator {
   
   private findRelatedObjectsThroughFeittype(roleName: string, fromObject: Value, context: any): Value[] | null {
     // Get all registered Feittypen
-    const feittypen = context.feittypen || new Map();
+    const feittypen = context.getAllFeittypen ? context.getAllFeittypen() : [];
     
-    // Clean the role name for comparison
-    const roleNameClean = roleName.toLowerCase().trim();
+    // Clean the role name for comparison (remove articles)
+    const roleNameClean = roleName.toLowerCase().replace(/^(de|het|een)\s+/, '').trim();
     
     // Check each Feittype to see if it has a matching role
-    for (const [feittypeName, feittype] of feittypen) {
-      for (const rol of feittype.rollen) {
-        const rolNaamClean = rol.naam.toLowerCase().trim();
-        const rolMeervoudClean = (rol.meervoud || '').toLowerCase().trim();
+    for (const feittype of feittypen) {
+      if (!feittype.rollen) continue;
+      
+      for (let roleIdx = 0; roleIdx < feittype.rollen.length; roleIdx++) {
+        const rol = feittype.rollen[roleIdx];
+        const rolNaamClean = rol.naam.toLowerCase().replace(/^(de|het|een)\s+/, '').trim();
+        const rolMeervoudClean = (rol.meervoud || '').toLowerCase().replace(/^(de|het|een)\s+/, '').trim();
         
         // Check if the role name matches (singular or plural)
         if (roleNameClean === rolNaamClean || 
-            roleNameClean === rolMeervoudClean ||
+            (rolMeervoudClean && roleNameClean === rolMeervoudClean) ||
             // Handle common plural patterns
             (roleNameClean.endsWith('s') && roleNameClean.slice(0, -1) === rolNaamClean) ||
             (roleNameClean.endsWith('en') && roleNameClean.slice(0, -2) === rolNaamClean)) {
           
-          // Found a matching role - get related objects
-          const asSubject = feittype.rollen.indexOf(rol) === 1; // If we matched the second role, look for subjects
-          const relatedObjects = context.getRelatedObjects(fromObject, feittypeName, asSubject);
+          // Found a matching role - now check if fromObject matches any other role in this Feittype
+          const fromObjType = (fromObject as any).objectType;
+          if (!fromObjType) continue;
           
-          if (relatedObjects && relatedObjects.length > 0) {
-            return relatedObjects;
+          // Find which role the fromObject matches
+          for (let otherIdx = 0; otherIdx < feittype.rollen.length; otherIdx++) {
+            if (otherIdx === roleIdx) continue; // Skip the target role
+            
+            const otherRol = feittype.rollen[otherIdx];
+            if (otherRol.objectType === fromObjType) {
+              // fromObject matches this role, so we can navigate
+              // Determine navigation direction: if fromObject is at index 0, it's the subject
+              const asSubject = (otherIdx === 0);
+              const relatedObjects = context.getRelatedObjects(fromObject, feittype.naam, asSubject);
+              
+              if (relatedObjects && relatedObjects.length > 0) {
+                return relatedObjects;
+              }
+            }
           }
         }
       }

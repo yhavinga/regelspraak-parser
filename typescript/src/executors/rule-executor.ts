@@ -174,7 +174,30 @@ export class RuleExecutor implements IRuleExecutor {
     // Check if this is an object-scoped rule
     if (isObjectScopedRule(targetPath)) {
       const objectType = targetPath[targetPath.length - 1];
-      const objects = (context as Context).getObjectsByType(objectType);
+      
+      // Handle multi-word object types - "Natuurlijkpersoon" should match "Natuurlijk persoon"
+      // Try exact match first
+      let objects = (context as Context).getObjectsByType(objectType);
+      
+      // If no exact match, try variations
+      if (objects.length === 0) {
+        // Try common variations of multi-word object types
+        const variations = [
+          // Convert "Natuurlijkpersoon" to "Natuurlijk persoon"
+          objectType.replace(/lijk(?=[A-Z])/g, 'lijk '),
+          // Add space before capital letters
+          objectType.replace(/([a-z])([A-Z])/g, '$1 $2'),
+          // Handle specific case
+          objectType === 'Natuurlijkpersoon' ? 'Natuurlijk persoon' : objectType
+        ];
+        
+        for (const variant of variations) {
+          if (variant !== objectType) {
+            objects = (context as Context).getObjectsByType(variant);
+            if (objects.length > 0) break;
+          }
+        }
+      }
       
       if (objects.length > 0) {
         // Object-scoped rule - iterate over all objects of this type
@@ -189,23 +212,71 @@ export class RuleExecutor implements IRuleExecutor {
             const value = this.expressionEvaluator.evaluate(gelijkstelling.expression, context);
             
             // Navigate through the path to set the attribute
-            // For "De leeftijd van de passagier van een Vlucht"
-            // path = ["leeftijd", "passagier", "Vlucht"]
-            // Start from current object (Vlucht) and navigate to passagier
+            // For "De vluchtdatum van de reis van een Natuurlijk persoon"
+            // path = ["vluchtdatum", "reis", "Natuurlijkpersoon"]
+            // Start from current object (Natuurlijk persoon) and navigate to reis (Vlucht)
             
             let currentObj = obj;
             // Navigate through intermediate segments (skip first=attribute and last=object type)
             for (let i = targetPath.length - 2; i > 0; i--) {
-              const navAttribute = targetPath[i];
-              const objData = currentObj.value as Record<string, Value>;
-              const nextObj = objData[navAttribute];
+              const navSegment = targetPath[i];
               
-              if (!nextObj || nextObj.type !== 'object') {
-                // Can't navigate further - skip this object
-                currentObj = null as any;
-                break;
+              // First check if this is a Feittype role navigation
+              let navigatedThroughFeittype = false;
+              const feittypen = ctx.getAllFeittypen ? ctx.getAllFeittypen() : [];
+              
+              for (const feittype of feittypen) {
+                for (let targetRoleIdx = 0; targetRoleIdx < (feittype.rollen || []).length; targetRoleIdx++) {
+                  const targetRole = feittype.rollen[targetRoleIdx];
+                  // Clean role name for comparison
+                  const roleNameClean = targetRole.naam.toLowerCase().replace(/^(de|het|een)\s+/, '');
+                  const segmentClean = navSegment.toLowerCase().replace(/^(de|het|een)\s+/, '');
+                  
+                  if (roleNameClean === segmentClean || 
+                      (targetRole.meervoud && targetRole.meervoud.toLowerCase() === segmentClean)) {
+                    // Found the target role we want to navigate to
+                    // Now find which other role matches our current object
+                    const currentObjType = (currentObj as any).objectType || currentObj.type;
+                    
+                    // Find the role that matches the current object type
+                    for (let sourceRoleIdx = 0; sourceRoleIdx < feittype.rollen.length; sourceRoleIdx++) {
+                      if (sourceRoleIdx === targetRoleIdx) continue; // Skip the target role
+                      
+                      const sourceRole = feittype.rollen[sourceRoleIdx];
+                      if (sourceRole.objectType === currentObjType) {
+                        // Current object matches this source role
+                        // Navigate from source to target role
+                        // If source is at index 0, it's the subject
+                        const asSubject = (sourceRoleIdx === 0);
+                        const relatedObjects = ctx.getRelatedObjects(currentObj, feittype.naam, asSubject);
+                        
+                        if (relatedObjects && relatedObjects.length > 0) {
+                          currentObj = relatedObjects[0];
+                          navigatedThroughFeittype = true;
+                          break;
+                        } else {
+                          console.log('No related objects found!');
+                        }
+                      }
+                    }
+                  }
+                  if (navigatedThroughFeittype) break;
+                }
+                if (navigatedThroughFeittype) break;
               }
-              currentObj = nextObj;
+              
+              if (!navigatedThroughFeittype) {
+                // Try as a direct attribute
+                const objData = currentObj.value as Record<string, Value>;
+                const nextObj = objData[navSegment];
+                
+                if (!nextObj || nextObj.type !== 'object') {
+                  // Can't navigate further - skip this object
+                  currentObj = null as any;
+                  break;
+                }
+                currentObj = nextObj;
+              }
             }
             
             if (currentObj) {
@@ -213,6 +284,9 @@ export class RuleExecutor implements IRuleExecutor {
               const attributeName = targetPath[0];
               const objData = currentObj.value as Record<string, Value>;
               objData[attributeName] = value;
+              // Successfully set the attribute
+            } else {
+              // Navigation failed - skip this object
             }
           } finally {
             ctx.current_instance = oldInstance;
