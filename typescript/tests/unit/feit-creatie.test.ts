@@ -176,6 +176,10 @@ Regel verdeel miles
 
       const result = engine.evaluate(code, context);
       
+      if (!result.success) {
+        console.error('Evaluation failed:', result.error);
+      }
+      
       expect(result.success).toBe(true);
       // Should create relationships for passagiers
     });

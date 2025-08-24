@@ -267,7 +267,18 @@ export class FeitExecutor {
         }
         
         // Otherwise look up as variable
-        return context.getVariable(ref.path[0]);
+        // First try the exact name
+        let value = context.getVariable(ref.path[0]);
+        if (value) return value;
+        
+        // If it starts with an article, try without it
+        const withoutArticle = ref.path[0].replace(/^(een|de|het)\s+/i, '');
+        if (withoutArticle !== ref.path[0]) {
+          value = context.getVariable(withoutArticle);
+          if (value) return value;
+        }
+        
+        return undefined;
       }
     }
     
