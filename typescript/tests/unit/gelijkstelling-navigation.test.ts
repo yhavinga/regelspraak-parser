@@ -23,7 +23,7 @@ Objecttype de Persoon
 Objecttype de Bedrijf
   de eigenaar Persoon;
 
-Regel bereken straatnaam
+Regel bereken_straatnaam
 geldig altijd
   De straatnaam van het adres van de eigenaar van een Bedrijf moet gesteld worden op "Hoofdstraat".
 `;
@@ -71,7 +71,7 @@ Objecttype de Persoon
 Objecttype de Bedrijf
   de eigenaar Persoon;
 
-Regel bereken straatnaam
+Regel bereken_straatnaam
 geldig altijd
   De straatnaam van het adres van de eigenaar van een Bedrijf moet gesteld worden op "Test".
 `;
@@ -120,7 +120,7 @@ Objecttype de Persoon
 Objecttype de Bedrijf
   de eigenaar Persoon;
 
-Regel bereken landnaam
+Regel bereken_landnaam
 geldig altijd
   De naam van het land van de stad van het adres van de eigenaar van een Bedrijf moet gesteld worden op "Nederland".
 `;
@@ -182,7 +182,7 @@ Objecttype de Bedrijf
 
 Parameter het btw_percentage: Numeriek;
 
-Regel bereken btw
+Regel bereken_btw
 geldig altijd
   De btw van de factuur van de klant van een Bedrijf moet berekend worden als 21.
 `;
@@ -239,7 +239,7 @@ Objecttype de Product
 Objecttype de Winkel
   het product Product;
 
-Regel bereken korting
+Regel bereken_korting
 geldig altijd
   De korting van het product van een Winkel moet berekend worden als 
   de prijs van zijn product maal 0,1.
@@ -297,7 +297,7 @@ Objecttype de Persoon
 Objecttype de Bedrijf
   de eigenaar Persoon;
 
-Regel bereken naam
+Regel bereken_naam
 geldig altijd
   De naam van de manager van een Bedrijf moet gesteld worden op "Test".
 `;
@@ -333,7 +333,7 @@ Objecttype de Persoon
 Objecttype de Bedrijf
   de eigenaar Persoon;
 
-Regel bereken salaris waarde
+Regel bereken_salaris_waarde
 geldig altijd
   De waarde van het salaris van de eigenaar van een Bedrijf moet gesteld worden op 100.
 `;
