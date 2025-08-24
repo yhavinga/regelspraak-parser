@@ -207,6 +207,9 @@ geldig altijd
 `;
 
       const parseResult = engine.parse(code);
+      if (!parseResult.success) {
+        console.error('Parse error:', parseResult.error || parseResult.errors);
+      }
       expect(parseResult.success).toBe(true);
 
       // Create vlucht
@@ -249,6 +252,10 @@ geldig altijd
 
       // Run the rule
       const runResult = engine.run(code, context);
+      
+      if (!runResult.success) {
+        console.error('Run failed:', runResult.error);
+      }
       
       // Should be able to count the passengers through the relationship
       // Note: Implementation may need adjustment to support this pattern
@@ -307,6 +314,9 @@ geldig altijd
 
       // Run the rule
       const runResult = engine.run(code, context);
+      if (!runResult.success) {
+        console.error('Run failed:', runResult.error);
+      }
       expect(runResult.success).toBe(true);
 
       // Check age calculation

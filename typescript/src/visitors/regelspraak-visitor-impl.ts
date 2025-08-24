@@ -1957,35 +1957,41 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
       throw new Error('FeitCreatieResultaat missing feitCreatiePattern');
     }
     
-    // Remove debug logging
-    // console.log('FeitCreatie pattern text:', patternCtx.getText());
-    // console.log('Has role1:', !!patternCtx.role1);
-    // console.log('Has role2:', !!patternCtx.role2);
+    // Get the role and subject phrases using the proper methods
+    const rolePhrases = patternCtx.feitCreatieRolPhrase_list() || [];
+    const subjectPhrases = patternCtx.feitCreatieSubjectPhrase_list() || [];
     
-    // Extract role1 (left side role name)
-    const role1Words = [];
-    const role1Ctx = patternCtx.role1;
-    if (role1Ctx) {
-      // role1 is a feitCreatieRolPhrase which contains feitCreatieWord+
-      for (const wordCtx of role1Ctx.feitCreatieWord_list()) {
+    // Extract role1 (first role phrase)
+    let role1 = '';
+    if (rolePhrases.length > 0) {
+      const role1Ctx = rolePhrases[0];
+      const role1Words = [];
+      
+      // Get all words in the role phrase
+      const wordList = role1Ctx.feitCreatieWord_list?.() || [];
+      for (const wordCtx of wordList) {
         role1Words.push(wordCtx.getText());
       }
+      role1 = role1Words.join(' ');
     }
-    const role1 = role1Words.join(' ');
     
-    // Extract subject1 (left side subject)
-    const subject1Words = [];
-    const subject1Ctx = patternCtx.subject1;
-    if (subject1Ctx) {
-      // subject1 is a feitCreatieSubjectPhrase which contains feitCreatieSubjectWord+
-      for (const wordCtx of subject1Ctx.feitCreatieSubjectWord_list()) {
+    // Extract subject1 (first subject phrase)
+    let subject1Text = '';
+    if (subjectPhrases.length > 0) {
+      const subject1Ctx = subjectPhrases[0];
+      const subject1Words = [];
+      
+      // Get all words in the subject phrase
+      const wordList = subject1Ctx.feitCreatieSubjectWord_list?.() || [];
+      for (const wordCtx of wordList) {
         subject1Words.push(wordCtx.getText());
       }
-    }
-    // Left side always has "van een" per spec, so prepend "een"
-    let subject1Text = subject1Words.join(' ');
-    if (subject1Text) {
-      subject1Text = `een ${subject1Text}`;
+      subject1Text = subject1Words.join(' ');
+      
+      // Left side always has "van een" per spec, so prepend "een"
+      if (subject1Text) {
+        subject1Text = `een ${subject1Text}`;
+      }
     }
     
     // Create subject1 as an AttributeReference
@@ -1994,31 +2000,38 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
       path: [subject1Text]
     };
     
-    // Extract role2 (right side role name) 
-    const role2Words = [];
-    const role2Ctx = patternCtx.role2;
-    if (role2Ctx) {
-      // role2 is a feitCreatieRolPhrase which contains feitCreatieWord+
-      for (const wordCtx of role2Ctx.feitCreatieWord_list()) {
+    // Extract role2 (second role phrase)
+    let role2 = '';
+    if (rolePhrases.length > 1) {
+      const role2Ctx = rolePhrases[1];
+      const role2Words = [];
+      
+      // Get all words in the role phrase
+      const wordList = role2Ctx.feitCreatieWord_list?.() || [];
+      for (const wordCtx of wordList) {
         role2Words.push(wordCtx.getText());
       }
+      role2 = role2Words.join(' ');
     }
-    const role2 = role2Words.join(' ');
     
-    // Extract subject2 (right side subject)
-    const subject2Words = [];
-    const subject2Ctx = patternCtx.subject2;
-    if (subject2Ctx) {
-      // subject2 is a feitCreatieSubjectPhrase which contains feitCreatieSubjectWord+
-      for (const wordCtx of subject2Ctx.feitCreatieSubjectWord_list()) {
+    // Extract subject2 (second subject phrase)
+    let subject2Text = '';
+    if (subjectPhrases.length > 1) {
+      const subject2Ctx = subjectPhrases[1];
+      const subject2Words = [];
+      
+      // Get all words in the subject phrase
+      const wordList = subject2Ctx.feitCreatieSubjectWord_list?.() || [];
+      for (const wordCtx of wordList) {
         subject2Words.push(wordCtx.getText());
       }
-    }
-    // Include article if present
-    let subject2Text = subject2Words.join(' ');
-    const article3 = patternCtx.article3;
-    if (article3) {
-      subject2Text = `${article3.getText()} ${subject2Text}`;
+      subject2Text = subject2Words.join(' ');
+      
+      // Include article if present
+      const article3 = patternCtx.article3;
+      if (article3) {
+        subject2Text = `${article3.getText()} ${subject2Text}`;
+      }
     }
     
     // Create subject2 as an AttributeReference (often a navigation pattern)

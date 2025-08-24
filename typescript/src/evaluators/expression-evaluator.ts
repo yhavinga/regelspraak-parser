@@ -496,7 +496,24 @@ export class ExpressionEvaluator implements IEvaluator {
     // First check if there's a current instance and the variable name is an attribute
     const ctx = context as any;
     if (ctx.current_instance && ctx.current_instance.type === 'object') {
-      const objectData = ctx.current_instance.value as Record<string, Value>;
+      const currentInstance = ctx.current_instance;
+      const objectData = currentInstance.value as Record<string, Value>;
+      
+      // Check if the variable name matches the current instance's object type
+      // This handles pronoun-like references (e.g., "vlucht" refers to the current Vlucht)
+      if (currentInstance.objectType && 
+          expr.variableName.toLowerCase() === currentInstance.objectType.toLowerCase()) {
+        return currentInstance;
+      }
+      
+      // Check if this is a Feittype role name that should navigate to a related object
+      const relatedObjects = this.findRelatedObjectsThroughFeittype(expr.variableName, currentInstance, ctx);
+      if (relatedObjects && relatedObjects.length > 0) {
+        // Return the first related object (assumes single relationship)
+        return relatedObjects[0];
+      }
+      
+      // Check if it's an attribute of the current instance
       if (objectData[expr.variableName] !== undefined) {
         return objectData[expr.variableName];
       }
@@ -857,6 +874,43 @@ export class ExpressionEvaluator implements IEvaluator {
   }
 
   private evaluateNavigationExpression(expr: NavigationExpression, context: RuntimeContext): Value {
+    // Check if this is an aggregation pattern: "het aantal van alle X van Y"
+    const attributeLower = expr.attribute.toLowerCase();
+    if ((attributeLower === 'aantal' || attributeLower === 'som' || attributeLower === 'totaal') && 
+        expr.object.type === 'NavigationExpression') {
+      const innerNav = expr.object as NavigationExpression;
+      
+      // Check if the inner navigation is "alle passagiers van de vlucht" pattern
+      if (innerNav.attribute.toLowerCase().startsWith('alle ')) {
+        // Extract the role name (e.g., "passagiers" from "alle passagiers")
+        const roleName = innerNav.attribute.substring(5); // Remove "alle " prefix
+        
+        // Evaluate the base object (e.g., "vlucht")
+        const baseObject = this.evaluate(innerNav.object, context);
+        
+        if (baseObject.type !== 'object') {
+          throw new Error(`Expected object but got ${baseObject.type}`);
+        }
+        
+        // Find related objects through Feittype relationships
+        const ctx = context as any;
+        const relatedObjects = this.findRelatedObjectsThroughFeittype(roleName, baseObject, ctx);
+        
+        // Apply the aggregation function
+        if (attributeLower === 'aantal') {
+          // Count the related objects
+          const count = relatedObjects ? relatedObjects.length : 0;
+          return { type: 'number', value: count };
+        } else if (attributeLower === 'som' || attributeLower === 'totaal') {
+          if (!relatedObjects || relatedObjects.length === 0) {
+            return { type: 'number', value: 0 };
+          }
+          // Sum values - would need to extract specific attribute
+          throw new Error('Sum aggregation not yet implemented for Feittype navigation');
+        }
+      }
+    }
+    
     // First evaluate the object expression
     const objectValue = this.evaluate(expr.object, context);
     
@@ -990,6 +1044,55 @@ export class ExpressionEvaluator implements IEvaluator {
   }
 
   private evaluateAttributeReference(expr: AttributeReference, context: RuntimeContext): Value {
+    // Check if the first element is an aggregation function
+    if (expr.path.length > 1) {
+      const firstElement = expr.path[0].toLowerCase();
+      if (firstElement === 'aantal' || firstElement === 'som' || firstElement === 'totaal') {
+        // This is an aggregation pattern: ['aantal', 'alle passagiers', 'vlucht']
+        // Navigate through the remaining path to collect objects
+        const remainingPath = expr.path.slice(1);
+        
+        // Create a new AttributeReference for the navigation part
+        const navExpr: AttributeReference = {
+          type: 'AttributeReference',
+          path: remainingPath
+        };
+        
+        // Evaluate the navigation to get the collection
+        const collectionValue = this.evaluateAttributeReference(navExpr, context);
+        
+        // Apply the aggregation
+        if (firstElement === 'aantal') {
+          // Count the items
+          if (collectionValue.type === 'array') {
+            const items = collectionValue.value as Value[];
+            return { type: 'number', value: items.length };
+          } else if (collectionValue.type === 'list') {
+            const items = collectionValue.value as Value[];
+            return { type: 'number', value: items.length };
+          } else {
+            // Single item counts as 1
+            return { type: 'number', value: 1 };
+          }
+        } else if (firstElement === 'som' || firstElement === 'totaal') {
+          // Sum the values
+          if (collectionValue.type !== 'array' && collectionValue.type !== 'list') {
+            throw new Error(`Cannot sum non-collection type: ${collectionValue.type}`);
+          }
+          const items = collectionValue.value as Value[];
+          let sum = 0;
+          for (const item of items) {
+            if (item.type === 'number') {
+              sum += item.value as number;
+            } else {
+              throw new Error(`Cannot sum ${item.type} values`);
+            }
+          }
+          return { type: 'number', value: sum };
+        }
+      }
+    }
+    
     // Handle pronoun-bound dimensional map access like ["self", "betaalde belasting in jaar"]
     if (expr.path.length === 2 && expr.path[0] === 'self') {
       const ctxAny = context as any;
@@ -1091,9 +1194,70 @@ export class ExpressionEvaluator implements IEvaluator {
       }
     }
     
+    // Check for "alle <role> van <object>" pattern (e.g., "alle passagiers van de vlucht")
+    if (expr.path.length === 2 && expr.path[0].startsWith('alle ')) {
+      // Extract the role name from "alle passagiers"
+      const roleName = expr.path[0].substring(5); // Remove "alle " prefix
+      const objectRef = expr.path[1];
+      
+      // First get the object
+      const objectValue = this.evaluateVariableReference({ 
+        type: 'VariableReference', 
+        variableName: objectRef 
+      } as VariableReference, context);
+      
+      if (objectValue.type !== 'object') {
+        throw new Error(`Expected object but got ${objectValue.type}`);
+      }
+      
+      // Find related objects through Feittype relationships
+      const ctx = context as any;
+      const relatedObjects = this.findRelatedObjectsThroughFeittype(roleName, objectValue, ctx);
+      
+      if (relatedObjects) {
+        return {
+          type: 'array',
+          value: relatedObjects
+        };
+      }
+      
+      // If no Feittype relationship found, return empty array
+      return {
+        type: 'array',
+        value: []
+      };
+    }
+    
     // Handle simple navigation patterns like ["naam", "persoon"]
     if (expr.path.length === 2) {
       const [attribute, objectName] = expr.path;
+      
+      // Check if this is a pronoun-based Feittype navigation like ["vluchtdatum", "zijn reis"]
+      if (objectName.startsWith('zijn ') || objectName.startsWith('haar ')) {
+        const roleName = objectName.substring(5); // Remove "zijn " or "haar " prefix
+        const ctx = context as any;
+        
+        if (ctx.current_instance && ctx.current_instance.type === 'object') {
+          // Find related objects through Feittype using the role name
+          const relatedObjects = this.findRelatedObjectsThroughFeittype(roleName, ctx.current_instance, ctx);
+          
+          if (relatedObjects && relatedObjects.length > 0) {
+            // Get the first related object (assumes single relationship)
+            const relatedObject = relatedObjects[0];
+            
+            if (relatedObject.type === 'object') {
+              const objectData = relatedObject.value as Record<string, Value>;
+              const attrValue = objectData[attribute];
+              
+              if (attrValue !== undefined) {
+                return attrValue;
+              }
+              throw new Error(`Attribute '${attribute}' not found on related object`);
+            }
+          }
+          throw new Error(`No related object found through role '${roleName}'`);
+        }
+      }
       
       // Look up the object as a variable
       const objectValue = this.evaluateVariableReference({ type: 'VariableReference', variableName: objectName } as VariableReference, context);
@@ -1124,6 +1288,36 @@ export class ExpressionEvaluator implements IEvaluator {
     // Handle simple single-element paths as variable references
     if (expr.path.length === 1) {
       const variableName = expr.path[0];
+      
+      // Check if this is a pronoun-based Feittype role like "zijn reis"
+      if (variableName.startsWith('zijn ') || variableName.startsWith('haar ')) {
+        const roleName = variableName.substring(5); // Remove pronoun prefix
+        const ctx = context as any;
+        
+        if (ctx.current_instance && ctx.current_instance.type === 'object') {
+          // Find related objects through Feittype using the role name
+          const relatedObjects = this.findRelatedObjectsThroughFeittype(roleName, ctx.current_instance, ctx);
+          
+          if (relatedObjects && relatedObjects.length > 0) {
+            // Return the first related object (assumes single relationship)
+            return relatedObjects[0];
+          }
+          throw new Error(`No related object found through role '${roleName}'`);
+        }
+      }
+      
+      // Check if this refers to the current instance by object type name
+      const ctx = context as any;
+      if (ctx.current_instance) {
+        const currentInstance = ctx.current_instance;
+        if (currentInstance.type === 'object' && currentInstance.objectType) {
+          // Check if the variable name matches the object type (case-insensitive)
+          if (variableName.toLowerCase() === currentInstance.objectType.toLowerCase()) {
+            return currentInstance;
+          }
+        }
+      }
+      
       const value = context.getVariable(variableName);
       if (value) {
         return value;
