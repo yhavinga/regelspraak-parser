@@ -101,7 +101,8 @@ class TestObjectCreationAmbiguity(unittest.TestCase):
         # Check manager attribute with complex expression
         self.assertEqual(attrs[2][0], "manager")
         self.assertIsInstance(attrs[2][1], AttributeReference)
-        self.assertEqual(attrs[2][1].path, ["naam", "Manager"])
+        # Path follows spec: object-first navigation "de naam van de Manager" -> ["Manager", "naam"]
+        self.assertEqual(attrs[2][1].path, ["Manager", "naam"])
     
     def test_parsing_preserves_attribute_structure(self):
         """Test that parsing correctly identifies attribute names vs expressions in edge cases."""

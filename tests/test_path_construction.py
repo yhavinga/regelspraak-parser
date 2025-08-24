@@ -31,9 +31,9 @@ class TestPathConstruction(RegelSpraakTestCase):
         builder = RegelSpraakModelBuilder()
         attr_ref = builder.visitAttribuutReferentie(ctx)
         
-        # Check the path
+        # Check the path - Dutch right-to-left navigation per specification
         self.assertIsNotNone(attr_ref)
-        self.assertEqual(attr_ref.path, ["straat", "adres"])
+        self.assertEqual(attr_ref.path, ["adres", "straat"])
     
     def test_deeply_nested_path_construction(self):
         """Test deeply nested path: de naam van de burgemeester van de hoofdstad"""
@@ -49,9 +49,9 @@ class TestPathConstruction(RegelSpraakTestCase):
         builder = RegelSpraakModelBuilder()
         attr_ref = builder.visitAttribuutReferentie(ctx)
         
-        # Check the path
+        # Check the path - Dutch right-to-left navigation per specification
         self.assertIsNotNone(attr_ref)
-        self.assertEqual(attr_ref.path, ["naam", "burgemeester", "hoofdstad"])
+        self.assertEqual(attr_ref.path, ["hoofdstad", "burgemeester", "naam"])
     
     def test_path_with_multiple_word_attribute(self):
         """Test path with multi-word attributes: de totale kosten van het project"""
@@ -67,9 +67,9 @@ class TestPathConstruction(RegelSpraakTestCase):
         builder = RegelSpraakModelBuilder()
         attr_ref = builder.visitAttribuutReferentie(ctx)
         
-        # Check the path
+        # Check the path - Dutch right-to-left navigation per specification
         self.assertIsNotNone(attr_ref)
-        self.assertEqual(attr_ref.path, ["totale kosten", "project"])
+        self.assertEqual(attr_ref.path, ["project", "totale kosten"])
     
     def test_very_long_path(self):
         """Test very long nested path"""
@@ -85,9 +85,9 @@ class TestPathConstruction(RegelSpraakTestCase):
         builder = RegelSpraakModelBuilder()
         attr_ref = builder.visitAttribuutReferentie(ctx)
         
-        # Check the path
+        # Check the path - Dutch right-to-left navigation per specification
         self.assertIsNotNone(attr_ref)
-        self.assertEqual(attr_ref.path, ["naam", "eigenaar", "huis", "straat"])
+        self.assertEqual(attr_ref.path, ["straat", "huis", "eigenaar", "naam"])
     
     def test_semantic_analysis_with_nested_paths(self):
         """Test that semantic analyzer can handle nested attribute paths"""
@@ -151,11 +151,11 @@ class TestPathConstruction(RegelSpraakTestCase):
     
     def test_path_construction_with_articles(self):
         """Test that path construction handles articles correctly"""
-        # Test with various article combinations
+        # Test with various article combinations - Dutch right-to-left navigation per specification
         test_cases = [
-            ("de naam van de persoon", ["naam", "persoon"]),
-            ("het adres van het gebouw", ["adres", "gebouw"]),
-            ("de leeftijd van de werknemer", ["leeftijd", "werknemer"]),
+            ("de naam van de persoon", ["persoon", "naam"]),
+            ("het adres van het gebouw", ["gebouw", "adres"]),
+            ("de leeftijd van de werknemer", ["werknemer", "leeftijd"]),
         ]
         
         for expr_text, expected_path in test_cases:

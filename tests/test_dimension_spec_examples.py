@@ -44,7 +44,8 @@ class TestDimensionSpecExamples(unittest.TestCase):
         for regel in model.regels:
             target = regel.resultaat.target
             self.assertIsInstance(target, DimensionedAttributeReference)
-            self.assertEqual(target.base_attribute.path, ['inkomen', 'Natuurlijk persoon'])
+            # Object type specification, not navigation - path should just be attribute
+            self.assertEqual(target.base_attribute.path, ['inkomen'])
             
             # Check dimension labels based on rule name
             if "huidig jaar" in regel.naam:
@@ -102,7 +103,8 @@ class TestDimensionSpecExamples(unittest.TestCase):
         for regel in model.regels:
             target = regel.resultaat.target
             self.assertIsInstance(target, DimensionedAttributeReference)
-            self.assertEqual(target.base_attribute.path, ['inkomen', 'Natuurlijk persoon'])
+            # Object type specification, not navigation - path should just be attribute
+            self.assertEqual(target.base_attribute.path, ['inkomen'])
             
             # Check dimension labels based on rule name
             if "bruto" in regel.naam:

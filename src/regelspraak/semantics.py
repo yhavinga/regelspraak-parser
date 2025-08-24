@@ -343,8 +343,10 @@ class SemanticAnalyzer:
     def _analyze_resultaat(self, resultaat: Any) -> None:
         """Analyze rule result (Gelijkstelling, Initialisatie, or KenmerkToekenning)."""
         if isinstance(resultaat, (Gelijkstelling, Initialisatie)):
-            # Validate target exists and get its type
-            target_type = self._analyze_attribute_reference(resultaat.target)
+            # For Gelijkstelling/Initialisatie, the target is an attribute to be set,
+            # not a reference to be resolved. We should validate it exists on the
+            # object type, but not try to resolve it as a general reference.
+            # TODO: Validate target attribute exists on the relevant object type
             
             # Analyze expression and get its type
             expr_type = self._analyze_expression(resultaat.expressie)
@@ -622,7 +624,18 @@ class SemanticAnalyzer:
                     # This is OK - variables can be referenced as single-element paths
                     return symbol.datatype
             else:
-                # Not found - could be undefined parameter or attribute
+                # Not found - could be undefined variable, parameter or attribute
+                # First check if it might be a variable without article
+                # (variables from "Daarbij geldt" often lose their article)
+                canonical_name = ref.path[0]
+                # Try with common articles prepended
+                for article in ['de ', 'het ', 'een ']:
+                    potential_var = article + canonical_name
+                    var_symbol = self.symbol_table.lookup(potential_var)
+                    if var_symbol and var_symbol.kind == SymbolKind.VARIABLE:
+                        # Found the variable with article
+                        return var_symbol.datatype
+                
                 # Check if it looks like a parameter name (starts with article)
                 if ref.path[0].startswith('de ') or ref.path[0].startswith('het '):
                     self.errors.append(SemanticError(

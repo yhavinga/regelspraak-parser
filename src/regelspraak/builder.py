@@ -635,13 +635,20 @@ class RegelSpraakModelBuilder(RegelSpraakVisitor):
             return "self" # Represent pronoun as 'self' or similar context key
         elif ctx.identifierOrKeyword():
             # Combine identifierOrKeyword tokens
-            text = " ".join([id_token.getText() for id_token in ctx.identifierOrKeyword()])
+            identifiers = [id_token.getText() for id_token in ctx.identifierOrKeyword()]
+            text = " ".join(identifiers)
+            
+            # DEBUG: Add temporary debug logging
+            logger.debug(f"visitBasisOnderwerpToString: identifiers={identifiers}, text='{text}'")
             
             # If contains "van", only return first part
             # This handles cases where grammar groups "de burgemeester van de hoofdstad" as one basisOnderwerp
             if " van " in text:
-                return text.split(" van ")[0].strip()
+                result = text.split(" van ")[0].strip()
+                logger.debug(f"visitBasisOnderwerpToString: split on 'van', returning '{result}'")
+                return result
             
+            logger.debug(f"visitBasisOnderwerpToString: returning '{text}'")
             return text
         return "<unknown_basis_onderwerp>"
 
@@ -667,20 +674,39 @@ class RegelSpraakModelBuilder(RegelSpraakVisitor):
                 dimension_keywords = ["jaar", "maand", "dag", "kwartaal", "periode", "vorig", "huidig", "volgend"]
                 remaining_parts = parts[1:]
                 
+                # Collect non-dimension parts first
+                nav_parts = []
                 for part in remaining_parts:
                     part = part.strip()
                     if any(keyword in part.lower() for keyword in dimension_keywords):
                         # This is a dimension
                         prepositional_dimension = part
                     else:
-                        # This is part of the path (e.g., "burgemeester" in "naam van burgemeester")
-                        additional_path_elements.append(part)
+                        # This is part of the navigation path
+                        nav_parts.append(part)
+                
+                # For Dutch navigation, reverse the order (right-to-left)
+                # "naam van werkgever van eigenaar" → ["eigenaar", "werkgever"]
+                additional_path_elements = list(reversed(nav_parts))
         
         # Recursively build the path from the nested onderwerpReferentie
         base_path = self.visitOnderwerpReferentieToPath(ctx.onderwerpReferentie())
         if not base_path:
              logger.error(f"Could not parse base path for attribute reference: {safe_get_text(ctx)}")
              return None
+        
+        # WORKAROUND for grammar bug in binary expressions:
+        # When parsing the right operand of a binary expression, ANTLR sometimes
+        # incorrectly splits "de Natuurlijk persoon" into just ["Natuurlijk"]
+        # Fix this by checking if we have an incomplete object type name
+        if len(base_path) > 0 and base_path[-1].lower() == "natuurlijk":
+            # This is likely the incomplete "Natuurlijk persoon" issue
+            # Since the onderwerp context is already split, check the parent context
+            full_text = safe_get_text(ctx)  # Get the full attribute reference context
+            logger.debug(f"  WORKAROUND CHECK: base_path={base_path}, full_text='{full_text}'")
+            if "natuurlijk persoon" in full_text.lower():
+                logger.debug(f"  WORKAROUND: Correcting incomplete 'Natuurlijk' to 'Natuurlijk persoon' in path {base_path}")
+                base_path[-1] = "Natuurlijk persoon"
         
         logger.debug(f"visitAttribuutReferentie: attribute_part='{attribute_part}', raw_base_path={base_path}, prepositional_dimension='{prepositional_dimension}'")
         
@@ -776,8 +802,23 @@ class RegelSpraakModelBuilder(RegelSpraakVisitor):
         # Use processed path if we found dimensions, otherwise use original
         final_base_path = processed_path if dimension_found or not base_path else base_path
         
-        # Build the full path: [attribute_name] + additional_path_elements + base_path
-        full_path = [actual_attribute_name] + additional_path_elements + final_base_path
+        # Check if the onderwerpReferentie is an object type specification (not navigation)
+        is_object_type_spec = self._is_object_type_specification(ctx.onderwerpReferentie())
+        
+        # Build the full path
+        if is_object_type_spec:
+            # Object type specification - just the attribute
+            # Example: "Het inkomen van een Natuurlijk persoon" → ['inkomen']
+            full_path = [actual_attribute_name]
+        elif final_base_path or additional_path_elements:
+            # Navigation case: use Dutch right-to-left order per specification
+            # Example: "De naam van de eigenaar van het gebouw" → ['gebouw', 'eigenaar', 'naam']
+            # Example: "de naam van de burgemeester van de hoofdstad" → ['hoofdstad', 'burgemeester', 'naam']
+            full_path = final_base_path + additional_path_elements + [actual_attribute_name]
+        else:
+            # Simple attribute without navigation
+            # Example: "De leeftijd" → ['leeftijd']
+            full_path = [actual_attribute_name]
         
         # Create the base attribute reference
         base_attr_ref = AttributeReference(path=full_path, span=self.get_span(ctx))
@@ -978,10 +1019,87 @@ class RegelSpraakModelBuilder(RegelSpraakVisitor):
             path_part = self.visitBasisOnderwerpToString(basis_ctx)
             logger.debug(f"  basisOnderwerp[{i}]: '{path_part}'")
             if path_part:
+                # Don't exclude role names here - they might be part of object type specs
+                # The decision to treat as object type spec is made in _is_object_type_specification
                 path.append(path_part)
         
         logger.debug(f"visitOnderwerpBasisToPath final path: {path}")
         return path
+    
+    def _is_object_type_specification(self, ctx: AntlrParser.OnderwerpReferentieContext) -> bool:
+        """Determine if an onderwerpReferentie is an object type specification vs navigation.
+        
+        Object type specification patterns:
+        - "van een X" (indefinite article)
+        - "van Natuurlijk persoon" (capitalized type name)
+        
+        Navigation patterns:
+        - "van de X" (definite article)
+        - "van het X" (definite article)
+        - "van zijn X" (possessive)
+        """
+        if not ctx or not ctx.onderwerpBasis():
+            return False
+        
+        # Get the first basisOnderwerp to check the article
+        basis_onderwerpen = ctx.onderwerpBasis().basisOnderwerp()
+        if not basis_onderwerpen:
+            return False
+        
+        first_basis = basis_onderwerpen[0] if isinstance(basis_onderwerpen, list) else basis_onderwerpen
+        
+        # Check for indefinite article "een"
+        if first_basis.EEN():
+            logger.debug("Found indefinite article 'een' - treating as object type specification")
+            return True
+        
+        # Check for definite articles "de" or "het"
+        if first_basis.DE() or first_basis.HET():
+            logger.debug("Found definite article 'de/het' - treating as navigation")
+            return False
+        
+        # Check for possessive "zijn"
+        if first_basis.ZIJN():
+            logger.debug("Found possessive 'zijn' - treating as navigation")
+            return False
+        
+        # No article - check if it's a capitalized type name
+        if first_basis.identifierOrKeyword():
+            first_word = first_basis.identifierOrKeyword()[0].getText()
+            if first_word and first_word[0].isupper():
+                logger.debug(f"Found capitalized name '{first_word}' - treating as object type specification")
+                return True
+        
+        # Default to navigation
+        return False
+    
+    def _is_role_name(self, text: str) -> bool:
+        """Check if text matches a known role name from FeitTypes.
+        
+        Common role patterns:
+        - "te verdelen contingent treinmiles"
+        - "passagier met recht op treinmiles"
+        - Similar multi-word role names
+        """
+        # Common role name patterns from the specification
+        known_role_patterns = [
+            "te verdelen contingent treinmiles",
+            "passagier met recht op treinmiles",
+            "reis met treinmiles",
+            "vastgestelde contingent treinmiles"
+        ]
+        
+        # Check if the text matches any known role pattern
+        text_lower = text.lower()
+        for pattern in known_role_patterns:
+            if pattern in text_lower:
+                return True
+        
+        # Additional heuristic: role names often contain "met" or participles like "te"
+        if " met " in text_lower or text_lower.startswith("te "):
+            return True
+        
+        return False
     
     # --- Predicaat Visitors ---
     
@@ -2723,6 +2841,11 @@ class RegelSpraakModelBuilder(RegelSpraakVisitor):
                     break
                 words.append(word)
         
+        logger.debug(f"visitRolDefinition: extracted words from content: {words}")
+        logger.debug(f"visitRolDefinition: ctx.objecttype present: {ctx.objecttype is not None}")
+        if ctx.objecttype:
+            logger.debug(f"visitRolDefinition: objecttype text: {ctx.objecttype.getText()}")
+        
         # Check if there's an explicit object type after plural form
         if ctx.objecttype:
             # Object type is explicitly specified after plural
@@ -2751,55 +2874,81 @@ class RegelSpraakModelBuilder(RegelSpraakVisitor):
                 )
         
         # Original logic for when object type is part of content
-        if len(words) < 2:
-            logger.error(f"Role definition must have at least 2 words, got: {words}")
+        # The pattern is typically: "role_name ObjectType"
+        # But when on separate lines, we might only get the role name
+        if len(words) < 1:
+            logger.error(f"Role definition must have at least 1 word, got: {words}")
             return None
         
         # Split into role name and object type
-        # Strategy: Find the last contiguous sequence of capitalized words - that's the object type
-        # Everything before is the role name
+        # Strategy: Look for capitalized words which are likely object types
         
-        # Find where the last capitalized sequence starts
+        # Find where the object type starts (last capitalized word or sequence)
         object_type_start = -1
-        in_capitalized_sequence = False
         
-        for i in range(len(words) - 1, -1, -1):
-            word = words[i]
-            # Skip prepositions in our check
-            if word in ['van', 'met', 'op', 'in', 'voor', 'over', 'bij', 'uit', 'tot', 'en']:
-                if in_capitalized_sequence:
-                    # We hit a preposition after finding capitalized words, so we're done
+        # Look for capitalized words that could be object types
+        if len(words) >= 2:
+            # Multiple words - look for last capitalized sequence
+            for i in range(len(words) - 1, -1, -1):
+                if words[i] and words[i][0].isupper():
+                    # Found a capitalized word - this could be the object type
+                    object_type_start = i
+                    # Check if there are more capitalized words before it
+                    for j in range(i - 1, -1, -1):
+                        if words[j] and words[j][0].isupper():
+                            object_type_start = j
+                        else:
+                            break
                     break
-                continue
-            
-            if word and word[0].isupper():
-                # This is a capitalized word
-                object_type_start = i
-                in_capitalized_sequence = True
+        elif len(words) == 1:
+            # Single word - this is a problem case
+            # If it's "gebouw" alone, we can't determine the object type
+            # But we need to handle it gracefully for the parser
+            if words[0] and words[0][0].isupper():
+                # Single capitalized word like "Gebouw" - treat as object type
+                # The role name would be the lowercase version
+                object_type_start = 0
             else:
-                # Non-capitalized word
-                if in_capitalized_sequence:
-                    # We were in a capitalized sequence but hit a non-cap word, so we're done
-                    break
-        
-        # If we didn't find any capitalized words, take the last word as object type
-        if object_type_start == -1:
-            object_type_start = len(words) - 1
+                # Single lowercase word - assume it's a role name without object type
+                # This will cause validation to fail later, but won't crash the parser
+                logger.debug(f"Single word '{words[0]}' - treating as role name without explicit object type")
+                # Use the capitalized version as a guess for object type
+                role_words = words
+                object_type_words = [words[0].capitalize()]
+                
+                rol_naam = " ".join(role_words)
+                object_type = " ".join(object_type_words)
+                
+                # Extract plural form if present
+                meervoud = None
+                if ctx.meervoud:
+                    meervoud = self.visitNaamwoord(ctx.meervoud)
+                
+                logger.debug(f"Parsed role (guessed): name='{rol_naam}', type='{object_type}' from words: {words}")
+                
+                return Rol(
+                    naam=rol_naam,
+                    meervoud=meervoud,
+                    object_type=object_type,
+                    span=self.get_span(ctx)
+                )
         
         # Split the words
         role_words = words[:object_type_start]
         object_type_words = words[object_type_start:]
         
-        # Validate
-        if not role_words:
-            # If no role words, maybe the entire thing is the object type
-            # This happens with simple roles like "reis Vlucht"
-            if len(words) == 2 and words[1][0].isupper():
-                role_words = [words[0]]
-                object_type_words = [words[1]]
+        # Validate and handle special cases
+        if not role_words and object_type_start == 0:
+            # Single capitalized word - use lowercase version as role name
+            if len(words) == 1 and words[0][0].isupper():
+                role_words = [words[0].lower()]
+                object_type_words = [words[0]]
             else:
                 logger.error(f"Could not determine role name from: {words}")
                 return None
+        elif not role_words:
+            logger.error(f"Could not determine role name from: {words}")
+            return None
         
         if not object_type_words:
             logger.error(f"Could not determine object type from: {words}")

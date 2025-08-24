@@ -16,6 +16,7 @@ class TestGelijkstellingComplexNavigation(unittest.TestCase):
         Feittype eigendom relatie
             de eigenaar Persoon
             het gebouw Gebouw
+            Eén eigenaar heeft één of meerdere gebouwen
         
         Objecttype de Persoon
             de naam Tekst;
@@ -65,10 +66,12 @@ class TestGelijkstellingComplexNavigation(unittest.TestCase):
         Feittype eigendom relatie
             de eigenaar Persoon
             het gebouw Gebouw
+            Eén eigenaar heeft één of meerdere gebouwen
             
         Feittype werkrelatie
             de werkgever Bedrijf
             de werknemer Persoon
+            Eén werkgever heeft meerdere werknemers
         
         Objecttype de Persoon
             de naam Tekst;
@@ -124,6 +127,7 @@ class TestGelijkstellingComplexNavigation(unittest.TestCase):
         Feittype eigendom relatie
             de eigenaar Persoon
             het gebouw Gebouw
+            Eén eigenaar heeft één of meerdere gebouwen
         
         Objecttype de Persoon
             de naam Tekst;

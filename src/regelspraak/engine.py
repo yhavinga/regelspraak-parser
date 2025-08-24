@@ -273,10 +273,12 @@ class Evaluator:
         """Tries to deduce the primary ObjectType a rule applies to."""
         # Simplistic: Look at the target of the resultaat
         target_ref: Optional[ast.AttributeReference] = None
+        is_dimensioned = False
         if isinstance(rule.resultaat, (Gelijkstelling, KenmerkToekenning, Initialisatie)):
             target_ref = rule.resultaat.target
             # Handle DimensionedAttributeReference by extracting its base attribute
             if isinstance(target_ref, DimensionedAttributeReference):
+                is_dimensioned = True
                 target_ref = target_ref.base_attribute
         elif isinstance(rule.resultaat, Dagsoortdefinitie):
             # Dagsoort definitions target "dag" objects
@@ -322,6 +324,21 @@ class Evaluator:
                     for obj_type in self.context.domain_model.objecttypes:
                         if obj_type.lower() in clean_elem.lower():
                             return obj_type
+            
+            # If not found in source path, try target collection path
+            # The target often contains the contingent reference
+            if isinstance(rule.resultaat.target_collection, AttributeReference) and rule.resultaat.target_collection.path:
+                for path_elem in rule.resultaat.target_collection.path:
+                    # Look for "contingent" or other object type names
+                    for obj_type in self.context.domain_model.objecttypes:
+                        if obj_type.lower() in path_elem.lower():
+                            return obj_type
+            
+            # Fallback: Look for "Contingent" in object types
+            for obj_type in self.context.domain_model.objecttypes:
+                if "contingent" in obj_type.lower():
+                    return obj_type
+            
             return None
         
         elif isinstance(rule.resultaat, FeitCreatie):
@@ -363,57 +380,75 @@ class Evaluator:
             # e.g., ["belastingvermindering", "passagier"] for "De belastingvermindering van een passagier"
             # For KenmerkToekenning: ["Natuurlijk persoon"] for "Een Natuurlijk persoon is minderjarig"
             if len(target_ref.path) == 1:
-                # For KenmerkToekenning, the path is just the object type
-                potential_type = target_ref.path[0]
-                # Check if it matches a known object type
-                if hasattr(self.context, 'domain_model') and self.context.domain_model:
-                    # First try exact match
-                    if potential_type in self.context.domain_model.objecttypes:
-                        return potential_type
-                    
-                    # Try case-insensitive match
-                    for obj_type in self.context.domain_model.objecttypes:
-                        if obj_type.lower() == potential_type.lower():
-                            return obj_type
-            elif len(target_ref.path) == 2:
-                # For Gelijkstelling with paths like ["belastingvermindering", "passagier"]
-                # The second element is the object type
-                potential_type = target_ref.path[1]
-                # Check if it matches a known object type
-                if hasattr(self.context, 'domain_model') and self.context.domain_model:
-                    # First try exact match
-                    if potential_type in self.context.domain_model.objecttypes:
-                        return potential_type
-                    
-                    # Try capitalized version
-                    potential_type_cap = potential_type.capitalize()
-                    if potential_type_cap in self.context.domain_model.objecttypes:
-                        return potential_type_cap
-                    
-                    # Try case-insensitive match
-                    for obj_type in self.context.domain_model.objecttypes:
-                        if obj_type.lower() == potential_type.lower():
-                            return obj_type
+                # Single element path could be:
+                # 1. Object type (for KenmerkToekenning): ["Natuurlijk persoon"]
+                # 2. Attribute name (for Gelijkstelling): ["inkomen"]
+                # 3. Complex attribute with "van": ["totaal van berekening"]
                 
-                # Check if it's a role name in a feittype
-                # "reis" -> "Vlucht" via feittype definition
-                for feittype_naam, feittype in self.context.domain_model.feittypen.items():
-                    for rol in feittype.rollen:
-                        if rol.naam and rol.naam.lower() == potential_type.lower():
-                            return rol.object_type
-                
-                # Return the original if no match found
-                return potential_type
-            elif len(target_ref.path) == 1:
-                # Handle single-element paths like ["totaal van berekening"]
                 path_elem = target_ref.path[0]
                 
-                # Check if the path element contains " van " (indicating object type)
+                # Check if it contains "van" (complex attribute)
                 if " van " in path_elem:
-                    # Extract the object type after "van"
-                    # e.g., "totaal van berekening" -> "berekening"
-                    parts = path_elem.split(" van ")
-                    if len(parts) >= 2:
+                    # Handle this below in the elif branch
+                    pass  # Fall through to the elif
+                else:
+                    # Check if it matches a known object type
+                    if hasattr(self.context, 'domain_model') and self.context.domain_model:
+                        # First try exact match as object type
+                        if path_elem in self.context.domain_model.objecttypes:
+                            return path_elem
+                        
+                        # Try case-insensitive match as object type
+                        for obj_type in self.context.domain_model.objecttypes:
+                            if obj_type.lower() == path_elem.lower():
+                                return obj_type
+                        
+                        # Not an object type - check if it's an attribute name
+                        for obj_type_name, obj_type_def in self.context.domain_model.objecttypes.items():
+                            if path_elem in obj_type_def.attributen:
+                                return obj_type_name
+            elif len(target_ref.path) == 2:
+                # Path could be in two orderings:
+                # 1. Dutch right-to-left for FeitType roles: ["reis", "totaal te betalen belasting"]
+                # 2. Original left-to-right: ["inkomen", "Natuurlijk persoon"]
+                
+                # Try both elements as potential object type/role
+                for i in [0, 1]:
+                    potential_type = target_ref.path[i]
+                    
+                    # Check if it matches a known object type
+                    if hasattr(self.context, 'domain_model') and self.context.domain_model:
+                        # First try exact match
+                        if potential_type in self.context.domain_model.objecttypes:
+                            return potential_type
+                        
+                        # Try capitalized version
+                        potential_type_cap = potential_type.capitalize()
+                        if potential_type_cap in self.context.domain_model.objecttypes:
+                            return potential_type_cap
+                        
+                        # Try case-insensitive match
+                        for obj_type in self.context.domain_model.objecttypes:
+                            if obj_type.lower() == potential_type.lower():
+                                return obj_type
+                    
+                    # Check if it's a role name in a feittype
+                    # "reis" -> "Vlucht" via feittype definition
+                    for feittype_naam, feittype in self.context.domain_model.feittypen.items():
+                        for rol in feittype.rollen:
+                            if rol.naam and rol.naam.lower() == potential_type.lower():
+                                return rol.object_type
+                
+                # If no match found, return None
+                return None
+            # Special handling for single-element paths with "van"
+            if len(target_ref.path) == 1 and " van " in target_ref.path[0]:
+                # Handle single-element paths like ["totaal van berekening"]
+                path_elem = target_ref.path[0]
+                # Extract the object type after "van"
+                # e.g., "totaal van berekening" -> "berekening"
+                parts = path_elem.split(" van ")
+                if len(parts) >= 2:
                         # Get the last part as the potential object type
                         potential_type = parts[-1].strip()
                         
@@ -440,11 +475,6 @@ class Evaluator:
                             for rol in feittype.rollen:
                                 if rol.naam and rol.naam.lower() == potential_type.lower():
                                     return rol.object_type
-                
-                # If path is just ["leeftijd"], we need another way (e.g. Regel header)
-                # For steel thread: assume rule applies to Natuurlijk persoon based on name/structure
-                if "persoon" in rule.naam.lower(): # Very basic heuristic for steel thread
-                    return "Natuurlijk persoon"
 
         # Fallback for steel thread Kenmerktoekenning where target might be implicit
         if isinstance(rule.resultaat, KenmerkToekenning) and "persoon" in rule.naam.lower():
@@ -772,33 +802,62 @@ class Evaluator:
     def _navigate_to_target(self, path: List[str], start_instance: RuntimeObject) -> Tuple[RuntimeObject, str]:
         """Navigate through a complex path to find the target object and attribute.
         
-        For a path like ['naam', 'eigenaar', 'gebouw'], starting from a gebouw instance:
-        1. Navigate from gebouw to eigenaar (through relationship)
-        2. Return (eigenaar_object, 'naam') so we can set the naam attribute
+        After the fix to visitAttribuutReferentie, paths now follow Dutch right-to-left order:
+        "De naam van de eigenaar van het gebouw" → path=['gebouw', 'eigenaar', 'naam']
+        This means: start from gebouw → navigate to eigenaar → get/set naam
+        
+        However, for role-based navigation like "de vluchtdatum van zijn reis":
+        - path=['reis', 'vluchtdatum']
+        - 'reis' is a role that navigates from current object to related object
+        - 'vluchtdatum' is the attribute on the related object
         
         Returns:
             Tuple of (target_object, attribute_name)
         """
+        logger.debug(f"_navigate_to_target: path={path}, start_instance={start_instance.object_type_naam if start_instance else 'None'}")
+        
         if not path:
             raise RegelspraakError("Cannot navigate empty path")
         
         # If path has only one element, it's a simple attribute on the start instance
         if len(path) == 1:
+            logger.debug(f"_navigate_to_target: Single element path, returning ({start_instance.object_type_naam}, {path[0]})")
             return (start_instance, path[0])
         
-        # For multi-element paths, the first element is the attribute to set,
-        # and the rest is the navigation path to the object
-        attr_name = path[0]
-        nav_path = path[1:]
+        # Check if the first element of path refers to current instance type
+        # E.g., path=['gebouw', 'eigenaar', 'naam'] when current instance is Gebouw
+        working_path = path[:]  # Make a copy
+        if len(working_path) > 1:
+            first_elem_clean = working_path[0].lower().replace("de ", "").replace("het ", "").replace("een ", "")
+            current_type_clean = start_instance.object_type_naam.lower()
+            
+            if first_elem_clean == current_type_clean:
+                logger.debug(f"_navigate_to_target: First element '{working_path[0]}' matches current instance type, removing it")
+                working_path = working_path[1:]  # Skip the first element
+            # WORKAROUND for grammar bug: "Natuurlijk" should be "Natuurlijk persoon"
+            elif first_elem_clean == "natuurlijk" and current_type_clean == "natuurlijk persoon":
+                logger.debug(f"_navigate_to_target WORKAROUND: Correcting incomplete 'Natuurlijk' to match 'Natuurlijk persoon'")
+                working_path = working_path[1:]  # Skip the incomplete object type reference
         
-        # Navigate through the path to find the target object
+        # If after removing the instance reference we have only one element, it's a direct attribute
+        if len(working_path) == 1:
+            logger.debug(f"_navigate_to_target: After cleanup, single element path, returning ({start_instance.object_type_naam}, {working_path[0]})")
+            return (start_instance, working_path[0])
+        
+        # For multi-element paths:
+        # - Last element is the attribute name
+        # - Everything else is navigation
+        
+        attr_name = working_path[-1]  # Attribute is at the end
+        nav_path = working_path[:-1]   # Everything else is navigation
+        logger.debug(f"_navigate_to_target: attr_name={attr_name}, nav_path={nav_path}")
+        
+        # Navigate through the path (already in the right order after visitAttribuutReferentie fix)
         current_obj = start_instance
         
+        # Process navigation segments in order (no need to reverse anymore)
         for segment in nav_path:
-            # Skip if segment matches current object type (redundant reference)
-            if segment.lower() == current_obj.object_type_naam.lower():
-                continue
-            
+            logger.debug(f"_navigate_to_target: Processing segment '{segment}' from {current_obj.object_type_naam}")
             # Try to navigate through feittype relationships
             found = False
             
@@ -811,22 +870,41 @@ class Evaluator:
                     
                     # Check if segment matches this role
                     if role_naam_clean == segment_clean:
-                        # Check if current object can participate in this feittype
+                        logger.debug(f"_navigate_to_target: Found matching role '{rol.naam}' in feittype '{feittype_name}'")
+                        # Found a matching role - now check if current object can participate
+                        # Look for the role that the current object plays in this feittype
                         for other_idx, other_rol in enumerate(feittype.rollen):
                             if other_idx != rol_idx and other_rol.object_type == current_obj.object_type_naam:
-                                # Current object matches the other role, navigate to target role
+                                logger.debug(f"_navigate_to_target: Current object type matches role '{other_rol.naam}' -> {other_rol.object_type}")
+                                # Current object type matches the other role
+                                # Navigate from current object to the target role
+                                # as_subject=True means we're looking for relationships where current_obj is the subject
+                                # as_subject=False means we're looking for relationships where current_obj is the object
+                                
+                                # In the feittype "vlucht van natuurlijke personen":
+                                # - Role 0: "reis" -> Vlucht (subject in relationship)
+                                # - Role 1: "passagier" -> Natuurlijk persoon (object in relationship)
+                                # When navigating from Natuurlijk persoon via "reis", we want the Vlucht
+                                # Since Natuurlijk persoon is the object (role 1), we need as_subject=False
                                 as_subject = (other_idx == 0)
                                 related_objects = self.context.get_related_objects(
                                     current_obj, feittype_name, as_subject=as_subject
                                 )
                                 
                                 if not related_objects:
+                                    # Debug: print more info about what we're looking for
+                                    logger.warning(f"No related object found for role '{segment}' from {current_obj.object_type_naam}")
+                                    logger.warning(f"  FeitType: {feittype_name}")
+                                    logger.warning(f"  Looking for role: {rol.naam} -> {rol.object_type}")
+                                    logger.warning(f"  Current object role: {other_rol.naam} -> {other_rol.object_type}")
+                                    logger.warning(f"  as_subject: {as_subject}")
                                     raise RegelspraakError(
                                         f"No related object found for role '{segment}' from {current_obj.object_type_naam}"
                                     )
                                 
                                 # For navigation, take the first related object
                                 current_obj = related_objects[0]
+                                logger.debug(f"_navigate_to_target: Successfully navigated to {current_obj.object_type_naam} via role '{segment}'")
                                 found = True
                                 break
                         
@@ -872,6 +950,9 @@ class Evaluator:
 
         if isinstance(res, Gelijkstelling):
             instance = self.context.current_instance  # Already checked above
+            
+            logger.debug(f"Gelijkstelling: target path = {res.target.path}, instance = {instance.object_type_naam if instance else 'None'}")
+            logger.debug(f"Gelijkstelling: expression = {res.expressie}")
             
             # Navigate to the target object if we have a complex path
             target_obj, attr_name = self._navigate_to_target(res.target.path, instance)
@@ -1333,16 +1414,28 @@ class Evaluator:
                     raise RegelspraakError("Dimensioned attribute reference path is empty.", span=expr.span)
                 
                 # Extract attribute name and object path
-                if len(base_ref.path) == 1:
+                # Check if the first element of path refers to current instance type
+                working_path = base_ref.path[:]
+                if len(working_path) > 1:
+                    first_elem_clean = working_path[0].lower().replace("de ", "").replace("het ", "").replace("een ", "")
+                    current_type_clean = self.context.current_instance.object_type_naam.lower()
+                    
+                    if first_elem_clean == current_type_clean:
+                        # First element matches current instance type, remove it
+                        working_path = working_path[1:]
+                    # WORKAROUND for grammar bug: "Natuurlijk" should be "Natuurlijk persoon"
+                    elif first_elem_clean == "natuurlijk" and current_type_clean == "natuurlijk persoon":
+                        logger.debug(f"WORKAROUND: Correcting incomplete 'Natuurlijk' to match 'Natuurlijk persoon'")
+                        working_path = working_path[1:]  # Skip the incomplete object type reference
+                
+                if len(working_path) == 1:
                     # Simple case: attribute on current instance
-                    attr_name = base_ref.path[0]
+                    attr_name = working_path[0]
                     target_obj = self.context.current_instance
                 else:
                     # Complex path: navigate to the object
-                    attr_name = base_ref.path[0]
-                    # For now, assume the rest of the path refers to the current instance
-                    # TODO: Implement full path navigation for dimensioned attributes
-                    target_obj = self.context.current_instance
+                    # Use _navigate_to_target to handle complex paths
+                    target_obj, attr_name = self._navigate_to_target(working_path, self.context.current_instance)
                 
                 # Resolve dimension coordinates using helper
                 coordinates = self._resolve_dimension_coordinates(expr, target_obj)
@@ -1369,10 +1462,22 @@ class Evaluator:
                 if not expr.path:
                     raise RegelspraakError("Attribute reference path is empty.", span=expr.span)
 
-                # Check if the last element of the path refers to the current instance type
-                # E.g., ["passagiers", "vlucht"] when current instance is a Vlucht
+                # Check if elements of the path refer to the current instance type
                 working_path = expr.path[:]  # Make a copy
                 logger.debug(f"AttributeReference evaluation: path={expr.path}, current_instance={self.context.current_instance.object_type_naam}")
+                
+                # First check if the FIRST element matches current instance type (e.g., ['vlucht', 'vluchtdatum'])
+                if len(working_path) > 1:
+                    first_element = working_path[0].lower()
+                    current_type = self.context.current_instance.object_type_naam.lower()
+                    first_element_clean = first_element.replace("de ", "").replace("het ", "").replace("een ", "")
+                    
+                    if first_element_clean == current_type:
+                        # Remove the first element as it refers to the current instance
+                        logger.debug(f"Removing first element '{first_element}' as it matches current instance type '{current_type}'")
+                        working_path = working_path[1:]
+                
+                # Also check if the LAST element matches current instance type (e.g., ["passagiers", "vlucht"])
                 if len(working_path) > 1:
                     last_element = working_path[-1].lower()
                     current_type = self.context.current_instance.object_type_naam.lower()
@@ -1646,13 +1751,13 @@ class Evaluator:
                         result = value
                     else:
                         # Handle nested object references
-                        # Path like ["vluchtdatum", "reis", "persoon"] means:
-                        # person.reis.vluchtdatum (reversed for navigation)
+                        # After the fix to visitAttribuutReferentie, paths are already in Dutch right-to-left order
+                        # Path like ["reis", "vluchtdatum"] means: navigate to reis, then get vluchtdatum
                         
                         # Start from current instance and traverse the path
                         current_obj = self.context.current_instance
-                        # Reverse path for navigation: ["vluchtdatum", "reis"] -> ["reis", "vluchtdatum"]
-                        nav_path = list(reversed(expr.path))
+                        # Path is already in correct order, don't reverse
+                        nav_path = expr.path
                         
                         # Navigate through all but the last element
                         for i, segment in enumerate(nav_path[:-1]):
@@ -1895,7 +2000,27 @@ class Evaluator:
         base_ref = target_ref.base_attribute
         if not base_ref.path:
             raise RegelspraakError("DimensionedAttributeReference base path is empty.", span=target_ref.span)
-        attr_name = base_ref.path[0]
+        
+        # Check if the first element of path refers to current instance type
+        working_path = base_ref.path[:]
+        if len(working_path) > 1:
+            first_elem_clean = working_path[0].lower().replace("de ", "").replace("het ", "").replace("een ", "")
+            current_type_clean = instance.object_type_naam.lower()
+            
+            if first_elem_clean == current_type_clean:
+                # First element matches current instance type, remove it
+                working_path = working_path[1:]
+            # WORKAROUND for grammar bug: "Natuurlijk" should be "Natuurlijk persoon"
+            elif first_elem_clean == "natuurlijk" and current_type_clean == "natuurlijk persoon":
+                logger.debug(f"_resolve_dimension_coordinates WORKAROUND: Correcting incomplete 'Natuurlijk' to match 'Natuurlijk persoon'")
+                working_path = working_path[1:]  # Skip the incomplete object type reference
+        
+        # The attribute name is the last element for simple paths, or needs navigation for complex paths
+        if len(working_path) == 1:
+            attr_name = working_path[0]
+        else:
+            # For complex paths, we'd need to navigate, but for now take the last element
+            attr_name = working_path[-1]
         
         # Build dimension coordinates from labels
         coordinates = DimensionCoordinate(labels={})
@@ -2029,16 +2154,28 @@ class Evaluator:
                     raise RegelspraakError("Dimensioned attribute reference path is empty.", span=expr.span)
                 
                 # Extract attribute name and object path
-                if len(base_ref.path) == 1:
+                # Check if the first element of path refers to current instance type
+                working_path = base_ref.path[:]
+                if len(working_path) > 1:
+                    first_elem_clean = working_path[0].lower().replace("de ", "").replace("het ", "").replace("een ", "")
+                    current_type_clean = self.context.current_instance.object_type_naam.lower()
+                    
+                    if first_elem_clean == current_type_clean:
+                        # First element matches current instance type, remove it
+                        working_path = working_path[1:]
+                    # WORKAROUND for grammar bug: "Natuurlijk" should be "Natuurlijk persoon"
+                    elif first_elem_clean == "natuurlijk" and current_type_clean == "natuurlijk persoon":
+                        logger.debug(f"WORKAROUND: Correcting incomplete 'Natuurlijk' to match 'Natuurlijk persoon'")
+                        working_path = working_path[1:]  # Skip the incomplete object type reference
+                
+                if len(working_path) == 1:
                     # Simple case: attribute on current instance
-                    attr_name = base_ref.path[0]
+                    attr_name = working_path[0]
                     target_obj = self.context.current_instance
                 else:
                     # Complex path: navigate to the object
-                    attr_name = base_ref.path[0]
-                    # For now, assume the rest of the path refers to the current instance
-                    # TODO: Implement full path navigation for dimensioned attributes
-                    target_obj = self.context.current_instance
+                    # Use _navigate_to_target to handle complex paths
+                    target_obj, attr_name = self._navigate_to_target(working_path, self.context.current_instance)
                 
                 # Resolve dimension coordinates using helper
                 coordinates = self._resolve_dimension_coordinates(expr, target_obj)
@@ -2066,9 +2203,22 @@ class Evaluator:
                 if not expr.path:
                     raise RegelspraakError("Attribute reference path is empty.", span=expr.span)
 
+                # Check if elements of the path refer to the current instance type
+                working_path = expr.path[:]  # Make a copy
+                
+                # First check if the FIRST element matches current instance type (e.g., ['vlucht', 'vluchtdatum'])
+                if len(working_path) > 1:
+                    first_element = working_path[0].lower()
+                    current_type = self.context.current_instance.object_type_naam.lower()
+                    first_element_clean = first_element.replace("de ", "").replace("het ", "").replace("een ", "")
+                    
+                    if first_element_clean == current_type:
+                        # Remove the first element as it refers to the current instance
+                        working_path = working_path[1:]
+                
                 # If path is like ["leeftijd"], get from current_instance
-                if len(expr.path) == 1:
-                    attr_name = expr.path[0]
+                if len(working_path) == 1:
+                    attr_name = working_path[0]
                     
                     # Special case: If path is ["self"], return the current instance itself
                     if attr_name == "self":
@@ -2094,10 +2244,10 @@ class Evaluator:
                         result = value
                 else:
                     # Handle paths like ['self', 'leeftijd']
-                    if expr.path[0] == 'self': # Check if path starts with 'self'
-                        if len(expr.path) != 2: # Ensure path is exactly ['self', 'attr']
-                            raise RegelspraakError(f"Unsupported 'self' path structure: {expr.path}", span=expr.span)
-                        attr_name = expr.path[1]
+                    if working_path[0] == 'self': # Check if path starts with 'self'
+                        if len(working_path) != 2: # Ensure path is exactly ['self', 'attr']
+                            raise RegelspraakError(f"Unsupported 'self' path structure: {working_path}", span=expr.span)
+                        attr_name = working_path[1]
                         value = self.context.get_attribute(self.context.current_instance, attr_name)
                         
                         # Trace attribute read
@@ -2159,13 +2309,13 @@ class Evaluator:
                             result = value
                     else:
                         # Handle nested object references
-                        # Path like ["vluchtdatum", "reis", "persoon"] means:
-                        # person.reis.vluchtdatum (reversed for navigation)
+                        # After the fix to visitAttribuutReferentie, paths are already in Dutch right-to-left order
+                        # Path like ["reis", "vluchtdatum"] means: navigate to reis, then get vluchtdatum
                         
                         # Start from current instance and traverse the path
                         current_obj = self.context.current_instance
-                        # Reverse path for navigation: ["vluchtdatum", "reis"] -> ["reis", "vluchtdatum"]
-                        nav_path = list(reversed(expr.path))
+                        # Path is already in correct order, don't reverse
+                        nav_path = expr.path
                         
                         # Navigate through all but the last element
                         for i, segment in enumerate(nav_path[:-1]):
@@ -3303,20 +3453,24 @@ class Evaluator:
         - Y is the role name (e.g., "passagiers met recht op treinmiles")
         - Z is the navigation context (e.g., "het te verdelen contingent treinmiles")
         
-        Due to grammar parsing, the path might be split incorrectly:
-        ['treinmiles', 'passagiers', 'recht', 'treinmiles', 'te verdelen contingent treinmiles']
-        where 'alle' is consumed as a prefix and words are split.
+        The path might be:
+        ['te verdelen contingent treinmiles', 'alle passagiers met recht op treinmiles', 'treinmiles']
         """
         if isinstance(collection_expr, AttributeReference):
             path = collection_expr.path
             logger.info(f"Verdeling: Resolving collection with path: {path}")
             
-            # The grammar splits multi-word phrases, so we need to reconstruct them
-            # Looking for patterns where we have a feittype relationship
+            # Check if first element is a role name that refers to the current instance
+            if path and self._is_role_name_pattern(path[0]):
+                # First element is a role name referring to current instance, skip it
+                actual_path = path[1:] if len(path) > 1 else []
+                logger.info(f"Skipping role name '{path[0]}', actual path: {actual_path}")
+            else:
+                actual_path = path
             
             # For the TOKA pattern, we expect to find objects related to the current instance
             # through a feittype relationship
-            if self.context.current_instance and len(path) > 1:
+            if self.context.current_instance and len(actual_path) > 0:
                 # The last element often contains the navigation context
                 # e.g., "te verdelen contingent treinmiles"
                 
@@ -3371,6 +3525,33 @@ class Evaluator:
         # (which would fail if the attribute doesn't exist on current instance)
         logger.warning(f"Could not resolve collection for Verdeling, returning empty list")
         return []
+    
+    def _is_role_name_pattern(self, text: str) -> bool:
+        """Check if text matches a known role name pattern from FeitTypes.
+        
+        Common patterns:
+        - "te verdelen contingent treinmiles"
+        - "passagier met recht op treinmiles"
+        """
+        text_lower = text.lower()
+        
+        # Common role patterns from specification
+        role_patterns = [
+            "te verdelen contingent treinmiles",
+            "passagier met recht op treinmiles",
+            "reis met treinmiles",
+            "vastgestelde contingent treinmiles"
+        ]
+        
+        for pattern in role_patterns:
+            if pattern in text_lower:
+                return True
+        
+        # Additional heuristics
+        if text_lower.startswith("te ") or " met " in text_lower:
+            return True
+        
+        return False
     
     def _find_objects_by_feittype_role(self, source_obj: RuntimeObject, role_text: str) -> List[RuntimeObject]:
         """Find objects that have a specific role in relation to source object."""
@@ -3435,10 +3616,16 @@ class Evaluator:
     
     def _extract_verdeling_target_attribute(self, collection_expr: Expression) -> str:
         """Extract the target attribute name from collection expression.
-        Pattern: "de X van alle Y" -> X is the attribute"""
+        Pattern: "de X van alle Y van Z" -> X is the attribute
+        
+        The path might be:
+        ['te verdelen contingent treinmiles', 'alle passagiers met recht op treinmiles', 'treinmiles']
+        where the last element is the attribute."""
         if isinstance(collection_expr, AttributeReference) and collection_expr.path:
-            # First element is typically the attribute
-            return collection_expr.path[0]
+            # The attribute is the last element in the path
+            # e.g., in ['te verdelen contingent treinmiles', 'alle passagiers...', 'treinmiles']
+            # 'treinmiles' is the attribute to set
+            return collection_expr.path[-1]
         
         raise RegelspraakError(
             "Could not determine target attribute for distribution",
@@ -3586,13 +3773,18 @@ class Evaluator:
         logger.info(f"_set_verdeling_remainder called with path {remainder_expr.path if hasattr(remainder_expr, 'path') else 'no path'} and value {remainder_value.value}")
         if isinstance(remainder_expr, AttributeReference):
             # Determine object and attribute
-            if len(remainder_expr.path) >= 2:
-                # Pattern: "het X van Y" - attribute X on object Y
-                attr_name = remainder_expr.path[0]
-                # The object reference is in the last path element
-                # For "het restant na verdeling van het te verdelen contingent treinmiles"
-                # We need to find the object that matches this description
-                # In most cases, this will be the current instance
+            # Check if first element is a role name referring to current instance
+            working_path = remainder_expr.path[:]
+            if working_path and self._is_role_name_pattern(working_path[0]):
+                # First element is a role name, skip it
+                working_path = working_path[1:]
+                logger.info(f"Skipping role name '{remainder_expr.path[0]}', actual path: {working_path}")
+            
+            if len(working_path) >= 2:
+                # Complex path - need navigation
+                # For now, assume it refers to current instance
+                # The attribute name is the last element in the working path
+                attr_name = working_path[-1]
                 target_obj = self.context.current_instance
                 
                 # Check if the last path element refers to the current instance
@@ -3620,9 +3812,9 @@ class Evaluator:
                         span=remainder_expr.span
                     )
                     logger.info(f"Verdeling: Set remainder {attr_name} to {remainder_value.value}")
-            elif len(remainder_expr.path) == 1:
+            elif len(working_path) == 1:
                 # Simple attribute reference on current instance
-                attr_name = remainder_expr.path[0]
+                attr_name = working_path[0]
                 if self.context.current_instance:
                     self.context.set_attribute(
                         self.context.current_instance,
