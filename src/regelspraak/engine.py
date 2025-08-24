@@ -1,6 +1,6 @@
 """RegelSpraak execution engine and evaluation logic."""
 import math
-from typing import Any, Dict, Optional, List, TYPE_CHECKING, Union
+from typing import Any, Dict, Optional, List, TYPE_CHECKING, Union, Tuple
 from dataclasses import dataclass, field
 import logging
 from decimal import Decimal
@@ -769,6 +769,91 @@ class Evaluator:
         
         return results
 
+    def _navigate_to_target(self, path: List[str], start_instance: RuntimeObject) -> Tuple[RuntimeObject, str]:
+        """Navigate through a complex path to find the target object and attribute.
+        
+        For a path like ['naam', 'eigenaar', 'gebouw'], starting from a gebouw instance:
+        1. Navigate from gebouw to eigenaar (through relationship)
+        2. Return (eigenaar_object, 'naam') so we can set the naam attribute
+        
+        Returns:
+            Tuple of (target_object, attribute_name)
+        """
+        if not path:
+            raise RegelspraakError("Cannot navigate empty path")
+        
+        # If path has only one element, it's a simple attribute on the start instance
+        if len(path) == 1:
+            return (start_instance, path[0])
+        
+        # For multi-element paths, the first element is the attribute to set,
+        # and the rest is the navigation path to the object
+        attr_name = path[0]
+        nav_path = path[1:]
+        
+        # Navigate through the path to find the target object
+        current_obj = start_instance
+        
+        for segment in nav_path:
+            # Skip if segment matches current object type (redundant reference)
+            if segment.lower() == current_obj.object_type_naam.lower():
+                continue
+            
+            # Try to navigate through feittype relationships
+            found = False
+            
+            # Check all feittypen for matching roles
+            for feittype_name, feittype in self.context.domain_model.feittypen.items():
+                for rol_idx, rol in enumerate(feittype.rollen):
+                    # Clean role name for matching
+                    role_naam_clean = rol.naam.lower().replace("de ", "").replace("het ", "").replace("een ", "")
+                    segment_clean = segment.lower().replace("de ", "").replace("het ", "").replace("een ", "")
+                    
+                    # Check if segment matches this role
+                    if role_naam_clean == segment_clean:
+                        # Check if current object can participate in this feittype
+                        for other_idx, other_rol in enumerate(feittype.rollen):
+                            if other_idx != rol_idx and other_rol.object_type == current_obj.object_type_naam:
+                                # Current object matches the other role, navigate to target role
+                                as_subject = (other_idx == 0)
+                                related_objects = self.context.get_related_objects(
+                                    current_obj, feittype_name, as_subject=as_subject
+                                )
+                                
+                                if not related_objects:
+                                    raise RegelspraakError(
+                                        f"No related object found for role '{segment}' from {current_obj.object_type_naam}"
+                                    )
+                                
+                                # For navigation, take the first related object
+                                current_obj = related_objects[0]
+                                found = True
+                                break
+                        
+                        if found:
+                            break
+                
+                if found:
+                    break
+            
+            if not found:
+                # Try as a direct attribute reference
+                try:
+                    ref_value = self.context.get_attribute(current_obj, segment)
+                    if ref_value.datatype != "ObjectReference":
+                        raise RegelspraakError(
+                            f"Expected ObjectReference or role name for '{segment}' but got {ref_value.datatype}"
+                        )
+                    current_obj = ref_value.value
+                    if not isinstance(current_obj, RuntimeObject):
+                        raise RegelspraakError(f"Invalid object reference in path at '{segment}'")
+                except RuntimeError:
+                    raise RegelspraakError(
+                        f"'{segment}' is neither a role name nor an attribute on {current_obj.object_type_naam}"
+                    )
+        
+        return (current_obj, attr_name)
+
     def _apply_resultaat(self, res: ast.ResultaatDeel):
         """Applies the result of a rule (Gelijkstelling, Initialisatie, or KenmerkToekenning) 
            to the current instance in the context.
@@ -787,11 +872,14 @@ class Evaluator:
 
         if isinstance(res, Gelijkstelling):
             instance = self.context.current_instance  # Already checked above
+            
+            # Navigate to the target object if we have a complex path
+            target_obj, attr_name = self._navigate_to_target(res.target.path, instance)
+            
             # Check if the target is a timeline attribute or if the expression contains timeline operands
             target_is_timeline = False
             if hasattr(res.target, 'path') and res.target.path:
-                attr_name = res.target.path[0]
-                obj_type_def = self.context.domain_model.objecttypes.get(instance.object_type_naam)
+                obj_type_def = self.context.domain_model.objecttypes.get(target_obj.object_type_naam)
                 if obj_type_def:
                     attr_def = obj_type_def.attributen.get(attr_name)
                     if attr_def and attr_def.timeline:
@@ -819,10 +907,8 @@ class Evaluator:
                 elif not target_ref.path:
                     raise RegelspraakError("Gelijkstelling target path is empty.", span=target_ref.span)
                 
-                attr_name = target_ref.path[0]
-                
-                # Set the timeline value directly
-                self.context.set_timeline_attribute(instance, attr_name, expr_result, span=res.span)
+                # Set the timeline value directly on the target object
+                self.context.set_timeline_attribute(target_obj, attr_name, expr_result, span=res.span)
                 return
             
             # If target is timeline or expression contains timeline operands, evaluate as timeline
@@ -836,8 +922,6 @@ class Evaluator:
                 elif not target_ref.path:
                     raise RegelspraakError("Gelijkstelling target path is empty.", span=target_ref.span)
                 
-                attr_name = target_ref.path[0]
-                
                 # Check if there's a period definition
                 if res.period_definition:
                     # Use pre-evaluated result
@@ -846,7 +930,7 @@ class Evaluator:
                     # Get attribute definition to find unit and granularity
                     granularity = "dag"  # Default
                     unit = None
-                    obj_type_def = self.context.domain_model.objecttypes.get(instance.object_type_naam)
+                    obj_type_def = self.context.domain_model.objecttypes.get(target_obj.object_type_naam)
                     if obj_type_def:
                         attr_def = obj_type_def.attributen.get(attr_name)
                         if attr_def:
@@ -870,14 +954,14 @@ class Evaluator:
                     timeline = Timeline(periods=[period], granularity=granularity)
                     timeline_value = TimelineValue(timeline=timeline)
                     
-                    # Set the timeline value on the attribute
-                    self.context.set_timeline_attribute(instance, attr_name, timeline_value, span=res.span)
+                    # Set the timeline value on the target object
+                    self.context.set_timeline_attribute(target_obj, attr_name, timeline_value, span=res.span)
                 else:
                     # Evaluate as timeline expression (existing behavior)
                     timeline_value = self._evaluate_timeline_expression(res.expressie)
                     
-                    # Set the timeline value on the attribute
-                    self.context.set_timeline_attribute(instance, attr_name, timeline_value, span=res.span)
+                    # Set the timeline value on the target object
+                    self.context.set_timeline_attribute(target_obj, attr_name, timeline_value, span=res.span)
                 return
             
             # Regular non-timeline expression evaluation
@@ -886,61 +970,69 @@ class Evaluator:
             # Handle both AttributeReference and DimensionedAttributeReference
             target_ref = res.target
             if isinstance(target_ref, DimensionedAttributeReference):
-                # For dimensioned attributes, we need to set the value at specific coordinates
+                # For dimensioned attributes, we need to navigate to the target object first
                 base_ref = target_ref.base_attribute
                 if not base_ref.path:
                     raise RegelspraakError("DimensionedAttributeReference base path is empty.", span=target_ref.span)
-                attr_name = base_ref.path[0]
+                
+                # Navigate to the target object for dimensioned attribute
+                dim_target_obj, dim_attr_name = self._navigate_to_target(base_ref.path, instance)
                 
                 # Resolve dimension coordinates using helper
-                coordinates = self._resolve_dimension_coordinates(target_ref, instance)
+                coordinates = self._resolve_dimension_coordinates(target_ref, dim_target_obj)
                 
-                # Set the dimensioned value
-                self.context.set_dimensioned_attribute(instance, attr_name, coordinates, value, span=res.span)
+                # Set the dimensioned value on the target object
+                self.context.set_dimensioned_attribute(dim_target_obj, dim_attr_name, coordinates, value, span=res.span)
             else:
-                # Regular attribute reference
+                # Regular attribute reference - use the already navigated target
                 if not target_ref.path:
                     raise RegelspraakError("Gelijkstelling target path is empty.", span=target_ref.span)
-                attr_name = target_ref.path[0]
-                # Pass the Value object directly
-                self.context.set_attribute(instance, attr_name, value, span=res.span)
+                
+                # Pass the Value object directly to the target object
+                self.context.set_attribute(target_obj, attr_name, value, span=res.span)
         
         elif isinstance(res, Initialisatie):
+            instance = self.context.current_instance  # Already checked above
+            
+            # Navigate to the target object if we have a complex path
+            target_obj, attr_name = self._navigate_to_target(res.target.path, instance)
+            
             # Handle both AttributeReference and DimensionedAttributeReference
             target_ref = res.target
             if isinstance(target_ref, DimensionedAttributeReference):
-                # For dimensioned attributes
+                # For dimensioned attributes, navigate to target object first
                 base_ref = target_ref.base_attribute
                 if not base_ref.path:
                     raise RegelspraakError("DimensionedAttributeReference base path is empty.", span=target_ref.span)
-                attr_name = base_ref.path[0]
+                
+                # Navigate to the target object for dimensioned attribute
+                dim_target_obj, dim_attr_name = self._navigate_to_target(base_ref.path, instance)
                 
                 # Resolve dimension coordinates using helper
-                coordinates = self._resolve_dimension_coordinates(target_ref, instance)
+                coordinates = self._resolve_dimension_coordinates(target_ref, dim_target_obj)
                 
                 # Check if dimensioned attribute already has a value
                 try:
-                    current_value = self.context.get_dimensioned_attribute(instance, attr_name, coordinates)
+                    current_value = self.context.get_dimensioned_attribute(dim_target_obj, dim_attr_name, coordinates)
                     # If we got here, attribute exists and has a value, do nothing (per spec)
                 except RuntimeError:
                     # Attribute doesn't exist or is empty, so initialize it
                     value = self.evaluate_expression(res.expressie)
-                    self.context.set_dimensioned_attribute(instance, attr_name, coordinates, value, span=res.span)
+                    self.context.set_dimensioned_attribute(dim_target_obj, dim_attr_name, coordinates, value, span=res.span)
             else:
-                # Regular attribute reference
+                # Regular attribute reference - use the already navigated target
                 if not target_ref.path:
                     raise RegelspraakError("Initialisatie target path is empty.", span=target_ref.span)
-                attr_name = target_ref.path[0]
                 
                 # Check if attribute already has a value
                 try:
-                    current_value = self.context.get_attribute(instance, attr_name)
+                    current_value = self.context.get_attribute(target_obj, attr_name)
                     # If we got here, attribute exists and has a value, do nothing (per spec)
                 except RuntimeError:
                     # Attribute doesn't exist or is empty, so initialize it
                     # Check if the target is a timeline attribute or if the expression contains timeline operands
                     target_is_timeline = False
-                    obj_type_def = self.context.domain_model.objecttypes.get(instance.object_type_naam)
+                    obj_type_def = self.context.domain_model.objecttypes.get(target_obj.object_type_naam)
                     if obj_type_def:
                         attr_def = obj_type_def.attributen.get(attr_name)
                         if attr_def and attr_def.timeline:
@@ -950,11 +1042,11 @@ class Evaluator:
                     if target_is_timeline or self._is_timeline_expression(res.expressie):
                         # Evaluate as timeline expression
                         timeline_value = self._evaluate_timeline_expression(res.expressie)
-                        self.context.set_timeline_attribute(instance, attr_name, timeline_value, span=res.span)
+                        self.context.set_timeline_attribute(target_obj, attr_name, timeline_value, span=res.span)
                     else:
                         # Regular expression
                         value = self.evaluate_expression(res.expressie)
-                        self.context.set_attribute(instance, attr_name, value, span=res.span)
+                        self.context.set_attribute(target_obj, attr_name, value, span=res.span)
 
         elif isinstance(res, KenmerkToekenning):
             kenmerk_value = not res.is_negated
