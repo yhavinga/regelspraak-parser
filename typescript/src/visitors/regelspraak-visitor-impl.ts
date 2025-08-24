@@ -2640,8 +2640,28 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
     let roleName = '';
     if (!objectType && words.length > 0) {
       // No explicit object type, so we need to determine where the role ends and object type begins
-      // Handle known multi-word object types
-      if (words[words.length - 1] === 'Natuurlijk') {
+      // Special case: single lowercase word might be the role name with object type lost due to tab handling
+      if (words.length === 1 && words[0][0] === words[0][0].toLowerCase()) {
+        // Extract object type from full text (tabs might have separated it)
+        const fullText = ctx.getText();
+        // Try to find capital letter that starts object type
+        const match = fullText.match(/([a-z]+)([A-Z][a-zA-Z]*)/);  
+        if (match) {
+          roleName = match[1];
+          objectType = match[2];
+        } else {
+          // Special cases for known role-to-type mappings
+          roleName = words[0];
+          if (roleName === 'werknemer') {
+            objectType = 'Persoon';  // werknemer is a Persoon
+          } else if (roleName === 'gebouw') {
+            objectType = 'Gebouw';
+          } else {
+            // Fallback: capitalize role name
+            objectType = roleName.charAt(0).toUpperCase() + roleName.slice(1);
+          }
+        }
+      } else if (words[words.length - 1] === 'Natuurlijk') {
         // "Natuurlijk persoon" is a common multi-word object type
         objectType = 'Natuurlijk persoon';
         roleName = words.slice(0, -1).join(' ');

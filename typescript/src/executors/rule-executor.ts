@@ -254,8 +254,6 @@ export class RuleExecutor implements IRuleExecutor {
                           currentObj = relatedObjects[0];
                           navigatedThroughFeittype = true;
                           break;
-                        } else {
-                          console.log('No related objects found!');
                         }
                       }
                     }
