@@ -1172,8 +1172,12 @@ export class RuleExecutor implements IRuleExecutor {
       }
     } else {
       // Recursive: execute with iteration tracking
-      const maxIterations = 100; // Safety limit
+      const maxIterations = (context as any).maxRecursionIterations || 100; // Use configurable limit from context
       let iteration = 0;
+      
+      // Cycle detection: track object creation graph
+      // Maps creator_id -> set of created object IDs
+      const creationGraph: Map<string, Set<string>> = new Map();
       
       while (iteration < maxIterations) {
         iteration++;

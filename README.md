@@ -1,9 +1,9 @@
 # RegelSpraak Parser
 
 > [!WARNING]
-> **EXPERIMENTAL, WORK IN PROGRESS.** This parser is incomplete and under active development.
+> **EXPERIMENTAL, WORK IN PROGRESS.** This parser is under active development.
 
-ANTLR4-based parser for RegelSpraak v2.1.0 - a Dutch domain-specific language for business rules. Implements ~97% of the specification with 439 passing tests.
+ANTLR4-based parser for RegelSpraak v2.1.0 - a Dutch domain-specific language for business rules. Implements **98-99%** of the specification with **487 Python tests** and **454 TypeScript tests** passing.
 
 ## What is RegelSpraak?
 

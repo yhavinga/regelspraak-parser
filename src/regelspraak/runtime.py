@@ -242,6 +242,8 @@ class RuntimeContext:
     # Rule execution tracking for regel status conditions
     executed_rules: Set[str] = field(default_factory=set)  # Rules that have been executed (fired)
     inconsistent_rules: Set[str] = field(default_factory=set)  # Consistency rules that found inconsistencies
+    # Configurable maximum iterations for recursive rule groups (spec §9.9)
+    max_recursion_iterations: int = 100
 
     # --- Rule Status Methods ---
     

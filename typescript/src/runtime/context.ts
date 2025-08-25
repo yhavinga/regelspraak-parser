@@ -44,6 +44,9 @@ export class Context implements RuntimeContext {
   // Rule execution tracking for regel status conditions
   private executedRules: Set<string> = new Set();  // Rules that have been executed (fired)
   private inconsistentRules: Set<string> = new Set();  // Consistency rules that found inconsistencies
+  
+  // Configurable maximum iterations for recursive rule groups (spec §9.9)
+  public maxRecursionIterations: number = 100;
 
   constructor(model?: DomainModel) {
     if (model) {

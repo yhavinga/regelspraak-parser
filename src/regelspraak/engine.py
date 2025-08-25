@@ -1,10 +1,11 @@
 """RegelSpraak execution engine and evaluation logic."""
 import math
-from typing import Any, Dict, Optional, List, TYPE_CHECKING, Union, Tuple
+from typing import Any, Dict, Optional, List, TYPE_CHECKING, Union, Tuple, Set
 from dataclasses import dataclass, field
 import logging
 from decimal import Decimal
 from datetime import date, datetime
+from collections import defaultdict
 
 # Import AST nodes
 from . import ast
@@ -629,11 +630,15 @@ class Evaluator:
                         self.context.set_current_instance(original_instance)
         else:
             # Recursive group: execute with iteration tracking
-            max_iterations = 1000  # Safety limit to prevent infinite loops
+            max_iterations = self.context.max_recursion_iterations  # Use configurable limit from context
             iteration = 0
             
             # Track objects created in each iteration
             objects_created_per_iteration = []
+            
+            # Cycle detection: track object creation graph
+            # Maps creator_id -> set of created object IDs
+            creation_graph: Dict[str, Set[str]] = defaultdict(set)
             
             while iteration < max_iterations:
                 iteration += 1
@@ -713,6 +718,25 @@ class Evaluator:
                             created_count = after_count - before_count
                             
                             if created_count > 0:
+                                # Track new objects for cycle detection
+                                new_objects = self.context.find_objects_by_type(obj_type)[before_count:]
+                                creator_id = instances[-1].instance_id if instances else "root"
+                                
+                                for new_obj in new_objects:
+                                    new_id = new_obj.instance_id
+                                    
+                                    # Check for cycle: if new object already created the creator
+                                    if creator_id != "root" and creator_id in creation_graph.get(new_id, set()):
+                                        results.append({
+                                            "iteration": iteration,
+                                            "status": "cycle_detected",
+                                            "message": f"Cycle detected: {new_id} -> {creator_id} -> {new_id}"
+                                        })
+                                        return results
+                                    
+                                    # Add to creation graph
+                                    creation_graph[creator_id].add(new_id)
+                                
                                 iteration_created.append({
                                     "object_type": obj_type,
                                     "count": created_count

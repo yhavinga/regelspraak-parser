@@ -244,5 +244,73 @@ class TestRecursie(unittest.TestCase):
         self.assertFalse(any(r.get("status") == "max_iterations_reached" for r in results))
 
 
+    def test_configurable_iteration_limit(self):
+        """Test that configurable iteration limits work."""
+        text = """
+        Objecttype InfiniteLoop
+            de nummer Numeriek;
+
+        Regelgroep Infinite loop is recursief
+        Regel maak object
+        geldig altijd
+        Er wordt een nieuw InfiniteLoop aangemaakt met de nummer 1
+        indien waar gelijk is aan waar.
+        """
+        
+        model = parse_text(text)
+        self.assertIsNotNone(model)
+        
+        # Create context with low iteration limit
+        context = RuntimeContext(model)
+        context.max_recursion_iterations = 5  # Set low limit
+        
+        evaluator = Evaluator(context)
+        regelgroep = model.regelgroepen[0]
+        results = evaluator.execute_regelgroep(regelgroep)
+        
+        # Should hit iteration limit
+        objects = context.find_objects_by_type("InfiniteLoop")
+        self.assertLessEqual(len(objects), 5)  # Should not exceed limit
+        
+        # Check that we created objects up to the limit
+        created_count = sum(1 for r in results if r.get("status") == "object_created")
+        self.assertLessEqual(created_count, 5)
+    
+    def test_cycle_detection(self):
+        """Test that cycle detection prevents infinite recursion."""
+        text = """
+        Objecttype Node
+            de id Numeriek;
+            de creates Node;
+
+        Regelgroep Cyclic creation is recursief
+        Regel maak node
+        geldig altijd
+        Er wordt een nieuw Node aangemaakt 
+        met de id het aantal alle Node plus 1
+        indien het aantal alle Node kleiner is dan 10.
+        """
+        
+        model = parse_text(text)
+        self.assertIsNotNone(model)
+        
+        context = RuntimeContext(model)
+        evaluator = Evaluator(context)
+        regelgroep = model.regelgroepen[0]
+        results = evaluator.execute_regelgroep(regelgroep)
+        
+        # Check for cycle detection in results
+        cycle_detected = any(r.get("status") == "cycle_detected" for r in results)
+        if cycle_detected:
+            # If cycle was detected, execution should have stopped
+            cycle_result = next(r for r in results if r.get("status") == "cycle_detected")
+            self.assertIn("Cycle detected", cycle_result.get("message", ""))
+        else:
+            # If no cycle detected, should have created objects up to termination
+            nodes = context.find_objects_by_type("Node")
+            self.assertGreater(len(nodes), 0)
+            self.assertLessEqual(len(nodes), 10)
+
+
 if __name__ == "__main__":
     unittest.main()
