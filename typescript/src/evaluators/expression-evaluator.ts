@@ -521,10 +521,20 @@ export class ExpressionEvaluator implements IEvaluator {
     
     // Otherwise look for a regular variable
     const value = context.getVariable(expr.variableName);
-    if (value === undefined) {
-      throw new Error(`Undefined variable: ${expr.variableName}`);
+    if (value !== undefined) {
+      return value;
     }
-    return value;
+    
+    // Check for timeline parameters
+    if (ctx.getTimelineParameter) {
+      const timelineValue = ctx.getTimelineParameter(expr.variableName);
+      if (timelineValue) {
+        // TimelineValueImpl already has type: 'timeline' and value: Timeline
+        return timelineValue;
+      }
+    }
+    
+    throw new Error(`Undefined variable: ${expr.variableName}`);
   }
 
   private evaluateFunctionCall(expr: FunctionCall, context: RuntimeContext): Value {
@@ -1102,9 +1112,27 @@ export class ExpressionEvaluator implements IEvaluator {
         const v = context.getVariable(expr.path[1]);
         return v ?? { type: 'null', value: null };
       }
-      const objectData = currentInstance.value as Record<string, Value> | Record<string, any>;
+      
+      // First check if this is a timeline attribute
       const attr = expr.path[1];
-      const val = (objectData as any)[attr];
+      // Convert attribute name to internal format (spaces to underscores)
+      const attrName = attr.replace(/ /g, '_');
+      
+      if (ctxAny.getTimelineAttribute && currentInstance.objectType && currentInstance.objectId) {
+        const timelineValue = ctxAny.getTimelineAttribute(
+          currentInstance.objectType, 
+          currentInstance.objectId, 
+          attrName,
+          ctxAny.evaluation_date
+        );
+        if (timelineValue !== null && timelineValue !== undefined) {
+          return timelineValue;
+        }
+      }
+      
+      // Fall back to regular object attributes
+      const objectData = currentInstance.value as Record<string, Value> | Record<string, any>;
+      const val = (objectData as any)[attrName] || (objectData as any)[attr];
       if (val === undefined) {
         return { type: 'null', value: null };
       }

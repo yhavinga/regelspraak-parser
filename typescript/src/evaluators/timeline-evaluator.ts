@@ -316,48 +316,61 @@ export class TimelineEvaluator {
     const timeline = timelineValue.value;
     const resultPeriods: Period[] = [];
     
-    // If there's a condition, we need to evaluate it for each period
-    for (const period of timeline.periods) {
-      let includeperiod = true;
-      
-      if (condition) {
-        // Evaluate condition at the start of this period
-        const savedDate = context.evaluation_date;
-        context.evaluation_date = period.startDate;
-        const conditionResult = this.expressionEvaluator.evaluate(condition, context);
-        context.evaluation_date = savedDate;
+    // When converting granularities, we need to expand periods
+    if (timeline.granularity !== periodType) {
+      // Expand each period into the target granularity
+      for (const period of timeline.periods) {
+        if (!period.value) {
+          // Skip empty periods
+          continue;
+        }
         
-        includeperiod = conditionResult.type === 'boolean' && conditionResult.value === true;
+        // Generate periods at the target granularity
+        const expandedPeriods = this.expandPeriodToGranularity(
+          period,
+          periodType,
+          condition,
+          context
+        );
+        resultPeriods.push(...expandedPeriods);
       }
-      
-      if (includeperiod) {
+    } else {
+      // Same granularity - check for partial periods and apply proportional calculation
+      for (const period of timeline.periods) {
+        if (condition) {
+          // Evaluate condition at the start of this period
+          const savedDate = context.evaluation_date;
+          context.evaluation_date = period.startDate;
+          const conditionResult = this.expressionEvaluator.evaluate(condition, context);
+          context.evaluation_date = savedDate;
+          
+          const includeperiod = conditionResult.type === 'boolean' && conditionResult.value === true;
+          if (!includeperiod) {
+            // Skip periods where condition is false
+            continue;
+          }
+        }
+        
         // Check if this is a partial period
         const periodStart = alignDate(period.startDate, periodType);
         const periodEnd = nextPeriod(periodStart, periodType);
         
-        if (period.startDate > periodStart || period.endDate < periodEnd) {
+        if (period.value && (period.startDate > periodStart || period.endDate < periodEnd)) {
           // Partial period - calculate proportional value
-          if (period.value) {
-            const proportionalValue = calculateProportionalValue(
-              period.value,
-              period.startDate,
-              period.endDate,
-              periodType
-            );
-            resultPeriods.push({
-              startDate: period.startDate,
-              endDate: period.endDate,
-              value: proportionalValue
-            });
-          } else {
-            // Empty period - keep as-is
-            resultPeriods.push({
-              startDate: period.startDate,
-              endDate: period.endDate
-            });
-          }
+          const proportionalValue = calculateProportionalValue(
+            period.value,
+            period.startDate,
+            period.endDate,
+            periodType
+          );
+          
+          resultPeriods.push({
+            startDate: period.startDate,
+            endDate: period.endDate,
+            value: proportionalValue
+          });
         } else {
-          // Full period - use original value
+          // Full period - keep as-is
           resultPeriods.push(period);
         }
       }
@@ -370,6 +383,81 @@ export class TimelineEvaluator {
         granularity: periodType
       }
     };
+  }
+  
+  /**
+   * Expand a period to a different granularity, applying tijdsevenredig conversion.
+   */
+  private expandPeriodToGranularity(
+    period: Period,
+    targetGranularity: 'maand' | 'jaar',
+    condition: Expression | undefined,
+    context: RuntimeContext
+  ): Period[] {
+    const results: Period[] = [];
+    const sourceGranularity = period.endDate.getTime() - period.startDate.getTime() > 32 * 24 * 60 * 60 * 1000 ? 'jaar' : 'maand';
+    
+    if (sourceGranularity === 'jaar' && targetGranularity === 'maand') {
+      // Expand year to months
+      const yearValue = period.value?.type === 'number' ? period.value.value as number : 0;
+      const monthlyValue = yearValue / 12;
+      
+      // Generate monthly periods within this year period
+      let currentDate = new Date(period.startDate);
+      
+      while (currentDate < period.endDate) {
+        const monthStart = new Date(currentDate);
+        const monthEnd = new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 1);
+        
+        // Don't go beyond the period end
+        const actualEnd = monthEnd > period.endDate ? period.endDate : monthEnd;
+        
+        if (condition) {
+          // Evaluate condition for this month
+          const savedDate = context.evaluation_date;
+          context.evaluation_date = monthStart;
+          const conditionResult = this.expressionEvaluator.evaluate(condition, context);
+          context.evaluation_date = savedDate;
+          
+          if (conditionResult.type === 'boolean' && conditionResult.value === true) {
+            // Include this month with the calculated value
+            results.push({
+              startDate: monthStart,
+              endDate: actualEnd,
+              value: {
+                type: 'number',
+                value: monthlyValue,
+                unit: period.value?.unit
+              }
+            });
+          }
+          // If condition is false, we don't add a period (results in null when queried)
+        } else {
+          // No condition - always include
+          results.push({
+            startDate: monthStart,
+            endDate: actualEnd,
+            value: {
+              type: 'number',
+              value: monthlyValue,
+              unit: period.value?.unit
+            }
+          });
+        }
+        
+        // Move to next month
+        currentDate = new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 1);
+      }
+    } else if (sourceGranularity === 'maand' && targetGranularity === 'jaar') {
+      // Aggregate months to year - would need to handle this case
+      // For now, just return the original period
+      results.push(period);
+    } else {
+      // Same granularity
+      results.push(period);
+    }
+    
+    return results;
   }
   
   /**

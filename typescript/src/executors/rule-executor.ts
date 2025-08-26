@@ -24,6 +24,7 @@ import { ExpressionEvaluator } from '../evaluators/expression-evaluator';
 import { Context } from '../runtime/context';
 import { FeitExecutor } from './feit-executor';
 import { resolveNavigationPath, isObjectScopedRule, setValueAtPath } from '../utils/navigation';
+import { TimelineValueImpl } from '../ast/timelines';
 
 interface DistributionResult {
   amounts: number[];
@@ -53,6 +54,26 @@ export class RuleExecutor implements IRuleExecutor {
         return this.executeKenmerktoekenningWithCondition(
           result as Kenmerktoekenning, 
           rule.condition, 
+          context
+        );
+      }
+      
+      // For ObjectCreation rules with conditions, iterate over objects
+      // The condition determines which objects trigger creation
+      if (result.type === 'ObjectCreation' && rule.condition) {
+        return this.executeObjectCreationWithCondition(
+          result as ObjectCreation,
+          rule.condition,
+          context
+        );
+      }
+      
+      // For FeitCreatie rules with conditions, iterate over objects
+      // The condition determines which objects trigger relationship creation
+      if (result.type === 'FeitCreatie' && rule.condition) {
+        return this.executeFeitCreatieWithCondition(
+          result as FeitCreatie,
+          rule.condition,
           context
         );
       }
@@ -281,8 +302,22 @@ export class RuleExecutor implements IRuleExecutor {
             if (currentObj) {
               // Set the attribute on the final object (last element in path)
               const attributeName = targetPath[targetPath.length - 1];
-              const objData = currentObj.value as Record<string, Value>;
-              objData[attributeName] = value;
+              
+              // Check if this is a timeline value
+              if (value.type === 'timeline') {
+                // Store as timeline attribute
+                const objType = (currentObj as any).objectType || currentObj.type || objectType;
+                const objId = (currentObj.value as any).instance_id || (currentObj as any).objectId || 'unknown';
+                // Wrap in TimelineValueImpl if not already
+                const timelineImpl = value instanceof TimelineValueImpl 
+                  ? value 
+                  : new TimelineValueImpl((value as any).value);
+                ctx.setTimelineAttribute(objType, objId, attributeName, timelineImpl);
+              } else {
+                // Regular value - store directly
+                const objData = currentObj.value as Record<string, Value>;
+                objData[attributeName] = value;
+              }
               // Successfully set the attribute
             } else {
               // Navigation failed - skip this object
@@ -316,22 +351,55 @@ export class RuleExecutor implements IRuleExecutor {
       const objectName = targetPath[0];
       const attributeName = targetPath[1];
       
+      
       // First, try to get the object as a variable
       const objectValue = context.getVariable(objectName);
       
       if (objectValue && objectValue.type === 'object') {
         // Set the attribute on the specific object
-        const objectData = objectValue.value as Record<string, Value>;
-        objectData[attributeName] = value;
+        // Check if this is a timeline value
+        if (value.type === 'timeline') {
+          // Store as timeline attribute
+          const objType = (objectValue as any).objectType || objectValue.type || objectName;
+          const objId = (objectValue.value as any).instance_id || (objectValue as any).objectId || 'unknown';
+          // Wrap in TimelineValueImpl if not already
+          const timelineImpl = value instanceof TimelineValueImpl 
+            ? value 
+            : new TimelineValueImpl((value as any).value);
+          (context as Context).setTimelineAttribute(objType, objId, attributeName, timelineImpl);
+        } else {
+          // Regular value - store directly
+          const objectData = objectValue.value as Record<string, Value>;
+          objectData[attributeName] = value;
+        }
       } else {
         // Fall back to getting all objects of this type
-        const objects = (context as Context).getObjectsByType(objectName);
+        // Try with capital first letter as object types are usually capitalized
+        const capitalizedName = objectName.charAt(0).toUpperCase() + objectName.slice(1);
+        let objects = (context as Context).getObjectsByType(capitalizedName);
+        if (objects.length === 0) {
+          // Fall back to exact name
+          objects = (context as Context).getObjectsByType(objectName);
+        }
         
         // Set attribute on all objects of this type
         for (const obj of objects) {
           if (obj.type === 'object') {
-            const objectData = obj.value as Record<string, Value>;
-            objectData[attributeName] = value;
+            // Check if this is a timeline value
+            if (value.type === 'timeline') {
+              // Store as timeline attribute
+              const objType = (obj as any).objectType || obj.type || capitalizedName;
+              const objId = (obj.value as any).instance_id || (obj as any).objectId || 'unknown';
+              // Wrap in TimelineValueImpl if not already
+              const timelineImpl = value instanceof TimelineValueImpl 
+                ? value 
+                : new TimelineValueImpl((value as any).value);
+              (context as Context).setTimelineAttribute(objType, objId, attributeName, timelineImpl);
+            } else {
+              // Regular value - store directly
+              const objectData = obj.value as Record<string, Value>;
+              objectData[attributeName] = value;
+            }
           }
         }
       }
@@ -527,6 +595,248 @@ export class RuleExecutor implements IRuleExecutor {
     }
     // For other types, consider non-null as truthy
     return value.value != null;
+  }
+  
+  /**
+   * Deduce the object type referenced in a condition.
+   * Used for ObjectCreation and FeitCreatie rules to determine what objects to iterate over
+   * when the rule has a condition like "indien het salaris groter is dan X".
+   */
+  private deduceTypeFromCondition(voorwaarde: Voorwaarde, context: RuntimeContext): string | undefined {
+    if (!voorwaarde || !voorwaarde.expression) {
+      return undefined;
+    }
+    
+    // Extract attribute references from the condition expression
+    const attrRefs = this.extractAttributeReferences(voorwaarde.expression);
+    
+    // Find which object type owns these attributes
+    // We need access to the domain model to check attribute ownership
+    const ctx = context as any;
+    if (!ctx.domainModel || !ctx.domainModel.objectTypes) {
+      return undefined;
+    }
+    
+    for (const attrRef of attrRefs) {
+      if (attrRef.path && attrRef.path.length > 0) {
+        // Get the attribute name (first element usually)
+        let attrName = attrRef.path[0];
+        // Remove articles
+        attrName = attrName.replace(/^(het |de |een )/i, '');
+        
+        // Check which object type has this attribute
+        for (const objType of ctx.domainModel.objectTypes) {
+          if (objType.attributes && objType.attributes.some((attr: any) => 
+            attr.name === attrName || attr.naam === attrName)) {
+            return objType.name || objType.naam;
+          }
+        }
+      }
+    }
+    
+    return undefined;
+  }
+  
+  /**
+   * Extract all attribute references from an expression.
+   * Used to determine which object type a condition is referring to.
+   */
+  private extractAttributeReferences(expr: Expression): AttributeReference[] {
+    const refs: AttributeReference[] = [];
+    
+    if (!expr) {
+      return refs;
+    }
+    
+    // Check if this expression itself is an AttributeReference
+    if (expr.type === 'AttributeReference') {
+      refs.push(expr as AttributeReference);
+    }
+    
+    // Recursively check subexpressions for BinaryExpression
+    if ((expr as any).left) {
+      refs.push(...this.extractAttributeReferences((expr as any).left));
+    }
+    if ((expr as any).right) {
+      refs.push(...this.extractAttributeReferences((expr as any).right));
+    }
+    
+    // For UnaryExpression
+    if ((expr as any).operand) {
+      refs.push(...this.extractAttributeReferences((expr as any).operand));
+    }
+    
+    // For NavigationExpression
+    if (expr.type === 'NavigationExpression') {
+      const navExpr = expr as any;
+      if (navExpr.base) {
+        refs.push(...this.extractAttributeReferences(navExpr.base));
+      }
+      if (navExpr.attribute && navExpr.attribute.type === 'AttributeReference') {
+        refs.push(navExpr.attribute);
+      }
+    }
+    
+    // For FunctionCall expressions
+    if (expr.type === 'FunctionCall') {
+      const funcExpr = expr as any;
+      if (funcExpr.arguments) {
+        for (const arg of funcExpr.arguments) {
+          refs.push(...this.extractAttributeReferences(arg));
+        }
+      }
+    }
+    
+    return refs;
+  }
+  
+  /**
+   * Execute ObjectCreation with a condition by iterating over relevant objects
+   */
+  private executeObjectCreationWithCondition(
+    objectCreation: ObjectCreation,
+    condition: Voorwaarde,
+    context: RuntimeContext
+  ): RuleExecutionResult {
+    // Deduce which object type to iterate over from the condition
+    const targetType = this.deduceTypeFromCondition(condition, context);
+    
+    if (!targetType) {
+      // Cannot deduce type, fall back to regular execution with condition check
+      const conditionResult = this.expressionEvaluator.evaluate(condition.expression, context);
+      if (!this.isTruthy(conditionResult)) {
+        return {
+          success: true,
+          skipped: true,
+          reason: 'Condition evaluated to false'
+        };
+      }
+      return this.executeObjectCreation(objectCreation, context);
+    }
+    
+    // Get all objects of the deduced type
+    const objects = (context as Context).getObjectsByType(targetType);
+    let createdCount = 0;
+    const createdObjects: Array<{objectType: string, objectId: string, attributes: Record<string, Value>}> = [];
+    
+    // For each object, evaluate the condition with the object as context
+    for (const obj of objects) {
+      // Create a temporary context with current_instance pointing to the current object
+      const tempContext = Object.create(context);
+      tempContext.setVariable = context.setVariable.bind(context);
+      tempContext.getVariable = function(name: string): Value | undefined {
+        if (name === '_subject' || name === 'current_instance') {
+          return obj;
+        }
+        return context.getVariable(name);
+      };
+      // Also set current_instance for attribute resolution
+      (tempContext as any).current_instance = obj;
+      
+      // Evaluate the condition for this object
+      try {
+        const conditionResult = this.expressionEvaluator.evaluate(condition.expression, tempContext);
+        
+        if (this.isTruthy(conditionResult)) {
+          // Condition is true, create the object with this context
+          const result = this.executeObjectCreation(objectCreation, tempContext);
+          if (result.success) {
+            createdCount++;
+            if ((result as any).objectType && (result as any).objectId && (result as any).attributes) {
+              createdObjects.push({
+                objectType: (result as any).objectType,
+                objectId: (result as any).objectId,
+                attributes: (result as any).attributes
+              });
+            }
+          }
+        }
+      } catch (error) {
+        // If condition evaluation fails, skip this object
+        continue;
+      }
+    }
+    
+    return {
+      success: true,
+      objectsCreated: createdObjects,
+      count: createdCount
+    };
+  }
+  
+  /**
+   * Execute FeitCreatie with a condition by iterating over relevant objects
+   */
+  private executeFeitCreatieWithCondition(
+    feitCreatie: FeitCreatie,
+    condition: Voorwaarde,
+    context: RuntimeContext
+  ): RuleExecutionResult {
+    // Deduce which object type to iterate over from the condition
+    const targetType = this.deduceTypeFromCondition(condition, context);
+    
+    if (!targetType) {
+      // Cannot deduce type, fall back to regular execution with condition check
+      const conditionResult = this.expressionEvaluator.evaluate(condition.expression, context);
+      if (!this.isTruthy(conditionResult)) {
+        return {
+          success: true,
+          skipped: true,
+          reason: 'Condition evaluated to false'
+        };
+      }
+      return this.feitExecutor.executeFeitCreatie(feitCreatie, context);
+    }
+    
+    // Get all objects of the deduced type
+    const objects = (context as Context).getObjectsByType(targetType);
+    let totalCreated = 0;
+    
+    // For each object, evaluate the condition with the object as context
+    for (const obj of objects) {
+      // Create a temporary context with current_instance pointing to the current object
+      const tempContext = Object.create(context);
+      tempContext.setVariable = context.setVariable.bind(context);
+      tempContext.getVariable = function(name: string): Value | undefined {
+        if (name === '_subject' || name === 'current_instance') {
+          return obj;
+        }
+        return context.getVariable(name);
+      };
+      // Also set current_instance for attribute resolution
+      (tempContext as any).current_instance = obj;
+      
+      // Evaluate the condition for this object
+      try {
+        const conditionResult = this.expressionEvaluator.evaluate(condition.expression, tempContext);
+        
+        if (this.isTruthy(conditionResult)) {
+          // Condition is true, create the relationships with this context
+          const result = this.feitExecutor.executeFeitCreatie(feitCreatie, tempContext);
+          if (result.success) {
+            // Extract count if available
+            const value = (result as any).value;
+            if (value && value.value && typeof value.value === 'string') {
+              const match = value.value.match(/Created (\d+) relationship/);
+              if (match) {
+                totalCreated += parseInt(match[1], 10);
+              }
+            }
+          }
+        }
+      } catch (error) {
+        // If condition evaluation fails, skip this object
+        continue;
+      }
+    }
+    
+    return {
+      success: true,
+      value: {
+        type: 'string',
+        value: `Created ${totalCreated} relationship${totalCreated !== 1 ? 's' : ''}`
+      }
+    };
   }
   
   private executeConsistentieregel(consistentieregel: Consistentieregel, context: RuntimeContext): RuleExecutionResult {

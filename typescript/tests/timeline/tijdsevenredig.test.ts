@@ -20,7 +20,7 @@ describe('Tijdsevenredig Deel Tests', () => {
   });
   
   describe('Monthly Proportional Calculation', () => {
-    it.skip('should calculate tijdsevenredig deel per maand for full months (parsing test)', () => {
+    it('should calculate tijdsevenredig deel per maand for full months (parsing test)', () => {
       const code = `
         Objecttype de Passagier
           de belastingvermindering Numeriek (getal met 2 decimalen) met eenheid € voor elke maand;
@@ -36,10 +36,17 @@ describe('Tijdsevenredig Deel Tests', () => {
       
       const parser = new AntlrParser();
       const parseResult = parser.parse(code);
-      if (!parseResult || !parseResult.rules) {
-        throw new Error('Failed to parse code');
+      
+      // The parser returns an array of definitions, extract rules
+      const rules = Array.isArray(parseResult) 
+        ? parseResult.filter((def: any) => def.type === 'Rule')
+        : (parseResult.rules || []);
+      
+      if (!rules || rules.length === 0) {
+        console.error('Parse result:', parseResult);
+        throw new Error('Failed to parse code - no rules found');
       }
-      const ast = parseResult;
+      const ast = { rules };
       
       // Set up parameter timeline (€12/year for 2024, €18/year for 2025)
       const paramPeriods: Period[] = [
@@ -78,11 +85,13 @@ describe('Tijdsevenredig Deel Tests', () => {
       // Execute the rule
       const ruleExecutor = new RuleExecutor();
       const rule = ast.rules[0];
-      ruleExecutor.execute(rule, context);
+      const result = ruleExecutor.execute(rule, context);
       
       // Check results - should have monthly values
       // €12/year = €1/month for 2024
       // €18/year = €1.50/month for 2025
+      
+      
       context.evaluation_date = new Date(2024, 5, 15); // June 15, 2024
       const june2024 = context.getTimelineAttribute('Passagier', 'p1', 'belastingvermindering');
       expect(june2024?.value).toBeCloseTo(1.0, 2);
@@ -158,7 +167,7 @@ describe('Tijdsevenredig Deel Tests', () => {
   });
   
   describe('Temporal Conditions', () => {
-    it.skip('should apply tijdsevenredig with temporal condition (parsing test)', () => {
+    it('should apply tijdsevenredig with temporal condition (parsing test)', () => {
       const code = `
         Objecttype de Passagier
           de belastingvermindering Numeriek (getal met 2 decimalen) met eenheid € voor elke maand;
@@ -175,10 +184,17 @@ describe('Tijdsevenredig Deel Tests', () => {
       
       const parser = new AntlrParser();
       const parseResult = parser.parse(code);
-      if (!parseResult || !parseResult.rules) {
-        throw new Error('Failed to parse code');
+      
+      // The parser returns an array of definitions, extract rules
+      const rules = Array.isArray(parseResult) 
+        ? parseResult.filter((def: any) => def.type === 'Rule')
+        : (parseResult.rules || []);
+      
+      if (!rules || rules.length === 0) {
+        console.error('Parse result:', parseResult);
+        throw new Error('Failed to parse code - no rules found');
       }
-      const ast = parseResult;
+      const ast = { rules };
       
       // Set up parameter timeline
       const paramPeriods: Period[] = [
