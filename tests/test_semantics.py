@@ -90,7 +90,6 @@ class SemanticAnalysisTests(RegelSpraakTestCase):
         # Should have no errors
         self.assertEqual(len(errors), 0, f"Should have no semantic errors, got: {[str(e) for e in errors]}")
     
-    @unittest.skip("Parser merges duplicate parameters in dictionary - this is a parser limitation")
     def test_duplicate_parameter_definition(self):
         """Test that duplicate parameter definitions are caught."""
         input_text = """

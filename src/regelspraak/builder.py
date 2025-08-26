@@ -428,8 +428,14 @@ class RegelSpraakModelBuilder(RegelSpraakVisitor):
                 elif isinstance(definition, Domein):
                     domain_model.domeinen[definition.naam] = definition
                 elif isinstance(definition, Parameter):
-                    domain_model.parameters[definition.naam] = definition
-                    # Add parameter name to our tracking set
+                    if definition.naam in domain_model.parameters:
+                        # Duplicate parameter detected - add to parse errors
+                        domain_model._parse_errors.append(
+                            f"Parameter '{definition.naam}' already defined"
+                        )
+                    else:
+                        domain_model.parameters[definition.naam] = definition
+                    # Add parameter name to our tracking set (always, for consistency)
                     self.parameter_names.add(definition.naam)
                 elif isinstance(definition, FeitType):
                     domain_model.feittypen[definition.naam] = definition

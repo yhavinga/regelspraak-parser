@@ -130,6 +130,11 @@ class SemanticAnalyzer:
         """Analyze the domain model and return list of errors."""
         self.errors = []
         
+        # Check for parse-time errors first
+        if hasattr(model, '_parse_errors') and model._parse_errors:
+            for error_msg in model._parse_errors:
+                self.errors.append(SemanticError(error_msg, SourceSpan.unknown()))
+        
         try:
             # Pass 1: Collect definitions
             self._collect_definitions(model)

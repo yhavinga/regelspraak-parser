@@ -561,5 +561,6 @@ class DomainModel:
     regels: List[Regel] = field(default_factory=list)
     regelgroepen: List[RegelGroep] = field(default_factory=list)
     beslistabellen: List[Beslistabel] = field(default_factory=list)
+    _parse_errors: List[str] = field(default_factory=list)  # Parse-time errors (e.g., duplicate parameters)
     # description: Optional[str] = None
     # name: Optional[str] = None # If there's a top-level domain name 
