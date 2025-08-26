@@ -21,7 +21,7 @@ from .ast import (
     Subselectie, RegelStatusExpression, Predicaat, ObjectPredicaat, VergelijkingsPredicaat,
     GetalPredicaat, TekstPredicaat, DatumPredicaat, SamengesteldPredicaat,
     Kwantificatie, KwantificatieType, GenesteVoorwaardeInPredicaat, VergelijkingInPredicaat,
-    SamengesteldeVoorwaarde
+    SamengesteldeVoorwaarde, Voorwaarde
 )
 # Import Runtime components
 from .runtime import RuntimeContext, RuntimeObject, Value, DimensionCoordinate, TimelineValue # Import Value directly
@@ -118,26 +118,59 @@ class Evaluator:
         for rule in domain_model.regels:
             # Special handling for ObjectCreatie rules
             if isinstance(rule.resultaat, ObjectCreatie):
-                # Execute object creation rules only once, not per instance
-                original_instance = self.context.current_instance
-                # Create a dummy context if needed
-                if not self.context.current_instance:
-                    # Need some context to evaluate expressions
-                    # Use first available object or create minimal context
-                    if domain_model.objecttypes:
-                        obj_type_name = next(iter(domain_model.objecttypes.keys()))
-                        instances = self.context.find_objects_by_type(obj_type_name)
-                        if instances:
-                            self.context.set_current_instance(instances[0])
+                # Check if rule has a condition that requires iteration
+                target_type = self._deduce_rule_target_type(rule)
                 
-                try:
-                    self.evaluate_rule(rule)
-                    results.setdefault(rule.naam, []).append({"status": "object_created"})
-                except Exception as e:
-                    print(f"Error executing object creation rule '{rule.naam}': {e}")
-                    results.setdefault(rule.naam, []).append({"status": "error", "message": str(e)})
-                finally:
-                    self.context.set_current_instance(original_instance)
+                if target_type:
+                    # Rule has a condition - iterate over instances of the target type
+                    target_instances = self.context.find_objects_by_type(target_type)
+                    for instance in target_instances:
+                        original_instance = self.context.current_instance
+                        self.context.set_current_instance(instance)
+                        try:
+                            # Evaluate condition if present
+                            if rule.voorwaarde:
+                                condition_result = self.evaluate_expression(rule.voorwaarde.expressie)
+                                if not (condition_result.datatype == "Boolean" and condition_result.value):
+                                    # Condition not met - skip this instance
+                                    continue
+                            
+                            # Condition met - execute the object creation
+                            self.evaluate_rule(rule)
+                            results.setdefault(rule.naam, []).append({
+                                "status": "object_created",
+                                "for_instance": instance.instance_id
+                            })
+                        except Exception as e:
+                            print(f"Error executing object creation rule '{rule.naam}' for instance {instance.instance_id}: {e}")
+                            results.setdefault(rule.naam, []).append({
+                                "status": "error",
+                                "message": str(e),
+                                "for_instance": instance.instance_id
+                            })
+                        finally:
+                            self.context.set_current_instance(original_instance)
+                else:
+                    # No specific target type - execute once without iteration
+                    original_instance = self.context.current_instance
+                    # Create a dummy context if needed
+                    if not self.context.current_instance:
+                        # Need some context to evaluate expressions
+                        # Use first available object or create minimal context
+                        if domain_model.objecttypes:
+                            obj_type_name = next(iter(domain_model.objecttypes.keys()))
+                            instances = self.context.find_objects_by_type(obj_type_name)
+                            if instances:
+                                self.context.set_current_instance(instances[0])
+                    
+                    try:
+                        self.evaluate_rule(rule)
+                        results.setdefault(rule.naam, []).append({"status": "object_created"})
+                    except Exception as e:
+                        print(f"Error executing object creation rule '{rule.naam}': {e}")
+                        results.setdefault(rule.naam, []).append({"status": "error", "message": str(e)})
+                    finally:
+                        self.context.set_current_instance(original_instance)
                 continue
             
             # Regular rules - determine the target ObjectType for the rule
@@ -269,6 +302,54 @@ class Evaluator:
                                 return obj_type
         
         return None
+    
+    def _deduce_type_from_condition(self, voorwaarde: Voorwaarde) -> Optional[str]:
+        """Deduce the object type referenced in a condition.
+        
+        Used for ObjectCreatie rules to determine what objects to iterate over
+        when the rule has a condition like "indien het salaris groter is dan X".
+        """
+        if not voorwaarde or not voorwaarde.expressie:
+            return None
+        
+        # Extract attribute references from the condition expression
+        attr_refs = self._extract_attribute_references(voorwaarde.expressie)
+        
+        # Find which object type owns these attributes
+        for attr_ref in attr_refs:
+            if attr_ref.path:
+                # Get the attribute name (first element usually)
+                attr_name = attr_ref.path[0]
+                # Remove articles
+                attr_name = attr_name.replace("het ", "").replace("de ", "").replace("een ", "")
+                
+                # Check which object type has this attribute
+                for obj_type_name, obj_type_def in self.context.domain_model.objecttypes.items():
+                    if attr_name in obj_type_def.attributen:
+                        return obj_type_name
+        
+        return None
+    
+    def _extract_attribute_references(self, expr: Expression) -> List[AttributeReference]:
+        """Recursively extract all AttributeReference nodes from an expression."""
+        refs = []
+        
+        if isinstance(expr, AttributeReference):
+            refs.append(expr)
+        elif isinstance(expr, BinaryExpression):
+            refs.extend(self._extract_attribute_references(expr.left))
+            refs.extend(self._extract_attribute_references(expr.right))
+        elif isinstance(expr, UnaryExpression):
+            refs.extend(self._extract_attribute_references(expr.operand))
+        elif isinstance(expr, FunctionCall):
+            for arg in expr.arguments:
+                refs.extend(self._extract_attribute_references(arg))
+        elif isinstance(expr, SamengesteldeVoorwaarde):
+            for conditie in expr.condities:
+                if hasattr(conditie, 'expressie'):
+                    refs.extend(self._extract_attribute_references(conditie.expressie))
+        
+        return refs
 
     def _deduce_rule_target_type(self, rule: Regel) -> Optional[str]:
         """Tries to deduce the primary ObjectType a rule applies to."""
@@ -281,6 +362,13 @@ class Evaluator:
             if isinstance(target_ref, DimensionedAttributeReference):
                 is_dimensioned = True
                 target_ref = target_ref.base_attribute
+        elif isinstance(rule.resultaat, ObjectCreatie):
+            # For ObjectCreatie rules with conditions, deduce the context type from the condition
+            if rule.voorwaarde:
+                # Analyze the condition to determine what object type it references
+                return self._deduce_type_from_condition(rule.voorwaarde)
+            # No condition - no specific target type
+            return None
         elif isinstance(rule.resultaat, Dagsoortdefinitie):
             # Dagsoort definitions target "dag" objects
             return "Dag"

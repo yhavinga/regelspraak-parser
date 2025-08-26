@@ -1,8 +1,8 @@
 import unittest
 from decimal import Decimal
-from src.regelspraak.parsing import parse_text
-from src.regelspraak.runtime import RuntimeContext, RuntimeObject, Value
-from src.regelspraak.engine import Evaluator
+from regelspraak.parsing import parse_text
+from regelspraak.runtime import RuntimeContext, RuntimeObject, Value
+from regelspraak.engine import Evaluator
 
 class ObjectCreationIntegrationTests(unittest.TestCase):
     """Integration tests for object creation functionality."""
@@ -128,7 +128,6 @@ class ObjectCreationIntegrationTests(unittest.TestCase):
         self.assertEqual(new_product.attributen["btw_tarief"].value, Decimal("0.21"))
         self.assertEqual(new_product.attributen["prijs_incl"].value, 1210)
     
-    @unittest.skip("Runtime issue with object context - not related to percentage fix")
     def test_conditional_object_creation(self):
         """Test object creation with condition."""
         model_text = """
