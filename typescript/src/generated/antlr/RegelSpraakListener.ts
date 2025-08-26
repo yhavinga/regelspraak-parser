@@ -38,6 +38,7 @@ import { DomeinDefinitionContext } from "./RegelSpraakParser";
 import { DomeinTypeContext } from "./RegelSpraakParser";
 import { EnumeratieSpecificatieContext } from "./RegelSpraakParser";
 import { DomeinRefContext } from "./RegelSpraakParser";
+import { ObjectTypeRefContext } from "./RegelSpraakParser";
 import { EenheidsysteemDefinitionContext } from "./RegelSpraakParser";
 import { EenheidEntryContext } from "./RegelSpraakParser";
 import { UnitIdentifierContext } from "./RegelSpraakParser";
@@ -584,6 +585,16 @@ export default class RegelSpraakListener extends ParseTreeListener {
 	 * @param ctx the parse tree
 	 */
 	exitDomeinRef?: (ctx: DomeinRefContext) => void;
+	/**
+	 * Enter a parse tree produced by `RegelSpraakParser.objectTypeRef`.
+	 * @param ctx the parse tree
+	 */
+	enterObjectTypeRef?: (ctx: ObjectTypeRefContext) => void;
+	/**
+	 * Exit a parse tree produced by `RegelSpraakParser.objectTypeRef`.
+	 * @param ctx the parse tree
+	 */
+	exitObjectTypeRef?: (ctx: ObjectTypeRefContext) => void;
 	/**
 	 * Enter a parse tree produced by `RegelSpraakParser.eenheidsysteemDefinition`.
 	 * @param ctx the parse tree

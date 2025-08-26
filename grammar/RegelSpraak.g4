@@ -159,7 +159,7 @@ kenmerkSpecificatie
 
 // §13.3.2 Attribuut Specificatie
 attribuutSpecificatie
-    : naamwoord ( datatype | domeinRef )
+    : naamwoord ( datatype | domeinRef | objectTypeRef )
       (MET_EENHEID (unitName=IDENTIFIER | PERCENT_SIGN | EURO_SYMBOL | DOLLAR_SYMBOL))?
       (GEDIMENSIONEERD_MET dimensieRef (EN dimensieRef)*)?
       tijdlijn? 
@@ -224,6 +224,10 @@ enumeratieSpecificatie // §13.3.4.2
 
 domeinRef // Reference to a domain definition
     : name=IDENTIFIER
+    ;
+
+objectTypeRef // Reference to an object type (for object-type attributes)
+    : IDENTIFIER  // Will be validated in semantic analysis
     ;
 
 // §13.3.5 Eenheden & Eenheidsysteem (Added based on spec)

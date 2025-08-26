@@ -38,6 +38,7 @@ import { DomeinDefinitionContext } from "./RegelSpraakParser";
 import { DomeinTypeContext } from "./RegelSpraakParser";
 import { EnumeratieSpecificatieContext } from "./RegelSpraakParser";
 import { DomeinRefContext } from "./RegelSpraakParser";
+import { ObjectTypeRefContext } from "./RegelSpraakParser";
 import { EenheidsysteemDefinitionContext } from "./RegelSpraakParser";
 import { EenheidEntryContext } from "./RegelSpraakParser";
 import { UnitIdentifierContext } from "./RegelSpraakParser";
@@ -447,6 +448,12 @@ export default class RegelSpraakVisitor<Result> extends ParseTreeVisitor<Result>
 	 * @return the visitor result
 	 */
 	visitDomeinRef?: (ctx: DomeinRefContext) => Result;
+	/**
+	 * Visit a parse tree produced by `RegelSpraakParser.objectTypeRef`.
+	 * @param ctx the parse tree
+	 * @return the visitor result
+	 */
+	visitObjectTypeRef?: (ctx: ObjectTypeRefContext) => Result;
 	/**
 	 * Visit a parse tree produced by `RegelSpraakParser.eenheidsysteemDefinition`.
 	 * @param ctx the parse tree

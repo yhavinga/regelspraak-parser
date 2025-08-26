@@ -2681,6 +2681,9 @@ class RegelSpraakModelBuilder(RegelSpraakVisitor):
         elif ctx.domeinRef():
             # Visit the domain reference to get the domain name
             datatype_str = self.visitDomeinRef(ctx.domeinRef())
+        elif ctx.objectTypeRef():
+            # Handle object type reference - just get the identifier text
+            datatype_str = ctx.objectTypeRef().IDENTIFIER().getText()
 
         eenheid = None
         if ctx.MET_EENHEID():

@@ -121,10 +121,104 @@ class TestFeitTypeComplete(RegelSpraakTestCase):
         self.assertFalse(naam_attr.is_object_ref)
     
     def test_nested_object_reference_traversal(self):
-        """Test traversing nested object references in expressions.
-        NOTE: This test is disabled until object-type attributes are properly supported in the grammar.
-        The grammar currently doesn't allow object types as attribute datatypes."""
-        self.skipTest("Object-type attributes not yet supported in grammar")
+        """Test traversing nested object references in expressions."""
+        regelspraak_code = """
+        Objecttype Adres
+            de straat Tekst;
+            het huisnummer Numeriek;
+            de postcode Tekst;
+            
+        Objecttype Gebouw
+            het adres Adres;
+            de oppervlakte Numeriek met eenheid m2;
+            
+        Objecttype Persoon (bezield)
+            de naam Tekst;
+            het woonadres Adres;
+            het kantoor Gebouw;
+            
+        Regel TestNestedNavigation
+        geldig altijd
+            De postcode van het woonadres van een persoon moet berekend worden als "1234AB".
+        """
+        
+        # Parse and validate model
+        model = parse_text(regelspraak_code)
+        self.assertIsNotNone(model)
+        
+        # Verify object types
+        self.assertIn("Adres", model.objecttypes)
+        self.assertIn("Gebouw", model.objecttypes)
+        self.assertIn("Persoon", model.objecttypes)
+        
+        # Verify Persoon has object-type attributes
+        persoon = model.objecttypes["Persoon"]
+        self.assertIn("woonadres", persoon.attributen)
+        self.assertIn("kantoor", persoon.attributen)
+        
+        # Verify datatypes before semantic analysis
+        woonadres_attr = persoon.attributen["woonadres"]
+        self.assertEqual(woonadres_attr.datatype, "Adres")
+        
+        kantoor_attr = persoon.attributen["kantoor"]
+        self.assertEqual(kantoor_attr.datatype, "Gebouw")
+        
+        # Verify Gebouw has object-type attribute
+        gebouw = model.objecttypes["Gebouw"]
+        self.assertIn("adres", gebouw.attributen)
+        adres_attr = gebouw.attributen["adres"]
+        self.assertEqual(adres_attr.datatype, "Adres")
+        
+        # Run semantic analysis - this marks object references
+        analyzer = SemanticAnalyzer()
+        errors = analyzer.analyze(model)
+        self.assertEqual(len(errors), 0, f"Semantic errors: {errors}")
+        
+        # Now verify attributes are marked as object references after semantic analysis
+        self.assertTrue(woonadres_attr.is_object_ref)
+        self.assertTrue(kantoor_attr.is_object_ref)
+        self.assertTrue(adres_attr.is_object_ref)
+        
+        # Create runtime context and test objects
+        context = RuntimeContext(model)
+        
+        # Create address
+        adres1 = RuntimeObject("Adres", instance_id="adres_1")
+        context.add_object(adres1)
+        context.set_attribute(adres1, "straat", "Hoofdstraat")
+        context.set_attribute(adres1, "huisnummer", 42)
+        context.set_attribute(adres1, "postcode", "5678CD")
+        
+        # Create building with address
+        gebouw1 = RuntimeObject("Gebouw", instance_id="gebouw_1")
+        context.add_object(gebouw1)
+        context.set_attribute(gebouw1, "adres", adres1)
+        context.set_attribute(gebouw1, "oppervlakte", 250)
+        
+        # Create person with nested references
+        persoon1 = RuntimeObject("Persoon", instance_id="persoon_1")
+        context.add_object(persoon1)
+        context.set_attribute(persoon1, "naam", "Jan")
+        context.set_attribute(persoon1, "woonadres", adres1)
+        context.set_attribute(persoon1, "kantoor", gebouw1)
+        
+        # Execute rule to test nested navigation
+        evaluator = Evaluator(context)
+        evaluator.execute_model(model)
+        
+        # Verify the rule correctly set the postcode through nested navigation
+        postcode = context.get_attribute(adres1, "postcode")
+        self.assertEqual(postcode.value, "1234AB")
+        
+        # Additional test: verify we can navigate through multiple levels
+        kantoor_ref = context.get_attribute(persoon1, "kantoor")
+        self.assertIsInstance(kantoor_ref.value, RuntimeObject)
+        
+        kantoor_adres_ref = context.get_attribute(kantoor_ref.value, "adres")
+        self.assertIsInstance(kantoor_adres_ref.value, RuntimeObject)
+        
+        kantoor_postcode = context.get_attribute(kantoor_adres_ref.value, "postcode")
+        self.assertEqual(kantoor_postcode.value, "1234AB")
     
     def test_runtime_object_reference_storage(self):
         """Test that runtime correctly stores object references."""
