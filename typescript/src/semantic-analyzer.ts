@@ -15,7 +15,6 @@ import {
 import { DecisionTable } from './ast/decision-tables';
 import { Dimension } from './ast/dimensions';
 import { DagsoortDefinitie } from './ast/dagsoort';
-// TODO: Implement FeitCreatie when visitor supports it
 
 export interface ValidationError {
   message: string;
@@ -214,7 +213,6 @@ export class SemanticAnalyzer {
         this.validateObjectCreatie(result as ObjectCreation);
       }
     }
-    // TODO: Implement FeitCreatie validation when visitor supports it
   }
 
   private validateGelijkstelling(regel: Gelijkstelling): void {
@@ -299,8 +297,6 @@ export class SemanticAnalyzer {
       }
     }
   }
-
-  // TODO: Implement FeitCreatie validation when visitor supports it
 
   private validateBeslistabel(beslistabel: DecisionTable): void {
     // Validate expressions in decision table

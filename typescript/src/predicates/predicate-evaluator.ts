@@ -411,8 +411,10 @@ export class PredicateEvaluator {
    * Helper: Check if rule has been executed
    */
   private evaluateRegelGevuurd(predicate: SimplePredicate, context: RuntimeContext): boolean {
-    // TODO: Implement tracking of executed rules in context
-    // For now, return false
+    if (predicate.subject?.type === 'Literal' && predicate.subject.valueType === 'text') {
+      const regelNaam = predicate.subject.value as string;
+      return (context as any).isRuleExecuted?.(regelNaam) || false;
+    }
     return false;
   }
 
@@ -420,8 +422,10 @@ export class PredicateEvaluator {
    * Helper: Check if rule is inconsistent
    */
   private evaluateRegelInconsistent(predicate: SimplePredicate, context: RuntimeContext): boolean {
-    // TODO: Implement tracking of inconsistent rules in context
-    // For now, return false
+    if (predicate.subject?.type === 'Literal' && predicate.subject.valueType === 'text') {
+      const regelNaam = predicate.subject.value as string;
+      return (context as any).isRuleInconsistent?.(regelNaam) || false;
+    }
     return false;
   }
 }
