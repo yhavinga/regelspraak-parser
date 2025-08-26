@@ -1,6 +1,7 @@
 """RegelSpraak AST builder: Converts ANTLR parse trees to domain AST nodes."""
 from typing import Dict, List, Any, Optional
 import logging
+from decimal import Decimal
 
 # Import ANTLR generated files
 from ._antlr.RegelSpraakParser import RegelSpraakParser as AntlrParser
@@ -1828,8 +1829,37 @@ class RegelSpraakModelBuilder(RegelSpraakVisitor):
             # Handle different aggregation context types
             func_name = None
             
+            # Handle percentage function first
+            if isinstance(ctx, AntlrParser.PercentageFuncExprContext):
+                # Handle percentage calculation: 21% van 1000 EUR
+                percentage_value = None
+                if ctx.PERCENTAGE_LITERAL():
+                    # Parse percentage literal (e.g., "21%")
+                    text = ctx.PERCENTAGE_LITERAL().getText()
+                    percent_value = text[:-1].replace(',', '.')  # Remove % and handle comma
+                    percentage_value = float(percent_value) / 100  # Convert to decimal
+                elif ctx.NUMBER():
+                    # Parse number with percent sign or identifier
+                    num_text = ctx.NUMBER().getText().replace(',', '.')
+                    percentage_value = float(num_text) / 100
+                
+                # Parse the base expression (what the percentage is of)
+                base_expr = self.visit(ctx.primaryExpression())
+                
+                if percentage_value is not None and base_expr:
+                    # Create a multiplication expression: percentage * base
+                    return BinaryExpression(
+                        operator=Operator.MAAL,
+                        left=Literal(value=percentage_value, datatype="Numeriek", span=self.get_span(ctx)),
+                        right=base_expr,
+                        span=self.get_span(ctx)
+                    )
+                else:
+                    logger.warning(f"Could not parse percentage function: {safe_get_text(ctx)}")
+                    return None
+            
             # Handle specific date function contexts
-            if isinstance(ctx, AntlrParser.DateCalcExprContext):
+            elif isinstance(ctx, AntlrParser.DateCalcExprContext):
                 # This is a date calculation pattern like "date + 5 days"
                 # But sometimes the grammar incorrectly matches complex expressions
                 # If this doesn't look like a date calculation, return None to handle elsewhere
@@ -2218,6 +2248,12 @@ class RegelSpraakModelBuilder(RegelSpraakVisitor):
             elif text.startswith("'") and text.endswith("'"):
                 text = text[1:-1]
             return Literal(value=text, datatype="Tekst", span=self.get_span(ctx))
+        elif isinstance(ctx, AntlrParser.PercentageLiteralExprContext):
+            # Convert percentage to decimal: 21% -> 0.21
+            text = ctx.PERCENTAGE_LITERAL().getText()
+            percent_value = text[:-1].replace(',', '.')  # Remove % and handle comma
+            decimal_value = Decimal(percent_value) / 100
+            return Literal(value=float(decimal_value), datatype="Percentage", eenheid="%", span=self.get_span(ctx))
         elif isinstance(ctx, AntlrParser.EnumLiteralExprContext):
              return Literal(value=ctx.ENUM_LITERAL().getText(), datatype="Enumeratie", span=self.get_span(ctx))
         elif isinstance(ctx, AntlrParser.DatumLiteralExprContext):
@@ -3116,15 +3152,24 @@ class RegelSpraakModelBuilder(RegelSpraakVisitor):
             elif tijdlijn_ctx.VOOR_ELK_JAAR():
                 timeline = "jaar"
 
-        # TODO: Parse literal value if present (e.g., Parameter x : Numeriek is 5)
+        # Parse initial value if present (e.g., Parameter x : Percentage is 21%)
+        initial_value = None
+        if ctx.IS() and ctx.expressie():
+            initial_value = self.visit(ctx.expressie())
 
-        return Parameter(
+        param = Parameter(
             naam=naam,
             datatype=datatype_str,
             eenheid=eenheid,
             timeline=timeline,
             span=self.get_span(ctx)
         )
+        
+        # Add initial value if present
+        if initial_value:
+            param.initial_value = initial_value
+        
+        return param
 
     # 8. Rule Structure Visitors
     def visitRegel(self, ctx: AntlrParser.RegelContext) -> Optional[Regel]:

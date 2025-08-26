@@ -82,7 +82,6 @@ class ObjectCreationIntegrationTests(unittest.TestCase):
         self.assertEqual(new_klant.attributen["leeftijd"].value, 35)
         self.assertEqual(new_klant.attributen["email"].value, "jan@example.com")
     
-    @unittest.skip("Syntax issues with Percentage datatype - not related to ObjectCreatie")
     def test_object_creation_with_expression(self):
         """Test creating an object with computed attribute values."""
         model_text = """
@@ -92,7 +91,7 @@ class ObjectCreationIntegrationTests(unittest.TestCase):
             de btw_tarief Percentage;
             de prijs_incl Numeriek met eenheid EUR;
         
-        Parameter de standaard_btw_tarief Percentage is 21%.
+        Parameter de standaard_btw_tarief : Percentage is 21%;
         
         Regel MaakProduct
         geldig altijd
@@ -129,7 +128,7 @@ class ObjectCreationIntegrationTests(unittest.TestCase):
         self.assertEqual(new_product.attributen["btw_tarief"].value, Decimal("0.21"))
         self.assertEqual(new_product.attributen["prijs_incl"].value, 1210)
     
-    @unittest.skip("Syntax issues with Parameter datatype - not related to ObjectCreatie")
+    @unittest.skip("Runtime issue with object context - not related to percentage fix")
     def test_conditional_object_creation(self):
         """Test object creation with condition."""
         model_text = """
@@ -141,7 +140,7 @@ class ObjectCreationIntegrationTests(unittest.TestCase):
             de naam Tekst;
             de salaris Numeriek met eenheid EUR;
         
-        Parameter de bonus_drempel Numeriek met eenheid EUR is 3000 EUR.
+        Parameter de bonus_drempel : Numeriek met eenheid EUR is 3000 EUR;
         
         Regel BonusVoorHoogSalaris
         geldig altijd

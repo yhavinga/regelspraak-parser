@@ -172,7 +172,7 @@ datatype
     | booleanDatatype
     | datumTijdDatatype
     | lijstDatatype
-    // | percentageDatatype // Placeholder from Spec - Not in original G4
+    | percentageDatatype
     ;
 
 lijstDatatype
@@ -185,6 +185,10 @@ numeriekDatatype
 
 tekstDatatype
     : TEKST
+    ;
+
+percentageDatatype
+    : PERCENTAGE ( LPAREN getalSpecificatie RPAREN )?
     ;
 
 booleanDatatype
@@ -286,6 +290,7 @@ dimensieRef // Reference to a dimension definition
 parameterDefinition
     : PARAMETER parameterNamePhrase COLON ( datatype | domeinRef )
       ( MET_EENHEID eenheidExpressie )?
+      ( IS expressie )?
       tijdlijn? SEMICOLON
     ;
 
@@ -706,7 +711,7 @@ primaryExpression : // Corresponds roughly to terminals/functions/references in 
     | SOM_VAN ALLE attribuutReferentie                                                            # SomAlleAttribuutExpr // Sum all attributes with filtering
     | HET? AANTAL (ALLE? onderwerpReferentie)                                                         # AantalFuncExpr // Made HET optional
     | HET? AANTAL attribuutReferentie                                                              # AantalAttribuutExpr // Count attributes with filtering
-    | NUMBER (PERCENT_SIGN | p=IDENTIFIER) VAN primaryExpression                                    # PercentageFuncExpr
+    | (NUMBER (PERCENT_SIGN | p=IDENTIFIER) | PERCENTAGE_LITERAL) VAN primaryExpression            # PercentageFuncExpr
     | primaryExpression afronding                                                                   # AfrondingExpr  // EBNF 13.4.16.21
     | primaryExpression COMMA begrenzing                                                            # BegrenzingExpr // EBNF 13.4.16.23
     | CONCATENATIE_VAN primaryExpression (COMMA primaryExpression)* (EN | OF) primaryExpression     # ConcatenatieExpr // EBNF 13.4.16.2
@@ -751,6 +756,7 @@ primaryExpression : // Corresponds roughly to terminals/functions/references in 
     | REKENDATUM                                                    # RekendatumKeywordExpr
     | identifier                                                    # IdentifierExpr // Bare identifier as expression?
     | NUMBER unitIdentifier?                                        # NumberLiteralExpr
+    | PERCENTAGE_LITERAL                                            # PercentageLiteralExpr
     | STRING_LITERAL                                                # StringLiteralExpr
     | ENUM_LITERAL                                                  # EnumLiteralExpr // Add explicit support for enum literals
     | datumLiteral                                                  # DatumLiteralExpr // Added DATE_TIME_LITERAL via datumLiteral rule

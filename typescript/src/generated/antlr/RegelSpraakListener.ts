@@ -30,6 +30,7 @@ import { DatatypeContext } from "./RegelSpraakParser";
 import { LijstDatatypeContext } from "./RegelSpraakParser";
 import { NumeriekDatatypeContext } from "./RegelSpraakParser";
 import { TekstDatatypeContext } from "./RegelSpraakParser";
+import { PercentageDatatypeContext } from "./RegelSpraakParser";
 import { BooleanDatatypeContext } from "./RegelSpraakParser";
 import { DatumTijdDatatypeContext } from "./RegelSpraakParser";
 import { GetalSpecificatieContext } from "./RegelSpraakParser";
@@ -157,6 +158,7 @@ import { AantalAttribuutExprContext } from "./RegelSpraakParser";
 import { ParenExprContext } from "./RegelSpraakParser";
 import { DimensieRangeAggExprContext } from "./RegelSpraakParser";
 import { DatumMetFuncExprContext } from "./RegelSpraakParser";
+import { PercentageLiteralExprContext } from "./RegelSpraakParser";
 import { StringLiteralExprContext } from "./RegelSpraakParser";
 import { PercentageFuncExprContext } from "./RegelSpraakParser";
 import { EersteDatumFuncExprContext } from "./RegelSpraakParser";
@@ -502,6 +504,16 @@ export default class RegelSpraakListener extends ParseTreeListener {
 	 * @param ctx the parse tree
 	 */
 	exitTekstDatatype?: (ctx: TekstDatatypeContext) => void;
+	/**
+	 * Enter a parse tree produced by `RegelSpraakParser.percentageDatatype`.
+	 * @param ctx the parse tree
+	 */
+	enterPercentageDatatype?: (ctx: PercentageDatatypeContext) => void;
+	/**
+	 * Exit a parse tree produced by `RegelSpraakParser.percentageDatatype`.
+	 * @param ctx the parse tree
+	 */
+	exitPercentageDatatype?: (ctx: PercentageDatatypeContext) => void;
 	/**
 	 * Enter a parse tree produced by `RegelSpraakParser.booleanDatatype`.
 	 * @param ctx the parse tree
@@ -1848,6 +1860,18 @@ export default class RegelSpraakListener extends ParseTreeListener {
 	 * @param ctx the parse tree
 	 */
 	exitDatumMetFuncExpr?: (ctx: DatumMetFuncExprContext) => void;
+	/**
+	 * Enter a parse tree produced by the `PercentageLiteralExpr`
+	 * labeled alternative in `RegelSpraakParser.primaryExpression`.
+	 * @param ctx the parse tree
+	 */
+	enterPercentageLiteralExpr?: (ctx: PercentageLiteralExprContext) => void;
+	/**
+	 * Exit a parse tree produced by the `PercentageLiteralExpr`
+	 * labeled alternative in `RegelSpraakParser.primaryExpression`.
+	 * @param ctx the parse tree
+	 */
+	exitPercentageLiteralExpr?: (ctx: PercentageLiteralExprContext) => void;
 	/**
 	 * Enter a parse tree produced by the `StringLiteralExpr`
 	 * labeled alternative in `RegelSpraakParser.primaryExpression`.
