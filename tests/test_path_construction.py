@@ -119,12 +119,9 @@ class TestPathConstruction(RegelSpraakTestCase):
         
         # The semantic analyzer should report an error because "adres" is not a valid attribute
         # (we don't have object references without Feittype)
-        if len(errors) == 0:
-            # If no errors, the semantic analyzer might not be checking nested paths yet
-            # This is actually expected - semantic analysis for nested paths is a TODO
-            self.skipTest("Semantic analysis for nested paths not yet implemented")
-        else:
-            self.assertTrue(any("adres" in str(error) for error in errors))
+        self.assertGreater(len(errors), 0, "Should have semantic errors for invalid path")
+        self.assertTrue(any("adres" in str(error) for error in errors),
+                        f"Expected error about 'adres', got: {[str(e) for e in errors]}")
     
     def test_semantic_analysis_recognizes_valid_paths(self):
         """Test semantic analysis with valid simple paths"""

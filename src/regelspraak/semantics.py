@@ -654,15 +654,72 @@ class SemanticAnalyzer:
                     ))
                 return None
         
-        # TODO: Validate full attribute path against object types
-        # For now, just check if it looks reasonable
-        if len(ref.path) > 3:  # Arbitrary limit
-            self.errors.append(SemanticError(
-                f"Attribute path too deep: {'.'.join(ref.path)}",
-                ref.span
-            ))
+        # For multi-element paths, validate navigation through object hierarchy
+        if len(ref.path) >= 2:
+            # Path is already in correct order: ['adres', 'straat'] means start with 'adres', navigate to 'straat'
+            current_type = None
+            
+            for i, segment in enumerate(ref.path):
+                if i == 0:
+                    # First segment: starting point of navigation
+                    # Could be an object type, 'self' (implicit context), or unknown reference
+                    if segment in self.symbol_table.object_types:
+                        current_type = segment
+                    elif segment == 'self':
+                        # 'self' refers to the implicit context object type
+                        # We don't have context tracking yet, so we can't fully validate
+                        # but we shouldn't report it as an error
+                        return None
+                    else:
+                        # Not an object type or 'self' - check if it's a valid attribute in context
+                        # For now, we report it as an undefined reference since we don't
+                        # have context tracking yet
+                        self.errors.append(SemanticError(
+                            f"Undefined reference '{segment}' in navigation path",
+                            ref.span
+                        ))
+                        return None
+                else:
+                    # Navigate through object hierarchy
+                    if not current_type:
+                        self.errors.append(SemanticError(
+                            f"Cannot navigate from unknown type at '{ref.path[i-1]}'",
+                            ref.span
+                        ))
+                        return None
+                    
+                    obj_type = self.symbol_table.object_types.get(current_type)
+                    if not obj_type:
+                        self.errors.append(SemanticError(
+                            f"Unknown object type '{current_type}' in navigation path",
+                            ref.span
+                        ))
+                        return None
+                    
+                    # Check if segment is valid attribute on current type
+                    if segment not in obj_type.attributen:
+                        self.errors.append(SemanticError(
+                            f"Attribute '{segment}' not found on object type '{current_type}'",
+                            ref.span
+                        ))
+                        return None
+                    
+                    attr = obj_type.attributen[segment]
+                    
+                    # If not the last segment, must be object reference
+                    if i < len(ref.path) - 1:
+                        if not attr.is_object_ref:
+                            self.errors.append(SemanticError(
+                                f"Cannot navigate through non-object attribute '{segment}' on type '{current_type}'",
+                                ref.span
+                            ))
+                            return None
+                        current_type = attr.datatype
+                    else:
+                        # Last segment - return its datatype
+                        return attr.datatype
         
-        return None  # TODO: Return actual attribute type
+        return None
     
     def _infer_binary_type(self, op: Operator, left_type: Optional[str], 
                           right_type: Optional[str]) -> Optional[str]:
