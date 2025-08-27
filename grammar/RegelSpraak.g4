@@ -321,12 +321,17 @@ parameterDefinition
       tijdlijn? SEMICOLON
     ;
 
-parameterNamePhrase // Dedicated rule for parameter names
-    : (DE | HET)? (IDENTIFIER | AANTAL)+ // Allow AANTAL token to be used in parameter names
+parameterNamePhrase // Dedicated rule for parameter names - allow prepositions for spec compliance
+    : (DE | HET)? parameterNamePart (voorzetsel parameterNamePart)* // Allow prepositions in parameter names
     ;
 
-parameterMetLidwoord // Used within expression, but defined with parameter def
-    : naamwoord
+parameterNamePart
+    : (IDENTIFIER | AANTAL | NUMBER)+  // Allow multiple consecutive identifiers/numbers
+    ;
+
+parameterMetLidwoord // Used within expression - allow complex parameter names
+    : (DE | HET)? parameterNamePart (voorzetsel parameterNamePart)*  // Match parameter name structure
+    | naamwoord  // Fallback to simple naamwoord
     ;
 
 // §13.3.9 FeitType Definition (Based on spec §3.11)
@@ -565,8 +570,13 @@ attribuutMetLidwoord // Simple attribute name with optional article
     ;
 
 kenmerkNaam 
-    : onderwerpReferentieWithNumbers  // Allow kenmerk names with numbers
+    : kenmerkPhrase                    // Allow complex kenmerk names with prepositions
+    | onderwerpReferentieWithNumbers  // Allow kenmerk names with numbers
     | onderwerpReferentie              // Fallback to regular onderwerp reference
+    ;
+
+kenmerkPhrase  // Handle complex kenmerk names like "in het hoogseizoen"
+    : voorzetsel? (DE | HET | EEN)? identifierOrKeywordWithNumbers+
     ;
 
 // Rule for bezieldeReferentie (Simplified from spec 13.4.16.37 for ZIJN case)

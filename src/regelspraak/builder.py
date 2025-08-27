@@ -246,7 +246,17 @@ class RegelSpraakModelBuilder(RegelSpraakVisitor):
             else: logger.warning(f"      _extract_canonical_name: NaamwoordContext '{safe_get_text(name_ctx)}' lacks naamPhrase attribute.")
 
         elif isinstance(name_ctx, AntlrParser.ParameterNamePhraseContext):
-            # Directly process terminal children
+            # Handle new structure with parameterNamePart and voorzetsel
+            # Get all text including prepositions, but skip initial articles
+            full_text = get_text_with_spaces(name_ctx)
+            if full_text:
+                # Remove leading articles
+                for article in ['de ', 'het ', 'een ']:
+                    if full_text.lower().startswith(article):
+                        full_text = full_text[len(article):]
+                        break
+                return full_text
+            # Fallback: process terminal children
             nodes_to_process = [child for child in name_ctx.children if isinstance(child, TerminalNode)]
             logger.debug(f"      Processing direct children for ParameterNamePhrase: {[safe_get_text(n) for n in nodes_to_process]}")
 
@@ -2359,8 +2369,25 @@ class RegelSpraakModelBuilder(RegelSpraakVisitor):
              return self.visitAttribuutReferentie(ctx.attribuutReferentie())
         elif isinstance(ctx, AntlrParser.ParamRefExprContext):
             logger.debug("  -> Matched ParamRefExprContext")
-            param_name_ctx = ctx.parameterMetLidwoord().naamwoord() # Drill down
-            param_name = self._extract_canonical_name(param_name_ctx)
+            param_met_lidwoord = ctx.parameterMetLidwoord()
+            
+            # Handle complex parameter names with prepositions
+            if param_met_lidwoord.naamwoord():
+                # Simple case: just a naamwoord
+                param_name_ctx = param_met_lidwoord.naamwoord()
+                param_name = self._extract_canonical_name(param_name_ctx)
+            else:
+                # Complex case: parameter with prepositions
+                # Get full text and strip article
+                full_text = get_text_with_spaces(param_met_lidwoord)
+                # Remove leading articles
+                for article in ['de ', 'het ']:
+                    if full_text.lower().startswith(article):
+                        param_name = full_text[len(article):]
+                        break
+                else:
+                    param_name = full_text
+                    
             if not param_name:
                     logger.error(f"Could not extract canonical name for parameter reference in {safe_get_text(ctx)}")
                     param_name = "<unknown_param>" # Keep fallback
