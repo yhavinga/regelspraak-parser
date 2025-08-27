@@ -4,7 +4,7 @@
 import json
 import sys
 from pathlib import Path
-from typing import Dict, Any, List
+from typing import Dict, Any, List, Optional
 from datetime import date, datetime
 
 # Add parent directory to path to import regelspraak
@@ -94,8 +94,16 @@ class TOKARunner:
                 'objects': self._extract_objects_state()
             }
             
-        except (ParseError, SemanticError, RegelspraakRuntimeError) as e:
-            print(f"❌ Execution failed: {e}")
+        except (ParseError, SemanticError) as e:
+            print(f"❌ Parse/Semantic error: {e}")
+            return {
+                'scenario': scenario_name,
+                'status': 'failed',
+                'error': str(e)
+            }
+        except Exception as e:
+            # Catch all other exceptions for now during development
+            print(f"❌ Runtime error: {e}")
             return {
                 'scenario': scenario_name,
                 'status': 'failed',
@@ -134,7 +142,8 @@ class TOKARunner:
         
         # Create passengers
         for passenger_data in objects.get('passengers', []):
-            passenger = RuntimeObject("Natuurlijk persoon", passenger_data['id'])
+            passenger = RuntimeObject(object_type_naam="Natuurlijk persoon", instance_id=passenger_data['id'])
+            self.context.add_object(passenger)
             
             # Set attributes
             if 'geboortedatum' in passenger_data:
@@ -152,12 +161,12 @@ class TOKARunner:
                 self.context.set_attribute(passenger, 'maximaal te ontvangen treinmiles',
                                           Value(passenger_data['maximaal te ontvangen treinmiles'], "Numeriek"))
             
-            self.context.add_object(passenger)
             object_count += 1
         
         # Create flights
         for flight_data in objects.get('flights', []):
-            flight = RuntimeObject("Vlucht", flight_data['id'])
+            flight = RuntimeObject(object_type_naam="Vlucht", instance_id=flight_data['id'])
+            self.context.add_object(flight)
             
             # Set flight attributes
             for attr_name, attr_value in flight_data.items():
@@ -179,17 +188,24 @@ class TOKARunner:
                 else:
                     self.context.set_attribute(flight, attr_name, Value(attr_value, "Tekst"))
             
-            self.context.add_object(flight)
             object_count += 1
         
         print(f"✅ Created {object_count} objects")
+    
+    def _find_object_by_id(self, object_id: str) -> Optional[RuntimeObject]:
+        """Helper to find object by instance_id."""
+        for objects in self.context.instances.values():
+            for obj in objects:
+                if obj.instance_id == object_id:
+                    return obj
+        return None
     
     def _create_relationships(self, relationships: List[Dict]):
         """Create fact relationships."""
         for rel in relationships:
             if rel['type'] == 'vlucht van natuurlijke personen':
-                flight = self.context.find_object_by_id(rel['flight_id'])
-                passenger = self.context.find_object_by_id(rel['passenger_id'])
+                flight = self._find_object_by_id(rel['flight_id'])
+                passenger = self._find_object_by_id(rel['passenger_id'])
                 
                 if flight and passenger:
                     self.context.add_relationship(
@@ -206,14 +222,15 @@ class TOKARunner:
         results = {'passed': [], 'failed': []}
         
         for object_id, expected_values in expected.items():
-            obj = self.context.find_object_by_id(object_id)
+            obj = self._find_object_by_id(object_id)
             if not obj:
                 results['failed'].append(f"Object {object_id} not found")
                 continue
             
             for attr_name, expected_value in expected_values.items():
                 # Check attributes
-                if attr_name in [attr.naam for attr in self.model.object_types_by_name[obj.object_type_naam].attributen]:
+                obj_type = self.model.objecttypes.get(obj.object_type_naam)
+                if obj_type and attr_name in obj_type.attributen:
                     actual = self.context.get_attribute(obj, attr_name)
                     if actual and actual.value == expected_value:
                         results['passed'].append(f"{object_id}.{attr_name}")
@@ -311,11 +328,12 @@ class TOKARunner:
             }
             
             # Get all attributes
-            if obj.object_type_naam in self.model.object_types_by_name:
-                for attr in self.model.object_types_by_name[obj.object_type_naam].attributen:
-                    value = self.context.get_attribute(obj, attr.naam)
+            obj_type = self.model.objecttypes.get(obj.object_type_naam)
+            if obj_type:
+                for attr_name, attr in obj_type.attributen.items():
+                    value = self.context.get_attribute(obj, attr_name)
                     if value:
-                        obj_data['attributes'][attr.naam] = {
+                        obj_data['attributes'][attr_name] = {
                             'value': value.value,
                             'unit': value.unit
                         }
