@@ -1536,10 +1536,121 @@ class RegelSpraakModelBuilder(RegelSpraakVisitor):
     
     # 6. Expression Hierarchy Visitors
     def visitExpressie(self, ctx: AntlrParser.ExpressieContext) -> Optional[Expression]:
-        """Visit the top-level expressie rule. Always delegates to its single child."""
-        # According to typical ANTLR grammar structure for expressions,
-        # the 'expressie' rule usually just points to the start of the
-        # precedence climbing (e.g., logicalExpression).
+        """Visit the top-level expressie rule."""
+        # Handle different expression alternatives
+        if isinstance(ctx, AntlrParser.SimpleExprContext):
+            # Simple expression without begrenzing/afronding
+            return self.visitLogicalExpression(ctx.logicalExpression())
+            
+        elif isinstance(ctx, AntlrParser.ExprAfrondingContext):
+            # Expression with afronding
+            expr = self.visitLogicalExpression(ctx.logicalExpression())
+            if expr is None:
+                return None
+            
+            afronding_ctx = ctx.afronding()
+            if afronding_ctx:
+                # Extract rounding direction
+                direction = None
+                if afronding_ctx.NAAR_BENEDEN():
+                    direction = "naar_beneden"
+                elif afronding_ctx.NAAR_BOVEN():
+                    direction = "naar_boven"
+                elif afronding_ctx.REKENKUNDIG():
+                    direction = "rekenkundig"
+                elif afronding_ctx.RICHTING_NUL():
+                    direction = "richting_nul"
+                elif afronding_ctx.WEG_VAN_NUL():
+                    direction = "weg_van_nul"
+                
+                # Extract decimals
+                decimals = int(afronding_ctx.NUMBER().getText()) if afronding_ctx.NUMBER() else 0
+                
+                from regelspraak.ast import AfrondingExpression
+                return AfrondingExpression(
+                    expression=expr,
+                    direction=direction,
+                    decimals=decimals,
+                    span=self.get_span(ctx)
+                )
+            return expr
+            
+        elif isinstance(ctx, AntlrParser.ExprBegrenzingContext):
+            # Expression with begrenzing
+            expr = self.visitLogicalExpression(ctx.logicalExpression())
+            if expr is None:
+                return None
+                
+            begrenzing_ctx = ctx.begrenzing()
+            if begrenzing_ctx:
+                minimum = None
+                maximum = None
+                
+                if hasattr(begrenzing_ctx, 'begrenzingMinimum') and begrenzing_ctx.begrenzingMinimum():
+                    min_ctx = begrenzing_ctx.begrenzingMinimum()
+                    minimum = self.visit(min_ctx.expressie())
+                elif hasattr(begrenzing_ctx, 'begrenzingMaximum') and begrenzing_ctx.begrenzingMaximum():
+                    max_ctx = begrenzing_ctx.begrenzingMaximum()
+                    maximum = self.visit(max_ctx.expressie())
+                
+                from regelspraak.ast import BegrenzingExpression
+                return BegrenzingExpression(
+                    expression=expr,
+                    minimum=minimum,
+                    maximum=maximum,
+                    span=self.get_span(ctx)
+                )
+            return expr
+            
+        elif isinstance(ctx, AntlrParser.ExprBegrenzingAfrondingContext):
+            # Expression with both begrenzing and afronding
+            expr = self.visitLogicalExpression(ctx.logicalExpression())
+            if expr is None:
+                return None
+                
+            # Handle begrenzing
+            minimum = None
+            maximum = None
+            begrenzing_ctx = ctx.begrenzing()
+            if begrenzing_ctx:
+                if hasattr(begrenzing_ctx, 'begrenzingMinimum') and begrenzing_ctx.begrenzingMinimum():
+                    min_ctx = begrenzing_ctx.begrenzingMinimum()
+                    minimum = self.visit(min_ctx.expressie())
+                elif hasattr(begrenzing_ctx, 'begrenzingMaximum') and begrenzing_ctx.begrenzingMaximum():
+                    max_ctx = begrenzing_ctx.begrenzingMaximum()
+                    maximum = self.visit(max_ctx.expressie())
+            
+            # Handle afronding
+            direction = None
+            decimals = 0
+            afronding_ctx = ctx.afronding()
+            if afronding_ctx:
+                # Extract rounding direction
+                if afronding_ctx.NAAR_BENEDEN():
+                    direction = "naar_beneden"
+                elif afronding_ctx.NAAR_BOVEN():
+                    direction = "naar_boven"
+                elif afronding_ctx.REKENKUNDIG():
+                    direction = "rekenkundig"
+                elif afronding_ctx.RICHTING_NUL():
+                    direction = "richting_nul"
+                elif afronding_ctx.WEG_VAN_NUL():
+                    direction = "weg_van_nul"
+                
+                # Extract decimals
+                decimals = int(afronding_ctx.NUMBER().getText()) if afronding_ctx.NUMBER() else 0
+            
+            from regelspraak.ast import BegrenzingAfrondingExpression
+            return BegrenzingAfrondingExpression(
+                expression=expr,
+                minimum=minimum,
+                maximum=maximum,
+                direction=direction,
+                decimals=decimals,
+                span=self.get_span(ctx)
+            )
+            
+        # Fallback to default handling
         if ctx.logicalExpression():
             return self.visitLogicalExpression(ctx.logicalExpression())
         else:
@@ -2266,13 +2377,114 @@ class RegelSpraakModelBuilder(RegelSpraakVisitor):
             logger.warning(f"Unhandled aggregation context type: {type(ctx).__name__}")
             return None
         # --- Handle Other Labeled Expressions --- 
-        elif isinstance(ctx, AntlrParser.AfrondingExprContext): # Example
-            # TODO: Implement visitAfronding
-            logger.warning(f"AfrondingExpr needs specific visitor: {safe_get_text(ctx)}")
-            return self.visit(ctx.primaryExpression()) if hasattr(ctx, 'primaryExpression') else None
+        elif isinstance(ctx, AntlrParser.AfrondingExprContext):
+            # Handle afronding (rounding) expressions
+            expr = self.visit(ctx.primaryExpression())
+            if expr is None:
+                return None
+            
+            afronding_ctx = ctx.afronding()
+            if afronding_ctx:
+                # Extract rounding direction
+                direction = None
+                if afronding_ctx.NAAR_BENEDEN():
+                    direction = "naar_beneden"
+                elif afronding_ctx.NAAR_BOVEN():
+                    direction = "naar_boven"
+                elif afronding_ctx.REKENKUNDIG():
+                    direction = "rekenkundig"
+                elif afronding_ctx.RICHTING_NUL():
+                    direction = "richting_nul"
+                elif afronding_ctx.WEG_VAN_NUL():
+                    direction = "weg_van_nul"
+                
+                # Extract decimals
+                decimals = int(afronding_ctx.NUMBER().getText()) if afronding_ctx.NUMBER() else 0
+                
+                from regelspraak.ast import AfrondingExpression
+                return AfrondingExpression(
+                    expression=expr,
+                    direction=direction,
+                    decimals=decimals,
+                    span=self.get_span(ctx)
+                )
+            return expr
+            
         elif isinstance(ctx, AntlrParser.BegrenzingExprContext):
-            logger.warning(f"BegrenzingExpr needs specific visitor: {safe_get_text(ctx)}")
-            return None # Placeholder
+            # Handle begrenzing (bounding) expressions
+            expr = self.visit(ctx.primaryExpression())
+            if expr is None:
+                return None
+                
+            begrenzing_ctx = ctx.begrenzing()
+            if begrenzing_ctx:
+                minimum = None
+                maximum = None
+                
+                if hasattr(begrenzing_ctx, 'begrenzingMinimum') and begrenzing_ctx.begrenzingMinimum():
+                    min_ctx = begrenzing_ctx.begrenzingMinimum()
+                    minimum = self.visit(min_ctx.expressie())
+                elif hasattr(begrenzing_ctx, 'begrenzingMaximum') and begrenzing_ctx.begrenzingMaximum():
+                    max_ctx = begrenzing_ctx.begrenzingMaximum()
+                    maximum = self.visit(max_ctx.expressie())
+                
+                from regelspraak.ast import BegrenzingExpression
+                return BegrenzingExpression(
+                    expression=expr,
+                    minimum=minimum,
+                    maximum=maximum,
+                    span=self.get_span(ctx)
+                )
+            return expr
+            
+        elif isinstance(ctx, AntlrParser.BegrenzingAfrondingExprContext):
+            # Handle combined begrenzing and afronding expressions
+            expr = self.visit(ctx.primaryExpression())
+            if expr is None:
+                return None
+                
+            # Handle begrenzing
+            minimum = None
+            maximum = None
+            begrenzing_ctx = ctx.begrenzing()
+            if begrenzing_ctx:
+                if hasattr(begrenzing_ctx, 'begrenzingMinimum') and begrenzing_ctx.begrenzingMinimum():
+                    min_ctx = begrenzing_ctx.begrenzingMinimum()
+                    minimum = self.visit(min_ctx.expressie())
+                elif hasattr(begrenzing_ctx, 'begrenzingMaximum') and begrenzing_ctx.begrenzingMaximum():
+                    max_ctx = begrenzing_ctx.begrenzingMaximum()
+                    maximum = self.visit(max_ctx.expressie())
+            
+            # Handle afronding
+            direction = None
+            decimals = 0
+            afronding_ctx = ctx.afronding()
+            if afronding_ctx:
+                # Extract rounding direction
+                if afronding_ctx.NAAR_BENEDEN():
+                    direction = "naar_beneden"
+                elif afronding_ctx.NAAR_BOVEN():
+                    direction = "naar_boven"
+                elif afronding_ctx.REKENKUNDIG():
+                    direction = "rekenkundig"
+                elif afronding_ctx.RICHTING_NUL():
+                    direction = "richting_nul"
+                elif afronding_ctx.WEG_VAN_NUL():
+                    direction = "weg_van_nul"
+                
+                # Extract decimals
+                decimals = int(afronding_ctx.NUMBER().getText()) if afronding_ctx.NUMBER() else 0
+            
+            from regelspraak.ast import BegrenzingAfrondingExpression
+            return BegrenzingAfrondingExpression(
+                expression=expr,
+                minimum=minimum,
+                maximum=maximum,
+                direction=direction,
+                decimals=decimals,
+                span=self.get_span(ctx)
+            )
+            
         elif isinstance(ctx, AntlrParser.ConcatenatieExprContext) or isinstance(ctx, AntlrParser.SimpleConcatenatieExprContext):
             # Handle concatenation expressions (e.g., "X, Y en Z")
             logger.debug(f"Detected concatenation expression: {safe_get_text(ctx)}, type: {type(ctx).__name__}")

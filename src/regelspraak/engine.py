@@ -1992,6 +1992,96 @@ class Evaluator:
             elif isinstance(expr, FunctionCall):
                 result = self._handle_function_call(expr)
                 
+            elif isinstance(expr, BegrenzingExpression):
+                # First evaluate the base expression
+                from regelspraak.ast import BegrenzingExpression
+                base_value = self.evaluate_expression(expr.expression)
+                
+                # Apply minimum bound if specified
+                if expr.minimum is not None:
+                    min_value = self.evaluate_expression(expr.minimum)
+                    if base_value.value < min_value.value:
+                        result = min_value
+                    else:
+                        result = base_value
+                else:
+                    result = base_value
+                    
+                # Apply maximum bound if specified
+                if expr.maximum is not None:
+                    max_value = self.evaluate_expression(expr.maximum)
+                    if result.value > max_value.value:
+                        result = max_value
+                
+            elif isinstance(expr, AfrondingExpression):
+                # First evaluate the base expression
+                from regelspraak.ast import AfrondingExpression
+                base_value = self.evaluate_expression(expr.expression)
+                
+                # Apply rounding based on direction
+                import math
+                value_num = float(base_value.value) if base_value.value is not None else 0.0
+                multiplier = 10 ** expr.decimals
+                
+                if expr.direction == "naar_beneden":
+                    rounded = math.floor(value_num * multiplier) / multiplier
+                elif expr.direction == "naar_boven":
+                    rounded = math.ceil(value_num * multiplier) / multiplier
+                elif expr.direction == "rekenkundig":
+                    rounded = round(value_num, expr.decimals)
+                elif expr.direction == "richting_nul":
+                    rounded = math.trunc(value_num * multiplier) / multiplier
+                elif expr.direction == "weg_van_nul":
+                    if value_num >= 0:
+                        rounded = math.ceil(value_num * multiplier) / multiplier
+                    else:
+                        rounded = math.floor(value_num * multiplier) / multiplier
+                else:
+                    rounded = value_num
+                
+                result = Value(value=rounded, datatype=base_value.datatype, unit=base_value.unit)
+                
+            elif isinstance(expr, BegrenzingAfrondingExpression):
+                # First evaluate the base expression
+                from regelspraak.ast import BegrenzingAfrondingExpression
+                base_value = self.evaluate_expression(expr.expression)
+                
+                # Apply minimum bound if specified
+                working_value = base_value
+                if expr.minimum is not None:
+                    min_value = self.evaluate_expression(expr.minimum)
+                    if base_value.value < min_value.value:
+                        working_value = min_value
+                
+                # Apply maximum bound if specified  
+                if expr.maximum is not None:
+                    max_value = self.evaluate_expression(expr.maximum)
+                    if working_value.value > max_value.value:
+                        working_value = max_value
+                
+                # Apply rounding
+                import math
+                value_num = float(working_value.value) if working_value.value is not None else 0.0
+                multiplier = 10 ** expr.decimals
+                
+                if expr.direction == "naar_beneden":
+                    rounded = math.floor(value_num * multiplier) / multiplier
+                elif expr.direction == "naar_boven":
+                    rounded = math.ceil(value_num * multiplier) / multiplier
+                elif expr.direction == "rekenkundig":
+                    rounded = round(value_num, expr.decimals)
+                elif expr.direction == "richting_nul":
+                    rounded = math.trunc(value_num * multiplier) / multiplier
+                elif expr.direction == "weg_van_nul":
+                    if value_num >= 0:
+                        rounded = math.ceil(value_num * multiplier) / multiplier
+                    else:
+                        rounded = math.floor(value_num * multiplier) / multiplier
+                else:
+                    rounded = value_num
+                
+                result = Value(value=rounded, datatype=working_value.datatype, unit=working_value.unit)
+                
             elif isinstance(expr, Subselectie):
                 result = self._evaluate_subselectie(expr)
                 
@@ -2556,6 +2646,96 @@ class Evaluator:
 
             elif isinstance(expr, FunctionCall):
                 result = self._handle_function_call_non_timeline(expr)
+                
+            elif isinstance(expr, BegrenzingExpression):
+                # First evaluate the base expression
+                from regelspraak.ast import BegrenzingExpression
+                base_value = self._evaluate_expression_non_timeline(expr.expression)
+                
+                # Apply minimum bound if specified
+                if expr.minimum is not None:
+                    min_value = self._evaluate_expression_non_timeline(expr.minimum)
+                    if base_value.value < min_value.value:
+                        result = min_value
+                    else:
+                        result = base_value
+                else:
+                    result = base_value
+                    
+                # Apply maximum bound if specified
+                if expr.maximum is not None:
+                    max_value = self._evaluate_expression_non_timeline(expr.maximum)
+                    if result.value > max_value.value:
+                        result = max_value
+                
+            elif isinstance(expr, AfrondingExpression):
+                # First evaluate the base expression
+                from regelspraak.ast import AfrondingExpression
+                base_value = self._evaluate_expression_non_timeline(expr.expression)
+                
+                # Apply rounding based on direction
+                import math
+                value_num = float(base_value.value) if base_value.value is not None else 0.0
+                multiplier = 10 ** expr.decimals
+                
+                if expr.direction == "naar_beneden":
+                    rounded = math.floor(value_num * multiplier) / multiplier
+                elif expr.direction == "naar_boven":
+                    rounded = math.ceil(value_num * multiplier) / multiplier
+                elif expr.direction == "rekenkundig":
+                    rounded = round(value_num, expr.decimals)
+                elif expr.direction == "richting_nul":
+                    rounded = math.trunc(value_num * multiplier) / multiplier
+                elif expr.direction == "weg_van_nul":
+                    if value_num >= 0:
+                        rounded = math.ceil(value_num * multiplier) / multiplier
+                    else:
+                        rounded = math.floor(value_num * multiplier) / multiplier
+                else:
+                    rounded = value_num
+                
+                result = Value(value=rounded, datatype=base_value.datatype, unit=base_value.unit)
+                
+            elif isinstance(expr, BegrenzingAfrondingExpression):
+                # First evaluate the base expression
+                from regelspraak.ast import BegrenzingAfrondingExpression
+                base_value = self._evaluate_expression_non_timeline(expr.expression)
+                
+                # Apply minimum bound if specified
+                working_value = base_value
+                if expr.minimum is not None:
+                    min_value = self._evaluate_expression_non_timeline(expr.minimum)
+                    if base_value.value < min_value.value:
+                        working_value = min_value
+                
+                # Apply maximum bound if specified  
+                if expr.maximum is not None:
+                    max_value = self._evaluate_expression_non_timeline(expr.maximum)
+                    if working_value.value > max_value.value:
+                        working_value = max_value
+                
+                # Apply rounding
+                import math
+                value_num = float(working_value.value) if working_value.value is not None else 0.0
+                multiplier = 10 ** expr.decimals
+                
+                if expr.direction == "naar_beneden":
+                    rounded = math.floor(value_num * multiplier) / multiplier
+                elif expr.direction == "naar_boven":
+                    rounded = math.ceil(value_num * multiplier) / multiplier
+                elif expr.direction == "rekenkundig":
+                    rounded = round(value_num, expr.decimals)
+                elif expr.direction == "richting_nul":
+                    rounded = math.trunc(value_num * multiplier) / multiplier
+                elif expr.direction == "weg_van_nul":
+                    if value_num >= 0:
+                        rounded = math.ceil(value_num * multiplier) / multiplier
+                    else:
+                        rounded = math.floor(value_num * multiplier) / multiplier
+                else:
+                    rounded = value_num
+                
+                result = Value(value=rounded, datatype=working_value.datatype, unit=working_value.unit)
                 
             elif isinstance(expr, Subselectie):
                 result = self._evaluate_subselectie(expr)

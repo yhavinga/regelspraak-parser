@@ -698,7 +698,10 @@ variabeleToekenning
 // --- RegelSpraak Expressions (§13.4.15, §13.4.16) --- NOW INCLUDES CONDITIONS
 
 expressie
-    : logicalExpression // Start with logical OR/AND (if needed, otherwise comparison)
+    : logicalExpression COMMA begrenzing afronding             # ExprBegrenzingAfronding
+    | logicalExpression COMMA begrenzing                       # ExprBegrenzing
+    | logicalExpression afronding                              # ExprAfronding
+    | logicalExpression                                        # SimpleExpr
     ;
 
 // Logical operators (EN, OF) at expression level
@@ -767,6 +770,7 @@ primaryExpression : // Corresponds roughly to terminals/functions/references in 
     | HET? AANTAL attribuutReferentie                                                              # AantalAttribuutExpr // Count attributes with filtering
     | (NUMBER (PERCENT_SIGN | p=IDENTIFIER) | PERCENTAGE_LITERAL) VAN primaryExpression            # PercentageFuncExpr
     | primaryExpression afronding                                                                   # AfrondingExpr  // EBNF 13.4.16.21
+    | primaryExpression COMMA begrenzing afronding                                                  # BegrenzingAfrondingExpr // Combined begrenzing and afronding
     | primaryExpression COMMA begrenzing                                                            # BegrenzingExpr // EBNF 13.4.16.23
     | CONCATENATIE_VAN primaryExpression (COMMA primaryExpression)* (EN | OF) primaryExpression     # ConcatenatieExpr // EBNF 13.4.16.2
     | primaryExpression (COMMA primaryExpression)+ (EN | OF) primaryExpression                      # SimpleConcatenatieExpr // Simple concatenation without keyword

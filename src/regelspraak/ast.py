@@ -140,6 +140,35 @@ class FunctionCall(Expression):
     unit_conversion: Optional[str] = None # e.g., "hele jr"
 
 @dataclass
+class BegrenzingExpression(Expression):
+    """Applies a minimum or maximum bound to an expression.
+    Example: "100, met een minimum van 0"
+    """
+    expression: Expression  # The expression to bound
+    minimum: Optional[Expression] = None  # Minimum value (if specified)
+    maximum: Optional[Expression] = None  # Maximum value (if specified)
+
+@dataclass
+class AfrondingExpression(Expression):
+    """Rounds an expression to a specified number of decimals.
+    Example: "naar beneden afgerond op 2 decimalen"
+    """
+    expression: Expression  # The expression to round
+    direction: str  # "naar beneden", "naar boven", "rekenkundig", etc.
+    decimals: int  # Number of decimal places
+
+@dataclass
+class BegrenzingAfrondingExpression(Expression):
+    """Combines begrenzing and afronding on an expression.
+    Example: "100, met een minimum van 0 naar beneden afgerond op 0 decimalen"
+    """
+    expression: Expression  # The base expression
+    minimum: Optional[Expression] = None  # Minimum value (if specified)
+    maximum: Optional[Expression] = None  # Maximum value (if specified)
+    direction: str = None  # Rounding direction
+    decimals: int = None  # Number of decimal places
+
+@dataclass
 class DisjunctionExpression(Expression):
     """Represents a disjunction of values (OR operation).
     Example: "'Friesland', 'Groningen' of 'Limburg'"
