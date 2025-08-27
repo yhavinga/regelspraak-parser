@@ -1,0 +1,84 @@
+{
+  "name": "Sustainable Flight with Discounts",
+  "description": "Tax calculation with sustainability discounts for elderly passenger",
+  "parameters": {
+    "volwassenleeftijd": {"value": 18, "unit": "jr"},
+    "pensioenleeftijd": {"value": 65, "unit": "jr"},
+    "korting bij gebruik niet-fossiele brandstof": 10.00,
+    "initiele belasting": 25.00,
+    "duurzaamheidskorting minimale afstand": {"value": 500, "unit": "km"},
+    "bovengrens afstand eerste schijf": {"value": 700, "unit": "km"},
+    "lage basistarief eerste schijf": 60.00,
+    "lage tarief vermindering eerste schijf": 0.04,
+    "percentage reisduur eerste schijf": 10,
+    "percentage reisduur tweede schijf": 15,
+    "percentage reisduur derde schijf": 20,
+    "bovengrens reisduur eerste schijf": {"value": 120, "unit": "minuut"},
+    "bovengrens reisduur tweede schijf": {"value": 240, "unit": "minuut"},
+    "aantal treinmiles per passagier voor contingent": 150
+  },
+  "objects": {
+    "passengers": [
+      {
+        "id": "senior_eco_passenger",
+        "geboortedatum": "1956-09-22",
+        "woonprovincie": "Zuid-Holland",
+        "identificatienummer": 20001
+      },
+      {
+        "id": "adult_eco_passenger", 
+        "geboortedatum": "1980-04-10",
+        "woonprovincie": "Gelderland",
+        "identificatienummer": 20002
+      }
+    ],
+    "flights": [
+      {
+        "id": "eco_flight",
+        "luchthaven van vertrek": "Amsterdam Schiphol",
+        "luchthaven van bestemming": "Londen Heathrow",
+        "vluchtdatum": "2024-09-15",
+        "afstand tot bestemming": 550,
+        "reisduur per trein": 180,
+        "bereikbaar per trein": true,
+        "gebruik fossiele brandstof minder dan 50 procent": true
+      }
+    ]
+  },
+  "relationships": [
+    {
+      "type": "vlucht van natuurlijke personen",
+      "flight_id": "eco_flight",
+      "passenger_id": "senior_eco_passenger"
+    },
+    {
+      "type": "vlucht van natuurlijke personen",
+      "flight_id": "eco_flight",
+      "passenger_id": "adult_eco_passenger"
+    }
+  ],
+  "expected": {
+    "senior_eco_passenger": {
+      "leeftijd": 68,
+      "is passagier van 65 jaar of ouder": true,
+      "recht op duurzaamheidskorting": true,
+      "woonregio factor": 3,
+      "belasting op basis van afstand": 38.00,
+      "te betalen belasting": 28.00
+    },
+    "adult_eco_passenger": {
+      "leeftijd": 44,
+      "is passagier van 25 tot en met 64 jaar": true,
+      "recht op duurzaamheidskorting": false,
+      "woonregio factor": 2,
+      "belasting op basis van afstand": 38.00,
+      "te betalen belasting": 28.00
+    },
+    "eco_flight": {
+      "is duurzaam": true,
+      "is belaste reis": true,
+      "hoeveelheid passagiers": 2,
+      "totaal te betalen belasting": 56.00
+    }
+  }
+}

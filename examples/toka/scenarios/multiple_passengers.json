@@ -1,0 +1,109 @@
+{
+  "name": "Multiple Passengers Different Age Categories",
+  "description": "Tax calculation for multiple passengers with different age categories",
+  "parameters": {
+    "volwassenleeftijd": {"value": 18, "unit": "jr"},
+    "pensioenleeftijd": {"value": 65, "unit": "jr"},
+    "korting bij gebruik niet-fossiele brandstof": 5.00,
+    "initiele belasting": 25.00,
+    "duurzaamheidskorting minimale afstand": {"value": 500, "unit": "km"},
+    "bovengrens afstand eerste schijf": {"value": 500, "unit": "km"},
+    "lage basistarief eerste schijf": 50.00,
+    "lage tarief vermindering eerste schijf": 0.05,
+    "percentage reisduur eerste schijf": 10,
+    "percentage reisduur tweede schijf": 15,
+    "percentage reisduur derde schijf": 20,
+    "bovengrens reisduur eerste schijf": {"value": 120, "unit": "minuut"},
+    "bovengrens reisduur tweede schijf": {"value": 240, "unit": "minuut"},
+    "aantal treinmiles per passagier voor contingent": 100
+  },
+  "objects": {
+    "passengers": [
+      {
+        "id": "child_passenger",
+        "geboortedatum": "2010-05-20",
+        "woonprovincie": "Friesland",
+        "identificatienummer": 10001
+      },
+      {
+        "id": "young_adult",
+        "geboortedatum": "2003-08-15",
+        "woonprovincie": "Utrecht",
+        "identificatienummer": 10002
+      },
+      {
+        "id": "adult_passenger",
+        "geboortedatum": "1975-11-30",
+        "woonprovincie": "Noord-Brabant",
+        "identificatienummer": 10003
+      },
+      {
+        "id": "senior_passenger",
+        "geboortedatum": "1955-02-10",
+        "woonprovincie": "Limburg",
+        "identificatienummer": 10004
+      }
+    ],
+    "flights": [
+      {
+        "id": "flight_2",
+        "luchthaven van vertrek": "Amsterdam Schiphol",
+        "luchthaven van bestemming": "Parijs Charles de Gaulle",
+        "vluchtdatum": "2024-07-15",
+        "afstand tot bestemming": 400,
+        "reisduur per trein": 200,
+        "bereikbaar per trein": true,
+        "gebruik fossiele brandstof minder dan 50 procent": false
+      }
+    ]
+  },
+  "relationships": [
+    {
+      "type": "vlucht van natuurlijke personen",
+      "flight_id": "flight_2",
+      "passenger_id": "child_passenger"
+    },
+    {
+      "type": "vlucht van natuurlijke personen",
+      "flight_id": "flight_2",
+      "passenger_id": "young_adult"
+    },
+    {
+      "type": "vlucht van natuurlijke personen",
+      "flight_id": "flight_2",
+      "passenger_id": "adult_passenger"
+    },
+    {
+      "type": "vlucht van natuurlijke personen",
+      "flight_id": "flight_2",
+      "passenger_id": "senior_passenger"
+    }
+  ],
+  "expected": {
+    "child_passenger": {
+      "leeftijd": 14,
+      "is minderjarig": true,
+      "woonregio factor": 1
+    },
+    "young_adult": {
+      "leeftijd": 20,
+      "is passagier van 18 tot en met 24 jaar": true,
+      "woonregio factor": 3
+    },
+    "adult_passenger": {
+      "leeftijd": 48,
+      "is passagier van 25 tot en met 64 jaar": true,
+      "woonregio factor": 2
+    },
+    "senior_passenger": {
+      "leeftijd": 69,
+      "is passagier van 65 jaar of ouder": true,
+      "woonregio factor": 1
+    },
+    "flight_2": {
+      "is belaste reis": true,
+      "hoeveelheid passagiers": 4,
+      "leeftijd van de oudste passagier": 69
+    }
+  }
+}

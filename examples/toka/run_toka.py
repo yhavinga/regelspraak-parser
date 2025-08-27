@@ -1,0 +1,353 @@
+#!/usr/bin/env python3
+"""TOKA Example Runner - Execute TOKA case study scenarios."""
+
+import json
+import sys
+from pathlib import Path
+from typing import Dict, Any, List
+from datetime import date, datetime
+
+# Add parent directory to path to import regelspraak
+sys.path.insert(0, str(Path(__file__).parent.parent.parent))
+
+from src.regelspraak.parsing import parse_text
+from src.regelspraak.engine import Evaluator, PrintTraceSink
+from src.regelspraak.runtime import RuntimeContext, RuntimeObject, Value
+from src.regelspraak.errors import ParseError, SemanticError, RuntimeError as RegelspraakRuntimeError
+
+
+class TOKARunner:
+    """Execute TOKA case study with validation."""
+    
+    def __init__(self, verbose: bool = False):
+        self.verbose = verbose
+        self.toka_dir = Path(__file__).parent
+        self.model = None
+        self.context = None
+        
+    def load_rules(self) -> str:
+        """Load and combine TOKA RegelSpraak files."""
+        gegevens_file = self.toka_dir / "gegevens.rs"
+        regels_file = self.toka_dir / "regels.rs"
+        
+        gegevens = gegevens_file.read_text(encoding='utf-8')
+        regels = regels_file.read_text(encoding='utf-8')
+        
+        return f"{gegevens}\n\n{regels}"
+    
+    def load_scenario(self, scenario_name: str) -> Dict[str, Any]:
+        """Load test scenario from JSON file."""
+        scenario_file = self.toka_dir / "scenarios" / f"{scenario_name}.json"
+        if not scenario_file.exists():
+            raise FileNotFoundError(f"Scenario not found: {scenario_file}")
+        
+        with open(scenario_file, 'r', encoding='utf-8') as f:
+            return json.load(f)
+    
+    def execute_scenario(self, scenario_name: str) -> Dict[str, Any]:
+        """Execute a TOKA scenario and return results."""
+        try:
+            # Load and parse rules
+            print(f"Loading TOKA rules...")
+            rules_text = self.load_rules()
+            self.model = parse_text(rules_text)
+            print(f"✅ Successfully parsed {len(self.model.regels)} rules")
+            
+            # Load scenario data
+            print(f"Loading scenario: {scenario_name}")
+            scenario = self.load_scenario(scenario_name)
+            print(f"✅ Loaded scenario: {scenario['name']}")
+            
+            # Create runtime context
+            trace_sink = PrintTraceSink() if self.verbose else None
+            self.context = RuntimeContext(self.model, trace_sink=trace_sink)
+            
+            # Add parameters
+            self._add_parameters(scenario['parameters'])
+            
+            # Create objects
+            self._create_objects(scenario['objects'])
+            
+            # Create relationships
+            if 'relationships' in scenario:
+                self._create_relationships(scenario['relationships'])
+            
+            # Execute rules
+            print("Executing rules...")
+            evaluator = Evaluator(self.context)
+            results = evaluator.execute_model(self.model)
+            print(f"✅ Rule execution completed")
+            
+            # Validate results if expected results provided
+            validation_results = None
+            if 'expected' in scenario:
+                validation_results = self._validate_results(scenario['expected'])
+                self._print_validation_results(validation_results)
+            
+            # Print final state
+            self._print_final_state()
+            
+            return {
+                'scenario': scenario_name,
+                'status': 'success',
+                'validation': validation_results,
+                'objects': self._extract_objects_state()
+            }
+            
+        except (ParseError, SemanticError, RegelspraakRuntimeError) as e:
+            print(f"❌ Execution failed: {e}")
+            return {
+                'scenario': scenario_name,
+                'status': 'failed',
+                'error': str(e)
+            }
+    
+    def _add_parameters(self, parameters: Dict[str, Any]):
+        """Add parameter values to context."""
+        for param_name, param_data in parameters.items():
+            if isinstance(param_data, dict):
+                # Parameter with value and unit
+                value = param_data.get('value')
+                unit = param_data.get('unit')
+                self.context.add_parameter(
+                    param_name, 
+                    Value(value, "Numeriek", unit)
+                )
+            else:
+                # Simple parameter value
+                if isinstance(param_data, (int, float)):
+                    self.context.add_parameter(
+                        param_name,
+                        Value(param_data, "Numeriek")
+                    )
+                else:
+                    self.context.add_parameter(
+                        param_name,
+                        Value(param_data, "Tekst")
+                    )
+        
+        print(f"✅ Added {len(parameters)} parameters")
+    
+    def _create_objects(self, objects: Dict[str, List[Dict]]):
+        """Create object instances."""
+        object_count = 0
+        
+        # Create passengers
+        for passenger_data in objects.get('passengers', []):
+            passenger = RuntimeObject("Natuurlijk persoon", passenger_data['id'])
+            
+            # Set attributes
+            if 'geboortedatum' in passenger_data:
+                birth_date = datetime.strptime(passenger_data['geboortedatum'], '%Y-%m-%d').date()
+                self.context.set_attribute(passenger, 'geboortedatum', Value(birth_date, "Datum"))
+            
+            if 'woonprovincie' in passenger_data:
+                self.context.set_attribute(passenger, 'woonprovincie', Value(passenger_data['woonprovincie'], "Tekst"))
+                
+            if 'identificatienummer' in passenger_data:
+                self.context.set_attribute(passenger, 'identificatienummer', 
+                                          Value(passenger_data['identificatienummer'], "Numeriek"))
+            
+            if 'maximaal te ontvangen treinmiles' in passenger_data:
+                self.context.set_attribute(passenger, 'maximaal te ontvangen treinmiles',
+                                          Value(passenger_data['maximaal te ontvangen treinmiles'], "Numeriek"))
+            
+            self.context.add_object(passenger)
+            object_count += 1
+        
+        # Create flights
+        for flight_data in objects.get('flights', []):
+            flight = RuntimeObject("Vlucht", flight_data['id'])
+            
+            # Set flight attributes
+            for attr_name, attr_value in flight_data.items():
+                if attr_name == 'id':
+                    continue
+                elif attr_name == 'vluchtdatum':
+                    flight_date = datetime.strptime(attr_value, '%Y-%m-%d').date()
+                    self.context.set_attribute(flight, 'vluchtdatum', Value(flight_date, "Datum"))
+                elif attr_name in ['luchthaven van vertrek', 'luchthaven van bestemming']:
+                    self.context.set_attribute(flight, attr_name, Value(attr_value, "Luchthavens"))
+                elif attr_name == 'afstand tot bestemming':
+                    self.context.set_attribute(flight, attr_name, Value(attr_value, "Numeriek", "km"))
+                elif attr_name == 'reisduur per trein':
+                    self.context.set_attribute(flight, attr_name, Value(attr_value, "Numeriek", "min"))
+                elif isinstance(attr_value, bool):
+                    self.context.set_attribute(flight, attr_name, Value(attr_value, "Boolean"))
+                elif isinstance(attr_value, int):
+                    self.context.set_attribute(flight, attr_name, Value(attr_value, "Numeriek"))
+                else:
+                    self.context.set_attribute(flight, attr_name, Value(attr_value, "Tekst"))
+            
+            self.context.add_object(flight)
+            object_count += 1
+        
+        print(f"✅ Created {object_count} objects")
+    
+    def _create_relationships(self, relationships: List[Dict]):
+        """Create fact relationships."""
+        for rel in relationships:
+            if rel['type'] == 'vlucht van natuurlijke personen':
+                flight = self.context.find_object_by_id(rel['flight_id'])
+                passenger = self.context.find_object_by_id(rel['passenger_id'])
+                
+                if flight and passenger:
+                    self.context.add_relationship(
+                        feittype_naam="vlucht van natuurlijke personen",
+                        subject=flight,
+                        object=passenger,
+                        preposition="VAN"
+                    )
+        
+        print(f"✅ Created {len(relationships)} relationships")
+    
+    def _validate_results(self, expected: Dict[str, Dict]) -> Dict:
+        """Validate execution results against expected values."""
+        results = {'passed': [], 'failed': []}
+        
+        for object_id, expected_values in expected.items():
+            obj = self.context.find_object_by_id(object_id)
+            if not obj:
+                results['failed'].append(f"Object {object_id} not found")
+                continue
+            
+            for attr_name, expected_value in expected_values.items():
+                # Check attributes
+                if attr_name in [attr.naam for attr in self.model.object_types_by_name[obj.object_type_naam].attributen]:
+                    actual = self.context.get_attribute(obj, attr_name)
+                    if actual and actual.value == expected_value:
+                        results['passed'].append(f"{object_id}.{attr_name}")
+                    else:
+                        actual_val = actual.value if actual else None
+                        results['failed'].append(
+                            f"{object_id}.{attr_name}: expected {expected_value}, got {actual_val}"
+                        )
+                # Check characteristics (kenmerken)
+                elif attr_name in obj.kenmerken:
+                    actual = obj.kenmerken[attr_name]
+                    if actual == expected_value:
+                        results['passed'].append(f"{object_id}.{attr_name}")
+                    else:
+                        results['failed'].append(
+                            f"{object_id}.{attr_name}: expected {expected_value}, got {actual}"
+                        )
+        
+        return results
+    
+    def _print_validation_results(self, results: Dict):
+        """Print validation results."""
+        print("\n" + "="*60)
+        print("VALIDATION RESULTS")
+        print("="*60)
+        
+        if results['passed']:
+            print(f"✅ Passed: {len(results['passed'])}")
+            if self.verbose:
+                for item in results['passed']:
+                    print(f"   - {item}")
+        
+        if results['failed']:
+            print(f"❌ Failed: {len(results['failed'])}")
+            for item in results['failed']:
+                print(f"   - {item}")
+    
+    def _print_final_state(self):
+        """Print final state of key objects."""
+        print("\n" + "="*60)
+        print("FINAL STATE")
+        print("="*60)
+        
+        # Print passengers
+        passengers = self.context.find_objects_by_type("Natuurlijk persoon")
+        if passengers:
+            print("\nPassengers:")
+            for p in passengers:
+                print(f"  {p.instance_id}:")
+                
+                # Key attributes
+                age = self.context.get_attribute(p, 'leeftijd')
+                if age:
+                    print(f"    - leeftijd: {age.value} {age.unit}")
+                
+                tax = self.context.get_attribute(p, 'te betalen belasting')
+                if tax:
+                    print(f"    - te betalen belasting: €{tax.value}")
+                
+                miles = self.context.get_attribute(p, 'treinmiles')
+                if miles:
+                    print(f"    - treinmiles: {miles.value}")
+                
+                # Characteristics
+                if p.kenmerken:
+                    print(f"    - kenmerken: {p.kenmerken}")
+        
+        # Print flights
+        flights = self.context.find_objects_by_type("Vlucht")
+        if flights:
+            print("\nFlights:")
+            for f in flights:
+                print(f"  {f.instance_id}:")
+                
+                total_tax = self.context.get_attribute(f, 'totaal te betalen belasting')
+                if total_tax:
+                    print(f"    - totaal te betalen belasting: €{total_tax.value}")
+                
+                passenger_count = self.context.get_attribute(f, 'hoeveelheid passagiers')
+                if passenger_count:
+                    print(f"    - hoeveelheid passagiers: {passenger_count.value}")
+                
+                if f.kenmerken:
+                    print(f"    - kenmerken: {f.kenmerken}")
+    
+    def _extract_objects_state(self) -> Dict[str, Dict]:
+        """Extract final state of all objects."""
+        state = {}
+        
+        for obj in self.context.objects:
+            obj_data = {
+                'type': obj.object_type_naam,
+                'attributes': {},
+                'characteristics': dict(obj.kenmerken)
+            }
+            
+            # Get all attributes
+            if obj.object_type_naam in self.model.object_types_by_name:
+                for attr in self.model.object_types_by_name[obj.object_type_naam].attributen:
+                    value = self.context.get_attribute(obj, attr.naam)
+                    if value:
+                        obj_data['attributes'][attr.naam] = {
+                            'value': value.value,
+                            'unit': value.unit
+                        }
+            
+            state[obj.instance_id] = obj_data
+        
+        return state
+
+
+def main():
+    """Main execution function."""
+    import argparse
+    
+    parser = argparse.ArgumentParser(description="TOKA Case Study Runner")
+    parser.add_argument('scenario', help='Scenario name to execute (without .json extension)')
+    parser.add_argument('--verbose', '-v', action='store_true', help='Enable verbose output')
+    parser.add_argument('--output', '-o', help='Output file for results (JSON)')
+    
+    args = parser.parse_args()
+    
+    runner = TOKARunner(verbose=args.verbose)
+    results = runner.execute_scenario(args.scenario)
+    
+    if args.output:
+        with open(args.output, 'w', encoding='utf-8') as f:
+            json.dump(results, f, indent=2, default=str)
+        print(f"\n✅ Results written to {args.output}")
+    
+    # Exit with error if execution failed
+    if results['status'] == 'failed':
+        sys.exit(1)
+
+
+if __name__ == "__main__":
+    main()

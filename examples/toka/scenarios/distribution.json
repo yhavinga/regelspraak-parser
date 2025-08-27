@@ -1,0 +1,112 @@
+{
+  "name": "Complex Treinmiles Distribution",
+  "description": "Test complex treinmiles distribution by age and region with maximum limits",
+  "parameters": {
+    "volwassenleeftijd": {"value": 18, "unit": "jr"},
+    "pensioenleeftijd": {"value": 65, "unit": "jr"},
+    "korting bij gebruik niet-fossiele brandstof": 5.00,
+    "initiele belasting": 25.00,
+    "duurzaamheidskorting minimale afstand": {"value": 500, "unit": "km"},
+    "bovengrens afstand eerste schijf": {"value": 500, "unit": "km"},
+    "lage basistarief eerste schijf": 50.00,
+    "lage tarief vermindering eerste schijf": 0.05,
+    "percentage reisduur eerste schijf": 10,
+    "percentage reisduur tweede schijf": 15,
+    "percentage reisduur derde schijf": 20,
+    "bovengrens reisduur eerste schijf": {"value": 120, "unit": "minuut"},
+    "bovengrens reisduur tweede schijf": {"value": 240, "unit": "minuut"},
+    "aantal treinmiles per passagier voor contingent": 200
+  },
+  "objects": {
+    "passengers": [
+      {
+        "id": "young_passenger_1",
+        "geboortedatum": "2002-03-10",
+        "woonprovincie": "Utrecht",
+        "identificatienummer": 30001,
+        "maximaal te ontvangen treinmiles": 300
+      },
+      {
+        "id": "young_passenger_2",
+        "geboortedatum": "2002-03-10",
+        "woonprovincie": "Friesland",
+        "identificatienummer": 30002,
+        "maximaal te ontvangen treinmiles": 250
+      },
+      {
+        "id": "middle_aged_passenger",
+        "geboortedatum": "1978-06-20",
+        "woonprovincie": "Noord-Holland",
+        "identificatienummer": 30003,
+        "maximaal te ontvangen treinmiles": 400
+      },
+      {
+        "id": "senior_passenger_dist",
+        "geboortedatum": "1954-11-05",
+        "woonprovincie": "Limburg",
+        "identificatienummer": 30004,
+        "maximaal te ontvangen treinmiles": 500
+      }
+    ],
+    "flights": [
+      {
+        "id": "dist_flight",
+        "luchthaven van vertrek": "Groningen Eelde",
+        "luchthaven van bestemming": "Amsterdam Schiphol",
+        "vluchtdatum": "2024-08-10",
+        "afstand tot bestemming": 150,
+        "reisduur per trein": 180,
+        "bereikbaar per trein": true,
+        "gebruik fossiele brandstof minder dan 50 procent": false
+      }
+    ]
+  },
+  "relationships": [
+    {
+      "type": "vlucht van natuurlijke personen",
+      "flight_id": "dist_flight",
+      "passenger_id": "young_passenger_1"
+    },
+    {
+      "type": "vlucht van natuurlijke personen",
+      "flight_id": "dist_flight",
+      "passenger_id": "young_passenger_2"
+    },
+    {
+      "type": "vlucht van natuurlijke personen",
+      "flight_id": "dist_flight",
+      "passenger_id": "middle_aged_passenger"
+    },
+    {
+      "type": "vlucht van natuurlijke personen",
+      "flight_id": "dist_flight",
+      "passenger_id": "senior_passenger_dist"
+    }
+  ],
+  "expected": {
+    "young_passenger_1": {
+      "leeftijd": 22,
+      "is passagier van 18 tot en met 24 jaar": true,
+      "woonregio factor": 3
+    },
+    "young_passenger_2": {
+      "leeftijd": 22,
+      "is passagier van 18 tot en met 24 jaar": true,
+      "woonregio factor": 1
+    },
+    "middle_aged_passenger": {
+      "leeftijd": 46,
+      "is passagier van 25 tot en met 64 jaar": true,
+      "woonregio factor": 3
+    },
+    "senior_passenger_dist": {
+      "leeftijd": 69,
+      "is passagier van 65 jaar of ouder": true,
+      "woonregio factor": 1
+    },
+    "dist_flight": {
+      "is belaste reis": true,
+      "hoeveelheid passagiers": 4
+    }
+  }
+}
