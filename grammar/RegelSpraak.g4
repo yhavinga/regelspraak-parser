@@ -385,8 +385,8 @@ regelGroep
 
 // Allow flexible rule naming for our tests
 regelName
-    : naamwoordWithNumbers // Allow rule names with numbers (e.g. "Passagier van 18 tm 24 jaar")
-    | naamwoord // General case using the naamwoord pattern for rule names
+    : naamwoord // General case - already supports prepositions like "verdeling treinmiles in gelijke delen"
+    | naamwoordWithNumbers // Allow rule names with numbers (e.g. "Passagier van 18 tm 24 jaar")
     | IDENTIFIER+ KENMERK // Handle "check kenmerk" pattern
     | IDENTIFIER+ ROL // Handle "check rol" pattern
     | IDENTIFIER+ NIET KENMERK // Handle "check niet kenmerk" pattern
