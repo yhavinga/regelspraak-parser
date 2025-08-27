@@ -251,8 +251,12 @@ class RegelSpraakModelBuilder(RegelSpraakVisitor):
             logger.debug(f"      Processing direct children for ParameterNamePhrase: {[safe_get_text(n) for n in nodes_to_process]}")
 
         elif isinstance(name_ctx, AntlrParser.RegelNameContext):
+            # Check if it contains a naamwoordWithNumbers first
+            if hasattr(name_ctx, 'naamwoordWithNumbers') and name_ctx.naamwoordWithNumbers():
+                # Delegate to naamwoordWithNumbers processing
+                return self._extract_canonical_name(name_ctx.naamwoordWithNumbers())
             # Check if it contains a naamwoord
-            if hasattr(name_ctx, 'naamwoord') and name_ctx.naamwoord():
+            elif hasattr(name_ctx, 'naamwoord') and name_ctx.naamwoord():
                 # Delegate to naamwoord processing
                 return self._extract_canonical_name(name_ctx.naamwoord())
             else:
@@ -266,6 +270,20 @@ class RegelSpraakModelBuilder(RegelSpraakVisitor):
              # If passed an identifier context directly, return its text
              logger.debug("      _extract_canonical_name: Input is IdentifierContext, returning its text directly.")
              return safe_get_text(name_ctx)
+
+        elif isinstance(name_ctx, AntlrParser.NaamwoordWithNumbersContext):
+            # Handle NaamwoordWithNumbers which can contain numbers
+            # Use get_text_with_spaces to get the full text including numbers
+            full_text = get_text_with_spaces(name_ctx)
+            if full_text:
+                # Remove leading articles
+                for article in ['de ', 'het ', 'een ', 'is ']:
+                    if full_text.lower().startswith(article):
+                        full_text = full_text[len(article):]
+                        break
+                return full_text
+            # Fallback to getting raw text
+            return safe_get_text(name_ctx)
 
         else:
             # Fallback for unknown types - try getting raw text? Or fail? Let's fail for now.
@@ -538,6 +556,47 @@ class RegelSpraakModelBuilder(RegelSpraakVisitor):
         logger.debug(f"    visitNaamwoord returning: '{final_noun}'")
         return final_noun
     
+    def visitNaamwoordWithNumbers(self, ctx: AntlrParser.NaamwoordWithNumbersContext) -> Optional[str]:
+        """Visit a naamwoordWithNumbers context and extract the complete noun phrase including prepositions and numbers."""
+        logger.debug(f"    Visiting NaamwoordWithNumbers: Text='{safe_get_text(ctx)}', Type={type(ctx).__name__}, ChildCount={ctx.getChildCount()}")
+        
+        # Process all parts of the naamwoordWithNumbers according to grammar:
+        # naamwoordWithNumbers : naamPhraseWithNumbers ( voorzetsel naamPhraseWithNumbers )*
+        all_parts = []
+        
+        # Process the complete structure
+        for i in range(ctx.getChildCount()):
+            child = ctx.getChild(i)
+            
+            if type(child).__name__ == 'NaamPhraseWithNumbersContext':
+                # Process naam phrase - extract text without articles
+                phrase_parts = []
+                for subchild in child.children:
+                    if isinstance(subchild, TerminalNode):
+                        token_type = subchild.getSymbol().type
+                        token_text = safe_get_text(subchild)
+                        # Skip articles
+                        if token_type not in [AntlrParser.DE, AntlrParser.HET, AntlrParser.EEN]:
+                            phrase_parts.append(token_text)
+                    elif type(subchild).__name__ in ['IdentifierOrKeywordWithNumbersContext', 'IdentifierOrKeywordContext']:
+                        text = safe_get_text(subchild)
+                        # Skip capitalized articles that were parsed as identifiers
+                        if text.lower() not in ['de', 'het', 'een']:
+                            phrase_parts.append(text)
+                
+                if phrase_parts:
+                    all_parts.append(" ".join(phrase_parts))
+                    
+            elif type(child).__name__ == 'VoorzetselContext':
+                # Add the preposition
+                all_parts.append(safe_get_text(child))
+        
+        # Join all parts with spaces
+        final_noun = " ".join(all_parts) if all_parts else safe_get_text(ctx)
+        
+        logger.debug(f"    visitNaamwoordWithNumbers returning: '{final_noun}'")
+        return final_noun
+    
     def visitNaamwoordNoIs(self, ctx: AntlrParser.NaamwoordNoIsContext) -> Optional[str]:
         """Visit a naamwoordNoIs context and extract the complete noun phrase including prepositions."""
         logger.debug(f"    Visiting NaamwoordNoIs: Text='{safe_get_text(ctx)}', Type={type(ctx).__name__}, ChildCount={ctx.getChildCount()}")
@@ -612,13 +671,14 @@ class RegelSpraakModelBuilder(RegelSpraakVisitor):
         return safe_get_text(ctx)
 
     def _normalize_kenmerk_name(self, text: str) -> str:
-        """Normalize kenmerk names by stripping verb prefixes.
+        """Normalize kenmerk names by stripping verb and article prefixes.
         
-        Removes leading verbs like 'is', 'heeft', 'zijn', 'hebben' to ensure
-        consistent kenmerk naming between definition and usage.
+        Removes leading verbs like 'is', 'heeft', 'zijn', 'hebben' and
+        articles like 'een', 'de', 'het' to ensure consistent kenmerk 
+        naming between definition and usage.
         """
-        # Strip common verb prefixes
-        prefixes = ["is ", "heeft ", "zijn ", "hebben "]
+        # Strip common verb and article prefixes
+        prefixes = ["is ", "heeft ", "zijn ", "hebben ", "een ", "de ", "het "]
         normalized = text.strip()
         for prefix in prefixes:
             if normalized.lower().startswith(prefix):
@@ -1528,20 +1588,32 @@ class RegelSpraakModelBuilder(RegelSpraakVisitor):
             return self.visitSubordinateClauseExpression(ctx.subordinateClauseExpression())
         elif isinstance(ctx, AntlrParser.IsKenmerkExprContext):
             left_expr = self.visitAdditiveExpression(ctx.left)
-            # visitNaamwoord returns a string, so use it directly
-            kenmerk_name = self.visitNaamwoord(ctx.naamwoord()) if hasattr(self, 'visitNaamwoord') else ctx.naamwoord().getText()
+            # Check for naamwoordWithNumbers first, then fall back to naamwoord
+            if hasattr(ctx, 'naamwoordWithNumbers') and ctx.naamwoordWithNumbers():
+                kenmerk_name = get_text_with_spaces(ctx.naamwoordWithNumbers())
+                kenmerk_name = self._normalize_kenmerk_name(kenmerk_name)
+                name_ctx = ctx.naamwoordWithNumbers()
+            else:
+                kenmerk_name = self.visitNaamwoord(ctx.naamwoord()) if hasattr(self, 'visitNaamwoord') else ctx.naamwoord().getText()
+                name_ctx = ctx.naamwoord()
             # Create a Literal with the kenmerk name, not a VariableReference
-            right_expr = Literal(value=kenmerk_name, datatype="Tekst", span=self.get_span(ctx.naamwoord()))
+            right_expr = Literal(value=kenmerk_name, datatype="Tekst", span=self.get_span(name_ctx))
             if left_expr is None: return None
             # For now, just use IS operator. Negation should be handled at a different level
             op = Operator.IS
             return BinaryExpression(left=left_expr, operator=op, right=right_expr, span=self.get_span(ctx))
         elif isinstance(ctx, AntlrParser.HeeftKenmerkExprContext):
             left_expr = self.visitAdditiveExpression(ctx.left)
-            # visitNaamwoord returns a string, so use it directly
-            kenmerk_name = self.visitNaamwoord(ctx.naamwoord()) if hasattr(self, 'visitNaamwoord') else ctx.naamwoord().getText()
+            # Check for naamwoordWithNumbers first, then fall back to naamwoord
+            if hasattr(ctx, 'naamwoordWithNumbers') and ctx.naamwoordWithNumbers():
+                kenmerk_name = get_text_with_spaces(ctx.naamwoordWithNumbers())
+                kenmerk_name = self._normalize_kenmerk_name(kenmerk_name)
+                name_ctx = ctx.naamwoordWithNumbers()
+            else:
+                kenmerk_name = self.visitNaamwoord(ctx.naamwoord()) if hasattr(self, 'visitNaamwoord') else ctx.naamwoord().getText()
+                name_ctx = ctx.naamwoord()
             # Create a Literal with the kenmerk name, not a VariableReference
-            right_expr = Literal(value=kenmerk_name, datatype="Tekst", span=self.get_span(ctx.naamwoord()))
+            right_expr = Literal(value=kenmerk_name, datatype="Tekst", span=self.get_span(name_ctx))
             if left_expr is None: return None
             # For now, just use HEEFT operator. Negation should be handled at a different level
             op = Operator.HEEFT
@@ -2525,6 +2597,25 @@ class RegelSpraakModelBuilder(RegelSpraakVisitor):
         logger.warning(f"Unhandled regel status condition type: {type(ctx).__name__}")
         return None
 
+    def visitEnumLiteralExpr(self, ctx) -> Optional[Expression]:
+        """Visit EnumLiteralExpr context to handle string literals."""
+        text = ctx.ENUM_LITERAL().getText()
+        # Remove quotes
+        value = text.strip("'\"")
+        return Literal(
+            value=value,
+            datatype="Tekst",
+            span=self.get_span(ctx)
+        )
+    
+    def visitSimpleConcatenatieExpr(self, ctx) -> Optional[Expression]:
+        """Visit SimpleConcatenatieExpr context specifically."""
+        return self.visitConcatenatieExpressie(ctx)
+    
+    def visitConcatenatieExpr(self, ctx) -> Optional[Expression]:
+        """Visit ConcatenatieExpr context specifically."""
+        return self.visitConcatenatieExpressie(ctx)
+    
     def visitConcatenatieExpressie(self, ctx) -> Optional[Expression]:
         """Visit concatenation expression (e.g., "X, Y en Z" or "X, Y of Z")."""
         
@@ -2537,14 +2628,25 @@ class RegelSpraakModelBuilder(RegelSpraakVisitor):
         if hasattr(ctx, 'primaryExpression'):
             # Collect all primary expressions
             args = []
-            primary_exprs = ctx.primaryExpression() if callable(ctx.primaryExpression) else ctx.primaryExpression
-            logger.debug(f"Found {len(primary_exprs) if hasattr(primary_exprs, '__len__') else 'unknown'} primary expressions")
-            for pe in primary_exprs:
-                logger.debug(f"  Visiting primary expression: {safe_get_text(pe)}")
+            # Call primaryExpression() to get all primary expression nodes
+            primary_exprs = ctx.primaryExpression()
+            logger.debug(f"SimpleConcatenatieExpr - Found {len(primary_exprs) if hasattr(primary_exprs, '__len__') else 'unknown'} primary expressions")
+            logger.debug(f"SimpleConcatenatieExpr - Type of primary_exprs: {type(primary_exprs)}")
+            
+            # If it's a single expression, wrap it in a list
+            if not hasattr(primary_exprs, '__iter__'):
+                primary_exprs = [primary_exprs]
+                
+            for i, pe in enumerate(primary_exprs):
+                logger.debug(f"  Visiting primary expression {i}: {safe_get_text(pe)}")
+                logger.debug(f"    Type: {type(pe).__name__}")
                 expr = self.visit(pe)
+                logger.debug(f"    Visited result: {expr}")
                 if expr:
                     args.append(expr)
                     logger.debug(f"    Collected expression: {expr}")
+                else:
+                    logger.debug(f"    WARNING: visit returned None for {safe_get_text(pe)}")
             
             # Check for OF or EN tokens
             if hasattr(ctx, 'OF') and ctx.OF():
@@ -2640,9 +2742,12 @@ class RegelSpraakModelBuilder(RegelSpraakVisitor):
                 span=self.get_span(ctx)
             )
         elif isinstance(ctx, AntlrParser.SubordinateIsWithExprContext):
-            # Pattern: subject prepPhrase verb=IS (e.g., "hij met vakantie is")
+            # Pattern: subject prepPhrase verb=IS (e.g., "hij met vakantie is" or "hij een passagier van 65 jaar of ouder is")
             subject = self.visitOnderwerpReferentie(ctx.subject)
-            prep_phrase = ctx.prepPhrase.getText()
+            # Use get_text_with_spaces to preserve spaces in complex phrases
+            prep_phrase = get_text_with_spaces(ctx.prepPhrase)
+            # Normalize the phrase by removing leading articles for kenmerk checks
+            prep_phrase = self._normalize_kenmerk_name(prep_phrase)
             # Transform to: subject IS prep_phrase (as kenmerk check)
             left_expr = subject
             right_expr = Literal(value=prep_phrase, datatype="Tekst", span=self.get_span(ctx.prepPhrase))
@@ -2656,7 +2761,10 @@ class RegelSpraakModelBuilder(RegelSpraakVisitor):
             # Pattern: subject verb=IS kenmerk (e.g., "hij is minderjarig")
             # This is already in normal word order but included for completeness
             subject = self.visitOnderwerpReferentie(ctx.subject)
-            kenmerk_name = ctx.kenmerk.getText()
+            # Use get_text_with_spaces to preserve spaces in complex kenmerk names
+            kenmerk_name = get_text_with_spaces(ctx.kenmerk)
+            # Normalize the kenmerk name by removing leading articles
+            kenmerk_name = self._normalize_kenmerk_name(kenmerk_name)
             left_expr = subject
             right_expr = Literal(value=kenmerk_name, datatype="Tekst", span=self.get_span(ctx.kenmerk))
             return BinaryExpression(
@@ -2720,7 +2828,7 @@ class RegelSpraakModelBuilder(RegelSpraakVisitor):
 
     def visitAttribuutSpecificatie(self, ctx: AntlrParser.AttribuutSpecificatieContext) -> Optional[Attribuut]:
         """Visit an attribute specification and build an Attribuut object."""
-        naam = self.visitNaamwoord(ctx.naamwoord())
+        naam = self.visitNaamwoordWithNumbers(ctx.naamwoordWithNumbers())
         datatype_str = None
         if ctx.datatype():
             datatype_str = safe_get_text(ctx.datatype()) # Further parsing might be needed
@@ -2771,8 +2879,8 @@ class RegelSpraakModelBuilder(RegelSpraakVisitor):
         if ctx.identifier():
             # Use helper which handles IdentifierContext directly
             naam = self._extract_canonical_name(ctx.identifier())
-        elif ctx.naamwoord():
-            naam = self._extract_canonical_name(ctx.naamwoord())
+        elif ctx.naamwoordWithNumbers():
+            naam = self._extract_canonical_name(ctx.naamwoordWithNumbers())
         if not naam:
              logger.error(f"Could not parse kenmerk name in {safe_get_text(ctx)}")
              return None

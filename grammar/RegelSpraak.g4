@@ -79,6 +79,7 @@ identifierOrKeyword
     | TWEE_TELWOORD   // "twee" - numeric word for dimension labels
     | DRIE_TELWOORD   // "drie" - numeric word for dimension labels
     | VIER_TELWOORD   // "vier" - numeric word for dimension labels
+    | OUDER      // "ouder" - for patterns like "65 jaar of ouder"
     ;
 
 // Rule for contexts where IS should not be treated as an identifier
@@ -101,6 +102,7 @@ identifierOrKeywordNoIs
     | TWEE_TELWOORD   // "twee" - numeric word for dimension labels
     | DRIE_TELWOORD   // "drie" - numeric word for dimension labels
     | VIER_TELWOORD   // "vier" - numeric word for dimension labels
+    | OUDER      // "ouder" - for patterns like "65 jaar of ouder"
     ;
 
 naamPhrase // Used within naamwoord
@@ -111,6 +113,21 @@ naamPhrase // Used within naamwoord
     | identifierOrKeyword+ MET identifierOrKeyword+ // Allow 'X met Y' pattern in rule names
     | NIET identifierOrKeyword+ // Allow 'niet X' pattern
     | HET AANTAL DAGEN IN identifierOrKeyword+ // Special case for "het aantal dagen in X" as attribute name
+    ;
+
+naamPhraseWithNumbers // Used for kenmerk/attribute names that can contain numbers
+    : (DE | HET | EEN | ZIJN)? identifierOrKeywordWithNumbers+
+    | identifierOrKeywordWithNumbers+ // Allow all identifiers (covers capitalized Het, De, etc.)
+    | NIEUWE identifierOrKeywordWithNumbers+ // Allow 'nieuwe' in names
+    | NIEUWE identifierOrKeywordWithNumbers+ MET identifierOrKeywordWithNumbers+ // Allow 'nieuwe X met Y' pattern in rule names
+    | identifierOrKeywordWithNumbers+ MET identifierOrKeywordWithNumbers+ // Allow 'X met Y' pattern in rule names
+    | NIET identifierOrKeywordWithNumbers+ // Allow 'niet X' pattern
+    | HET AANTAL DAGEN IN identifierOrKeywordWithNumbers+ // Special case for "het aantal dagen in X" as attribute name
+    ;
+
+identifierOrKeywordWithNumbers
+    : identifierOrKeyword
+    | NUMBER     // Allow numbers in kenmerk/attribute names
     ;
 
 naamPhraseNoIs // Used for object type names where IS should not be included
@@ -126,12 +143,18 @@ naamwoord // Modified to handle structure like 'phrase (preposition phrase)*'
     : naamPhrase ( voorzetsel naamPhrase )*
     ;
 
+naamwoordWithNumbers // For kenmerk/attribute names that can contain numbers
+    : naamPhraseWithNumbers ( voorzetsel naamPhraseWithNumbers )*
+    ;
+
 naamwoordNoIs // Used for object type names
     : naamPhraseNoIs ( voorzetsel naamPhraseNoIs )*
     ;
 
 voorzetsel // Used by naamwoord and onderwerpReferentie
     : VAN | IN | VOOR | OVER | OP | BIJ | UIT | TOT | EN | MET
+    | OF         // Add OF for "of ouder" patterns
+    | TOT_EN_MET // Add for "18 tot en met 24" patterns  
     ;
 
 datumLiteral : DATE_TIME_LITERAL ;
@@ -154,12 +177,12 @@ objectTypeMember
 
 // §13.3.2 Kenmerk Specificatie
 kenmerkSpecificatie
-    : (IS? identifier | naamwoord) KENMERK (BIJVOEGLIJK | BEZITTELIJK)? tijdlijn?
+    : (IS? identifier | naamwoordWithNumbers) KENMERK (BIJVOEGLIJK | BEZITTELIJK)? tijdlijn?
     ;
 
 // §13.3.2 Attribuut Specificatie
 attribuutSpecificatie
-    : naamwoord ( datatype | domeinRef | objectTypeRef )
+    : naamwoordWithNumbers ( datatype | domeinRef | objectTypeRef )
       (MET_EENHEID (unitName=IDENTIFIER | PERCENT_SIGN | EURO_SYMBOL | DOLLAR_SYMBOL))?
       (GEDIMENSIONEERD_MET dimensieRef (EN dimensieRef)*)?
       tijdlijn? 
@@ -357,7 +380,8 @@ regelGroep
 
 // Allow flexible rule naming for our tests
 regelName
-    : naamwoord // General case using the naamwoord pattern for rule names
+    : naamwoordWithNumbers // Allow rule names with numbers (e.g. "Passagier van 18 tm 24 jaar")
+    | naamwoord // General case using the naamwoord pattern for rule names
     | IDENTIFIER+ KENMERK // Handle "check kenmerk" pattern
     | IDENTIFIER+ ROL // Handle "check rol" pattern
     | IDENTIFIER+ NIET KENMERK // Handle "check niet kenmerk" pattern
@@ -510,12 +534,25 @@ onderwerpReferentie // Allow sequence + nesting + pronoun + subselectie
     : onderwerpBasis ( (DIE | DAT) predicaat )? // Optional filtering with predicaat
     ;
 
+onderwerpReferentieWithNumbers // Variant that allows numbers in kenmerk names
+    : onderwerpBasisWithNumbers ( (DIE | DAT) predicaat )? // Optional filtering with predicaat
+    ;
+
 onderwerpBasis // Base onderwerp without subselectie to avoid left recursion
     : basisOnderwerp ( voorzetsel basisOnderwerp )* // Allow any voorzetsel for nesting
     ;
 
+onderwerpBasisWithNumbers // Base onderwerp that allows numbers
+    : basisOnderwerpWithNumbers ( voorzetsel basisOnderwerpWithNumbers )* // Allow any voorzetsel for nesting
+    ;
+
 basisOnderwerp // Base unit for subject/object reference
     : (DE | HET | EEN | ZIJN | ALLE)? identifierOrKeyword+
+    | HIJ
+    ;
+
+basisOnderwerpWithNumbers // Base unit that allows numbers  
+    : (DE | HET | EEN | ZIJN | ALLE | IS)? identifierOrKeywordWithNumbers+
     | HIJ
     ;
 
@@ -527,7 +564,10 @@ attribuutMetLidwoord // Simple attribute name with optional article
     : naamwoord
     ;
 
-kenmerkNaam : onderwerpReferentie ; // Reuse onderwerpReferentie structure (as per original G4)
+kenmerkNaam 
+    : onderwerpReferentieWithNumbers  // Allow kenmerk names with numbers
+    | onderwerpReferentie              // Fallback to regular onderwerp reference
+    ;
 
 // Rule for bezieldeReferentie (Simplified from spec 13.4.16.37 for ZIJN case)
 bezieldeReferentie // Used in primaryExpression
@@ -658,8 +698,8 @@ logicalExpression
 
 comparisonExpression
     : subordinateClauseExpression # SubordinateClauseExpr // Try subordinate clauses first (most specific)
-    | left=additiveExpression IS naamwoord # IsKenmerkExpr // Try IS kenmerk check
-    | left=additiveExpression HEEFT naamwoord # HeeftKenmerkExpr // Try HEEFT kenmerk check
+    | left=additiveExpression IS naamwoordWithNumbers # IsKenmerkExpr // Try IS kenmerk check - supports complex names with numbers
+    | left=additiveExpression HEEFT naamwoordWithNumbers # HeeftKenmerkExpr // Try HEEFT kenmerk check - supports complex names with numbers
     | left=additiveExpression ( comparisonOperator right=additiveExpression )? # BinaryComparisonExpr
     | unaryCondition # UnaryConditionExpr // Try unary conditions after more specific patterns
     | regelStatusCondition # RegelStatusConditionExpr // Integrate rule status checks here
@@ -878,9 +918,9 @@ regelStatusCondition // Now potentially part of comparisonExpression
 
 // Dutch subordinate clause expressions (Subject-Object-Verb order)
 subordinateClauseExpression
-    : subject=onderwerpReferentie object=naamwoord verb=HEEFT           # SubordinateHasExpr  // hij een recht op korting heeft
-    | subject=onderwerpReferentie prepPhrase=naamwoord verb=IS          # SubordinateIsWithExpr  // hij met vakantie is
-    | subject=onderwerpReferentie verb=IS kenmerk=naamwoord             # SubordinateIsKenmerkExpr  // hij is minderjarig (normal order also supported)
+    : subject=onderwerpReferentie object=naamwoordWithNumbers verb=HEEFT           # SubordinateHasExpr  // hij een recht op korting heeft
+    | subject=onderwerpReferentie prepPhrase=naamwoordWithNumbers verb=IS          # SubordinateIsWithExpr  // hij met vakantie is / hij passagier van 65 jaar of ouder is
+    | subject=onderwerpReferentie verb=IS kenmerk=naamwoordWithNumbers             # SubordinateIsKenmerkExpr  // hij is minderjarig / hij is passagier van 18 tot en met 24 jaar
     ;
 
 // §13.3.10 Dagsoort Definition (Added based on spec)

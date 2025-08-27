@@ -257,6 +257,7 @@ MINUUT: 'minuut';
 OF: 'of';
 ONWAAR: 'onwaar';
 OP: 'op';
+OUDER: 'ouder';
 OVER: 'over';
 PERIODE: 'periode';
 REKENDATUM: 'Rekendatum';

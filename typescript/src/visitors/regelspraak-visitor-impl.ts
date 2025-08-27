@@ -217,6 +217,12 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
       return this.visitUnaryConditionExpr(ctx);
     } else if (contextName === 'RegelStatusConditionExprContext') {
       return this.visitRegelStatusConditionExpr(ctx);
+    } else if (contextName === 'IsKenmerkExprContext') {
+      return this.visitIsKenmerkExpr(ctx);
+    } else if (contextName === 'HeeftKenmerkExprContext') {
+      return this.visitHeeftKenmerkExpr(ctx);
+    } else if (contextName === 'SubordinateClauseExprContext') {
+      return this.visitSubordinateClauseExpr(ctx);
     } else {
       // Fallback - try to visit it generically
       return this.visit(ctx);
@@ -1231,12 +1237,15 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
 
   visitSubordinateIsWithExpr(ctx: any): Expression {
     // Handle "hij actief is" pattern 
-    // This is parsed as: subject=onderwerpReferentie prepPhrase=naamwoord verb=IS
+    // This is parsed as: subject=onderwerpReferentie prepPhrase=naamwoordWithNumbers verb=IS
     // But for "hij actief is", actief is a kenmerk, not a prepositional phrase
     
     // Get the subject and prepPhrase from the context
     const subjectCtx = ctx.onderwerpReferentie ? ctx.onderwerpReferentie() : null;
-    const prepPhraseCtx = ctx.naamwoord ? ctx.naamwoord() : null;
+    // Check for naamwoordWithNumbers first, then fall back to naamwoord
+    const prepPhraseCtx = (ctx.naamwoordWithNumbers && ctx.naamwoordWithNumbers()) ? 
+      ctx.naamwoordWithNumbers() : 
+      (ctx.naamwoord ? ctx.naamwoord() : null);
     
     if (!subjectCtx || !prepPhraseCtx) {
       throw new Error('Invalid SubordinateIsWithExpr context');
@@ -1262,11 +1271,14 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
 
   visitSubordinateHasExpr(ctx: any): Expression {
     // Handle "hij een recht op belastingvermindering heeft" pattern
-    // This is parsed as: subject=onderwerpReferentie object=naamwoord verb=HEEFT
+    // This is parsed as: subject=onderwerpReferentie object=naamwoordWithNumbers verb=HEEFT
     
     // Get the subject and object from the context
     const subjectCtx = ctx.onderwerpReferentie ? ctx.onderwerpReferentie() : null;
-    const objectCtx = ctx.naamwoord ? ctx.naamwoord() : null;
+    // Check for naamwoordWithNumbers first, then fall back to naamwoord
+    const objectCtx = (ctx.naamwoordWithNumbers && ctx.naamwoordWithNumbers()) ? 
+      ctx.naamwoordWithNumbers() : 
+      (ctx.naamwoord ? ctx.naamwoord() : null);
     
     if (!subjectCtx || !objectCtx) {
       throw new Error('Invalid SubordinateHasExpr context');
@@ -2267,10 +2279,13 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
   }
 
   visitKenmerkSpecificatie(ctx: any): KenmerkSpecification {
-    // Get the name - can be identifier or naamwoord
+    // Get the name - can be identifier, naamwoord, or naamwoordWithNumbers
     let name: string;
     if (ctx.identifier()) {
       name = ctx.identifier().getText();
+    } else if (ctx.naamwoordWithNumbers && ctx.naamwoordWithNumbers()) {
+      const naamwoordCtx = ctx.naamwoordWithNumbers();
+      name = this.extractText(naamwoordCtx);
     } else {
       const naamwoordCtx = ctx.naamwoord();
       name = this.extractText(naamwoordCtx);
@@ -2297,8 +2312,13 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
   }
 
   visitAttribuutSpecificatie(ctx: any): AttributeSpecification {
-    // Get the name
-    const nameCtx = ctx.naamwoord();
+    // Get the name - can be naamwoord or naamwoordWithNumbers
+    let nameCtx;
+    if (ctx.naamwoordWithNumbers && ctx.naamwoordWithNumbers()) {
+      nameCtx = ctx.naamwoordWithNumbers();
+    } else {
+      nameCtx = ctx.naamwoord();
+    }
     const rawName = this.extractText(nameCtx);
     const name = this.extractParameterName(rawName);
     
@@ -3077,28 +3097,66 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
     return node;
   }
 
-  visitHeeftKenmerkExpr(ctx: any): BinaryExpression {
-    // Handle "heeft kenmerk" expressions (e.g., "hij heeft ervaring")
+  visitIsKenmerkExpr(ctx: any): BinaryExpression {
+    // Handle "is kenmerk" expressions (e.g., "hij is minderjarig")
     const left = this.visit(ctx._left || ctx.additiveExpression());
-    const kenmerk = ctx.naamwoord().getText();
+    // Check for naamwoordWithNumbers first, then fall back to naamwoord
+    const kenmerk = ctx.naamwoordWithNumbers && ctx.naamwoordWithNumbers() ? 
+      this.extractTextWithSpaces(ctx.naamwoordWithNumbers()) : 
+      (ctx.naamwoord ? ctx.naamwoord().getText() : '');
     
     const node: BinaryExpression = {
       type: 'BinaryExpression',
       operator: '==',
       left,
       right: {
-        type: 'BooleanLiteral',
-        value: true
+        type: 'StringLiteral',
+        value: kenmerk
       } as Expression
     };
     this.setLocation(node, ctx);
     return node;
   }
 
+  visitHeeftKenmerkExpr(ctx: any): BinaryExpression {
+    // Handle "heeft kenmerk" expressions (e.g., "hij heeft ervaring")
+    const left = this.visit(ctx._left || ctx.additiveExpression());
+    // Check for naamwoordWithNumbers first, then fall back to naamwoord
+    const kenmerk = ctx.naamwoordWithNumbers && ctx.naamwoordWithNumbers() ? 
+      this.extractTextWithSpaces(ctx.naamwoordWithNumbers()) : 
+      (ctx.naamwoord ? ctx.naamwoord().getText() : '');
+    
+    const node: BinaryExpression = {
+      type: 'BinaryExpression',
+      operator: '==',
+      left,
+      right: {
+        type: 'StringLiteral',
+        value: kenmerk
+      } as Expression
+    };
+    this.setLocation(node, ctx);
+    return node;
+  }
+
+  visitSubordinateClauseExpr(ctx: any): Expression {
+    // Delegate to the specific subordinate clause expression
+    if (ctx.subordinateClauseExpression) {
+      return this.visit(ctx.subordinateClauseExpression());
+    }
+    // Fallback
+    return this.visit(ctx);
+  }
+
   visitSubordinateIsKenmerkExpr(ctx: any): BinaryExpression {
     // Handle "is kenmerk" expressions in subordinate clauses (e.g., "hij is student")
     const subject = this.visitOnderwerpReferentie(ctx._subject || ctx.onderwerpReferentie());
-    const kenmerk = ctx._kenmerk ? ctx._kenmerk.getText() : ctx.naamwoord().getText();
+    // Check for naamwoordWithNumbers first
+    const kenmerk = ctx._kenmerk ? 
+      (ctx._kenmerk.naamwoordWithNumbers ? this.extractTextWithSpaces(ctx._kenmerk) : ctx._kenmerk.getText()) : 
+      (ctx.naamwoordWithNumbers && ctx.naamwoordWithNumbers() ? 
+        this.extractTextWithSpaces(ctx.naamwoordWithNumbers()) : 
+        (ctx.naamwoord ? ctx.naamwoord().getText() : ''));
     
     const node: BinaryExpression = {
       type: 'BinaryExpression',
