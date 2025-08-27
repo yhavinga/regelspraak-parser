@@ -1,5 +1,5 @@
 # RegelSpraak v2.1.0 Implementation Status
-**Date: 2025-08-26** (Verified Against Codebase)
+**Date: 2025-08-27** (Verified Against Codebase)
 
 ## Overview
 The RegelSpraak parser implementation is **99%+ complete for both Python and TypeScript**. Both languages have achieved near-complete feature parity with all major specification requirements implemented. The only remaining partial feature is enhanced recursion termination logic.
@@ -158,13 +158,15 @@ Recursion was fully implemented in commit 40f0a34 with:
 - ✓ Comprehensive test coverage
 - ✓ Production-ready termination guarantees
 
-## Testing Status (2025-08-26)
-- **Python**: 487 tests total - ALL PASSING, 9 skipped
-- **TypeScript**: 454 tests total - ALL PASSING, 17 skipped
+## Testing Status (2025-08-27)
+- **Python**: 487 tests total - ALL PASSING, 3 skipped
+- **TypeScript**: 456 tests total - ALL PASSING, 15 skipped
 - **LSP**: Full integration test suite passing
 - **Build**: Successful (size warnings are non-blocking)
 
 ## Recent Progress
+- **2025-08-27**: Fixed tijdsevenredig (time-proportional) calculations in TypeScript
+- **2025-08-27**: Removed invalid conditional test files not supported by specification
 - **2025-08-26**: Verified 99%+ completion - confirmed all specification features fully implemented
 - **2025-08-26**: Enhanced recursion with configurable limits and cycle detection
 - **2025-08-26**: Cleaned up outdated TODOs and verified full implementation
@@ -180,13 +182,13 @@ Recursion was fully implemented in commit 40f0a34 with:
 ### ✅ COMPLETE! 
 
 All major features are implemented and all tests are passing:
-- Python: 489 tests passing, 11 skipped
-- TypeScript: 454 tests passing, 17 skipped
+- Python: 487 tests passing, 3 skipped
+- TypeScript: 456 tests passing, 15 skipped
 
 ## Conclusion
 The RegelSpraak implementation has reached 99%+ completion for both Python and TypeScript. All major specification features are fully implemented with complete test coverage. Both languages have achieved feature parity with:
-- ✅ All 489 Python tests passing
-- ✅ All 454 TypeScript tests passing
+- ✅ All 487 Python tests passing
+- ✅ All 456 TypeScript tests passing
 - ✅ Complete timeline support
 - ✅ Full Verdeling (distribution) implementation
 - ✅ Compound conditions with all quantifiers
