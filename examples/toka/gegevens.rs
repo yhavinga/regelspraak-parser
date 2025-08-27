@@ -21,12 +21,11 @@ Domein Luchthavens is van het type Enumeratie
 
 // Natural person with all TOKA-related attributes and characteristics
 Objecttype de Natuurlijk persoon (mv: Natuurlijke personen) (bezield)
-    // Characteristics (kenmerken) for age categories
+    // Characteristics (kenmerken) for age categories - per TOKA spec lines 18-22
     is minderjarig kenmerk (bijvoeglijk);
-    is jongere kenmerk;
-    is jongvolwassene kenmerk;
-    is volwassene kenmerk;
-    is senior kenmerk (bijvoeglijk);
+    is passagier van 18 tot en met 24 jaar kenmerk;
+    is passagier van 25 tot en met 64 jaar kenmerk;
+    is passagier van 65 jaar of ouder kenmerk (bijvoeglijk);
     het recht op duurzaamheidskorting kenmerk (bezittelijk);
     
     // Identity and demographic attributes
@@ -42,30 +41,33 @@ Objecttype de Natuurlijk persoon (mv: Natuurlijke personen) (bezield)
     de belasting op basis van reisduur Bedrag; 
     de te betalen belasting Bedrag;
     
-    // Treinmiles attributes
-    de treinmiles Numeriek (geheel getal);
-    de maximaal te ontvangen treinmiles Numeriek (geheel getal);
+    // Treinmiles attributes - per TOKA spec lines 30-31
+    de treinmiles op basis van evenredige verdeling Numeriek (geheel getal);
+    de maximaal te ontvangen treinmiles bij evenredige verdeling volgens rangorde Numeriek (geheel getal);
 
 // Flight object with all flight-related attributes and characteristics  
 Objecttype de Vlucht (mv: vluchten)
-    // Characteristics
+    // Characteristics - per TOKA spec lines 36-45, 236
     is bereikbaar per trein kenmerk (bijvoeglijk);
+    de gebruik fossiele brandstoffen minder dan 50 procent kenmerk (bezittelijk);
+    de reiziger kenmerk;
     is duurzaam kenmerk (bijvoeglijk);
     is belaste reis kenmerk;
     is belast kenmerk (bijvoeglijk);
     is rondvlucht kenmerk;
     is bestemd voor minderjarigen kenmerk;
-    is reis met paaskorting kenmerk;
-    is hoogseizoen kenmerk;
+    de reis met paaskorting kenmerk;
+    is in het hoogseizoen kenmerk;
     
     // Basic flight attributes
     de luchthaven van vertrek Luchthavens;
     de luchthaven van bestemming Luchthavens;
     de vluchtdatum Datum in dagen;
+    de datum van vertrek van de vlucht Datum in dagen;  // Per spec line 66
     de afstand tot bestemming Numeriek (geheel getal) met eenheid km;
-    de reisduur per trein Numeriek (geheel getal);
+    de reisduur per trein Numeriek (geheel getal) met eenheid minuten;  // Unit per spec examples
     bereikbaar per trein Boolean;
-    is duurzame vlucht Boolean;
+    gebruik fossiele brandstof minder dan 50 procent Boolean;
     
     // Passenger information
     de hoeveelheid passagiers Numeriek (geheel getal);
@@ -99,8 +101,8 @@ Objecttype het Contingent treinmiles (mv: contingenten treinmiles)
 Parameter de volwassenleeftijd: Numeriek (niet-negatief geheel getal) met eenheid jr;
 Parameter de pensioenleeftijd: Numeriek (geheel getal) met eenheid jr;
 
-// Tax calculation parameters
-Parameter de korting fossiele brandstof: Bedrag;
+// Tax calculation parameters - per spec line 82
+Parameter de korting bij gebruik niet-fossiele brandstof: Bedrag;
 Parameter de initiele belasting: Bedrag;
 Parameter de duurzaamheidskorting minimale afstand: Numeriek (geheel getal) met eenheid km;
 Parameter de bovengrens afstand eerste schijf: Numeriek (geheel getal) met eenheid km;
@@ -114,8 +116,8 @@ Parameter het percentage reisduur derde schijf: Percentage (geheel getal);
 Parameter de bovengrens reisduur eerste schijf: Numeriek (geheel getal);
 Parameter de bovengrens reisduur tweede schijf: Numeriek (geheel getal);
 
-// Treinmiles parameters
-Parameter het aantal treinmiles per passagier: Numeriek (positief geheel getal);
+// Treinmiles parameters - per spec line 86
+Parameter de aantal treinmiles per passagier voor contingent: Numeriek (positief geheel getal);
 
 // Date calculation parameters
 Parameter de bevestigingsinterval: Datum en tijd in millisecondes;

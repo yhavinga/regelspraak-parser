@@ -5,15 +5,11 @@
 // AGE CALCULATION AND CHARACTERISTICS
 // ============================================================================
 
-// Calculate age based on birth date and flight date  
-// Note: Relationship navigation (zijn reis) needs proper implementation
-// For now using hardcoded age to test other functionality
+// Calculate age based on birth date and flight date - per spec lines 138-142
 Regel bepaal leeftijd
     geldig altijd
-        De leeftijd van een Natuurlijk persoon moet berekend worden als 39 jr.
-        // Correct implementation would be:
-        // De leeftijd van een Natuurlijk persoon moet berekend worden als de tijdsduur van zijn
-        // geboortedatum tot de vluchtdatum van zijn reis in hele jaren.
+        De leeftijd van een Natuurlijk persoon moet berekend worden als de tijdsduur van zijn
+        geboortedatum tot de vluchtdatum van zijn reis in hele jaren.
 
 // Assign age category characteristics
 Regel Kenmerktoekenning persoon minderjarig
@@ -21,24 +17,29 @@ Regel Kenmerktoekenning persoon minderjarig
         Een Natuurlijk persoon is minderjarig
         indien zijn leeftijd kleiner is dan de volwassenleeftijd.
 
-Regel Jongvolwassene
+// Per spec lines 417-425
+Regel Passagier van 18 tm 24 jaar
     geldig altijd
-        Een Natuurlijk persoon is jongvolwassene
+        Een Natuurlijk persoon is een passagier van 18 tot en met 24 jaar
         indien hij aan alle volgende voorwaarden voldoet:
         - zijn leeftijd is groter of gelijk aan de volwassenleeftijd
-        - zijn leeftijd is kleiner of gelijk aan 24 jr.
+        - zijn leeftijd is kleiner of gelijk aan 24 jr
+        - hij is een passagier.
 
-Regel Volwassene  
+Regel Passagier van 25 tm 64 jaar
     geldig altijd
-        Een Natuurlijk persoon is volwassene
+        Een Natuurlijk persoon is een passagier van 25 tot en met 64 jaar
         indien hij aan alle volgende voorwaarden voldoet:
         - zijn leeftijd is groter of gelijk aan 25 jr
-        - zijn leeftijd is kleiner dan de pensioenleeftijd.
+        - zijn leeftijd is kleiner of gelijk aan 64 jr
+        - hij is een passagier.
 
-Regel Senior passagier
+Regel Passagier van 65 jaar of ouder
     geldig altijd
-        Een Natuurlijk persoon is senior
-        indien zijn leeftijd groter of gelijk aan de pensioenleeftijd is.
+        Een Natuurlijk persoon is een passagier van 65 jaar of ouder
+        indien hij aan alle volgende voorwaarden voldoet:
+        - zijn leeftijd is groter of gelijk aan 65 jr
+        - hij is een passagier.
 
 // ============================================================================
 // FLIGHT CHARACTERISTICS
@@ -47,19 +48,15 @@ Regel Senior passagier
 // Determine if flight is taxable
 Regel belaste reis
     geldig altijd
-        Een Vlucht is belaste reis
-        indien bereikbaar per trein van de vlucht.
+        Een Vlucht is een belaste reis
+        indien bereikbaar per trein van de vlucht gelijk is aan waar.
 
-// Determine if flight is sustainable
-Regel Vlucht is duurzaam
-    geldig altijd
-        Een Vlucht is duurzaam
-        indien is duurzame vlucht van de vlucht.
+// Note: The spec doesn't define how "duurzaam" is determined (spec line 254 is incomplete)
 
-// Determine high season
+// Determine high season - per spec lines 234-241
 Regel Hoogseizoen
     geldig altijd
-        Een Vlucht is hoogseizoen
+        Een Vlucht is in het hoogseizoen
         indien er aan ten minste één van de volgende voorwaarden wordt voldaan:
         - de maand uit (de vluchtdatum van de vlucht) is gelijk aan 6
         - de maand uit (de vluchtdatum van de vlucht) is gelijk aan 7
@@ -68,7 +65,7 @@ Regel Hoogseizoen
 // Determine Easter discount
 Regel Paaskorting
     geldig altijd
-        Een vlucht is reis met paaskorting
+        Een vlucht is een reis met paaskorting
         indien de vluchtdatum van de vlucht gelijk is aan de eerste paasdag van (het jaar uit (de vluchtdatum van de vlucht)).
 
 // ============================================================================
@@ -100,12 +97,12 @@ Regel Recht op Duurzaamheidskorting
           de duurzaamheidskorting minimale afstand
         - zijn leeftijd is groter of gelijk aan de pensioenleeftijd.
 
-// Final tax calculation with discounts
+// Final tax calculation with discounts - per spec lines 217-222
 Regel Te betalen belasting van een passagier
     geldig altijd
-        De te betalen belasting van een passagier moet berekend worden als 
-        zijn belasting op basis van afstand min de korting fossiele brandstof naar beneden afgerond op 0 decimalen
-        indien zijn reis is duurzaam.
+        De te betalen belasting van een passagier moet berekend worden als zijn belasting op
+        basis van afstand min de korting bij gebruik niet-fossiele brandstof, met een minimum
+        van 0 € naar beneden afgerond op 0 decimalen.
 
 // ============================================================================
 // AGGREGATION RULES
@@ -132,12 +129,12 @@ Regel Leeftijd oudste passagier
 // TREINMILES CREATION AND DISTRIBUTION  
 // ============================================================================
 
-// Create treinmiles contingent for each flight
+// Create treinmiles contingent for each flight - per spec lines 266-272  
 Regel vastgestelde contingent treinmiles
     geldig altijd
-        Er wordt een nieuw Contingent treinmiles aangemaakt met
-        totaal aantal treinmiles gelijk aan de hoeveelheid passagiers
-        van de vlucht maal het aantal treinmiles per passagier.
+        Een vlucht heeft het vastgestelde contingent treinmiles met
+        aantal treinmiles op basis van aantal passagiers gelijk aan het aantal passagiers
+        van de Vlucht maal het aantal treinmiles per passagier voor contingent.
 
 // Create eligibility relationships
 Regel passagier met recht op treinmiles
@@ -145,29 +142,29 @@ Regel passagier met recht op treinmiles
         Een passagier met recht op treinmiles van een vastgestelde contingent treinmiles is een
         passagier van de reis met treinmiles van het vastgestelde contingent treinmiles.
 
-// Equal distribution of treinmiles
-Regel verdeling treinmiles gelijk
+// Equal distribution of treinmiles - per spec lines 299-305
+Regel verdeling treinmiles in gelijke delen
     geldig altijd
         Het totaal aantal treinmiles van een te verdelen contingent treinmiles wordt verdeeld over
         de treinmiles van alle passagiers met recht op treinmiles van het te verdelen
         contingent treinmiles, waarbij wordt verdeeld in gelijke delen.
 
-// Distribution by residence factor
-Regel verdeling treinmiles woonregio
+// Distribution by residence factor - per spec lines 308-314
+Regel verdeling treinmiles op basis van woonregio factor
     geldig altijd
         Het totaal aantal treinmiles van een te verdelen contingent treinmiles wordt verdeeld over
         de treinmiles van alle passagiers met recht op treinmiles van het te verdelen
         contingent treinmiles, waarbij wordt verdeeld naar rato van de woonregio factor.
 
-// Complex distribution by age and residence with maximum and rounding
-Regel Verdeling treinmiles complex
+// Complex distribution by age and residence with maximum and rounding - per spec lines 355-366
+Regel Verdeling treinmiles op basis van leeftijd, woonregio factor, met maximum waarde en afronding
     geldig altijd
         Het totaal aantal treinmiles van een te verdelen contingent treinmiles wordt verdeeld over
         de treinmiles van alle passagiers met recht op treinmiles van het te verdelen
         contingent treinmiles, waarbij wordt verdeeld:
         - op volgorde van toenemende de leeftijd,
         - bij een even groot criterium naar rato van de woonregio factor,
-        - met een maximum van de maximaal te ontvangen treinmiles,
+        - met een maximum van het maximaal aantal te ontvangen treinmiles,
         - afgerond op 0 decimalen naar beneden.
         Als onverdeelde rest blijft het restant na verdeling van het te verdelen contingent treinmiles over.
 
@@ -175,41 +172,31 @@ Regel Verdeling treinmiles complex
 // CONSISTENCY CHECKS
 // ============================================================================
 
-// Prevent round trips
-Consistentieregel Geen rondvlucht
-    De data is inconsistent
-    indien de luchthaven van vertrek van een vlucht gelijk is aan de luchthaven van
-    bestemming van de vlucht.
+// Prevent round trips - per spec lines 283-288
+Regel Controleer of vlucht geen rondvlucht is
+    geldig altijd
+        De luchthaven van vertrek van een vlucht moet ongelijk zijn aan de luchthaven van
+        bestemming van de vlucht.
 
 // ============================================================================
 // DECISION TABLES (BESLISTABELLEN)
 // ============================================================================
 
-// Residence region factor lookup table
-// Simplified to single province per row for parser compatibility
+// Residence region factor lookup table - per spec lines 452-460
 Beslistabel Woonregio factor
     geldig altijd
 
-| | de woonregio factor van een Natuurlijk persoon moet gesteld worden op | indien zijn woonprovincie is |
+| | de woonregio factor van een Natuurlijk persoon moet gesteld worden op | indien zijn woonprovincie gelijk is aan |
 |---|---|---|
-| 1 | 1 | 'Friesland' |
-| 2 | 1 | 'Groningen' |
-| 3 | 1 | 'Drenthe' |
-| 4 | 1 | 'Zeeland' |
-| 5 | 1 | 'Limburg' |
-| 6 | 2 | 'Noord-Brabant' |
-| 7 | 2 | 'Gelderland' |
-| 8 | 2 | 'Overijssel' |
-| 9 | 2 | 'Flevoland' |
-| 10 | 3 | 'Noord-Holland' |
-| 11 | 3 | 'Zuid-Holland' |
-| 12 | 3 | 'Utrecht' |
+| 1 | 1 | 'Friesland', 'Groningen', 'Drenthe', 'Zeeland' of 'Limburg' |
+| 2 | 2 | 'Noord-Brabant', 'Gelderland', 'Overijssel' of 'Flevoland' |
+| 3 | 3 | 'Noord-Holland', 'Zuid-Holland' of 'Utrecht' |
 
 // Travel duration tax calculation
 Beslistabel Belasting op basis van reisduur
     geldig altijd
 
-| | de belasting op basis van reisduur van een passagier moet gesteld worden op | indien de reisduur per trein van zijn reis groter is dan | indien de reisduur per trein van zijn reis kleiner of gelijk is aan |
+| | de belasting op basis van reisduur van een passagier moet gesteld worden op | indien de reisduur per trein in minuten van zijn reis groter is dan | indien de reisduur per trein in minuten van zijn reis kleiner of gelijk is aan |
 |---|---|---|---|
 | 1 | het percentage reisduur eerste schijf van zijn belasting op basis van afstand naar beneden afgerond op 0 decimalen | n.v.t. | de bovengrens reisduur eerste schijf |
 | 2 | het percentage reisduur tweede schijf van zijn belasting op basis van afstand naar beneden afgerond op 0 decimalen | de bovengrens reisduur eerste schijf | de bovengrens reisduur tweede schijf |
