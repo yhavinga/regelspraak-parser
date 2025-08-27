@@ -31,6 +31,11 @@ class Operator(Enum):
     MACHT = "^" # Power/Exponentiation
     # Comparison
     GELIJK_AAN = "=="
+    GELIJK_IS_AAN = "gelijk is aan"  # Alternative form
+    IS_GELIJK_AAN = "is gelijk aan"
+    IS_ONGELIJK_AAN = "is ongelijk aan"
+    ZIJN_GELIJK_AAN = "zijn gelijk aan"
+    ZIJN_ONGELIJK_AAN = "zijn ongelijk aan"
     NIET_GELIJK_AAN = "!="
     KLEINER_DAN = "<"
     GROTER_DAN = ">"
@@ -133,6 +138,13 @@ class FunctionCall(Expression):
     arguments: List[Expression]
     # Specific arguments for functions like 'tijdsduur van ... in ...'
     unit_conversion: Optional[str] = None # e.g., "hele jr"
+
+@dataclass
+class DisjunctionExpression(Expression):
+    """Represents a disjunction of values (OR operation).
+    Example: "'Friesland', 'Groningen' of 'Limburg'"
+    """
+    values: List[Expression]  # The values to be ORed together
 
 @dataclass
 class Subselectie(Expression):

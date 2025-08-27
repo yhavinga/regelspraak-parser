@@ -21,7 +21,7 @@ from .ast import (
     BinaryExpression, UnaryExpression, FunctionCall, Operator,
     ParameterReference, SourceSpan, Beslistabel, BeslistabelRow,
     BeslistabelCondition, BeslistabelResult, Dimension, DimensionLabel,
-    DimensionedAttributeReference, PeriodDefinition,
+    DimensionedAttributeReference, PeriodDefinition, DisjunctionExpression,
     Subselectie, RegelStatusExpression, Predicaat, ObjectPredicaat, VergelijkingsPredicaat,
     GetalPredicaat, TekstPredicaat, DatumPredicaat, SamengesteldPredicaat,
     Kwantificatie, KwantificatieType, GenesteVoorwaardeInPredicaat, VergelijkingInPredicaat,
@@ -2193,6 +2193,7 @@ class RegelSpraakModelBuilder(RegelSpraakVisitor):
             return None # Placeholder
         elif isinstance(ctx, AntlrParser.ConcatenatieExprContext) or isinstance(ctx, AntlrParser.SimpleConcatenatieExprContext):
             # Handle concatenation expressions (e.g., "X, Y en Z")
+            logger.debug(f"Detected concatenation expression: {safe_get_text(ctx)}, type: {type(ctx).__name__}")
             return self.visitConcatenatieExpressie(ctx)
         elif isinstance(ctx, AntlrParser.DateCalcExprContext):
             # This is actually a date calculation pattern like "date + 5 days"
@@ -2524,12 +2525,56 @@ class RegelSpraakModelBuilder(RegelSpraakVisitor):
         logger.warning(f"Unhandled regel status condition type: {type(ctx).__name__}")
         return None
 
-    def visitConcatenatieExpressie(self, ctx) -> Optional[FunctionCall]:
-        """Visit concatenation expression (e.g., "X, Y en Z")."""
-        # This handles expressions like "het gemiddelde van X, Y en Z"
-        # which becomes a function call with multiple arguments
+    def visitConcatenatieExpressie(self, ctx) -> Optional[Expression]:
+        """Visit concatenation expression (e.g., "X, Y en Z" or "X, Y of Z")."""
         
-        # The parent context should tell us what function we're in
+        # Check if this is a disjunction (uses "of")
+        has_of = False
+        has_en = False
+        
+        # For SimpleConcatenatieExprContext, we have primaryExpression nodes
+        # Pattern: primaryExpression (COMMA primaryExpression)+ (EN | OF) primaryExpression
+        if hasattr(ctx, 'primaryExpression'):
+            # Collect all primary expressions
+            args = []
+            primary_exprs = ctx.primaryExpression() if callable(ctx.primaryExpression) else ctx.primaryExpression
+            logger.debug(f"Found {len(primary_exprs) if hasattr(primary_exprs, '__len__') else 'unknown'} primary expressions")
+            for pe in primary_exprs:
+                logger.debug(f"  Visiting primary expression: {safe_get_text(pe)}")
+                expr = self.visit(pe)
+                if expr:
+                    args.append(expr)
+                    logger.debug(f"    Collected expression: {expr}")
+            
+            # Check for OF or EN tokens
+            if hasattr(ctx, 'OF') and ctx.OF():
+                has_of = True
+            elif hasattr(ctx, 'EN') and ctx.EN():
+                has_en = True
+        else:
+            # For ConcatenatieExprContext with CONCATENATIE_VAN keyword
+            # Pattern: CONCATENATIE_VAN primaryExpression (COMMA primaryExpression)* (EN | OF) primaryExpression
+            args = []
+            if hasattr(ctx, 'primaryExpression'):
+                for pe in ctx.primaryExpression():
+                    expr = self.visit(pe)
+                    if expr:
+                        args.append(expr)
+                        
+                # Check for OF or EN tokens
+                if ctx.OF():
+                    has_of = True
+                elif ctx.EN():
+                    has_en = True
+        
+        # If this is a disjunction with "of", create a DisjunctionExpression
+        if has_of:
+            return DisjunctionExpression(
+                values=args,
+                span=self.get_span(ctx)
+            )
+        
+        # Otherwise, check if we're in a function context
         parent = ctx.parentCtx
         if parent and hasattr(parent, 'function_name'):
             func_name = parent.function_name
@@ -2549,18 +2594,6 @@ class RegelSpraakModelBuilder(RegelSpraakVisitor):
                 elif 'totaal van' in parent_text:
                     func_name = 'totaal_van'
         
-        # Collect all expressions in the concatenation
-        args = []
-        for i in range(ctx.getChildCount()):
-            child = ctx.getChild(i)
-            # Skip commas and "en"
-            if hasattr(child, 'accept'):  # It's a parse tree node
-                if hasattr(child, 'getText') and child.getText() in [',', 'en']:
-                    continue
-                expr = self.visit(child)
-                if expr:
-                    args.append(expr)
-        
         # If we have a function name, return a FunctionCall
         if func_name and args:
             return FunctionCall(
@@ -2569,10 +2602,17 @@ class RegelSpraakModelBuilder(RegelSpraakVisitor):
                 span=self.get_span(ctx)
             )
         
-        # Otherwise, just return the arguments as a special marker
-        # This shouldn't happen in well-formed expressions
-        logger.warning(f"Concatenation expression without clear function context: {safe_get_text(ctx)}")
-        return None
+        # If it's a conjunction with "en" and no function context, 
+        # it might be a list of values (treated as concatenation for now)
+        if has_en and args:
+            # For now, just return the first argument as a fallback
+            # In a proper implementation, we'd need a ConjunctionExpression
+            logger.warning(f"Concatenation expression with 'en' but no clear function context: {safe_get_text(ctx)}")
+            return args[0] if args else None
+        
+        # Otherwise, just return the first argument or None
+        logger.warning(f"Concatenation expression without clear context: {safe_get_text(ctx)}")
+        return args[0] if args else None
 
     def visitSubordinateClauseExpression(self, ctx: AntlrParser.SubordinateClauseExpressionContext) -> Optional[Expression]:
         """Visit Dutch subordinate clause expressions (Subject-Object-Verb order)."""

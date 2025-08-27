@@ -14,7 +14,7 @@ from .ast import (
     BinaryExpression, UnaryExpression, FunctionCall, Operator, DomainModel, Regel, SourceSpan,
     Gelijkstelling, KenmerkToekenning, ObjectCreatie, FeitCreatie, Consistentieregel, Initialisatie, Dagsoortdefinitie, # Added ResultaatDeel types
     Verdeling, VerdelingMethode, VerdelingGelijkeDelen, VerdelingNaarRato, VerdelingOpVolgorde,
-    VerdelingTieBreak, VerdelingMaximum, VerdelingAfronding,
+    VerdelingTieBreak, VerdelingMaximum, VerdelingAfronding, DisjunctionExpression,
     Beslistabel, BeslistabelRow,
     DimensionedAttributeReference, DimensionLabel,
     PeriodDefinition, Period, Timeline,
@@ -70,6 +70,7 @@ class Evaluator:
             "maand_uit": self._func_maand_uit,
             "dag_uit": self._func_dag_uit,
             "jaar_uit": self._func_jaar_uit,
+            "eerste_paasdag_van": self._func_eerste_paasdag_van,
             
             # Aggregation functions
             "aantal": self._func_het_aantal,
@@ -2010,6 +2011,13 @@ class Evaluator:
                 result_bool = self._evaluate_samengestelde_voorwaarde(expr, self.context.current_instance)
                 result = Value(value=result_bool, datatype="Boolean")
 
+            elif isinstance(expr, DisjunctionExpression):
+                # Handle disjunction (OR of multiple values)
+                # This is used in comparisons like "x gelijk is aan 'A', 'B' of 'C'"
+                # The result is the DisjunctionExpression itself, 
+                # which will be handled specially in comparison operations
+                result = expr
+
             else:
                 raise RegelspraakError(f"Unknown expression type: {type(expr)}", span=expr.span)
                 
@@ -2568,6 +2576,13 @@ class Evaluator:
                 result_bool = self._evaluate_samengestelde_voorwaarde(expr, self.context.current_instance)
                 result = Value(value=result_bool, datatype="Boolean")
 
+            elif isinstance(expr, DisjunctionExpression):
+                # Handle disjunction (OR of multiple values)
+                # This is used in comparisons like "x gelijk is aan 'A', 'B' of 'C'"
+                # The result is the DisjunctionExpression itself, 
+                # which will be handled specially in comparison operations
+                result = expr
+
             else:
                 raise RegelspraakError(f"Unknown expression type: {type(expr)}", span=expr.span)
                 
@@ -2587,6 +2602,32 @@ class Evaluator:
     def _handle_binary_non_timeline(self, expr: BinaryExpression) -> Value:
         """Handle binary operations during timeline evaluation (non-recursive)."""
         left_val = self._evaluate_expression_non_timeline(expr.left)
+        
+        # Check if right side is a DisjunctionExpression for comparison operations
+        if isinstance(expr.right, DisjunctionExpression) and expr.operator in [
+            Operator.GELIJK_AAN, Operator.GELIJK_IS_AAN, Operator.NIET_GELIJK_AAN,
+            Operator.IS_GELIJK_AAN, Operator.IS_ONGELIJK_AAN,
+            Operator.ZIJN_GELIJK_AAN, Operator.ZIJN_ONGELIJK_AAN
+        ]:
+            # Handle disjunction: left_val equals ANY of the values in the disjunction
+            for disjunct_expr in expr.right.values:
+                disjunct_val = self._evaluate_expression_non_timeline(disjunct_expr)
+                # Check equality with this disjunct
+                if expr.operator in [Operator.GELIJK_AAN, Operator.GELIJK_IS_AAN, 
+                                    Operator.IS_GELIJK_AAN, Operator.ZIJN_GELIJK_AAN]:
+                    if left_val.value == disjunct_val.value:
+                        return Value(value=True, datatype="Boolean", unit=None)
+                else:  # NIET_GELIJK_AAN variants
+                    if left_val.value != disjunct_val.value:
+                        return Value(value=True, datatype="Boolean", unit=None)
+            
+            # If none matched, return opposite
+            if expr.operator in [Operator.GELIJK_AAN, Operator.GELIJK_IS_AAN,
+                                Operator.IS_GELIJK_AAN, Operator.ZIJN_GELIJK_AAN]:
+                return Value(value=False, datatype="Boolean", unit=None)
+            else:
+                return Value(value=False, datatype="Boolean", unit=None)
+        
         op = expr.operator
 
         # Handle IS and IN specially as they return boolean values
@@ -6587,6 +6628,46 @@ class Evaluator:
         
         # Extract year
         return Value(value=Decimal(date_val.year), datatype="Numeriek", unit=None)
+
+    def _func_eerste_paasdag_van(self, expr: FunctionCall, args: Optional[List[Value]]) -> Value:
+        """Calculate Easter Sunday date for a given year.
+        Uses Anonymous Gregorian algorithm (Meeus/Jones/Butcher).
+        """
+        if args is None:
+            if self._in_timeline_evaluation:
+                raise RegelspraakError("eerste_paasdag_van cannot be evaluated in timeline context", span=expr.span)
+            args = [self.evaluate_expression(arg) for arg in expr.arguments]
+            
+        if len(args) != 1:
+            raise RegelspraakError(f"Function 'eerste paasdag van' expects 1 argument, got {len(args)}", span=expr.span)
+        
+        arg = args[0]
+        if arg.datatype != "Numeriek":
+            raise RegelspraakError(f"Function 'eerste paasdag van' requires numeric year argument, got {arg.datatype}", span=expr.span)
+        
+        # Get year as integer
+        year = int(arg.value)
+        
+        # Anonymous Gregorian algorithm for Easter calculation
+        a = year % 19
+        b = year // 100
+        c = year % 100
+        d = b // 4
+        e = b % 4
+        f = (b + 8) // 25
+        g = (b - f + 1) // 3
+        h = (19 * a + b - d - g + 15) % 30
+        i = c // 4
+        k = c % 4
+        l = (32 + 2 * e + 2 * i - h - k) % 7
+        m = (a + 11 * h + 22 * l) // 451
+        month = (h + l - 7 * m + 114) // 31
+        day = ((h + l - 7 * m + 114) % 31) + 1
+        
+        # Create Easter date
+        easter_date = date(year, month, day)
+        
+        return Value(value=easter_date, datatype="Datum", unit=None)
 
     def _compare_values(self, val1: Value, val2: Value) -> int:
         """Compare two values, returning -1 if val1 < val2, 0 if equal, 1 if val1 > val2."""

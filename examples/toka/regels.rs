@@ -6,10 +6,14 @@
 // ============================================================================
 
 // Calculate age based on birth date and flight date  
-// Note: This rule needs proper relationship navigation implementation
+// Note: Relationship navigation (zijn reis) needs proper implementation
+// For now using hardcoded age to test other functionality
 Regel bepaal leeftijd
     geldig altijd
         De leeftijd van een Natuurlijk persoon moet berekend worden als 39 jr.
+        // Correct implementation would be:
+        // De leeftijd van een Natuurlijk persoon moet berekend worden als de tijdsduur van zijn
+        // geboortedatum tot de vluchtdatum van zijn reis in hele jaren.
 
 // Assign age category characteristics
 Regel Kenmerktoekenning persoon minderjarig
@@ -62,11 +66,10 @@ Regel Hoogseizoen
         - de maand uit (de vluchtdatum van de vlucht) is gelijk aan 8.
 
 // Determine Easter discount
-// TODO: eerste_paasdag_van function not implemented
-// Regel Paaskorting
-//     geldig altijd
-//         Een vlucht is een reis met paaskorting
-//         indien de vluchtdatum van de vlucht gelijk is aan de eerste paasdag van (het jaar uit (de vluchtdatum van de vlucht)).
+Regel Paaskorting
+    geldig altijd
+        Een vlucht is reis met paaskorting
+        indien de vluchtdatum van de vlucht gelijk is aan de eerste paasdag van (het jaar uit (de vluchtdatum van de vlucht)).
 
 // ============================================================================
 // TAX CALCULATION
