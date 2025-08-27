@@ -56,7 +56,7 @@ Objecttype de Vlucht (mv: vluchten)
     is rondvlucht kenmerk;
     is bestemd voor minderjarigen kenmerk;
     is reis met paaskorting kenmerk;
-    is in het hoogseizoen kenmerk;
+    is hoogseizoen kenmerk;
     
     // Basic flight attributes
     de luchthaven van vertrek Luchthavens;
