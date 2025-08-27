@@ -1,0 +1,117 @@
+# TOKA Implementation Status - 2025-08-27
+
+## Goal
+Make the RegelSpraak parser and engine **completely support** the TOKA specification examples as written in `specification/RegelSpraak-TOKA-casus-v2.1.0.md`. The examples/toka/*.rs files must match the specification EXACTLY, and the parser/engine must be adapted to handle this exact syntax.
+
+## Key Principle (John Carmack approach)
+- Fix root causes in the parser/engine, not work around them
+- The specification is the truth - adapt the implementation to it
+- No simplification of specification syntax allowed
+- 100% RegelSpraak correctness is required
+
+## Current Status
+
+### ✅ Completed
+1. **examples/toka/gegevens.rs and regels.rs updated to match spec exactly** (commit a01ab9a)
+   - All parameter names match spec (including complex ones with prepositions)
+   - Beslistabel uses 'of' syntax as per spec
+   - Rule names match spec exactly
+   - Boolean comparisons fixed ("gelijk is aan waar")
+
+2. **Parser enhanced to support complex parameter/kenmerk names** (commit e5deffc)
+   - Parameter names with prepositions work: "de korting bij gebruik niet-fossiele brandstof"
+   - Parameter names with 'voor': "de aantal treinmiles per passagier voor contingent"
+   - Complex kenmerk names work: "is in het hoogseizoen"
+   - Parameter references in expressions work
+
+### ⚠️ Partially Working
+1. **Begrenzing with afronding**
+   - The spec requires: "met een minimum van 0 € naar beneden afgerond op 0 decimalen"
+   - Parser can handle begrenzing OR afronding separately, but not combined in one expression
+   - Line 104-105 in regels.rs cannot parse yet
+
+### ❌ Not Working Yet
+1. **Object creation with 'met' syntax** (line 136-141 in regels.rs)
+   - "Een vlucht heeft het vastgestelde contingent treinmiles met aantal treinmiles..."
+   
+2. **Distribution rule names** (lines 146, 153, 160)
+   - "verdeling treinmiles in gelijke delen"
+   - "verdeling treinmiles op basis van woonregio factor"
+   
+3. **Consistency rule format** (line 180)
+   - Already fixed in regels.rs but parser may need update
+   
+4. **Verdeling syntax with comma-separated criteria** (line 165-168)
+   - Complex distribution rules with multiple criteria
+
+## Next Steps
+
+1. **Fix begrenzing + afronding combination**
+   - Grammar needs to allow both in same expression
+   - Check how spec defines this combination (section 6.1.4)
+
+2. **Fix object creation with 'met' syntax**
+   - This is ObjectCreatie pattern in grammar
+   - Need to support attribute initialization in object creation
+
+3. **Fix distribution rule names**
+   - Rule names can contain prepositions and multiple words
+   - Similar fix as done for parameter names
+
+4. **Test complete TOKA files**
+   - Run `python -m regelspraak validate examples/toka/gegevens.rs`
+   - Run `python -m regelspraak validate examples/toka/regels.rs`
+   - All must pass without errors
+
+5. **Create comprehensive tests**
+   - Update tests/test_toka_*.py to use exact spec syntax
+   - Ensure all TOKA rules execute correctly
+
+## What to NEVER Do
+- **NEVER modify examples/toka/*.rs files** - they must match the spec exactly
+- **NEVER simplify parameter/kenmerk names** - parser must handle complex names
+- **NEVER work around parser limitations** - fix the parser instead
+- **NEVER accept partial solutions** - 100% correctness required
+
+## Definition of Done
+- [ ] `python -m regelspraak validate examples/toka/gegevens.rs` succeeds
+- [ ] `python -m regelspraak validate examples/toka/regels.rs` succeeds  
+- [ ] All TOKA rules can be executed with test data
+- [ ] Tests demonstrate all TOKA features working:
+  - Age calculation with tijdsduur
+  - Tax calculation with complex parameter references
+  - Begrenzing and afronding
+  - Object creation (contingent treinmiles)
+  - Distribution rules (verdeling)
+  - Decision tables with 'of' syntax
+  - Easter date calculation
+  - High season determination
+
+## Important Files
+- `/specification/RegelSpraak-TOKA-casus-v2.1.0.md` - The source of truth
+- `/examples/toka/gegevens.rs` - Data model (must match spec exactly)
+- `/examples/toka/regels.rs` - Rules (must match spec exactly)
+- `/grammar/RegelSpraak.g4` - Parser grammar (adapt as needed)
+- `/src/regelspraak/builder.py` - AST builder (adapt as needed)
+- `/src/regelspraak/engine.py` - Execution engine (ensure functions work)
+
+## Testing Commands
+```bash
+# Validate syntax
+python -m regelspraak validate examples/toka/gegevens.rs
+python -m regelspraak validate examples/toka/regels.rs
+
+# Run tests
+python -m unittest tests.test_toka_kenmerk_complex -v
+python -m unittest tests.test_toka_eerste_paasdag -v
+python -m unittest tests.test_toka_beslistabel_of -v
+
+# Regenerate parser after grammar changes
+make parser
+```
+
+## Key Technical Insights
+1. IDENTIFIER tokens already support hyphens (niet-fossiele works)
+2. Grammar uses left-recursion for expressions (be careful with precedence)
+3. Builder uses get_text_with_spaces() to preserve multi-word names
+4. Parameter names need article stripping (de/het) when referenced
