@@ -28,7 +28,8 @@ class TestTokaKenmerkComplex(unittest.TestCase):
                 Een Natuurlijk persoon is een passagier van 18 tot en met 24 jaar
                 indien hij aan alle volgende voorwaarden voldoet:
                 - zijn leeftijd is groter of gelijk aan de volwassenleeftijd
-                - zijn leeftijd is kleiner of gelijk aan 24 jr.
+                - zijn leeftijd is kleiner of gelijk aan 24 jr
+                - hij is een passagier.
         """
         
         # Parse the code
@@ -57,14 +58,16 @@ class TestTokaKenmerkComplex(unittest.TestCase):
         regelspraak_code = """
         Objecttype de Natuurlijk persoon (mv: Natuurlijke personen) (bezield)
             de leeftijd Numeriek (niet-negatief geheel getal) met eenheid jr;
+            is passagier kenmerk;
             is passagier van 18 tot en met 24 jaar kenmerk;
         
-        Regel Passagier jong volwassene
+        Regel Passagier van 18 tm 24 jaar
             geldig altijd
                 Een Natuurlijk persoon is een passagier van 18 tot en met 24 jaar
                 indien hij aan alle volgende voorwaarden voldoet:
                 - zijn leeftijd is groter of gelijk aan 18 jr
-                - zijn leeftijd is kleiner of gelijk aan 24 jr.
+                - zijn leeftijd is kleiner of gelijk aan 24 jr
+                - hij is een passagier.
         """
         
         # Parse the code
@@ -78,6 +81,7 @@ class TestTokaKenmerkComplex(unittest.TestCase):
         person = RuntimeObject("Natuurlijk persoon")
         context.add_object(person)
         context.set_attribute(person, "leeftijd", Value(20, "Numeriek", "jr"))
+        context.set_kenmerk(person, "passagier", True)
         
         # Execute rules
         evaluator = Evaluator(context)
@@ -91,6 +95,7 @@ class TestTokaKenmerkComplex(unittest.TestCase):
         person2 = RuntimeObject("Natuurlijk persoon")
         context.add_object(person2)
         context.set_attribute(person2, "leeftijd", Value(30, "Numeriek", "jr"))
+        context.set_kenmerk(person2, "passagier", True)
         
         evaluator.execute_model(model)
         has_kenmerk2 = context.get_kenmerk(person2, "passagier van 18 tot en met 24 jaar")

@@ -21,7 +21,8 @@ from .ast import (
     Subselectie, RegelStatusExpression, Predicaat, ObjectPredicaat, VergelijkingsPredicaat,
     GetalPredicaat, TekstPredicaat, DatumPredicaat, SamengesteldPredicaat,
     Kwantificatie, KwantificatieType, GenesteVoorwaardeInPredicaat, VergelijkingInPredicaat,
-    SamengesteldeVoorwaarde, Voorwaarde
+    SamengesteldeVoorwaarde, Voorwaarde,
+    BegrenzingExpression, AfrondingExpression, BegrenzingAfrondingExpression,
 )
 # Import Runtime components
 from .runtime import RuntimeContext, RuntimeObject, Value, DimensionCoordinate, TimelineValue # Import Value directly
@@ -1994,7 +1995,6 @@ class Evaluator:
                 
             elif isinstance(expr, BegrenzingExpression):
                 # First evaluate the base expression
-                from regelspraak.ast import BegrenzingExpression
                 base_value = self.evaluate_expression(expr.expression)
                 
                 # Apply minimum bound if specified
@@ -2015,7 +2015,6 @@ class Evaluator:
                 
             elif isinstance(expr, AfrondingExpression):
                 # First evaluate the base expression
-                from regelspraak.ast import AfrondingExpression
                 base_value = self.evaluate_expression(expr.expression)
                 
                 # Apply rounding based on direction
@@ -2043,7 +2042,6 @@ class Evaluator:
                 
             elif isinstance(expr, BegrenzingAfrondingExpression):
                 # First evaluate the base expression
-                from regelspraak.ast import BegrenzingAfrondingExpression
                 base_value = self.evaluate_expression(expr.expression)
                 
                 # Apply minimum bound if specified
@@ -2649,7 +2647,6 @@ class Evaluator:
                 
             elif isinstance(expr, BegrenzingExpression):
                 # First evaluate the base expression
-                from regelspraak.ast import BegrenzingExpression
                 base_value = self._evaluate_expression_non_timeline(expr.expression)
                 
                 # Apply minimum bound if specified
@@ -2670,7 +2667,6 @@ class Evaluator:
                 
             elif isinstance(expr, AfrondingExpression):
                 # First evaluate the base expression
-                from regelspraak.ast import AfrondingExpression
                 base_value = self._evaluate_expression_non_timeline(expr.expression)
                 
                 # Apply rounding based on direction
@@ -2698,7 +2694,6 @@ class Evaluator:
                 
             elif isinstance(expr, BegrenzingAfrondingExpression):
                 # First evaluate the base expression
-                from regelspraak.ast import BegrenzingAfrondingExpression
                 base_value = self._evaluate_expression_non_timeline(expr.expression)
                 
                 # Apply minimum bound if specified
