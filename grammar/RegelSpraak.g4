@@ -385,15 +385,18 @@ regelGroep
 
 // Allow flexible rule naming for our tests
 regelName
-    : naamwoord // General case - already supports prepositions like "verdeling treinmiles in gelijke delen"
+    : naamwoord IN_GELIJKE_DELEN // Handle "verdeling treinmiles in gelijke delen" specifically
+    | naamwoord COMMA naamwoord // Handle rule names with comma like "Verdeling...leeftijd, woonregio factor..."
+    | naamwoord // General case - already supports prepositions
     | naamwoordWithNumbers // Allow rule names with numbers (e.g. "Passagier van 18 tm 24 jaar")
-    | IDENTIFIER+ KENMERK // Handle "check kenmerk" pattern
-    | IDENTIFIER+ ROL // Handle "check rol" pattern
-    | IDENTIFIER+ NIET KENMERK // Handle "check niet kenmerk" pattern
-    | IDENTIFIER+ NIET ROL // Handle "check niet rol" pattern 
+    | (IDENTIFIER | GEEN | OF)+ IN_GELIJKE_DELEN // Alternative names with "in gelijke delen"
+    | (IDENTIFIER | GEEN | OF)+ KENMERK // Handle "check kenmerk" pattern
+    | (IDENTIFIER | GEEN | OF)+ ROL // Handle "check rol" pattern
+    | (IDENTIFIER | GEEN | OF)+ NIET KENMERK // Handle "check niet kenmerk" pattern
+    | (IDENTIFIER | GEEN | OF)+ NIET ROL // Handle "check niet rol" pattern 
     | IDENTIFIER+ KENMERKEN IDENTIFIER+ // Handle "check kenmerken meervoud" pattern
     | IDENTIFIER+ ROLLEN IDENTIFIER+ // Handle "check rollen meervoud" pattern
-    | IDENTIFIER+ // Simple rule name (fallback)
+    | (IDENTIFIER | GEEN | OF)+ // Simple rule name with keywords allowed
     ;
 
 regelVersie
@@ -411,6 +414,7 @@ resultaatDeel
     | attribuutReferentie ( WORDT_BEREKEND_ALS expressie | WORDT_GESTELD_OP expressie | WORDT_GEINITIALISEERD_OP expressie ) periodeDefinitie? # GelijkstellingResultaat
     | feitCreatiePattern # FeitCreatieResultaat
     | onderwerpReferentie (IS | HEEFT) kenmerkNaam periodeDefinitie?                  # KenmerkFeitResultaat
+    | onderwerpReferentie HEEFT (DE | HET) naamwoord MET attribuutReferentie (GELIJK_AAN | IS_GELIJK_AAN | GELIJK_IS_AAN) expressie # RelationshipWithAttributeResultaat
     | objectCreatie                                                                    # ObjectCreatieResultaat
     | verdelingResultaat                                                               # Verdeling
     ;

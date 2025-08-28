@@ -3822,6 +3822,40 @@ class RegelSpraakModelBuilder(RegelSpraakVisitor):
                 period_definition=period_def,
                 span=self.get_span(ctx)
             )
+        elif isinstance(ctx, AntlrParser.RelationshipWithAttributeResultaatContext):
+            # Handle "Een X heeft het Y met attribuut gelijk aan expressie" pattern
+            onderwerp_path = self.visitOnderwerpReferentieToPath(ctx.onderwerpReferentie())
+            if not onderwerp_path:
+                logger.error(f"Failed to parse onderwerpReferentie in relationship: {safe_get_text(ctx)}")
+                return None
+                
+            # Get the relationship target (het/de naamwoord after HEEFT)
+            rel_target = self.visit(ctx.naamwoord())
+            if not rel_target:
+                logger.error(f"Failed to parse relationship target: {safe_get_text(ctx)}")
+                return None
+            
+            # Get the attribute to set
+            attr_ref = self.visitAttribuutReferentie(ctx.attribuutReferentie())
+            if not attr_ref:
+                logger.error(f"Failed to parse attribute reference: {safe_get_text(ctx)}")
+                return None
+            
+            # Get the value expression
+            value_expr = self.visitExpressie(ctx.expressie())
+            if not value_expr:
+                logger.error(f"Failed to parse value expression: {safe_get_text(ctx)}")
+                return None
+            
+            # Create a compound result that establishes relationship and sets attribute
+            # For now, treat this as an object creation with initialization
+            # This is a simplified handling - proper implementation would create
+            # a new AST node type for relationship creation with attribute initialization
+            return ObjectCreatie(
+                object_type=rel_target,
+                attribute_inits=[(attr_ref, value_expr)],
+                span=self.get_span(ctx)
+            )
         elif isinstance(ctx, AntlrParser.ObjectCreatieResultaatContext):
             # Handle object creation
             object_ctx = ctx.objectCreatie()
