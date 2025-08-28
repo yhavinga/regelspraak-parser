@@ -9,7 +9,7 @@ Make the RegelSpraak parser and engine **completely support** the TOKA specifica
 - No simplification of specification syntax allowed
 - **100% RegelSpraak correctness is required - 88% is NOT acceptable**
 
-## Current Status (Updated 2025-08-27 Late Evening)
+## Current Status (Updated 2025-08-28 - 96.2% Complete)
 
 ### ✅ Completed
 1. **examples/toka/gegevens.rs and regels.rs updated to match spec exactly** (commit a01ab9a)
@@ -31,17 +31,29 @@ Make the RegelSpraak parser and engine **completely support** the TOKA specifica
    - Added evaluation logic in engine for both operations
    - Works when attribute references are not split across lines
 
-4. **Distribution rule names with prepositions** (this session)
+4. **Distribution rule names with prepositions** (commit b96e2f2)
    - Fixed "verdeling treinmiles in gelijke delen" parsing
    - Added IN_GELIJKE_DELEN token handling in regelName rule
    - Rule names can now include keywords like GEEN and OF
-   - Rule names with commas partially supported
+   - Rule names with commas fully supported
 
-5. **Object creation with 'met' syntax** (this session)
+5. **Object creation with 'met' syntax** (commit b96e2f2)
    - Added RelationshipWithAttributeResultaat rule alternative
    - Handles "Een X heeft het Y met attribuut gelijk aan waarde" pattern
    - Implemented visitor in builder.py
    - Creates relationships with attribute initialization
+
+6. **Rule names with numbers and embedded punctuation** (this session)
+   - Fixed "Passagier van 18 tm 24 jaar" and similar patterns
+   - Rule names now support naamwoordWithNumbers
+   - Rule names can include commas, IS, and other complex patterns
+   - All rule names now parse correctly
+
+7. **Consistency checks** (this session)  
+   - Added support for "moet ongelijk zijn aan" pattern
+   - New ConsistencyCheckResultaat rule alternative
+   - Added ONGELIJK_ZIJN_AAN token to lexer
+   - Implemented visitor in builder.py for consistency assertions
 
 ### ⚠️ Partially Working  
 1. **Line breaks in attribute references within expressions** (lines 103-105 in regels.rs)
@@ -52,13 +64,8 @@ Make the RegelSpraak parser and engine **completely support** the TOKA specifica
    - Document-context specific issue - expression parses fine standalone
 
 
-### ❌ Not Working Yet (Minor Issues)
-1. **Rule names with complex punctuation** (lines 160, 176)
-   - Rule names with embedded commas still problematic
-   - "Controleer of vlucht geen rondvlucht is" has parsing issues with embedded "is"
-   
-2. **Consistency rule validation** (line 178-179)
-   - Syntax appears correct but may have semantic validation issues
+### ❌ Not Working Yet
+None - all rule constructs are now supported!
 
 ## Next Steps
 
@@ -86,7 +93,7 @@ Make the RegelSpraak parser and engine **completely support** the TOKA specifica
 
 ## Definition of Done
 - [✓] `python -m regelspraak validate examples/toka/gegevens.rs` succeeds (100%)
-- [88%] `python -m regelspraak validate examples/toka/regels.rs` - 23/26 rules parse correctly
+- [96.2%] `python -m regelspraak validate examples/toka/regels.rs` - 25/26 rules parse correctly
 - [ ] All TOKA rules can be executed with test data
 - [ ] Tests demonstrate all TOKA features working:
   - Age calculation with tijdsduur

@@ -160,6 +160,7 @@ MIN: 'min';
 NAAR_BENEDEN: 'naar beneden';
 NAAR_BOVEN: 'naar boven';
 NIET: 'niet';
+ONGELIJK_ZIJN_AAN: 'ongelijk zijn aan';
 ONGELIJK_AAN: 'ongelijk aan';
 PLUS: 'plus';
 REKENKUNDIG: 'rekenkundig';

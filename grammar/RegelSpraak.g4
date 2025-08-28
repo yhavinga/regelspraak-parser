@@ -385,18 +385,17 @@ regelGroep
 
 // Allow flexible rule naming for our tests
 regelName
-    : naamwoord IN_GELIJKE_DELEN // Handle "verdeling treinmiles in gelijke delen" specifically
-    | naamwoord COMMA naamwoord // Handle rule names with comma like "Verdeling...leeftijd, woonregio factor..."
-    | naamwoord // General case - already supports prepositions
-    | naamwoordWithNumbers // Allow rule names with numbers (e.g. "Passagier van 18 tm 24 jaar")
-    | (IDENTIFIER | GEEN | OF)+ IN_GELIJKE_DELEN // Alternative names with "in gelijke delen"
-    | (IDENTIFIER | GEEN | OF)+ KENMERK // Handle "check kenmerk" pattern
-    | (IDENTIFIER | GEEN | OF)+ ROL // Handle "check rol" pattern
-    | (IDENTIFIER | GEEN | OF)+ NIET KENMERK // Handle "check niet kenmerk" pattern
-    | (IDENTIFIER | GEEN | OF)+ NIET ROL // Handle "check niet rol" pattern 
-    | IDENTIFIER+ KENMERKEN IDENTIFIER+ // Handle "check kenmerken meervoud" pattern
-    | IDENTIFIER+ ROLLEN IDENTIFIER+ // Handle "check rollen meervoud" pattern
-    | (IDENTIFIER | GEEN | OF)+ // Simple rule name with keywords allowed
+    : naamwoordWithNumbers ( regelNameExtension )*
+    ;
+
+// Additional parts that can appear in rule names after the initial naamwoord
+regelNameExtension
+    : IN_GELIJKE_DELEN
+    | COMMA naamwoordWithNumbers
+    | COMMA MET naamwoordWithNumbers
+    | EN naamwoordWithNumbers
+    | IS naamwoordWithNumbers
+    | GEEN naamwoordWithNumbers IS
     ;
 
 regelVersie
@@ -412,11 +411,24 @@ versieGeldigheid
 resultaatDeel
     : EEN DAG IS EEN naamwoord                                                        # DagsoortdefinitieResultaat
     | attribuutReferentie ( WORDT_BEREKEND_ALS expressie | WORDT_GESTELD_OP expressie | WORDT_GEINITIALISEERD_OP expressie ) periodeDefinitie? # GelijkstellingResultaat
+    | attribuutReferentie MOET consistencyOperator expressie                          # ConsistencyCheckResultaat
     | feitCreatiePattern # FeitCreatieResultaat
     | onderwerpReferentie (IS | HEEFT) kenmerkNaam periodeDefinitie?                  # KenmerkFeitResultaat
     | onderwerpReferentie HEEFT (DE | HET) naamwoord MET attribuutReferentie (GELIJK_AAN | IS_GELIJK_AAN | GELIJK_IS_AAN) expressie # RelationshipWithAttributeResultaat
     | objectCreatie                                                                    # ObjectCreatieResultaat
     | verdelingResultaat                                                               # Verdeling
+    ;
+
+consistencyOperator
+    : ONGELIJK_ZIJN_AAN
+    | ONGELIJK_AAN
+    | IS_ONGELIJK_AAN
+    | GELIJK_AAN
+    | IS_GELIJK_AAN
+    | GROTER_DAN
+    | IS_GROTER_DAN
+    | KLEINER_DAN
+    | IS_KLEINER_DAN
     ;
 
 // FeitCreatie pattern - parse the whole pattern as one unit

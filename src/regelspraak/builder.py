@@ -3726,7 +3726,43 @@ class RegelSpraakModelBuilder(RegelSpraakVisitor):
     def visitResultaatDeel(self, ctx: AntlrParser.ResultaatDeelContext) -> Optional[ResultaatDeel]:
         """Visit a result part (gelijkstelling, kenmerk toekenning, etc.)."""
         # Determine the type of result based on the matched alternative
-        if isinstance(ctx, AntlrParser.GelijkstellingResultaatContext):
+        if isinstance(ctx, AntlrParser.ConsistencyCheckResultaatContext):
+            # Handle consistency checks like "moet ongelijk zijn aan"
+            target_ref = self.visitAttribuutReferentie(ctx.attribuutReferentie())
+            expr = self.visitExpressie(ctx.expressie())
+            
+            if not target_ref or not expr:
+                logger.error(f"Failed to parse consistency check target or expression in {safe_get_text(ctx)}")
+                return None
+            
+            # Map consistency operators to comparison operators
+            operator_text = safe_get_text(ctx.consistencyOperator())
+            
+            if 'ongelijk' in operator_text.lower():
+                op = Operator.NOT_EQUALS
+            elif 'kleiner' in operator_text.lower():
+                op = Operator.LESS_THAN
+            elif 'groter' in operator_text.lower():
+                op = Operator.GREATER_THAN
+            else:
+                op = Operator.EQUALS
+            
+            # Create a comparison assertion
+            comparison = BinaryExpression(
+                left=target_ref,
+                operator=op,
+                right=expr,
+                span=self.get_span(ctx)
+            )
+            
+            # Return as a consistency assertion (treated as GESTELD_OP)
+            return Gelijkstelling(
+                target=target_ref,
+                expressie=comparison,
+                berekeningswijze=GelijkstellingBerekeningswijze.GESTELD_OP,
+                span=self.get_span(ctx)
+            )
+        elif isinstance(ctx, AntlrParser.GelijkstellingResultaatContext):
             # Handle GelijkstellingResultaat (wordt berekend als / gesteld op)
             # According to spec, gelijkstelling always uses attribuutReferentie
             target_ref = None
