@@ -3739,13 +3739,13 @@ class RegelSpraakModelBuilder(RegelSpraakVisitor):
             operator_text = safe_get_text(ctx.consistencyOperator())
             
             if 'ongelijk' in operator_text.lower():
-                op = Operator.NOT_EQUALS
+                op = Operator.IS_ONGELIJK_AAN
             elif 'kleiner' in operator_text.lower():
-                op = Operator.LESS_THAN
+                op = Operator.KLEINER_DAN
             elif 'groter' in operator_text.lower():
-                op = Operator.GREATER_THAN
+                op = Operator.GROTER_DAN
             else:
-                op = Operator.EQUALS
+                op = Operator.GELIJK_AAN
             
             # Create a comparison assertion
             comparison = BinaryExpression(
@@ -3755,11 +3755,10 @@ class RegelSpraakModelBuilder(RegelSpraakVisitor):
                 span=self.get_span(ctx)
             )
             
-            # Return as a consistency assertion (treated as GESTELD_OP)
+            # Return as a consistency assertion (similar to Gelijkstelling but with assertion semantics)
             return Gelijkstelling(
                 target=target_ref,
                 expressie=comparison,
-                berekeningswijze=GelijkstellingBerekeningswijze.GESTELD_OP,
                 span=self.get_span(ctx)
             )
         elif isinstance(ctx, AntlrParser.GelijkstellingResultaatContext):
