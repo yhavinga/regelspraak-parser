@@ -913,9 +913,15 @@ class RegelSpraakModelBuilder(RegelSpraakVisitor):
         
         # Build the full path
         if is_object_type_spec:
-            # Object type specification - just the attribute
-            # Example: "Het inkomen van een Natuurlijk persoon" → ['inkomen']
-            full_path = [actual_attribute_name]
+            # Object type specification - include object reference for rule target deduction
+            # Example: "Het inkomen van een Natuurlijk persoon" → ['inkomen', 'Natuurlijk persoon']
+            # Example: "De belasting op basis van afstand van een passagier" → ['belasting op basis van afstand', 'passagier']
+            # The object reference is needed by _deduce_rule_target_type in the engine
+            if final_base_path:
+                # Include the object reference in the path
+                full_path = [actual_attribute_name] + final_base_path
+            else:
+                full_path = [actual_attribute_name]
         elif final_base_path or additional_path_elements:
             # Navigation case: use Dutch right-to-left order per specification
             # Example: "De naam van de eigenaar van het gebouw" → ['gebouw', 'eigenaar', 'naam']
@@ -3926,6 +3932,10 @@ class RegelSpraakModelBuilder(RegelSpraakVisitor):
             if not rel_target:
                 logger.error(f"Failed to parse relationship target: {safe_get_text(ctx)}")
                 return None
+            
+            # The rel_target is a role name like "vastgestelde contingent treinmiles"
+            # We need to find the actual object type from the FeitType definition
+            # This will be resolved in the engine which has access to the domain model
             
             # Get the attribute to set
             attr_ref = self.visitAttribuutReferentie(ctx.attribuutReferentie())

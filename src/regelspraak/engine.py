@@ -938,6 +938,30 @@ class Evaluator:
             logger.debug(f"_navigate_to_target: Single element path, returning ({start_instance.object_type_naam}, {path[0]})")
             return (start_instance, path[0])
         
+        # Check if this is an object type specification pattern:
+        # ['attribute', 'ObjectType'] where the second element matches the current instance type
+        # This happens when parsing "De attribute van een ObjectType"
+        if len(path) == 2:
+            # Check if the second element is the object type (case-insensitive)
+            second_elem_clean = path[1].lower().replace("de ", "").replace("het ", "").replace("een ", "")
+            current_type_clean = start_instance.object_type_naam.lower()
+            
+            # Also check for role names that map to the current object type
+            is_role_match = False
+            for feittype_name, feittype in self.context.domain_model.feittypen.items():
+                for rol in feittype.rollen:
+                    if rol.naam and rol.naam.lower() == second_elem_clean and rol.object_type.lower() == current_type_clean:
+                        is_role_match = True
+                        break
+                if is_role_match:
+                    break
+            
+            if second_elem_clean == current_type_clean or is_role_match:
+                # This is an object type specification, not navigation
+                # Return the first element as the attribute on the current instance
+                logger.debug(f"_navigate_to_target: Object type specification pattern detected, returning ({start_instance.object_type_naam}, {path[0]})")
+                return (start_instance, path[0])
+        
         # Check if the first element of path refers to current instance type
         # E.g., path=['gebouw', 'eigenaar', 'naam'] when current instance is Gebouw
         working_path = path[:]  # Make a copy
@@ -1252,15 +1276,31 @@ class Evaluator:
             self.context.set_kenmerk(instance, kenmerk_name, kenmerk_value, span=res.span)
         
         elif isinstance(res, ObjectCreatie):
-            # Look up object type definition
-            obj_type_def = self.context.domain_model.objecttypes.get(res.object_type)
+            # The object_type might be a role name from a FeitType
+            # Try to resolve it to the actual object type
+            actual_object_type = res.object_type
+            
+            # Check if it's a direct object type
+            obj_type_def = self.context.domain_model.objecttypes.get(actual_object_type)
+            
+            # If not found, check if it's a role name in a FeitType
+            if not obj_type_def:
+                for feittype_naam, feittype in self.context.domain_model.feittypen.items():
+                    for rol in feittype.rollen:
+                        if rol.naam and rol.naam.lower() == actual_object_type.lower():
+                            actual_object_type = rol.object_type
+                            obj_type_def = self.context.domain_model.objecttypes.get(actual_object_type)
+                            break
+                    if obj_type_def:
+                        break
+            
             if not obj_type_def:
                 raise RegelspraakError(f"Unknown object type: {res.object_type}", span=res.span)
             
             # Create new instance
             import uuid
             new_instance = RuntimeObject(
-                object_type_naam=res.object_type,
+                object_type_naam=actual_object_type,  # Use the resolved object type
                 instance_id=str(uuid.uuid4())
             )
             
