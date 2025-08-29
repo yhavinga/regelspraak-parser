@@ -734,6 +734,12 @@ class RegelSpraakModelBuilder(RegelSpraakVisitor):
         """Visit an attribute reference and build an AttributeReference or DimensionedAttributeReference object."""
         # Get the attribute part
         attribute_part = self.visitAttribuutMetLidwoord(ctx.attribuutMetLidwoord())
+        logger.debug(f"visitAttribuutReferentie called: attribute_part='{attribute_part}', known_params={self.parameter_names}")
+        
+        # Check if this is actually a known parameter
+        if attribute_part and attribute_part in self.parameter_names:
+            logger.debug(f"visitAttribuutReferentie: '{attribute_part}' is a known parameter, creating ParameterReference")
+            return ParameterReference(parameter_name=attribute_part, span=self.get_span(ctx))
         
         # Also get the raw naamwoord text to check for dimension patterns and nested paths
         raw_attribute_text = None
@@ -919,12 +925,8 @@ class RegelSpraakModelBuilder(RegelSpraakVisitor):
         if ctx.naamwoord():
             # Get the full text via visitNaamwoord which already strips articles
             result = self.visitNaamwoord(ctx.naamwoord())
-            # If the attribute name contains "van", extract just the first part
-            # This handles both dimension patterns and nested path patterns
-            if " van " in result:
-                # For patterns like "naam van burgemeester", we want just "naam"
-                parts = result.split(" van ", 1)  # Split only on first "van"
-                return parts[0].strip()
+            # Return the full attribute name without splitting on "van"
+            # Attribute names like "belasting op basis van afstand" should be kept intact
             return result
         # Fallback to full text if no naamwoord (shouldn't happen with new grammar)
         return get_text_with_spaces(ctx)
@@ -1017,6 +1019,24 @@ class RegelSpraakModelBuilder(RegelSpraakVisitor):
         """
         logger.debug(f"visitOnderwerpRefExpr called: {safe_get_text(ctx)}")
         onderwerp_ref = ctx.onderwerpReferentie()
+        
+        # First check if the full text matches a parameter name
+        # This handles cases where parameter names contain prepositions that get split
+        # We need to reconstruct the text properly from the input stream
+        start_token = onderwerp_ref.start
+        stop_token = onderwerp_ref.stop
+        if start_token and stop_token:
+            # Get the input stream from the token source
+            input_stream = start_token.getTokenSource().inputStream
+            # Get text from the input stream between start and stop positions
+            start_idx = start_token.start
+            stop_idx = stop_token.stop
+            full_text_with_spaces = input_stream.getText(start_idx, stop_idx)
+            canonical_name = self._extract_canonical_name_from_text(full_text_with_spaces)
+            logger.debug(f"  Checking reconstructed text '{full_text_with_spaces}' -> canonical '{canonical_name}' against parameter names")
+            if canonical_name in self.parameter_names:
+                logger.debug(f"  Recognized as parameter: '{canonical_name}'")
+                return ParameterReference(parameter_name=canonical_name, span=self.get_span(ctx))
         
         # Build path from onderwerp reference parts
         path = self.visitOnderwerpReferentieToPath(onderwerp_ref)
@@ -1949,7 +1969,9 @@ class RegelSpraakModelBuilder(RegelSpraakVisitor):
                 return None
             
             # Check for unit specification
-            unit = ctx.unitName.text if hasattr(ctx, 'unitName') and ctx.unitName else None
+            unit = None
+            if ctx.unitIdentifier():
+                unit = safe_get_text(ctx.unitIdentifier())
             
             func_call = FunctionCall(
                 function_name="tijdsduur_van",
@@ -1967,7 +1989,9 @@ class RegelSpraakModelBuilder(RegelSpraakVisitor):
                 return None
             
             # Check for unit specification
-            unit = ctx.unitName.text if hasattr(ctx, 'unitName') and ctx.unitName else None
+            unit = None
+            if ctx.unitIdentifier():
+                unit = safe_get_text(ctx.unitIdentifier())
             
             func_call = FunctionCall(
                 function_name="absolute_tijdsduur_van",
@@ -2611,6 +2635,24 @@ class RegelSpraakModelBuilder(RegelSpraakVisitor):
             logger.debug("  -> Matched OnderwerpRefExprContext")
             onderwerp_ref = ctx.onderwerpReferentie()
             
+            # First check if the full text matches a parameter name
+            # This handles cases where parameter names contain prepositions that get split
+            # We need to reconstruct the text properly from the input stream
+            start_token = onderwerp_ref.start
+            stop_token = onderwerp_ref.stop
+            if start_token and stop_token:
+                # Get the input stream from the token source
+                input_stream = start_token.getTokenSource().inputStream
+                # Get text from the input stream between start and stop positions
+                start_idx = start_token.start
+                stop_idx = stop_token.stop
+                full_text_with_spaces = input_stream.getText(start_idx, stop_idx)
+                canonical_name = self._extract_canonical_name_from_text(full_text_with_spaces)
+                logger.debug(f"    Checking reconstructed text '{full_text_with_spaces}' -> canonical '{canonical_name}' against parameter names")
+                if canonical_name in self.parameter_names:
+                    logger.debug(f"    Recognized as parameter: '{canonical_name}'")
+                    return ParameterReference(parameter_name=canonical_name, span=self.get_span(ctx))
+            
             # Build path from onderwerp reference parts
             path = self.visitOnderwerpReferentieToPath(onderwerp_ref)
             logger.debug(f"    Built path: {path}")
@@ -3080,14 +3122,8 @@ class RegelSpraakModelBuilder(RegelSpraakVisitor):
 
         eenheid = None
         if ctx.MET_EENHEID():
-            if ctx.unitName:
-                eenheid = ctx.unitName.text
-            elif ctx.PERCENT_SIGN():
-                eenheid = "%"
-            elif ctx.EURO_SYMBOL():
-                eenheid = "€"
-            elif ctx.DOLLAR_SYMBOL():
-                eenheid = "$"
+            if ctx.unitIdentifier():
+                eenheid = safe_get_text(ctx.unitIdentifier())
         if not naam or not datatype_str:
              logger.error(f"Could not parse attribute: name='{naam}', datatype='{datatype_str}' in {safe_get_text(ctx)}")
              return None
@@ -3517,15 +3553,9 @@ class RegelSpraakModelBuilder(RegelSpraakVisitor):
             # Assuming eenheidExpressie gives text directly or needs visitor
             if ctx.eenheidExpressie():
                  eenheid = safe_get_text(ctx.eenheidExpressie()) # Simple text, might need visitEenheidExpressie
-            # Handle old grammar elements if still present
-            elif hasattr(ctx, 'unitName') and ctx.unitName:
-                eenheid = ctx.unitName.text
-            elif hasattr(ctx, 'PERCENT_SIGN') and ctx.PERCENT_SIGN():
-                eenheid = "%"
-            elif hasattr(ctx, 'EURO_SYMBOL') and ctx.EURO_SYMBOL():
-                eenheid = "€"
-            elif hasattr(ctx, 'DOLLAR_SYMBOL') and ctx.DOLLAR_SYMBOL():
-                eenheid = "$"
+            # Handle unit identifier if present
+            elif hasattr(ctx, 'unitIdentifier') and ctx.unitIdentifier():
+                eenheid = safe_get_text(ctx.unitIdentifier())
 
         if not naam or not datatype_str:
              logger.error(f"Could not parse parameter: name='{naam}', datatype='{datatype_str}' in {safe_get_text(ctx)}")

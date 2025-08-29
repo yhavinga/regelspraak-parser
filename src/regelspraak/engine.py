@@ -4156,6 +4156,31 @@ class Evaluator:
         """Handle binary operations, returning Value objects."""
         left_val = self.evaluate_expression(expr.left)
         op = expr.operator
+        
+        # Check if right side is a DisjunctionExpression for comparison operations
+        if isinstance(expr.right, DisjunctionExpression) and op in [
+            Operator.GELIJK_AAN, Operator.GELIJK_IS_AAN, Operator.NIET_GELIJK_AAN,
+            Operator.IS_GELIJK_AAN, Operator.IS_ONGELIJK_AAN,
+            Operator.ZIJN_GELIJK_AAN, Operator.ZIJN_ONGELIJK_AAN
+        ]:
+            # Handle disjunction: left_val equals ANY of the values in the disjunction
+            for disjunct_expr in expr.right.values:
+                disjunct_val = self.evaluate_expression(disjunct_expr)
+                # Check equality with this disjunct
+                if op in [Operator.GELIJK_AAN, Operator.GELIJK_IS_AAN, 
+                                    Operator.IS_GELIJK_AAN, Operator.ZIJN_GELIJK_AAN]:
+                    if left_val.value == disjunct_val.value:
+                        return Value(value=True, datatype="Boolean", unit=None)
+                else:  # NIET_GELIJK_AAN variants
+                    if left_val.value != disjunct_val.value:
+                        return Value(value=True, datatype="Boolean", unit=None)
+            
+            # If none matched, return opposite
+            if op in [Operator.GELIJK_AAN, Operator.GELIJK_IS_AAN,
+                                Operator.IS_GELIJK_AAN, Operator.ZIJN_GELIJK_AAN]:
+                return Value(value=False, datatype="Boolean", unit=None)
+            else:
+                return Value(value=False, datatype="Boolean", unit=None)
 
         # Handle IS and IN specially as they return boolean values
         if op == Operator.IS:

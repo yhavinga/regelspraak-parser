@@ -163,6 +163,11 @@ unit // Simple unit name
     : IDENTIFIER
     ;
 
+timeUnit // Time units for date arithmetic
+    : DAG | DAGEN | MAAND | MAANDEN | JAAR | JAREN | WEEK | WEKEN 
+    | UUR | UREN | MINUUT | MINUTEN | SECONDE | SECONDEN
+    ;
+
 // --- GegevensSpraak Definitions (§13.3) ---
 
 // §13.3.1 Object Type Definition
@@ -183,7 +188,7 @@ kenmerkSpecificatie
 // §13.3.2 Attribuut Specificatie
 attribuutSpecificatie
     : naamwoordWithNumbers ( datatype | domeinRef | objectTypeRef )
-      (MET_EENHEID (unitName=IDENTIFIER | PERCENT_SIGN | EURO_SYMBOL | DOLLAR_SYMBOL))?
+      (MET_EENHEID unitIdentifier)?
       (GEDIMENSIONEERD_MET dimensieRef (EN dimensieRef)*)?
       tijdlijn? 
     ;
@@ -270,10 +275,11 @@ eenheidEntry
 // New rule to allow keywords or identifiers as units
 unitIdentifier
     : IDENTIFIER
-    | METER | KILOGRAM | SECONDE | MINUUT | UUR | VOET | POND | MIJL // Keywords
+    | METER | KILOGRAM | SECONDE | MINUUT | MINUTEN | UUR | UREN | VOET | POND | MIJL // Keywords
     | M | KG | S | FT | LB | MIN | MI // Abbreviations + Keyword MIN
     | EURO_SYMBOL | DOLLAR_SYMBOL | DEGREE_SYMBOL
-    | DAG | DAGEN | MAAND | JAAR | WEEK // Time units
+    | DAG | DAGEN | MAAND | MAANDEN | JAAR | JAREN | WEEK | WEKEN // Time units
+    | SECONDEN // Additional time units
     ;
 
 // Eenheid expressions
@@ -777,8 +783,8 @@ primaryExpression : // Corresponds roughly to terminals/functions/references in 
     | NIET primaryExpression                                                                        # UnaryNietExpr
     
     // Functions (Simplified subset)
-    | DE_ABSOLUTE_TIJDSDUUR_VAN primaryExpression TOT primaryExpression (IN_HELE unitName=IDENTIFIER)?  # AbsTijdsduurFuncExpr
-    | TIJDSDUUR_VAN primaryExpression TOT primaryExpression (IN_HELE unitName=IDENTIFIER)?            # TijdsduurFuncExpr
+    | DE_ABSOLUTE_TIJDSDUUR_VAN primaryExpression TOT primaryExpression (IN_HELE unitIdentifier)?  # AbsTijdsduurFuncExpr
+    | TIJDSDUUR_VAN primaryExpression TOT primaryExpression (IN_HELE unitIdentifier)?            # TijdsduurFuncExpr
     | SOM_VAN primaryExpression (COMMA primaryExpression)* EN primaryExpression                    # SomFuncExpr // Simple aggregation of comma-separated values
     | SOM_VAN ALLE naamwoord                                                                       # SomAlleExpr // Aggregate all instances of something
     | SOM_VAN ALLE attribuutReferentie                                                            # SomAlleAttribuutExpr // Sum all attributes with filtering
@@ -803,7 +809,7 @@ primaryExpression : // Corresponds roughly to terminals/functions/references in 
     | DE DAG UIT primaryExpression                                          # DagUitFuncExpr // EBNF 13.4.16.20
     | DE_DATUM_MET LPAREN primaryExpression COMMA primaryExpression COMMA primaryExpression RPAREN  # DatumMetFuncExpr // EBNF 13.4.16.31
     | DE_EERSTE_PAASDAG_VAN LPAREN primaryExpression RPAREN                    # PasenFuncExpr // EBNF 13.4.16.32
-    | primaryExpression (PLUS | MIN) primaryExpression identifier           # DateCalcExpr // EBNF 13.4.16.33
+    | primaryExpression (PLUS | MIN) primaryExpression timeUnit            # DateCalcExpr // EBNF 13.4.16.33
     | EERSTE_VAN primaryExpression (COMMA primaryExpression)* EN primaryExpression          # EersteDatumFuncExpr // EBNF 13.4.16.34
     | LAATSTE_VAN primaryExpression (COMMA primaryExpression)* EN primaryExpression         # LaatsteDatumFuncExpr // EBNF 13.4.16.35
 
@@ -819,17 +825,17 @@ primaryExpression : // Corresponds roughly to terminals/functions/references in 
     // For dimension range aggregations like "de som van zijn betaalde belasting in jaar vanaf vier jaar geleden t/m een jaar geleden"
     | (getalAggregatieFunctie | datumAggregatieFunctie) (bezieldeReferentie | attribuutReferentie) VANAF naamwoord TM naamwoord DOT? # DimensieRangeAggExpr
     
-    // References
-    | attribuutReferentie                                           # AttrRefExpr
+    // Literals & Keywords (moved before references to prioritize literal parsing)
+    | NUMBER unitIdentifier?                                        # NumberLiteralExpr
+    | REKENDATUM                                                    # RekendatumKeywordExpr
+    | identifier                                                    # IdentifierExpr // Bare identifier as expression?
+    
+    // References (bezieldeReferentie before attribuutReferentie to match pronouns first)
     | bezieldeReferentie                                            # BezieldeRefExpr
+    | attribuutReferentie                                           # AttrRefExpr
     | onderwerpReferentie                                           # OnderwerpRefExpr // Added to support "een X" patterns
     | naamwoord                                                     # NaamwoordExpr // Simple noun phrase as expression?
     | parameterMetLidwoord                                          # ParamRefExpr // Added based on spec §13.4.16.1 - check original G4
-
-    // Literals & Keywords
-    | REKENDATUM                                                    # RekendatumKeywordExpr
-    | identifier                                                    # IdentifierExpr // Bare identifier as expression?
-    | NUMBER unitIdentifier?                                        # NumberLiteralExpr
     | PERCENTAGE_LITERAL                                            # PercentageLiteralExpr
     | STRING_LITERAL                                                # StringLiteralExpr
     | ENUM_LITERAL                                                  # EnumLiteralExpr // Add explicit support for enum literals

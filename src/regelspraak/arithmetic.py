@@ -36,6 +36,10 @@ class UnitArithmetic:
         if left.unit == right.unit:
             return True
         
+        # If one value has no unit, it can adopt the unit of the other
+        if left.unit is None or right.unit is None:
+            return True
+        
         # Check if both units are in the same system and convertible
         if isinstance(left.unit, str) and isinstance(right.unit, str):
             left_system = self.registry.find_unit_system(left.unit)
@@ -88,7 +92,8 @@ class UnitArithmetic:
             # Unit checking and conversion
             if not self._check_units_compatible(left, right, "addition"):
                 raise RuntimeError(f"Cannot add values with incompatible units: '{left.unit}' and '{right.unit}'")
-            result_unit = left.unit
+            # Use the unit from the value that has one (prefer left's unit if both have units)
+            result_unit = left.unit if left.unit is not None else right.unit
         
         # Convert right to left's unit if needed
         if left.unit != right.unit and left.unit and right.unit:
@@ -144,7 +149,9 @@ class UnitArithmetic:
             quantizer = Decimal('0.1') ** max_places
             result_dec = result_dec.quantize(quantizer)
         
-        return Value(value=result_dec, datatype=left.datatype, unit=left.unit)
+        # Use the unit from the value that has one (prefer left's unit if both have units)
+        result_unit = left.unit if left.unit is not None else right.unit
+        return Value(value=result_dec, datatype=left.datatype, unit=result_unit)
     
     def subtract_verminderd_met(self, left: Value, right: Value) -> Value:
         """Subtract using 'verminderd met' semantics.
@@ -188,7 +195,9 @@ class UnitArithmetic:
             quantizer = Decimal('0.1') ** max_places
             result_dec = result_dec.quantize(quantizer)
         
-        return Value(value=result_dec, datatype=left.datatype, unit=left.unit)
+        # Use the unit from the value that has one (prefer left's unit if both have units)
+        result_unit = left.unit if left.unit is not None else right.unit
+        return Value(value=result_dec, datatype=left.datatype, unit=result_unit)
     
     def multiply(self, left: Value, right: Value) -> Value:
         """Multiply two values, creating composite units."""

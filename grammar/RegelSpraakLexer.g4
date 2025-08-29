@@ -251,10 +251,13 @@ MEERDERE: 'meerdere';
 HIJ: 'hij';
 IN: 'in';
 JAAR: 'jaar';
+JAREN: 'jaren';
 KWARTAAL: 'kwartaal';
 MAAND: 'maand';
+MAANDEN: 'maanden';
 MILLISECONDE: 'milliseconde';
 MINUUT: 'minuut';
+MINUTEN: 'minuten';
 OF: 'of';
 ONWAAR: 'onwaar';
 OP: 'op';
@@ -265,9 +268,11 @@ REKENDATUM: 'Rekendatum';
 REKENJAAR: 'Rekenjaar';
 REGELVERSIE: 'regelversie';
 SECONDE: 'seconde';
+SECONDEN: 'seconden';
 TM: 't/m';
 UIT: 'uit';
 UUR: 'uur';
+UREN: 'uren';
 VAN: 'van';
 VOLGENDE_VOORWAARDE: 'volgende voorwaarde';
 VOLGENDE_VOORWAARDEN: 'volgende voorwaarden';
@@ -275,6 +280,7 @@ VOLGENDE: 'volgende';  // Must be after compound tokens
 VOOR: 'voor';
 WAAR: 'waar';
 WEEK: 'week';
+WEKEN: 'weken';
 ER: 'er';
 
 // Units and Common Measurements
