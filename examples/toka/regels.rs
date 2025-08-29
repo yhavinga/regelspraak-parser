@@ -52,6 +52,12 @@ Regel belaste reis
         indien bereikbaar per trein van de vlucht gelijk is aan waar.
 
 // Note: The spec doesn't define how "duurzaam" is determined (spec line 254 is incomplete)
+// Added rule based on logical interpretation: sustainable flights use less than 50% fossil fuel
+// Note: Using the kenmerk form due to parser limitations with numeric attribute names
+Regel Vlucht is duurzaam
+    geldig altijd
+        Een vlucht is duurzaam
+        indien hij het gebruik fossiele brandstoffen minder dan 50 procent heeft.
 
 // Determine high season - per spec lines 234-241
 Regel Hoogseizoen

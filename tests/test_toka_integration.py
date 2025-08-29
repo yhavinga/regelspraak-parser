@@ -91,7 +91,7 @@ class TestTokaIntegration(unittest.TestCase):
         # Create passenger with base tax
         passenger = RuntimeObject("Passagier")
         context.add_object(passenger)
-        context.set_attribute(passenger, "belasting_op_basis_van_afstand", 
+        context.set_attribute(passenger, "belasting op basis van afstand", 
                             Value(Decimal("100.00"), "Bedrag"))
         
         # Execute rules
@@ -99,7 +99,7 @@ class TestTokaIntegration(unittest.TestCase):
         evaluator.execute_model(model)
         
         # Check result (100 - 25 = 75, with minimum 0, rounded down)
-        tax = context.get_attribute(passenger, "te_betalen_belasting")
+        tax = context.get_attribute(passenger, "te betalen belasting")
         self.assertEqual(tax.value, Decimal("75"))
         
     def test_begrenzing_and_afronding_combined(self):
@@ -280,7 +280,7 @@ class TestTokaIntegration(unittest.TestCase):
             evaluator = Evaluator(context)
             evaluator.execute_model(model)
             
-            factor = context.get_attribute(person, "woonregio_factor")
+            factor = context.get_attribute(person, "woonregio factor")
             self.assertEqual(factor.value, expected_factor,
                            f"Province {provincie} should have factor {expected_factor}")
             
@@ -312,7 +312,7 @@ class TestTokaIntegration(unittest.TestCase):
         evaluator.execute_model(model)
         
         # Check Easter discount applied
-        has_discount = context.get_kenmerk(flight, "reis_met_paaskorting")
+        has_discount = context.get_kenmerk(flight, "reis met paaskorting")
         self.assertTrue(has_discount, "Flight on Easter should have discount")
         
     def test_age_calculation_with_tijdsduur(self):
@@ -351,9 +351,9 @@ class TestTokaIntegration(unittest.TestCase):
         context.add_object(passenger)
         context.set_attribute(passenger, "geboortedatum", Value(date(2004, 6, 15), "Datum"))
         
-        # Create relationship using add_fact
-        context.add_fact("vlucht van natuurlijke personen", 
-                       {"reis": flight, "passagier": passenger})
+        # Create relationship between flight and passenger
+        context.add_relationship("vlucht van natuurlijke personen", 
+                               flight, passenger)
         
         evaluator = Evaluator(context)
         evaluator.execute_model(model)

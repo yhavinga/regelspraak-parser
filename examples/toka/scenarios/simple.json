@@ -35,7 +35,7 @@
         "afstand tot bestemming": 450,
         "reisduur per trein": 180,
         "bereikbaar per trein": true,
-        "is duurzame vlucht": false
+        "gebruik fossiele brandstof minder dan 50 procent": false
       }
     ]
   },

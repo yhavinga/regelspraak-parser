@@ -5560,6 +5560,7 @@ class Evaluator:
             if (d2.month, d2.day) < (d1.month, d1.day):
                 years -= 1
             value = Decimal(years)
+            unit = "jr"  # Use canonical unit form to match parameter units
         elif unit in ["maanden", "maand", "mnd"]:
             # Months - calendar-aware calculation
             months = 0

@@ -86,7 +86,7 @@ class TestTokaBeslistabelOf(unittest.TestCase):
         evaluator.execute_model(model)
         
         # Check result
-        factor1 = context.get_attribute(person1, "woonregio_factor")
+        factor1 = context.get_attribute(person1, "woonregio factor")
         self.assertEqual(factor1.value, 1)
         
         # Test person from Groningen (also should get factor 1)
@@ -95,7 +95,7 @@ class TestTokaBeslistabelOf(unittest.TestCase):
         context.set_attribute(person2, "woonprovincie", Value("Groningen", "Tekst"))
         
         evaluator.execute_model(model)
-        factor2 = context.get_attribute(person2, "woonregio_factor")
+        factor2 = context.get_attribute(person2, "woonregio factor")
         self.assertEqual(factor2.value, 1)
         
         # Test person from Utrecht (should get factor 3)
@@ -104,7 +104,7 @@ class TestTokaBeslistabelOf(unittest.TestCase):
         context.set_attribute(person3, "woonprovincie", Value("Utrecht", "Tekst"))
         
         evaluator.execute_model(model)
-        factor3 = context.get_attribute(person3, "woonregio_factor")
+        factor3 = context.get_attribute(person3, "woonregio factor")
         self.assertEqual(factor3.value, 3)
     
     def test_comparison_predicate_with_of_syntax(self):
@@ -130,7 +130,7 @@ class TestTokaBeslistabelOf(unittest.TestCase):
         # Test flight from Amsterdam
         flight1 = RuntimeObject("Vlucht")
         context.add_object(flight1)
-        context.set_attribute(flight1, "luchthaven_van_vertrek", 
+        context.set_attribute(flight1, "luchthaven van vertrek", 
                             Value("Amsterdam Schiphol", "Tekst"))
         
         # Execute rules
@@ -144,7 +144,7 @@ class TestTokaBeslistabelOf(unittest.TestCase):
         # Test flight from Groningen
         flight2 = RuntimeObject("Vlucht")
         context.add_object(flight2)
-        context.set_attribute(flight2, "luchthaven_van_vertrek", 
+        context.set_attribute(flight2, "luchthaven van vertrek", 
                             Value("Groningen Eelde", "Tekst"))
         
         evaluator.execute_model(model)
@@ -154,7 +154,7 @@ class TestTokaBeslistabelOf(unittest.TestCase):
         # Test flight from Paris (should not be binnenlands)
         flight3 = RuntimeObject("Vlucht")
         context.add_object(flight3)
-        context.set_attribute(flight3, "luchthaven_van_vertrek", 
+        context.set_attribute(flight3, "luchthaven van vertrek", 
                             Value("Parijs Charles de Gaulle", "Tekst"))
         
         evaluator.execute_model(model)
