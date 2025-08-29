@@ -494,6 +494,14 @@ class Evaluator:
                             if obj_type.lower() == path_elem.lower():
                                 return obj_type
                         
+                        # Try to match as a role name from FeitTypes
+                        for feittype in self.context.domain_model.feittypen.values():
+                            for rol in feittype.rollen:
+                                # Check if the path element matches a role name (case-insensitive)
+                                if rol.naam and rol.naam.lower() == path_elem.lower():
+                                    # Return the object type this role refers to
+                                    return rol.object_type
+                        
                         # Not an object type - check if it's an attribute name
                         for obj_type_name, obj_type_def in self.context.domain_model.objecttypes.items():
                             if path_elem in obj_type_def.attributen:
@@ -2244,6 +2252,18 @@ class Evaluator:
         elif isinstance(expr, Subselectie):
             # Check if the onderwerp or predicaat involves timelines
             return self._is_timeline_expression(expr.onderwerp)
+        
+        elif isinstance(expr, BegrenzingAfrondingExpression):
+            # Check if the inner expression involves timelines
+            return self._is_timeline_expression(expr.expression)
+        
+        elif isinstance(expr, BegrenzingExpression):
+            # Check if the inner expression involves timelines
+            return self._is_timeline_expression(expr.expression)
+        
+        elif isinstance(expr, AfrondingExpression):
+            # Check if the inner expression involves timelines
+            return self._is_timeline_expression(expr.expression)
         
         # Literals and other expressions are not timelines
         return False

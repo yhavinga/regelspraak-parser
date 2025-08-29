@@ -93,15 +93,14 @@ Regel belasting op basis van afstand
         - de afstand tot bestemming van zijn reis is groter dan 0 km
         - de afstand tot bestemming van zijn reis is kleiner of gelijk aan de bovengrens afstand eerste schijf.
 
-// Sustainability discount eligibility
-Regel Recht op Duurzaamheidskorting
+// Sustainability discount eligibility - per spec lines 212-219
+Regel recht op duurzaamheidskorting
     geldig altijd
         Een passagier heeft recht op duurzaamheidskorting
         indien hij aan alle volgende voorwaarden voldoet:
         - zijn reis is duurzaam
-        - de afstand tot bestemming in kilometers van zijn reis is groter of gelijk aan
-          de duurzaamheidskorting minimale afstand
-        - zijn leeftijd is groter of gelijk aan de pensioenleeftijd.
+        - de afstand tot bestemming van zijn reis is groter of gelijk aan
+          de duurzaamheidskorting minimale afstand.
 
 // Final tax calculation with discounts - per spec lines 217-222
 Regel Te betalen belasting van een passagier
