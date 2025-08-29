@@ -261,20 +261,43 @@ class RegelSpraakModelBuilder(RegelSpraakVisitor):
             logger.debug(f"      Processing direct children for ParameterNamePhrase: {[safe_get_text(n) for n in nodes_to_process]}")
 
         elif isinstance(name_ctx, AntlrParser.RegelNameContext):
-            # Check if it contains a naamwoordWithNumbers first
+            # For RegelName, we need to include both the base name and any extensions
+            # Use get_text_with_spaces to preserve the complete rule name
+            full_text = get_text_with_spaces(name_ctx)
+            if full_text:
+                return full_text
+            
+            # Fallback: manually build from parts
+            parts = []
+            
+            # Get the base name from naamwoordWithNumbers
             if hasattr(name_ctx, 'naamwoordWithNumbers') and name_ctx.naamwoordWithNumbers():
-                # Delegate to naamwoordWithNumbers processing
-                return self._extract_canonical_name(name_ctx.naamwoordWithNumbers())
-            # Check if it contains a naamwoord
+                base_name = self._extract_canonical_name(name_ctx.naamwoordWithNumbers())
+                if base_name:
+                    parts.append(base_name)
+            # Or from naamwoord
             elif hasattr(name_ctx, 'naamwoord') and name_ctx.naamwoord():
-                # Delegate to naamwoord processing
-                return self._extract_canonical_name(name_ctx.naamwoord())
+                base_name = self._extract_canonical_name(name_ctx.naamwoord())
+                if base_name:
+                    parts.append(base_name)
+            
+            # Include any regelNameExtension parts
+            if hasattr(name_ctx, 'regelNameExtension') and name_ctx.regelNameExtension():
+                extensions = name_ctx.regelNameExtension()
+                if not isinstance(extensions, list):
+                    extensions = [extensions]
+                for ext in extensions:
+                    ext_text = safe_get_text(ext)
+                    if ext_text:
+                        parts.append(ext_text)
+            
+            if parts:
+                return ' '.join(parts)
             else:
-                # Directly process terminal children, add NUMBER to ignore list for rules
+                # Last resort: directly process terminal children, add NUMBER to ignore list for rules
                 ignore_tokens.append(AntlrParser.NUMBER)
                 nodes_to_process = [child for child in name_ctx.children if isinstance(child, TerminalNode)]
                 logger.debug(f"      Processing direct children for RegelName: {[safe_get_text(n) for n in nodes_to_process]}")
-                # Note: This might need refinement if RegelName can contain non-terminals
 
         elif isinstance(name_ctx, AntlrParser.IdentifierContext):
              # If passed an identifier context directly, return its text
