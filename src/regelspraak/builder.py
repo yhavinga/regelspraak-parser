@@ -3252,20 +3252,24 @@ class RegelSpraakModelBuilder(RegelSpraakVisitor):
         # We need to filter out invalid roles and track the cardinality prefix
         rollen = []
         cardinality_prefix = None
-        for rol_ctx in ctx.rolDefinition():
-            rol = self.visitRolDefinition(rol_ctx)
-            if rol:
-                # Check if this looks like a valid role definition
-                # A valid role should have the object_type as a single identifier
-                # and typically starts with "de" or "het" (though grammar allows optional)
-                # The cardinality line will have multiple words after the first identifier
-                if self._is_valid_role_definition(rol_ctx):
+        rol_definitions = ctx.rolDefinition()
+        
+        # For non-wederkerig feittype, we expect exactly 2 roles
+        # Any additional "roles" are likely part of the cardinality description
+        expected_roles = 1 if wederkerig else 2
+        
+        for i, rol_ctx in enumerate(rol_definitions):
+            if i < expected_roles:
+                # Process as a real role
+                rol = self.visitRolDefinition(rol_ctx)
+                if rol:
                     rollen.append(rol)
-                else:
-                    logger.debug(f"Found cardinality prefix parsed as role: {rol}")
-                    # This is likely the start of the cardinality line
-                    # Extract the full text of this context with spaces preserved
-                    cardinality_prefix = get_text_with_spaces(rol_ctx)
+            else:
+                # This is part of the cardinality line that was misparsed as a role
+                logger.debug(f"Ignoring role definition {i+1} as it's likely part of cardinality")
+                if not cardinality_prefix:
+                    cardinality_prefix = ""
+                cardinality_prefix += " " + get_text_with_spaces(rol_ctx)
         
         # Validate role count
         if wederkerig and len(rollen) != 1:

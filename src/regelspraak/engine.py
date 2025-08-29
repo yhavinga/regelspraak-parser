@@ -1923,6 +1923,7 @@ class Evaluator:
                                         related_objects = self.context.get_related_objects(
                                             current_obj, feittype_name, as_subject=as_subject
                                         )
+                                        
                                         if not related_objects:
                                             raise RegelspraakError(
                                                 f"No related object found for role '{segment}' from {current_obj.object_type_naam}",
@@ -1944,6 +1945,10 @@ class Evaluator:
                                         
                                         role_found = True
                                         break
+                                
+                                # If we found a role match, break out of the FeitType loop too
+                                if role_found:
+                                    break
                             
                             if not role_found:
                                 # Try as an attribute with ObjectReference
@@ -2575,6 +2580,7 @@ class Evaluator:
                                         related_objects = self.context.get_related_objects(
                                             current_obj, feittype_name, as_subject=as_subject
                                         )
+                                        
                                         if not related_objects:
                                             raise RegelspraakError(
                                                 f"No related object found for role '{segment}' from {current_obj.object_type_naam}",
@@ -2596,6 +2602,10 @@ class Evaluator:
                                         
                                         role_found = True
                                         break
+                                
+                                # If we found a role match, break out of the FeitType loop too
+                                if role_found:
+                                    break
                             
                             if not role_found:
                                 # Try as an attribute with ObjectReference
