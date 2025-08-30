@@ -126,7 +126,7 @@ Regel Totaal te betalen belasting
 Regel Leeftijd oudste passagier
     geldig altijd
         De leeftijd van de oudste passagier van een reis moet gesteld worden op de maximale waarde van
-        de leeftijd van alle passagiers van de reis.
+        de leeftijden van alle passagiers van de reis.
 
 // ============================================================================
 // TREINMILES CREATION AND DISTRIBUTION  

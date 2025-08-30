@@ -65,7 +65,7 @@ Objecttype de Vlucht (mv: vluchten)
     de vluchtdatum Datum in dagen;
     de datum van vertrek van de vlucht Datum in dagen;  // Per spec line 66
     de afstand tot bestemming Numeriek (geheel getal) met eenheid km;
-    de reisduur per trein Numeriek (geheel getal) met eenheid minuten;  // Unit per spec examples
+    de reisduur per trein Numeriek (geheel getal) met eenheid minuut;
     bereikbaar per trein Boolean;
     gebruik fossiele brandstof minder dan 50 procent Boolean;
     
@@ -82,7 +82,7 @@ Objecttype de Vlucht (mv: vluchten)
     // Timing attributes
     de verwachte datum-tijd van aankomst Datum en tijd in millisecondes;
     de verwachte datum-tijd van vertrek Datum en tijd in millisecondes;
-    de verwachte duur Numeriek (geheel getal);
+    de verwachte duur Numeriek (geheel getal) met eenheid minuut;
     de datum-tijd voor het berekenen van de belasting op basis van afstand Datum en tijd in millisecondes;
     het bevestigingstijdstip Datum en tijd in millisecondes;
     het uiterste boekingstijdstip Datum en tijd in millisecondes;
@@ -98,30 +98,30 @@ Objecttype het Contingent treinmiles (mv: contingenten treinmiles)
 // ============================================================================
 
 // Age and demographic parameters
-Parameter de volwassenleeftijd: Numeriek (niet-negatief geheel getal) met eenheid jr;
-Parameter de pensioenleeftijd: Numeriek (geheel getal) met eenheid jr;
+Parameter de volwassenleeftijd: Numeriek (niet-negatief geheel getal) met eenheid jr
+Parameter de pensioenleeftijd: Numeriek (geheel getal) met eenheid jr
 
 // Tax calculation parameters - per spec line 82
-Parameter de korting bij gebruik niet-fossiele brandstof: Bedrag;
-Parameter de initiele belasting: Bedrag;
-Parameter de duurzaamheidskorting minimale afstand: Numeriek (geheel getal) met eenheid km;
-Parameter de bovengrens afstand eerste schijf: Numeriek (geheel getal) met eenheid km;
-Parameter het lage basistarief eerste schijf: Bedrag;
-Parameter het lage tarief vermindering eerste schijf: Bedrag;
+Parameter de korting bij gebruik niet-fossiele brandstof: Bedrag
+Parameter de initiele belasting: Bedrag
+Parameter de duurzaamheidskorting minimale afstand: Numeriek (geheel getal) met eenheid km
+Parameter de bovengrens afstand eerste schijf: Numeriek (geheel getal) met eenheid km
+Parameter het lage basistarief eerste schijf: Bedrag
+Parameter het lage tarief vermindering eerste schijf: Bedrag
 
 // Travel time calculation parameters  
-Parameter het percentage reisduur eerste schijf: Percentage (geheel getal);
-Parameter het percentage reisduur tweede schijf: Percentage (geheel getal);
-Parameter het percentage reisduur derde schijf: Percentage (geheel getal);
-Parameter de bovengrens reisduur eerste schijf: Numeriek (geheel getal);
-Parameter de bovengrens reisduur tweede schijf: Numeriek (geheel getal);
+Parameter het percentage reisduur eerste schijf: Percentage (geheel getal)
+Parameter het percentage reisduur tweede schijf: Percentage (geheel getal)
+Parameter het percentage reisduur derde schijf: Percentage (geheel getal)
+Parameter de bovengrens reisduur eerste schijf: Numeriek (geheel getal) met eenheid minuut
+Parameter de bovengrens reisduur tweede schijf: Numeriek (geheel getal) met eenheid minuut
 
 // Treinmiles parameters - per spec line 86
-Parameter de aantal treinmiles per passagier voor contingent: Numeriek (positief geheel getal);
+Parameter de aantal treinmiles per passagier voor contingent: Numeriek (positief geheel getal)
 
 // Date calculation parameters
-Parameter de bevestigingsinterval: Datum en tijd in millisecondes;
-Parameter de eerste boekingsdatum: Datum in dagen;
+Parameter de bevestigingsinterval: Datum en tijd in millisecondes
+Parameter de eerste boekingsdatum: Datum in dagen
 
 // ============================================================================
 // FACT TYPES (FEITTYPES)
@@ -131,7 +131,7 @@ Parameter de eerste boekingsdatum: Datum in dagen;
 Feittype vlucht van natuurlijke personen
     de reis Vlucht
     de passagier Natuurlijk persoon
-    Eén reis betreft de verplaatsing van meerdere passagiers
+    één reis betreft de verplaatsing van meerdere passagiers
 
 // Relationship between flights and treinmiles contingents
 Feittype reis met contingent treinmiles  
