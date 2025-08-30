@@ -233,5 +233,5 @@ Regel Bevestigingstijdstip vlucht
     geldig altijd
         Het bevestigingstijdstip van een vlucht moet berekend worden als de laatste van A en B.
         Daarbij geldt:
-            A is het uiterste boekingstijdstip van de vlucht plus de bevestigingsinterval
+	        A is het uiterste boekingstijdstip van de vlucht plus de bevestigingsinterval
             B is de eerste boekingsdatum.

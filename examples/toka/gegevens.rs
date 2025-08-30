@@ -10,10 +10,10 @@ Domein Bedrag is van het type Numeriek (getal met 2 decimalen)
 
 // Enumeration of airports
 Domein Luchthavens is van het type Enumeratie
-    'Amsterdam Schiphol'
-    'Groningen Eelde'
-    'Parijs Charles de Gaulle'
-    'Londen Heathrow'
+	'Amsterdam Schiphol'
+	'Groningen Eelde'
+	'Parijs Charles de Gaulle'
+	'Londen Heathrow'
 
 // ============================================================================
 // OBJECT TYPES
@@ -29,21 +29,21 @@ Objecttype de Natuurlijk persoon (mv: Natuurlijke personen) (bezield)
     het recht op duurzaamheidskorting kenmerk (bezittelijk);
     
     // Identity and demographic attributes
-    het identificatienummer Numeriek (positief geheel getal);
-    de geboortedatum Datum in dagen;
-    de leeftijd Numeriek (niet-negatief geheel getal) met eenheid jr;
-    het burgerservicenummer Tekst;
-    de woonprovincie Tekst;
-    de woonregio factor Numeriek (geheel getal);
+    het identificatienummer	Numeriek (positief geheel getal);
+    de geboortedatum	Datum in dagen;
+    de leeftijd	Numeriek (niet-negatief geheel getal) met eenheid jr;
+    het burgerservicenummer	Tekst;
+    de woonprovincie	Tekst;
+    de woonregio factor	Numeriek (geheel getal);
     
     // Tax calculation attributes
-    de belasting op basis van afstand Bedrag;
-    de belasting op basis van reisduur Bedrag; 
-    de te betalen belasting Bedrag;
+    de belasting op basis van afstand	Bedrag;
+    de belasting op basis van reisduur	Bedrag; 
+    de te betalen belasting	Bedrag;
     
     // Treinmiles attributes - per TOKA spec lines 30-31
-    de treinmiles op basis van evenredige verdeling Numeriek (geheel getal);
-    de maximaal te ontvangen treinmiles bij evenredige verdeling volgens rangorde Numeriek (geheel getal);
+    de treinmiles op basis van evenredige verdeling	Numeriek (geheel getal);
+    de maximaal te ontvangen treinmiles bij evenredige verdeling volgens rangorde	Numeriek (geheel getal);
 
 // Flight object with all flight-related attributes and characteristics  
 Objecttype de Vlucht (mv: vluchten)
@@ -62,36 +62,36 @@ Objecttype de Vlucht (mv: vluchten)
     // Basic flight attributes
     de luchthaven van vertrek Luchthavens;
     de luchthaven van bestemming Luchthavens;
-    de vluchtdatum Datum in dagen;
-    de datum van vertrek van de vlucht Datum in dagen;  // Per spec line 66
-    de afstand tot bestemming Numeriek (geheel getal) met eenheid km;
-    de reisduur per trein Numeriek (geheel getal) met eenheid minuut;
+    de vluchtdatum	Datum in dagen;
+    de datum van vertrek van de vlucht	Datum in dagen;  // Per spec line 66
+    de afstand tot bestemming	Numeriek (geheel getal) met eenheid km;
+    de reisduur per trein	Numeriek (geheel getal) met eenheid minuut;
     bereikbaar per trein Boolean;
     gebruik fossiele brandstof minder dan 50 procent Boolean;
     
     // Passenger information
-    de hoeveelheid passagiers Numeriek (geheel getal);
-    de hoeveelheid uitzonderingspassagiers Numeriek (geheel getal);
-    de leeftijd van de oudste passagier Numeriek (niet-negatief geheel getal) met eenheid jr;
+    de hoeveelheid passagiers	Numeriek (geheel getal);
+    de hoeveelheid uitzonderingspassagiers	Numeriek (geheel getal);
+    de leeftijd van de oudste passagier	Numeriek (niet-negatief geheel getal) met eenheid jr;
     
     // Tax calculation attributes
-    de totale belasting op basis van afstand Bedrag;
-    de totale belasting op basis van reisduur Bedrag;
-    de totaal te betalen belasting Bedrag;
+    de totale belasting op basis van afstand	Bedrag;
+    de totale belasting op basis van reisduur	Bedrag;
+    de totaal te betalen belasting	Bedrag;
     
     // Timing attributes
-    de verwachte datum-tijd van aankomst Datum en tijd in millisecondes;
-    de verwachte datum-tijd van vertrek Datum en tijd in millisecondes;
-    de verwachte duur Numeriek (geheel getal) met eenheid minuut;
-    de datum-tijd voor het berekenen van de belasting op basis van afstand Datum en tijd in millisecondes;
-    het bevestigingstijdstip Datum en tijd in millisecondes;
-    het uiterste boekingstijdstip Datum en tijd in millisecondes;
+    de verwachte datum-tijd van aankomst	Datum en tijd in millisecondes;
+    de verwachte datum-tijd van vertrek	Datum en tijd in millisecondes;
+    de verwachte duur	Numeriek (geheel getal) met eenheid minuut;
+    de datum-tijd voor het berekenen van de belasting op basis van afstand	Datum en tijd in millisecondes;
+    het bevestigingstijdstip	Datum en tijd in millisecondes;
+    het uiterste boekingstijdstip	Datum en tijd in millisecondes;
 
 // Contingent of treinmiles for distribution
 Objecttype het Contingent treinmiles (mv: contingenten treinmiles)
-    het totaal aantal treinmiles Numeriek (positief geheel getal);
-    het aantal treinmiles op basis van aantal passagiers Numeriek (positief geheel getal);
-    het restant na verdeling Numeriek (positief geheel getal);
+    het totaal aantal treinmiles	Numeriek (positief geheel getal);
+    het aantal treinmiles op basis van aantal passagiers	Numeriek (positief geheel getal);
+    het restant na verdeling	Numeriek (positief geheel getal);
 
 // ============================================================================
 // PARAMETERS

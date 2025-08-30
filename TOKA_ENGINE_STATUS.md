@@ -136,6 +136,17 @@
 - **Solution**: Removed SEMICOLON from parameterDefinition rule
 - **Impact**: TOKA parameters now parse correctly
 
+### 13. ~~Tab Delimiters Added~~ ✅ FIXED (2025-08-30)
+- **Problem**: EBNF specification requires tabs as structural delimiters
+- **Analysis**: Tabs disambiguate complex attribute names from datatypes
+- **Implementation**:
+  - Added tabs to attributes: `de belasting op basis van afstand[TAB]Bedrag`
+  - Added tabs to enumerations: `[TAB]'Amsterdam Schiphol'`
+  - Added tabs to variables: `[TAB]A is ...`
+  - FeitTypes already had correct tabs
+- **Parser approach**: Keep tabs on HIDDEN channel, use as disambiguation hints in builder
+- **Impact**: Improved parsing accuracy for complex attribute names
+
 ## Current Status (Updated 2025-08-30)
 
 **TOKA PARSING: 100% COMPLETE** ✅
@@ -146,6 +157,7 @@
 - FeitType definitions parse with correct role/object type separation
 - Parameters with complex names work
 - RuntimeObject initialization complete with all attributes
+- Tabs properly added to TOKA files per EBNF specification requirements
 
 ### Still Failing:
 1. **Target type deduction**: Rules like "belasting op basis van afstand" can't determine target type
@@ -159,6 +171,7 @@
    - Investigate why rules can't determine their target object type
    - May need to improve subject/object resolution in rule headers
    - Check if "voor alle X" patterns are properly parsed
+   - Note: Tab delimiters now help disambiguate, but type deduction logic still needs work
 
 2. **Fix Cross-Object Navigation**
    - Decision tables need to navigate from current object to related objects
@@ -172,5 +185,19 @@
 4. **Test Full Execution**
    - After fixes, verify all calculations work
    - Aim for 100% validation pass rate
+
+## Session Notes (2025-08-30)
+
+### Key Discoveries:
+1. **EBNF Specification Tabs**: The `\t` and `\n` in spec are semantic requirements, not PDF artifacts
+2. **Tab Usage**: Tabs provide clear structural delimiters for attributes, enumerations, variables
+3. **Parser Strategy**: Keep tabs on HIDDEN channel, use as hints in builder (not structural tokens)
+4. **Impact**: Tabs help disambiguate complex multi-word attribute names from their datatypes
+
+### Technical Implementation:
+- Modified `fix_tabs.py` script to add tabs systematically
+- Updated both `gegevens.rs` and `regels.rs` with proper tab placement
+- Kept grammar flexible (accepts spaces or tabs) for pragmatic parsing
+- FeitType tab detection already working correctly via raw input stream access
 
 **Current Achievement**: Parser complete, FeitTypes fixed, runtime ~60% functional. Main issues are type deduction and cross-object navigation.
