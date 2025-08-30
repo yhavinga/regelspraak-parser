@@ -440,11 +440,10 @@ De attributen geboortedatum en leeftijd bij het objecttype Natuurlijk persoon zo
 
 ```
 Objecttype de Natuurlijk persoon (mv: Natuurlijke personen) (bezield)
+    de geboortedatum Datum in dagen;
+    de leeftijd Numeriek (niet-negatief gehee1 getal);
 ```
 
-    de geboortedatum
-    de leeftijd Numeriek (niet-negatief gehee1 getal);
-    
 ## Syntax attribuut specificatie:
 
 Opmerking 1: deze syntaxspecificatie maakt reeds gebruik van RegelSpraak-concepten die in navolgende paragrafen behandeld worden.
@@ -481,18 +480,16 @@ b. positief;
 c. niet-negatief;
 dit is gelijk aan positief maar dan inclusief het getal 0 .
 In RegelSpraak is dit als volgt weer te geven (tekst tussen haakjes na de datatypevermelding is toegevoegd):
-[^2]Objecttype de Natuurlijk persoon (mv: Natuurlijke personen) (bezield)
-het identificatienummer
-de leeftijd
-de te betalen belasting
-Numeriek (positief geheel getal);
-bjecttype de vlucht (mv: v1uchten)
-de afstand tot bestemming
 
-Numeriek (niet-negatief geheel getal);
-Numeriek (getal met 2 decimalen)
+```
+Objecttype de Natuurlijk persoon (mv: Natuurlijke personen) (bezield)
+  het identificatienummer  Numeriek (positief geheel getal);
+  de leeftijd Numeriek Numeriek (niet-negatief geheel getal);
+  de te betalen belasting Numeriek (getal met 2 decimalen);
 
-Numeriek (geheel getal);
+Objecttype de vlucht (mv: v1uchten)
+  de afstand tot bestemming  Numeriek (geheel getal);
+```
 
 ## Syntax Numeriek datatype specificatie:
 
@@ -538,9 +535,8 @@ Een voorbeeld is het attribuut bereikbaar per trein. Een Boolean datatype kan da
 ```
 Objecttype de v1ucht (mv: v1uchten)
     bereikbaar per trein Boolean;
-    gebruik fossiele brandstof minder dan }50\mathrm{ procent Boolean;
+    gebruik fossiele brandstof minder dan 50 procent Boolean;
 ```
-
 
 ## Syntax Boolean datatype specificatie:
 
@@ -560,7 +556,8 @@ In RegelSpraak is dit als volgt weer te geven:
 
 ```
 Objecttype de Natuurlijk persoon (mv: Natuurlijke personen) (bezield)
-    de geboortedatum
+    de geboortedatum Datum in dagen;
+
 Objecttype de vlucht (mv: vluchten)
     de vluchtdatum
     Datum en tijd in millisecondes;
@@ -686,11 +683,9 @@ Objecttype de Natuurlijk persoon (mv: Natuurlijke personen)(bezield)
 $N a$ het specificeren van een kenmerk moet er ook een regel worden opgesteld die bepaalt of een instantie van het objecttype het kenmerk moet krijgen, een zogenaamde kenmerktoekenning. Meer informatie hierover is terug te vinden in paragraaf 9.2.
 
 ```
-Syntax kenmerk specificatie:<kenmerk> : := ((<naamwoord> "kenmerk") | <bezittelijkkenmerk>
-| <bijvoeglijkkenmerk>) [<tijdlijn>] ";"
+Syntax kenmerk specificatie:<kenmerk> : := ((<naamwoord> "kenmerk") | <bezittelijkkenmerk> | <bijvoeglijkkenmerk>) [<tijdlijn>] ";"
 <bezittelijkkenmerk> ::= <naamwoord> "kenmerk (bezittelijk)"
-<bijvoeglijkkenmerk> ::= "is" <naam> ["(mv: " <meervoudsvorm> ")"] "kenmerk
-(bijvoeglijk)"
+<bijvoeglijkkenmerk> ::= "is" <naam> ["(mv: " <meervoudsvorm> ")"] "kenmerk bijvoeglijk)"
 ```
 
 
@@ -710,9 +705,8 @@ Figuur 5: een Natuurlijk persoon instantie, met het attribuut inkomen met twee d
 Een dimensie bestaat uit een verzameling labels. Met een label geef je aan welke waarde van het attribuut moet worden gebruikt. Als we bijvoorbeeld een dimensie willen specificeren voor inkomens in verschillende jaren, dan kunnen we de labels huidig jaar en vorig jaar gebruiken. In RegelSpraak ziet dat er als volg uit:
 
 ```
-Dimensie de jaardimensie, bestaande uit de jaardimensies (na het attribuut met voorzetsel
-van):
-    . vorig jaar
+Dimensie de jaardimensie, bestaande uit de jaardimensies (na het attribuut met voorzetsel van):
+    1. vorig jaar
     2. huidig jaar
 ```
 
@@ -720,16 +714,16 @@ De volgorde van de labels is hierbij van belang. Bij gebruik van dimensies in Re
 
 We willen echter ook een dimensie toevoegen om onderscheid te maken tussen het bruto-en netto-inkomen, dit keer een dimensie die voor het attribuut zonder voorzetsel gebruikt moet worden:
 
+```
 Dimensie de brutonettodimensie, bestaande uit de brutonettodimensies (voor het attribuut zonder voorzetse1):
-
-- bruto
-- netto
+  - bruto
+  - netto
+```
 
 Bij het specificeren van het attribuut inkomen geven we vervolgens aan, na het specificeren van het datatype, dat deze dimensies gebruikt moeten worden bij dit attribuut:
 
 ```
-het inkomen Numeriek (geheel getal) gedimensioneerd met jaardimensie en
-    brutonettodimensie;
+het inkomen Numeriek (geheel getal) gedimensioneerd met jaardimensie en brutonettodimensie;
 ```
 
 Het attribuut inkomen heeft nu eigenlijk vier mogelijke waardes (zie Figuur 5). Als we naar dit attribuut willen verwijzen, dan moeten we altijd beide dimensies gebruiken omdat anders niet duidelijk is welke van de vier waardes bedoeld wordt. Zo zal het bruto inkomen van een Natuurlijk persoon twee verschillende waardes hebben. In RegelSpraak-regels gebruiken we daarom in dit geval het bruto inkomen van huidig jaar of het bruto inkomen van vorig jaar.
@@ -756,8 +750,10 @@ Voordat een eenheid toegekend kan worden aan een attribuut of parameter moet dez
 
 Als we bijvoorbeeld de eenheid Euro willen gaan gebruiken, dan moeten we een eenheidssysteem specificeren waarin de euro een basiseenheid is. Verder kunnen we dan specificeren dat de euro afgekort wordt tot EUR en het symbool $€$ heeft. Dat doen we als volgt in RegelSpraak ${ }^{11}{ }^{12}$ :
 
+```
 Eenheidsysteem Valuta
-de euro (mv: euros) EUR €
+  de euro (mv: euros) EUR €
+```
 Als we de basiseenheid hebben gespecificeerd in een eenheidssysteem, dan kunnen we hem toekennen aan een attribuut of parameter. Dit doen we door met eenheid achter het datatype of de domeinnaam te zetten, gevolgd door de naam van de basiseenheid. In RegelSpraak ziet dat er als volgt uit bij een attribuut:
 
 ```
@@ -767,23 +763,21 @@ de te betalen belasting Bedrag met eenheid euro;
 Samengestelde eenheden kunnen ook gespecificeerd worden. De basiseenheden uit de eenheidssystemen kunnen immers door middel van delingen of vermenigvuldigingen gecombineerd worden. Een snelheid heeft bijvoorbeeld een samengestelde eenheid, veelal het aantal kilometers gedeeld door het aantal uren waardoor kilometers per uur als samengestelde eenheid ontstaat. In RegelSpraak kunnen we dit specificeren door een deelstreepje " /" te zetten tussen beide basiseenheden. In RegeISpraak ziet dat er als volgt uit bij een attribuut:
 
 ```
-de snelheid
+de snelheid Numeriek (geta1) met eenheid km/u
 ```
-
-Numeriek (geta1) met eenheid km/u
 
 [^6]Verder kunnen ook machten gebruikt worden bij het samenstellen van eenheden. Een versnelling heeft bijvoorbeeld de eenheid "meter per seconde kwadraat". In RegelSpraak kan dat als volgt gespecificeerd worden bij een attribuut:
 
 ```
-de versnelling Numeriek (getal) met eenheid m/s}\mp@subsup{}{}{2
+de versnelling Numeriek (getal) met eenheid m/s^2
 ```
 
 In de vorige twee voorbeelden werden twee verschillende basiseenheden voor afstand gebruikt, namelijk de meter $(m)$ en de kilometer ( $k m$ ). Deze twee basiseenheden kunnen in elkaar omgerekend worden: een kilometer is gelijk aan 1000 meter. Hetzelfde geldt voor de gebruikte basiseenheden voor tijd: een uur is 3600 secondes. Dit kan bij een eenheidssysteem in RegeISpraak ook gespecificeerd worden door het opgeven van een omrekenspecificatie. Een omrekenspecificatie specificeert voor een basiseenheid een omrekenfactor waarmee de betreffende basiseenheid omgerekend kan worden in een andere basiseenheid uit hetzelfde eenheidssysteem. De omrekenfactor bestaat uit een getal, eventueel een deelstreepje, en de basiseenheid waarop de omrekenfactor betrekking heeft. Een eenheidssysteem voor afstand zouden we bijvoorbeeld als volgt kunnen specificeren:
 
 ```
 Eenheidsysteem afstand
-    de millimeter (mv: millimeters) mm = }\overline{1000}\textrm{m
-    de centimeter (mv: centimeters) cm = }\overline{100}\textrm{m
+    de millimeter (mv: millimeters) mm = /1000 m
+    de centimeter (mv: centimeters) cm = /100 m
     de meter (mv: meters)
     de kilometer (mv: kilometers) km = 1000 m
 ```
@@ -799,16 +793,16 @@ Standaard eenheidssystemen die onderdeel zijn van GegevensSpraak, zijn:
 - Het eenheidssyteem voor Valuta (gebaseerd op ISO-4217). Dit eenheidssyteem bevat geen omreken factoren.
 - Het eenheidssysteem Tijd. Hieronder de specificatie van dat eenheidssysteem.
 
-| Eenheidsysteem Tijd <br> de milliseconde | ms | $=\overline{1000} \mathrm{~s}$ |
-| :--- | :--- | :--- |
-| de seconde | s | $=\overline{60}$ minuut |
-| de minuut | minuut | $=\overline{60} \mathrm{u}$ |
-| het uur | u | $=\overline{24} \mathrm{dg}$ |
-| de dag | dg |  |
-| de week | wk | $=7 \mathrm{dg}$ |
-| de maand | mnd | kw |
-| het kwartaa1 | jr | $=12 \mathrm{mnd}$ |
-| het jaar |  |  |
+| Eenheidsysteem Tijd <br> de milliseconde | ms     | /1000 s    |
+|:-----------------------------------------|:-------|:-----------|
+| de seconde                               | s      | /60 minuut |
+| de minuut                                | minuut | /60 u      |
+| het uur                                  | u      | /24 dg     |
+| de dag                                   | dg     |            |
+| de week                                  | wk     | 7 dg       |
+| de maand                                 | mnd    |            |
+| het kwartaa1                             | kw     | 3 md       |
+| het jaar                                 | jr     | 12 md      |
 
 ## Syntax Eenheidsysteem specificatie:
 
@@ -829,11 +823,11 @@ N.B. De waarde kan veranderen, maar dat hoeft niet het geval te zijn.
 Als sprake is van tijdsafhankelijke attributen, kenmerken of parameters, dan wordt bij het betreffende element een tijdlijn opgenomen. Met die tijdlijn wordt aangegeven op welke momenten in de tijd een waarde kan veranderen.
 Dit kunnen de volgende perioden op de kalender zijn zoals die in het eenheidssysteem Tijd zijn opgenomen (zie paragraaf 3.7) ${ }^{13}$ :
 
-| Periode | Definitie |
-| :--- | :--- |
-| Dag | Dag op de gregoriaanse kalender |
-| Maand | Maand op de gregoriaanse kalender (van $1^{\mathrm{e}}$ dag van de maand tot $1^{\mathrm{e}}$ dag van <br> de volgende maand) |
-| Jaar | Jaar op de gregoriaanse kalender (van 1 januari tot en met 31 december) |
+| Periode | Definitie                                                                                                         |
+| :--- |:------------------------------------------------------------------------------------------------------------------|
+| Dag | Dag op de gregoriaanse kalender                                                                                   |
+| Maand | Maand op de gregoriaanse kalender (van 1e dag van de maand tot 1e dag van <br> de volgende maand) |
+| Jaar | Jaar op de gregoriaanse kalender (van 1 januari tot en met 31 december)                                           |
 
 Als de momenten waarop een waarde kan wijzigen niet gebonden zijn aan een vaste periode op de kalender, dan wordt de tijdlijn met de periode dag gebruikt. Bij toepassing van die tijdlijn kan op iedere dag een andere waarde gelden.
 
@@ -841,10 +835,10 @@ Hieronder voorbeelden van een specificatie van het attribuut te betalen belastin
 
 [^7]duurzaamheidskorting dat op variabele perioden kan gelden:
 
-| de te betalen belasting | Bedrag | voor elk jaar; |
-| :--- | :--- | :--- |
-| het recht op duurzaamheidskorting | kenmerk (bezittelijk) | voor elke dag; |
-
+```
+de te betalen belasting  Bedrag  voor elk jaar;
+het recht op duurzaamheidskorting  kenmerk (bezittelijk)  voor elke dag;
+```
 ## Syntax Tijdlijn specificatie:
 
 ```
@@ -920,101 +914,60 @@ We kunnen hiermee de twee objecttypen uit paragraaf 3.1, te weten Natuurlijk per
 
 ```
 Objecttype de Natuurlijk persoon (mv: Natuurlijke personen) (bezield)
-    is minderjarig
-    is passagjer kenmerk (bijvoeglijk);
-    is passagier van }18\mathrm{ tot en met 24 jaar kenmerk;
-    is passagier van 25 tot en met 64 jaar kenmerk;
-    is passagier van 65 jaar of ouder
-    is passagier van 65 jaar of ouder
-    het identificatienummer
-    de geboortedatum
-    de leeftijd
-    de belasting op basis van afsttand
-    de belasting op basis van reisduur
-    de te betalen belasting
-    de treinmiles op basis van evenredige verdeling
-    de maximaal te ontvangen treinmiles bij
-        evenredige verdeling volgens rangorde
-Objecttype de vlucht (mv: vluchten)
-    is bereikbaar per trein
-    de gebruik fossiele brands
-    de reiziger
-    is duurzaam
-    is belaste reis
-    is belast
-    is rondv7ucht
-    is bestemd voor minderjarigen
-    de luchthaven van vertrek
-    de luchthaven van bestemming
-    de vluchtdatum
-    de afstand tot bestemming
-    bereikbaar per trein
-    gebruik fossiele brandstof minder dan 50 procent
-    de reisduur per trein
-    de hoeveelheid passagiers
-    de hoeveelheid uitzonderingspassagiers
-    de leeftijd van de oudste passagier
-    de totale belasting op basis van afstand
-    de totale belasting op basis van reisduur
-    de totaal te betalen belasting
-    de verwachte datum-tijd van aankomst
-    de verwachte datum-tijd van vertrek
-    de verwachte duur
-    de datum-tijd voor het berekenen van de
-        belasting op basis van afstand
-    het bevestigingstijdstip
-    het uiterste boekingstijdstip
-    kenmerk (bijvoeglijk);
-    kenmerk;
-    kenmerk'(bezittelijk);
-    Numeriek (positief geheel geta1);
-    Datum in dagen;
-    Numeriek (niet-negatief gehee1 getal)
-    met eenheid jr;
-    Bedrag;
-    Bedrag;
-    Bedrag;
-    Numeriek (geheel getal);
-    Numeriek (geheel geta1);
-    kenmerk (bijvoeglijk);
-    kenmerk (bezittelijk);
-    kenmerk;
-    kenmerk'(bezittelijk);
-    kenmerk (bijvoeglijk);
-    kenmerk;
-    kenmerk; (bijvoeglijk);
-    kenmerk (bijvoeglijk);
-    kenmerk;
-    kenmerk;
-    Luchthavens;
-    Luchthavens;
-    Luchthavens;
-    Datum in dagen;
-    Numeriek (geheel geta1);
-    Boolean;
-    Boolean;
-    Numeriek (geheel geta1);
-    Numeriek (geheel getal);
-    Numeriek (geheel geta1);
-    Numeriek (niet-negatief'geheel getal)
-    met eenheid jr;
-    Bedrag;
-    Bedrag;
-    Bedrag:
-    Datum en tijd in millisecondes;
-    Datum en tijd in millisecondes;
-    Numeriek (geheel geta1);
-    Datum en tijd in millisecondes;
-    Datum en tijd in millisecondes;
-    Datum en tijd in millisecondes;
+  is minderjarig kenmerk (bijvoeglijk);
+  is passagier van 18 tot en met 24 jaar kenmerk;
+  is passagier van 25 tot en met 64 jaar kenmerk;
+  is passagier van 65 jaar of ouder kenmerk;
+  het recht op duurzaamheidskorting kenmerk (bezittelijk);
+  het identificatienummer Numeriek (positief geheel getal);
+  de geboortedatum Datum in dagen;
+  de leeftijd Numeriek (niet-negatief geheel getal) met eenheid jr;
+  de belasting op basis van afstand Bedrag;
+  de belasting op basis van reisduur Bedrag;
+  de te betalen belasting Bedrag;
+  de treinmiles op basis van evenredige verdeling Numeriek (geheel getal);
+  de maximaal te ontvangen treinmiles bij
+  evenredige verdeling volgens rangorde Numeriek (geheel getal);
+
+Objecttype de Vlucht (mv: Vluchten)
+  is bereikbaar per trein kenmerk (bijvoeglijk);
+  de gebruik fossiele brandstoffen minder dan 50% kenmerk (bezittelijk);
+  de reis met paaskorting kenmerk;
+  de reiziger kenmerk (bezittelijk);
+  is duurzaam kenmerk (bijvoeglijk);
+  is belaste reis kenmerk;
+  is belast kenmerk (bijvoeglijk);
+  is rondvlucht kenmerk;
+  is bestemd voor minderjarigen kenmerk;
+  de luchthaven van vertrek Luchthavens;
+  de luchthaven van bestemming Luchthavens;
+  de vluchtdatum Datum in dagen;
+  de afstand tot bestemming Numeriek (geheel getal);
+  bereikbaar per trein Boolean;
+  gebruik fossiele brandstof minder dan 50 procent Boolean;
+  de reisduur per trein Numeriek (geheel getal);
+  de hoeveelheid passagiers Numeriek (geheel getal);
+  de hoeveelheid uitzonderingspassagiers Numeriek (geheel getal);
+  de leeftijd van de oudste passagier Numeriek (niet-negatief geheel getal) met eenheid jr;
+  de totale belasting op basis van afstand Bedrag;
+  de totale belasting op basis van reisduur Bedrag;
+  de totaal te betalen belasting Bedrag;
+  de verwachte datum-tijd van aankomst Datum en tijd in millisecondes;
+  de verwachte datum-tijd van vertrek Datum en tijd in millisecondes;
+  de verwachte duur Numeriek (geheel getal);
+  de datum-tijd voor het berekenen van de
+  belasting op basis van afstand Datum en tijd in millisecondes;
+  het bevestigingstijdstip Datum en tijd in millisecondes;
+  het uiterste boekingstijdstip Datum en tijd in millisecondes;
+  
 Domein Bedrag is van het type Numeriek (getal met 2 decimalen)
-    Domein Luchthavens is van het type Enumeratie
+
+Domein Luchthavens is van het type Enumeratie
     Amsterdam Schiphol
     Groningen Eelde
     Parijs Charles de Gaulle
     London Heathrow
 ```
-
 
 ### 3.10 Parameters
 
@@ -1048,10 +1001,10 @@ Figuur 7: feittype Vlucht van natuurlijke personen dat een instantie van objectt
 In RegelSpraak wordt een feittype gespecificeerd met het woord Feittype, gevolgd door de naam van het feittype. Vervolgens worden de rollen gespecificeerd:
 
 ```
-`Feittype vlucht van natuurlijke personen
-    de reis Vlucht
-    de passagier Natuurlijk persoon
-Eén reis betreft de verplaatsing van meerdere passagiers`
+Feittype vlucht van natuurlijke personen
+    de reis  Vlucht
+    de passagier  Natuurlijk persoon
+Eén reis betreft de verplaatsing van meerdere passagiers
 ```
 
 ![](https://cdn.mathpix.com/cropped/2025_04_10_a97b267819259447320dg-035.jpg?height=278&width=1603&top_left_y=1660&top_left_x=232)
@@ -1062,7 +1015,7 @@ Een feittype kan verder wederkerig zijn: dit betekent dat de twee objecttypen de
 
 ```
 Wederkerig feittype Partnerrelatie
-    de partner Natuurlijk persoon
+    de partner  Natuurlijk persoon
 Eén partner heeft één partner
 ```
 
@@ -1118,13 +1071,18 @@ Een compleet voorbeeld behorende bij het vaste patroon van een RegelSpraak-regel
 
 Allereerst zal een RegelSpraak-regel een naam moeten krijgen. De naamgevingsconstructie van een RegelSpraak-regel begint altijd met het (vaste) woord Regel, gevolgd door een zelf te kiezen unieke naam van de regel. Vaak wordt hierbij een zo logisch mogelijke naam gekozen die aanduidt wat de betreffende regel zal doen bij uitvoering. Een voorbeeld van een RegelSpraakregel hierbij is:
 
+```
 Regel bepaal leeftijd
+```
 
 ## Syntax Regel specificatie:
 
 Opmerking: deze syntaxspecificatie makt reeds gebruik van RegelSpraak-concepten die in navolgende paragrafen behandeld worden.
+
+```
 <regel> ::= "Regel" <regelnaam> (\n <regelversie>)+
 <regelnaam> : := <karakterreeks>
+```
 
 ### 4.2 Regelversie
 
@@ -1204,11 +1162,18 @@ Regel bepaal leeftijd
 
 Merk op dat binnen de TOKA casus vanuit het perspectief van een vlucht wordt geredeneerd. Daarom is hier ook de leeftijd op de datum van de vlucht van belang.
 Dit is een eenvoudige regel die geen voorwaardendeel en geen variabelendeel bevat. Een iets ingewikkelder voorbeeld waarbij deze delen wel aanwezig zijn gaat over het kenmerk minderjarig van Natuurlijk persoon:
+
+```
 Parameter de volwassenleeftijd : Numeriek met eenheid jaren
+
 Regel Kenmerktoekenning persoon minderjarig
-geldig altijd
-Een Natuurlijk persoon is minderjarig indien $X$ kleiner is dan de volwassenleeftijd. Daarbij ge1dt:
-$X$ is de tijdsduur van zijn geboortedatum tot de datum van de vlucht in hele jaren.
+  geldig altijd
+   Een Natuurlijk persoon is minderjarig
+   indien X kleiner is dan de volwassenleeftijd.
+   Daarbij ge1dt:
+     X is de tijdsduur van zijn geboortedatum tot de datum van de vlucht in hele jaren.
+```
+
 Het resultaatdeel van onderstaande regel is een kenmerktoekenning, oftewel een actie die beschrijft dat een instantie het kenmerk krijgt (zie ook paragraaf 9.2):
 
 ```
@@ -1218,10 +1183,10 @@ Een Natuurlijk persoon is minderjarig
 Het voorwaardendeel van de regel is een vergelijking: deze vergelijking beschrijft wanneer dit kenmerk toegekend moet worden. Om dit te bepalen kijken we naar de parameter volwassenleeftijd en een variabele $X$ :
 
 ```
-indien x kleiner is dan de volwassenleeftijd.
+indien X kleiner is dan de volwassenleeftijd.
 ```
 
-$X$ is tenslotte een variabele die we in het variabelendeel definiëren:
+x is tenslotte een variabele die we in het variabelendeel definiëren:
 
 ```
 Daarbij geldt:
@@ -1409,10 +1374,9 @@ belasting op basis van reisduur Numeriek (geheelgetal) met eenheid €/mnd voor 
 ```
 
 ```
-te betalen belasting
+te betalen belasting Numeriek (geheelgetal) met eenheid € / j r voor elke dag;
 ```
 
-Numeriek (geheelgetal) met eenheid $€ / j r$ voor elke dag;
 In het voorbeeld hebben de attributen van de plus-expressie de volgende waarden in de tijd:
 
 | attribuut | waarde | van | tot |
@@ -1524,6 +1488,14 @@ Regel bepaal af te dragen omzetbelasting op energie
 
 De rekendatum kan daarnaast ook als expressie in de regels gebruikt worden. We zouden het bijvoorbeeld kunnen gebruiken in plaats van de datum van de vlucht om een leeftijd te bepalen:
 
+```
+Regel bepaal leeftijd op rekendatum
+  geldig altijd
+    De leeftijd van een Natuurlijk persoon moet berekend worden als de tijdsduur van
+    zijn geboortedatum tot de Rekendatum in hele jaren.
+
+```
+
 [^9]
 ### 5.4 Tekstreeks expressies
 
@@ -1535,9 +1507,8 @@ Het identificatienummer van de Natuurlijk persoon
 Soms kan het nodig zijn om geen getal maar een karakterreeks te gebruiken. Onderstaande expressie is een Tekst expressie en heeft als resultaat een karakterreeks, bijvoorbeeld " 528 ":
 
 ```
-«het identificatienummer van de Natuurlijk persoon»
+het identificatienummer van de Natuurlijk persoon»
 ```
-
 
 ## Syntax reeks van teksten en waarden specificatie:
 
@@ -1563,7 +1534,6 @@ een passagier
 een belaste reis
 ```
 
-
 ### 5.5.2 Selectie
 
 De meeste RegelSpraak-regels veranderen de waarden van attributen van instanties van objecttypen. In een onderwerpexpressie kunnen we naar een dergelijk attribuut verwijzen door gebruik te maken van een selectie. Met een selectie kan verwezen worden naar een specifiek attribuut of rol van de instanties waarnaar het onderwerp verwijst. Dat specifieke attribuut of rol noemen we een selector. Een selectie wordt gespecificeerd door deze selector, gevolgd door het woord van en een onderwerpexpressie.
@@ -1584,9 +1554,9 @@ We hebben onderstaande regel om de leeftijd van een Natuurlijk persoon te bepale
 Regel bepaal 1eeftijd
     geldig altijd
         De leeftijd van een Natuurlijk persoon moet berekend worden als de tijdsduur van de
+        geboortedatum van de Natuurlijk persoon tot 11 november 2022 in hele jaren.
 ```
 
-geboortedatum van de Natuurlijk persoon tot 11 november 2022 in hele jaren.
 N.B.: Deze regel zal in RegelSpraak anders worden weergegeven aangezien het objecttype bezield is. Dit zal in de volgende paragraaf worden uitgelegd.
 
 Deze regel bevat twee onderwerpexpressies die allebei naar een ander attribuut van Natuurlijk persoon verwijzen. Dit zijn twee verschillende soorten onderwerpexpressies. Een onderwerpexpressie waarin het lidwoord een wordt gebruikt noemen we een universeel onderwerp. Elke RegelSpraak-regel moet minstens één universeel onderwerp bevatten. Een universeel onderwerp geeft aan op welke instanties de regel toegepast moet worden; zonder een universeel onderwerp kan de regel niet uitgevoerd worden. In onze regel is de eerste onderwerpexpressie (de leeftijd van een Natuurlijk persoon) het universele onderwerp. Wat dat betreft zou je een universeel onderwerp kunnen zien als een soort logische formule: ALS er een instantie is die voldoet aan het universele onderwerp, DAN moet de regel uitgevoerd worden met die instantie.
@@ -1648,19 +1618,23 @@ Bij dit soort onderwerpen kunnen meerdere soorten kwantificaties gebruikt worden
 <selector> ::= [<lidwoord>] <rolnaam>
 ```
 
-
 ### 5.6 Subselectie expressies
 
 Subselectie is het mechanisme dat gebruikt wordt om een groep van instanties of waarden te maken die aan bepaalde selectiecriteria voldoen. Een subselectie bestaat uit een onderwerpexpressie, gevolgd door de woorden die of dat, en een predicaat. Het predicaat omschrijft de selectiecriteria die gebruikt moeten worden, zie verder hoofdstuk 7.
 
 We hebben bijvoorbeeld eerder al gezien dat we instanties van het objecttype Natuurlijk persoon kunnen onderverdelen in minder- en meerderjarig met het kenmerk minderjarige. Om deze onderverdeling in een regel te gebruiken passen we subselectie toe waarbij het predicaat een enkel selectiecriterium bevat dat controleert op het kenmerk minderjarig:
 
+```
 Het aantal minderjarige passagiers van een reis moet berekend worden als het aantal passagiers van de reis die een minderjarige zijn.
+```
 
 Attribuutwaarden kunnen ook gebruikt worden in een predicaat. Het objecttype Natuurlijke persoon bevat bijvoorbeeld ook een attribuut leeftijd. We zouden bovenstaande regel ook kunnen schrijven met leeftijd als selectiecriterium:
 
+```
 Het aantal minderjarige passagiers van een reis moet berekend worden als het aantal passagiers van de reis die aan de volgende voorwaarde voldoet:
-zijn leeftijd is kleiner dan de volwassenleeftijd.
+  zijn leeftijd is kleiner dan de volwassenleeftijd.
+```
+
 Een predicaat kan ook meerdere selectiecriteria bevatten. Indien dit het geval is, moeten de woorden aan alle/geen/precies/ten minste/ten hoogste/van de volgende voorwaarden voldoen achter het woord die staan. Selectiecriteria in een predicaat kunnen een controle van een kenmerk, attribuut of rol zijn, maar kunnen ook andere voorwaarden bevatten. Dit is in basis dezelfde constructie die voor samengestelde voorwaarden wordt gebruikt; voor meer informatie hierover en bijbehorende voorbeelden wordt verwezen naar paragraaf 10.2.
 
 ## Syntax subselectie specificatie:
@@ -1705,8 +1679,9 @@ Er is één uitzondering op deze manier van formuleren. Als een concatenatie geb
 
 Een voorbeeld hiervan is de vergelijking
 
+```
 - de luchthaven van vertrek van de vlucht is gelijk aan 'Amsterdam Schiphol' of 'Groningen Eelde'
-
+```
 
 ## Syntax concatenatie specificatie:
 
@@ -1782,9 +1757,11 @@ Opmerking: deze syntaxspecificatie makt reeds gebruik van RegelSpraak-concepten 
 
 Het aantal instanties in een verzameling kan bepaald worden met de getalaggregatiefunctie het aantal. We kunnen bijvoorbeeld met het aantal bepalen hoeveel passagiers een vlucht heeft. Als invoer gebruiken we de meervoudige expressie passagiers van de reis, en het resultaat is het aantal instanties van Natuurlijk persoon dat de rol passagier invult bij de instantie van Vlucht. In RegelSpraak ziet dit er als volgt uit:
 
+```
 Regel Hoeveelheid passagiers van een reis
-geldig altijd
-De hoeveelheid passagiers van een reis moet berekend worden als het aantal passagiers van de reis.
+  geldig altijd
+    De hoeveelheid passagiers van een reis moet berekend worden als het aantal passagiers van de reis.
+```
 
 ### 5.8.2 Sommatie: som van
 
@@ -1821,9 +1798,13 @@ Regel Totaal te betalen belasting, controleer voor leegwaarde
 Via een getalaggregatiefunctie kan ook de minimale of maximale waarde worden bepaald bij
 
 [^10]meervoudige expressies. We kunnen bijvoorbeeld de hoogste leeftijd van een Natuurlijk persoon op een Vlucht bepalen door gebruik te maken van de getalaggregatiefunctie de maximale waarde van ${ }^{17}$. Als invoer gebruiken we de numerieke expressie de leeftijd van de passagiers van de reis: dit levert een verzameling op die bestaat uit de waarden van het attribuut leeftijd van alle instanties van Natuurlijk persoon die de rol reis invullen bij de instantie van Vlucht. In RegelSpraak ziet dat er als volgt uit:
-Rege 1 Leeftijd oudste passagier
-geldig altijud
-De leeftijd van de oudste passagier van een reis moet gesteld worden op de maximale waarde van de leeftijden van alle passagiers van de reis.
+
+```
+Regel Leeftijd oudste passagier
+  geldig altijud
+    De leeftijd van de oudste passagier van een reis moet gesteld worden op de maximale waarde van de leeftijden van alle passagiers van de reis.
+
+```
 
 Voor het berekenen van de minimale of maximale waarden worden lege waarden niet meegeteld. Wanneer alle waarden leeg zijn, wordt het resultaat ook leeg.
 
@@ -1835,22 +1816,23 @@ Een voorbeeld betreft het bepalen van de datum-tijd voor het berekenen van de be
 
 ```
 Regel Datum-tijd voor het berekenen van de belasting op basis van afstand
-    geldig altijd
-        De datum-tijd voor het berekenen van de belasting op basis van afstand van een vlucht moet berekend worden als de eerste van de verwachte datum-tijd van vertrek van de vlucht en de
-``` daadwerkelijke datum-tijd van vertrek van de vlucht.
+  geldig altijd
+    De datum-tijd voor het berekenen van de belasting op basis van afstand van een vlucht moet berekend worden als de eerste van de verwachte datum-tijd van vertrek van de vlucht en de daadwerkelijke datum-tijd van vertrek van de vlucht.
+```   
 
 Een ander voorbeeld betreft het bepalen van het bevestigingstijdstip van een vlucht ${ }^{18}$, rekening houdend met enerzijds een berekening en anderzijds een constante waarde en gebruikmakend van de laatste van datumaggregatiefunctie:
+
 ```
-
 Parameter de bevestigingsinterval : Datum en tijd in millisecondes
-Parameter de eerste boekingsdatum : Datum in dagen
-Regel Bevestigingstijdstip vlucht
-geldig altijd
-Het bevestigingstijdstip van een vlucht moet berekend worden als de laatste van A en B.
-Daarbij geldt:
-A is het uiterste boekingstijdstip van de vlucht plus bevestigingsinterval
-B is eerste boekingsdatum.
 
+Parameter de eerste boekingsdatum : Datum in dagen
+
+Regel Bevestigingstijdstip vlucht
+  geldig altijd
+    Het bevestigingstijdstip van een vlucht moet berekend worden als de laatste van A en B.
+    Daarbij geldt:
+      A is het uiterste boekingstijdstip van de vlucht plus bevestigingsinterval
+      B is eerste boekingsdatum.
 ```
 
 Wanneer een datumexpressie in de verzameling leeg is, wordt deze datumexpressie niet meegenomen in de berekening voor de eerste of laatste datum. Wanneer alle datumexpressies in de verzameling leeg zijn, wordt het resultaat ook op leeg gezet.
@@ -1878,24 +1860,28 @@ Aggregatiefuncties kunnen tot slot toegepast worden op gedimensioneerde attribut
 
 Stel dat we bijvoorbeeld ons Natuurlijk persoon objecttype hebben uitgebreid met attributen voor zijn elk jaar betaalde belasting. Een van die attributen hebben we een dimensie gegeven om onderscheid te maken tussen de verschillende jaren dat de persoon belasting heeft betaald.
 
+```
 Objecttype de Natuurlijk persoon (mv: Natuurlijke personen) (bezield)
-de betaalde belasting over de afgelopen vier jaar Bedrag;
-de betaalde belasting in jaar Bedrag, gedimensioneerd met jaardimensie
+  de betaalde belasting over de afgelopen vier jaar Bedrag;
+  de betaalde belasting in jaar Bedrag, gedimensioneerd met jaardimensie
+
 Dimensie de jaardimensie, bestaande uit de jaardimensies (na het attribuut met voorzetsel van):
-zes jaar geleden
-vijf jaar geleden
-vier jaar geleden
-drie jaar geleden
-twee jaar geleden
-een jaar geleden
-heden
+  1. zes jaar geleden
+  2. vijf jaar geleden
+  3. vier jaar geleden
+  4. drie jaar geleden
+  5. twee jaar geleden
+  6. een jaar geleden
+  7. heden
+```
+
 We kunnen nu een regel schrijven die de betaalde belasting over de afgelopen vier jaar bepaalt door een getalaggregatie over de jaardimensie te gebruiken. Dit kan er dan als volgt uit zien:
 
-\footnotetext{
+```
 Regel Totaal betaalde belasting over 4 jaar
-geldig altijd
-De betaalde belasting over de afgelopen vier jaar van een Natuurlijk persoon moet berekend worden als de som van zijn betaalde belasting in jaar vanaf vier jaar geleden t/m een jaar geleden.
-}
+  geldig altijd
+    De betaalde belasting over de afgelopen vier jaar van een Natuurlijk persoon moet berekend worden als de som van zijn betaalde belasting in jaar vanaf vier jaar geleden t/m een jaar geleden.
+```
 
 \section*{6 Rekenkundige expressies}
 
@@ -1997,13 +1983,12 @@ In onderstaande tabel worden voorbeelden gegeven van de verschillende methodes v
 
 Tabel 3: voorbeelden van de verschillende afrondingsmethodes.
 Een belastingbedrag wordt bijvoorbeeld vaak afgerond op een geheel getal in het voordeel van de belastingplichtige. In het geval van de TOKA-casus betaalt de passagier een (positief) bedrag aan belasting. Afronden in het voordeel van de passagier betekent in dit geval dat het belastingbedrag naar beneden moet worden afgerond. Het onderstaande voorbeeld laat zien hoe dit er dan uit kan zien.
+
 ```
-
 Regel Te betalen belasting van een passagier
-geldig altijd
-De te betalen belasting van een passagier moet gesteld worden op zijn belasting op
-basis van afstand naar beneden afgerond op 0 decimalen.
-
+  geldig altijd
+    De te betalen belasting van een passagier moet gesteld worden op zijn belasting op
+    basis van afstand naar beneden afgerond op 0 decimalen.
 ```
 
 \section*{Syntax afronding specificatie:}
@@ -2021,40 +2006,38 @@ Maar ook kan het gewenst zijn om de uitkomst te begrenzen tot een maximum. Bijvo
 Het maximum en minimum kunnen ook in combinatie van toepassing zijn en in een regel worden opgenomen. Er kan maar één minimum en/of maximum worden gespecificeerd. Als het gewenst is om het minimum of maximum van meerdere waarden te specificeren, dan moet gebruik gemaakt worden van de aggregatie-expressie voor minimale/maximale waarde (zie paragraaf 5.8.3).
 
 Voorbeeld van een begrenzing met een minimum:
+
 ```
-
 Regel Te betalen belasting van een passagier
-geldig altijd
-De te betalen belasting van een passagier moet berekend worden als zijn belasting op
-basis van afstand min korting bij gebruik niet-fossiele brandstof, met een minimum
-van 0 € naar beneden afgerond op 0 decimalen.
-
+  geldig altijd
+    De te betalen belasting van een passagier moet berekend worden als zijn belasting op
+    basis van afstand min korting bij gebruik niet-fossiele brandstof, met een minimum
+    van 0 € naar beneden afgerond op 0 decimalen.
 ```
 
 Voorbeeld van begrenzing op zowel een minimum als een maximum:
 
+```
 Regel Te betalen belasting van een passagier
-ge7dig altijd
-De te betalen belasting van een passagier moet berekend worden als zijn belasting op basis van afstand min korting bij gebruik niet-fossiele brandstof, met een minimum van $0 €$ en een maximum van $1000 €$ naar beneden afgerond op 0 decimalen.
+  geldig altijd
+    De te betalen belasting van een passagier moet berekend worden als zijn belasting op basis van afstand min korting bij gebruik niet-fossiele brandstof, met een minimum van 0 € en een maximum van 1000 € naar beneden afgerond op 0 decimalen.
+```
 
 \section*{Syntax begrenzing specificatie:}
 ```
-
 <begrenzingexpressie> ::= <getalexpressie> "," <begrenzing>
 <begrenzing> ::= (<begrenzingminimum> | <begrenzingmaximum> | <begrenzingminimum> "en"
 <begrenzingmaximum>)
 <begrenzingminimum> ::= "met een minimum van" <getalexpressie>
 <begrenzingmaximum> ::= "met een maximum van" <getalexpressie>
-
 ```
 
 \subsection*{6.2 Optellen: plus}
 
 Het optellen van twee numerieke waarden in RegelSpraak gebeurt met de operator plus. De operator plus werkt met twee numerieke expressies en levert als resultaat de optelling van de waarden uit deze expressies. Hierbij moet de eerste op te tellen expressie voor de operator staan en de tweede op te tellen expressie erna. Als we bijvoorbeeld 1 jaar willen optellen bij de leeftijd van een passagier, dan ziet dat er als volgt uit:
+
 ```
-
 de leeftijd van een passagier plus 1 jr
-
 ```
 
 Kanttekening hierbij is dat de gebruikte eenheden (zie paragraaf 3.7) van de expressies overeen moeten komen, of moeten via een eenheidssysteem in elkaar om te rekenen zijn. In het bovenstaande voorbeeld heeft de linkerexpressie de eenheid $j r$ (jaar), aangezien het attribuut leeftijd van Natuurlijk persoon gespecificeerd is als Numeriek (geheel getal) met eenheid jr. De rechterexpressie moet ook deze eenheid hebben of een eenheid die met het eenheidssysteem Tijd omgerekend kan worden in jr. De expressie zou dus ook eenheden mnd (maand) of $k w$ (kwartaal) kunnen hebben aangezien die naar elkaar omgerekend kunnen worden, maar niet de eenheden euro of $s$.
@@ -2103,7 +2086,11 @@ door" | "gedeeld door (ABS)") <getalexpressie>
 \subsection*{6.3 Aftrekken: min en verminderd met}
 
 Het aftrekken van twee numerieke waarden in RegelSpraak is mogelijk met de operatoren min en verminderd met. Deze operatoren werken in basis op dezelfde manier, alleen gaan ze anders om met lege waarden. Beide operatoren werken met twee numerieke expressies: de eerste expressie moet voor de operator staan en de tweede erna. Het resultaat van de operator is de eerste expressie minus de tweede expressie. Als we bijvoorbeeld 1 jaar willen aftrekken van de leeftijd van een passagier, dan ziet dat er als volg uit:
+
+```
 de leeftijd van een passagier min 1 jr
+```
+
 Kanttekening hierbij is dat de gebruikte eenheden (zie paragraaf 3.7) van de expressies overeen moeten komen, of via een eenheidssysteem in elkaar om te rekenen moeten zijn. In het bovenstaande voorbeeld heeft de linkerexpressie de eenheid jr (jaar), aangezien het attribuut leeftijd van Natuurlijk persoon gespecificeerd is als Numeriek (geheel getal) met eenheid jr. De rechterexpressie moet ook deze eenheid hebben of een eenheid die met het eenheidssysteem Tijd omgerekend kan worden in jr. De expressie zou dus ook eenheden mnd (maand) of kw (kwartaal) kunnen hebben aangezien die naar elkaar omgerekend kunnen worden, maar niet de eenheden euro of $s$.
 
 Het aantal decimalen van het resultaat van een aftrekking is gelijk aan het hoogste aantal decimalen van de gebruikte waarden. In de navolgende tabel is een aantal rekenkundige voorbeelden opgenomen.
@@ -2179,7 +2166,10 @@ Opmerking: deze syntaxspecificatie makt reeds gebruik van operatoren die in navo
 \subsection*{6.4 Vermenigvuldigen: maal}
 
 Het vermenigvuldigen van twee numerieke waarden in RegelSpraak gebeurt met de operator maal. De operator maal werkt met twee numerieke expressies en levert als resultaat het product van de waarden uit deze expressies. De eerste expressie moet voor de operator staan en de tweede erna. Als we bijvoorbeeld de te betalen belasting van een passagier willen verdubbelen (maal 2 ), dan ziet dat er als volgt uit:
+
+```
 de te betalen belasting van een passagier maal 2
+```
 
 Bij vermenigvuldigen is het niet nodig dat de eenheden van de expressies overeenkomen of in elkaar zijn om te rekenen. Het resultaat zal altijd een samengestelde eenheid krijgen die bestaat uit het product van de eenheden van die expressies. Overigens zullen in de praktijk dit soort samengestelde eenheden niet zoveel voorkomen maar een voorbeeld is de eenheid voor hoeveelheid energie, de kiloWattuur ( $\mathrm{kWu}^{21}$ ): als de linkerexpressie de eenheid kW (kiloWatt) heeft en de rechterexpressie de eenheid u (uur), dan is de eenheid van het resultaat van de vermenigvuldiging gelijk aan kW*u = kWu.
 
@@ -2221,7 +2211,10 @@ door" | "gedeeld door (ABS)") <getalexpressie>
 
 Het delen van twee numerieke waarden in RegelSpraak gebeurt met de operators gedeeld door en gedeeld door (ABS) ${ }^{22}$. Deze operatoren werken met twee numerieke expressies en leveren als resultaat het quotiënt van de waarden uit deze expressies. De eerste expressie moet voor de operator staan, de tweede erna. Als we bijvoorbeeld de te betalen belasting van een passagier willen halveren, dan ziet dat er als volgt uit:
 
+```
 De te betalen belasting van een passagier gedeeld door 2
+```
+
 Bij delen is het niet nodig dat de eenheden van de expressies overeenkomen of in elkaar zijn om te rekenen. Wel is het zo dat bij eenheden waarvoor dit niet geldt het resultaat een samengestelde eenheid zal krijgen die bestaat uit het quotiënt van de eenheden van de expressies. Als bijvoorbeeld de linkerexpressie de eenheid euro heeft en de rechterexpressie de eenheid $j$ r, dan heeft het resultaat de eenheid euro / jr.
 
 Net als bij de vermenigvuldiging wordt de eenheid van het resultaat van een deling altijd genormaliseerd waarbij gelijke eenheden boven en onder een eventuele deelstreep tegen elkaar worden weggestreept. Dus bijvoorbeeld 4 meter/seconde gedeeld door 2 meter $=2$ seconde (de eenheid meter is hierbij "verdwenen").
@@ -2291,7 +2284,10 @@ door" | "gedeeld door (ABS)") <getalexpressie>
 \subsection*{6.6 Worteltrekken: de wortel van}
 
 Worteltrekken in RegelSpraak gebeurt met de operator de wortel van. De operator werkt met één enkele numerieke expressie die achter de operator gezet moet worden. Aangezien de wortel van een getal niet per se een rationeel getal oplevert, is het verplicht om het resultaat van de wortelexpressie af te ronden (zie paragraaf 6.1.3). Als we bijvoorbeeld de wortel van de leeftijd van een passagier willen bepalen, dan ziet dat er als volgt uit:
+
+```
 de wortel van de leeftijd van een passagier naar beneden afgerond op 0 decimalen
+```
 
 \footnotetext{
 ${ }^{23}$ Wiskundig bekeken zal het delen door een lege waarde (waarde rechts) een fout moeten opleveren, in dit geval wordt het resultaat echter meteen op 0 gesteld zodra de waarde links gelijk is aan een lege waarde.
@@ -2307,7 +2303,10 @@ Twee kanttekeningen zijn van toepassing bij de operator de wortel van:
 \subsection*{6.7 Machtsverheffen: tot de macht}
 
 Machtsverheffen in RegelSpraak gebeurt met de operator tot de macht. De operator werkt met een numerieke expressie waarmee de vermenigvuldiging moet worden uitgevoerd die voor de operator gezet moet worden. Na de operator moet een numerieke expressie worden opgegeven die het aantal malen van vermenigvuldiging aangeeft. Aangezien het resultaat van machtsverheffen niet per se een rationeel getal is, is het verplicht om het resultaat van de machtsverheffenexpressie af te ronden (zie paragraaf 6.1.3). Als we bijvoorbeeld het kwadraat van de woonregiofactor van een passagier willen bepalen, dan ziet dat er als volgt uit:
+
+```
 het kwadraat van de woonregiofactor van een passagier moet berekend worden als zijn woonregiofactor tot de macht 2 rekenkundig afgerond op 0 decimalen
+```
 
 \section*{Syntax tot de macht specificatie:}
 <machtsverheffenfunctie> ::= <getalexpressie> "tot de macht" <getalexpressie>
@@ -2321,10 +2320,9 @@ Twee kanttekeningen zijn van toepassing bij de operator tot de macht:
 
 Om een percentage van een waarde te bepalen kan in RegelSpraak gebruik gemaakt worden van de operator van gecombineerd met een percentage expressie (dit betreft een expressie van het datatype percentage). De percentage-expressie dient voor de operator te staan, terwijl de expressie waarvan het percentage moet worden berekend achter de operator staat.
 Stel we hebben een parameter btw tarief waarin het te gebruiken percentage voor de btw staat. Verder hebben we een objecttype product met een attribuut inkoopprijs. Als we de btw zouden willen berekenen die voor een product afgedragen moet worden, dan ziet dat er als volgt uit:
+
 ```
-
 het BTW tarief van een inkoopprijs van een product
-
 ```
 
 Als het btw tarief 21 \% is en de inkoopprijs 100 euro, dan zal het resultaat van bovenstaande expressie 21 euro zijn, en bij de inkoopprijs van 101 euro 21,21 euro zijn. Een percentageberekening is dus in basis een combinatie van een vermenigvuldiging met de waarde van de percentage-expressie en een deling door 100 waarbij het resultaat in basis verder niet afgerond wordt (tenzij dat dit expliciet is aangegeven, zie paragraaf 6.1.3).
@@ -2349,9 +2347,12 @@ Bij de expressie "absolute waarde van" blijft het teken van het getal buiten bes
 
 Een voorbeeld kan zijn dat van de te betalen belasting op basis van afstand een bedrag moet worden afgetrokken. Er is sprake van een correctie die altijd van het basisbedrag moet worden afgetrokken. Dit bedrag van de correctie is als negatief bedrag in de administratie vastgelegd.
 De regel kan er dan als volgt uitzien:
+
+```
 Regel vastgesteld inkomen 01
-geldig altijd
-De te betalen belasting op basis van afstand van een natuurlijk persoon moet berekend worden als zijn basisbedrag belasting op basis van afstand min de absolute waarde van (zijn correctie op belasting op basis van afstand).
+  geldig altijd
+   De te betalen belasting op basis van afstand van een natuurlijk persoon moet berekend worden als zijn basisbedrag belasting op basis van afstand min de absolute waarde van (zijn correctie op belasting op basis van afstand).
+```
 
 Als in dit voorbeeld geen gebruik gemaakt wordt van "de absolute waarde van" dan wordt een negatief bedrag afgetrokken van het basisbedrag. Dat zou betekenen dat het erbij wordt opgeteld. Dat is niet de bedoeling. Door gebruik te maken van "de absolute waarde van" wordt de correctie wel afgetrokken van het basisbedrag.
 
@@ -2369,31 +2370,37 @@ De expressie kan alleen worden toegepast op expressies met een numeriek datatype
 In RegelSpraak kan de periode (tijdsduur) tussen twee datum-tijd expressies bepaald worden. Hierbij zal de volgende expressie voor tijdsduurberekening moeten worden gebruikt: "de tijdsduur van <datumexpressie $1>$ tot <datumexpressie $2>$ in hele <tijdseenheid>". De datumexpressies 1 en 2 kunnen iedere expressie bevatten gelijk aan een datum-tijd. De expressie voor tijdsduurberekening berekent vervolgens de periode tussen de twee datumexpressies in een geheel getal met de tijdseenheid die in deze expressie gespecificeerd wordt waarbij het resultaat altijd naar beneden wordt afgerond. Van deze afronding is geen sprake bij de kleinst mogelijke tijdseenheid, millisecondes. In dat geval wordt de toevoeging "hele" weggelaten.
 
 \section*{Voorbeelden zijn:}
+
 ```
-
 Regel Leeftijd passagier
-geldig altijd
-De leeftijd van een passagier moet berekend worden als de tijdsduur van zijn geboortedatum
-tot de vluchtdatum van zijn reis in hele jaren.
+  geldig altijd
+    De leeftijd van een passagier moet berekend worden als de tijdsduur van zijn geboortedatum
+    tot de vluchtdatum van zijn reis in hele jaren.
+```
 of
-Regel Leeftijd passagier
-geldig altijd
-De leeftijd van een passagier moet berekend worden als de tijdsduur van zijn geboortedatum
-tot de vluchtdatum van zijn reis in millisecondes.
 
+```
+Regel Leeftijd passagier
+  geldig altijd
+    De leeftijd van een passagier moet berekend worden als de tijdsduur van zijn geboortedatum
+    tot de vluchtdatum van zijn reis in millisecondes.
 ```
 
 Daarnaast is het goed om te weten dat wanneer bij uitvoering van een dergelijke RegelSpraakregel de waarde in datumexpressie 1 later is (in de tijd bekeken) dan de waarde in datumexpressie 2 , als resultaat een negatieve tijdsduur wordt berekend.
 
 Als het resultaat van de berekening positief moet zijn, ongeacht of de waarde van datumexpressie 1 later of eerder is dan de waarde van datumexpressie 2, dan kan gebruik gemaakt worden van de expressie "de absolute tijdsduur van <datumexpressie $1>$ tot <datumexpressie 2> in <tijdseenheid>".
 In onderstaand voorbeeld is het resultaat van de twee regels dan hetzelfde.
-Rege 1 Leeftijd passagier
-geldig altijd
-De leeftijd van een passagier moet berekend worden als de absolute tijdsduur van zijn
-geboortedatum tot de vluchtdatum van zijn reis in hele jaren.
+
+```
+Rege1 Leeftijd passagier
+  geldig altijd
+    De leeftijd van een passagier moet berekend worden als de absolute tijdsduur van zijn
+    geboortedatum tot de vluchtdatum van zijn reis in hele jaren.
+
 Regel Leeftijd passagier
-geldig altijd
-De leeftijd van een passagier moet berekend worden als de absolute tijdsduur van de vluchtdatum van zijn reis tot zijn geboortedatum in hele jaren.
+  geldig altijd
+    De leeftijd van een passagier moet berekend worden als de absolute tijdsduur van de vluchtdatum van zijn reis tot zijn geboortedatum in hele jaren.
+```
 
 Tot slot is het resultaat van operator tijdsduur van of absolute tijdsduur van bij gebruik van lege waarden te zien in onderstaande tabel waarin ook op regelniveau een voorbeeld is opgenomen. Hierin is te zien dat bij de operator tijdsduur van een lege waarde behandeld wordt als zijnde "niet te gebruiken" waardoor het resultaat leeg blijft.
 \begin{tabular}{|c|c|c|c|c|c|c|}
@@ -2468,9 +2475,11 @@ In RegelSpraak kunnen niet-lege waardes van een getalexpressie met een tijd-gere
 
 \section*{Een voorbeeld hiervan is:}
 
-Regel Verwachte datum-tijd van aankomst van een Vlucht geldig altijd
-
-De verwachte datum-tijd van aankomst van een vlucht moet berekend worden als de verwachte Datum-tijd van vertrek van de Vlucht plus de verwachte duur van de vlucht.
+```
+Regel Verwachte datum-tijd van aankomst van een Vlucht
+  geldig altijd
+    De verwachte datum-tijd van aankomst van een vlucht moet berekend worden als de verwachte Datum-tijd van vertrek van de Vlucht plus de verwachte duur van de vlucht.
+```
 
 Als gerekend wordt met een numerieke waarde met de eenheid van een specifieke dagsoort (bijvoorbeeld werkdagen) dan hoeft de datum waarbij een aantal werkdagen wordt opgeteld of afgetrokken zelf geen werkdag te zijn.
 Als bijvoorbeeld 5 werkdagen bij datum X worden opgeteld dan is het resultaat de $5^{\mathrm{e}}$ werkdag na datum $X$. Datum $X$ telt dus niet mee, onafhankelijk van de vraag of het een werkdag is of niet. Het resultaat is altijd een datum die een werkdag is.
@@ -2513,21 +2522,20 @@ Tabel 15: lege waarden en datum plus/min tijdseenheid.
 
     <datumberekening> ::= <datumexpressie> ("plus" | "min") <getalexpressie>
     <eenheidsafkorting>
-    ```
+```
 
 \subsection*{6.12 Dag/maand/jaar uit}
 
 RegelSpraak bevat een patroon om de numerieke waarde van de dag, maand of jaar uit een datum te bepalen. Het resultaat is dan een positief geheel getal met de waarde van de dag, maand of jaar van de gespecificeerde datum. Een voorbeeld hiervan is ${ }^{24}$ :
+
 ```
-
 Regel Hoogseizoen
-geldig altijd
-Een Vlucht is in het hoogseizoen
-indien er aan ten minste één van de volgende voorwaarden wordt voldaan:
-- de maand uit (de vluchtdatum van de vlucht) is gelijk aan 6
-- de maand uit (de vluchtdatum van de vlucht) is gelijk aan 7
-• de maand uit (de vluchtdatum van de vlucht) is gelijk aan 8.
-
+  geldig altijd
+    Een Vlucht is in het hoogseizoen
+    indien er aan ten minste één van de volgende voorwaarden wordt voldaan:
+      • de maand uit (de vluchtdatum van de vlucht) is gelijk aan 6
+      • de maand uit (de vluchtdatum van de vlucht) is gelijk aan 7
+      • de maand uit (de vluchtdatum van de vlucht) is gelijk aan 8.
 ```
 
 Wanneer de datumexpressie in de berekening leeg is, zal het resultaat leeg zijn.
@@ -2549,18 +2557,19 @@ ${ }^{24}$ Merk op dat in het voorbeeld een voorwaardendeel wordt gebruikt. Het 
 
 RegelSpraak bevat een patroon voor het bepalen van de datum van de eerste paasdag van een jaar. Het jaartal wordt gespecificeerd door een geheel getal en het resultaat zal een datum in dagen zijn. Een voorbeeld hiervan is ${ }^{25}$ :
 
+```
 Regel Paaskorting
-ge1dig altijd
-Een vlucht is een reis met paaskorting
-indien de vluchtdatum van de vlucht gelijk is aan de eerste paasdag van (het jaar uit (de vluchtdatum van de vlucht)).
+  geldig altijd
+    Een vlucht is een reis met paaskorting
+    indien de vluchtdatum van de vlucht gelijk is aan de eerste paasdag van (het jaar uit (de vluchtdatum van de vlucht)).
+```
 
 Wanneer het jaartal leeg is, wordt het resultaat van de eerste paasdag van de berekening ook op leeg gesteld.
 
 \section*{Syntax de eerste paasdag van specificatie:}
 ```
-
     <eerstepaasdagvan> ::= "de eerste paasdag van (" <jaar> ")"
-    ```
+```
 
 \footnotetext{
 ${ }^{25}$ Doordat dit een heel specifiek patroon wordt het voorbeeld erg bewerkelijk bij toepassing op de TOKA-casus.
@@ -2575,10 +2584,12 @@ Voorwaarde voor het toepassen van deze expressie is dat het attribuut waarvan de
 
 Als bijvoorbeeld een passagier recht heeft op een maandelijks bedrag aan belastingvermindering, dan kan zijn totale belastingvermindering worden bepaald door alle maandelijkse belastingverminderingen als volgt te sommeren:
 
-Rege 1 Totale belastingvermindering
-geldig altijd
-De totale belastingvermindering van een passagier moet gesteld worden op het totaal
-van zijn belastingvermindering per maand.
+```
+Regel Totale belastingvermindering
+  geldig altijd
+    De totale belastingvermindering van een passagier moet gesteld worden op het totaal van zijn belastingvermindering per maand.
+```
+    
 Het attribuut belastingvermindering per maand is hierbij een bedrag per maand dat voor elke maand wordt bepaald.
 Het attribuut totale belastingvermindering is een bedrag en niet tijdsafhankelijk (heeft geen tijdlijn).
 
@@ -2590,14 +2601,11 @@ dan is het resultaat voor zijn totale belastingvermindering $€ 186$ ( 12 maal 
 Het is mogelijk om aan de expressie een tijdafhankelijke conditie toe te voegen (zie paragraaf 8.4). In dat geval worden voor het bepalen van het resultaat van de expressie uitsluitend waarden gebruikt die van toepassing zijn in de periode zoals die in de tijdsafhankelijke conditie is gespecificeerd. N.B. De conditie heeft in dit geval alleen betrekking op de expressie en is geen onderdeel van het voorwaardendeel.
 
 Voorbeeld van een regel met een tijdsafhankelijke conditie:
+
 ```
-
 Regel Totale belastingvermindering
-geldig altijd
-De totale belastingvermindering van een passagier moet gesteld worden op het totaal
-van zijn belastingvermindering per maand gedurende de tijd dat hij een recht op
-belastingvermindering heeft.
-
+  geldig altijd
+    De totale belastingvermindering van een passagier moet gesteld worden op het totaal van zijn belastingvermindering per maand gedurende de tijd dat hij een recht op belastingvermindering heeft.
 ```
 
 Als de passagier recht op belastingvermindering heeft van 1-7-2023 tot 1-2-2024 dan is het resultaat voor zijn totale belastingvermindering $€ 71$ ( 6 maal $€ 10$ plus 1 maal $€ 11$ ).
@@ -2613,11 +2621,10 @@ opgenomen. De reden hiervoor is dat de regel anders ambigu wordt doordat niet du
 
 \section*{Syntax waardepertijdseenheidaggregatie specificatie:}
 ```
-
 Opmerking: deze syntaxspecificatie maakt reeds gebruik van RegelSpraak-concepten die in
-
-``` navolgende paragrafen behandeld worden.
+navolgende paragrafen behandeld worden.
 <waardepertijdseenheidaggregatie> ::= "het totaal van" <expressie> [<conditiebijexpressie >]
+```
 
 \subsection*{7.2 Tellen van dagen: het aantal dagen in ... dat ...}
 
@@ -2630,9 +2637,11 @@ Achter de "dat" staat de voorwaarde. Alleen dagen waarop deze voorwaarde waar is
 
 Als een passagier bijvoorbeeld wel of geen recht op belastingvermindering heeft op verschillende momenten in de tijd, dan kan per maand het aantal dagen dat een passagier recht op belastingvermindering heeft worden bepaald met de volgende regel:
 
+```
 Regel Aantal dagen recht op belastingvermindering
-geldig altijd
-Het aantal dagen recht op belastingvermindering van een passagier moet gesteld worden op het aantal dagen in de maand dat hij een recht op belastingvermindering heeft.
+  geldig altijd
+    Het aantal dagen recht op belastingvermindering van een passagier moet gesteld worden op het aantal dagen in de maand dat hij een recht op belastingvermindering heeft.
+```
 
 Als deze regel wordt toegepast op een situatie waarin de passagier recht op belastingvermindering heeft van:
 - van 1-1-2024 tot 2-1-2024 en
@@ -2654,13 +2663,11 @@ Let op: als de voorwaarde na de "dat" een zeer lange periode betreft dan kan de 
 
 Op basis van het eenheidssysteem Tijd (zie paragraaf 3.7 ) worden met de in het eenheidssysteem gespecificeerde omrekenfactoren omrekeningen toegepast op waarden met verschillende tijdseenheden.
 Zo kan bijvoorbeeld de waarde van een attribuut belastingvermindering, dat als datatype een numerieke waarde in € per maand heeft, worden afgeleid van een parameter STANDAARD BELASTINGVERMINDERING met een numerieke waarde in € per jaar. Dit kan worden uitgedrukt met de volgende regel:
+
 ```
-
 Regel Belastingvermindering
-geldig altijd
-De belastingvermindering van een passagier moet gesteld worden op de STANDAARD
-BELASTINGVERMINDERING
-
+  geldig altijd
+    De belastingvermindering van een passagier moet gesteld worden op de STANDAARD BELASTINGVERMINDERING
 ```
 
 Als in dit voorbeeld de STANDAARD BELASTINGVERMINDERING €120 $€ / \mathrm{jr}$ is, dan is de afgeleide waarde van het attribuut belastingvermindering $10 € /$ mnd (120 gedeeld door de omrekenfactor 12 uit het eenheidssysteem).
@@ -2676,14 +2683,11 @@ Met de expressie "het tijdsevenredig deel" kunnen regels worden opgesteld voor o
 De (gebroken) periode waarover het tijdsevenredig deel moet worden berekend wordt uitgedrukt door aan de expressie een tijdsafhankelijke conditie toe te voegen (zie paragraaf 8.4).
 
 Een voorbeeld van een regel waarin een tijdsevenredig deel wordt berekend op basis van een deel van een maand ziet er als volgt uit:
+
 ```
-
 Regel Belastingvermindering
-geldig altijd
-De belastingvermindering van een passagier moet gesteld worden op
-het tijdsevenredig dee] per maand van de STANDAARD BELASTINGVERMINDERING
-gedurende de tijd dat hij een recht op belastingvermindering heeft.
-
+  geldig altijd
+    De belastingvermindering van een passagier moet gesteld worden op het tijdsevenredig dee] per maand van de STANDAARD BELASTINGVERMINDERING gedurende de tijd dat hij een recht op belastingvermindering heeft.
 ```
 
 In de expressie wordt na "het tijdsevenredig deel per" gespecificeerd voor welke periode een tijdsevenredig deel moet worden berekend: een jaar of een maand. De knips in deze periode moeten passen op de tijdlijn van het attribuut waarvoor het resultaat wordt afgeleid (in het voorbeeld de belastingvermindering)
@@ -2696,10 +2700,11 @@ De expressie moet tussen haakjes worden geplaatst of als variabele in de regel w
 
 \section*{Voorbeeld 1 Afleiding per maand}
 
+```
 Regel Belastingvermindering
-geldig altijd geldig altijd
-
-De belastingvermindering van een passagier moet gesteld worden op (het tijdsevenredig dee? per maand van de STANDAARD BELASTINGVERMINDERING gedurende de tijd dat hij een recht op belastingvermindering heeft).
+  geldig altijd
+   De belastingvermindering van een passagier moet gesteld worden op (het tijdsevenredig dee? per maand van de STANDAARD BELASTINGVERMINDERING gedurende de tijd dat hij een recht op belastingvermindering heeft).
+```
 
 De regel geeft aan dat de tijdsevenredige delen per maand moeten worden afgeleid. Het attribuut belastingvermindering heeft een numeriek datatype met eenheid $€ / \mathrm{mnd}$. Als tijdlijn van het attribuut is gespecificeerd dat de waarde elke maand kan wijzigen. De parameter STANDAARD BELASTINGVERMINDERING heeft ook een numeriek datatype met eenheid $€ /$ mnd. De waarde van deze parameter kan jaarlijks wijzigen.
 
@@ -2719,14 +2724,13 @@ In de regel is gespecificeerd dat waarden per maand moeten worden afgeleid. De p
 \section*{Voorbeeld 2 Afleiding per jaar}
 
 Als in afwijking van voorbeeld 1 de waarden niet per maand, maar per jaar moeten worden afgeleid dan ziet de regel er als volgt uit:
+
 ```
-
 Regel Belastingvermindering
-geldig altijd
-De belastingvermindering van een passagier moet gesteld worden op
-(het tijdsevenredig deel per jaar van de STANDAARD BELASTINGVERMINDERING
-gedurende de tijd dat hij een recht op belastingvermindering heeft).
-
+  geldig altijd
+   De belastingvermindering van een passagier moet gesteld worden op
+   (het tijdsevenredig deel per jaar van de STANDAARD BELASTINGVERMINDERING
+   gedurende de tijd dat hij een recht op belastingvermindering heeft).
 ```
 
 De overige specificaties en de gebruikte invoerwaarden zijn verdere gelijk aan voorbeeld 1:
@@ -2749,11 +2753,10 @@ De totale berekening wordt complexer als naast de tijdsevenredige verdeling ook 
 ```
 
 Regel Belastingvermindering
-geldig altijd
-De belastingvermindering van een passagier moet gesteld worden op
-(het tijdsevenredig deel per maand van de STANDAARD BELASTINGVERMINDERING
-gedurende de tijd dat hij een recht op belastingvermindering heeft).
-
+  geldig altijd
+   De belastingvermindering van een passagier moet gesteld worden op
+   (het tijdsevenredig deel per maand van de STANDAARD BELASTINGVERMINDERING
+   gedurende de tijd dat hij een recht op belastingvermindering heeft).
 ```
 
 Dit is dezelfde regel als uit voorbeeld 1.
@@ -2873,7 +2876,10 @@ N.B. Voor de voorbeelden in de navolgende subparagrafen zal de enkelvoudige, ste
 Vergelijkingspredicaten vergelijken de waarde die uit de onderwerpexpressie komt met de waarde die uit een tweede expressie komt. Die tweede expressie moet hierbij hetzelfde datatype hebben als de onderwerpexpressie: zo kan een datum bijvoorbeeld niet vergeleken worden met een getal. Indien de waarden gebruik maken van verschillende eenheden uit een eenheidssysteem (zie paragraaf 3.7), dan zal de waarde uit de tweede expressie omgerekend worden naar de eenheid van de eerste expressie voordat de vergelijking plaatsvindt.
 
 Twee vergelijkingspredicaten kunnen controleren of waardes wel of niet precies aan elkaar gelijk zijn. Deze predicaten zijn bij elk datatype te gebruiken. Als we bijvoorbeeld willen weten of een Vlucht een rondvlucht is, dan zouden we de luchthaven van vertrek en de luchthaven van bestemming kunnen vergelijken:
+
+```
 - de luchthaven van vertrek van de vlucht is gelijk aan de luchthaven van bestemming van de vlucht
+```
 
 Wanneer een van de expressies een lege waarde bevat geeft het is gelijk predicaat onwaar als resultaat en geeft het is niet gelijk predicaat waar als resultaat. Wanneer beide expressies een lege waarde bevatten geeft het is niet gelijk predicaat onwaar als resultaat en geeft het is gelijk predicaat ook onwaar als resultaat in het geval van expressies met het datatype Numeriek of Percentage en geeft dit predicaat een foutmelding in het geval van expressies met andere soorten datatypen.
 
@@ -2884,12 +2890,18 @@ ${ }^{28}$ Kenmerkcheck predicaten controleren instanties van objecttypen. Hun o
 ${ }^{29}$ Regelcontrole predicaten controleren regels. Hun invoer is de regelversie, d.w.z. de naam en de geldigheid van de desbetreffende regel. Het datatype is hier niet van belang.
 }
 kunnen controleren of de afstand tot bestemming kleiner is dan de parameter bovengrens afstand eerste schijf:
+
+```
 - de afstand tot bestemming van de v7ucht is kleiner dan de bovengrens afstand eerste schijf
+```
 
 Wanneer een van beide of beide expressies een lege waarde bevat zal het resultaat van het predicaat onwaar zijn.
 
 Als laatste zijn er vier vergelijkingspredicaten die alleen gebruikt kunnen worden bij datum/tijd datatypes. Deze controleren of de ene datum voor of na de andere datum ligt. Als we bijvoorbeeld willen controleren of de uiterste boekingsdatum van een Vlucht wel voor de datum van vertrek van de Vlucht zelf ligt, dan ziet de vergelijking er als volgt uit:
+
+```
 - de uiterste boekingsdatum van de vlucht is eerder dan de datum van vertrek van de v1ucht
+```
 
 Wanneer een beide expressies onwaar is zal het predicaat het resultaat onwaar geven en wanneer beide waardes leeg zijn geeft het predicaat een foutmelding als resultaat.
 
@@ -2914,14 +2926,20 @@ Om de werking van de elfproef te verduidelijken, is hierna een uitgewerkt voorbe
 \end{tabular}
 
 In RegelSpraak kunnen we de volgende voorwaarde schrijven om de elfproef uit te voeren:
+
+```
 - zijn burgerservicenummer voldoet aan de elfproef
+```
 
 \subsection*{8.1.4 Getalcontrole}
 
 Het predicaat numeriek zijn met exact <geheel getal> cijfers kan alleen gebruikt worden bij een Tekst datatype. Het predicaat controleert of de tekst ook gelezen kan worden als een getal, oftewel als een numerieke waarde met het opgegeven aantal cijfers.
 
 We zouden bijvoorbeeld naast de elfproef een andere controle op het burgerservicenummer kunnen doen. Een burgerservicenummer bestaat uit 9 cijfers, en met dit predicaat kunnen we controleren of dat ook klopt:
+
+```
 - zijn burgerservicenummer is numeriek met exact 9 cijfers
+```
 
 \subsection*{8.1.5 Dagsoortcontrole}
 
@@ -2929,9 +2947,7 @@ Het predicaat is een <dagsoort> kan alleen gebruikt worden bij een datum/tijd da
 
 Als we bijvoorbeeld een uitzondering willen maken voor vluchten die tijdens kerstmis vertrekken, dan kunnen we de volgende conditie gebruiken:
 ```
-
 - de datum van vertrek van een vlucht is een kerstdag
-
 ```
 
 \subsection*{8.1.6 Uniciteit}
@@ -2940,27 +2956,32 @@ Een speciaal soort predicaat is uniek zijn. Met dit predicaat kan voor één of 
 
 Bijvoorbeeld, bij instanties van het objecttype Natuurlijk persoon zal uniciteit moeten gelden met betrekking tot het attribuut Burgerservicenummer. Immers, elke persoon heeft een uniek Burgerservicenummer.
 
-In RegeISpraak wordt ervan uitgegaan dat de verschillende instanties van een objecttype ook verschillende objecten in de realiteit weergeven. Uniciteitschecks zijn alleen nodig als dat niet het geval is. De objecten zijn dan eerdere representaties van (of gegevens over) deze werkelijke objecten in verschillende contexten. Om dan te kunnen achterhalen dat twee representaties over hetzelfde werkelijke object gaan is er een identificerend attribuut nodig waarvan de
-uniciteit per werkelijk object gewaarborgd wordt.
+In RegeISpraak wordt ervan uitgegaan dat de verschillende instanties van een objecttype ook verschillende objecten in de realiteit weergeven. Uniciteitschecks zijn alleen nodig als dat niet het geval is. De objecten zijn dan eerdere representaties van (of gegevens over) deze werkelijke objecten in verschillende contexten. Om dan te kunnen achterhalen dat twee representaties over hetzelfde werkelijke object gaan is er een identificerend attribuut nodig waarvan de uniciteit per werkelijk object gewaarborgd wordt.
 
 Als we de uniciteit willen controleren, dan moeten we gebruik maken van een speciale onderwerpexpressie. In plaats van een lidwoord moeten we het woord alle voor het desbetreffende objecttype zetten.
+
+```
 - de burgerservicenummers van alle Natuurlijke personen moeten uniek zijn
-
-Uniciteit kan verder ook gecontroleerd worden voor een combinatie van attributen. Er wordt dan gecontroleerd of de combinatie van de attribuutwaarden uniek is. Een consistentieregel met twee of meer attributen schrijven we door een concatenatie (zie ook paragraaf 5.7) van deze twee attributen te specificeren. Twee vluchten bijvoorbeeld kunnen niet tegelijkertijd van dezelfde luchthaven vertrekken, zoals in het onderstaande voorbeeld:
-- de concatenatie van de luchthaven van vertrek en de vertrektijd van de vlucht van alle V1uchten is uniek
-
-Uniciteit kan ook gecontroleerd worden met betrekking tot de attributen van twee verschillende objecttypen. Dit is wat lastig uit te leggen met de TOKA-casus dus we zullen hiervoor een abstracter voorbeeld gebruiken. Stel we hebben de volgende twee objecttypen voor twee verschillende vormen:
 ```
 
-Objecttype de Cirke1 (mv: Cirkels)
-de naam Tekst;
-de kleur Tekst;
-de radius Numeriek (getal met 2 decimalen);
-Objecttype het vierkant (mv: Vierkanten)
-de naam Tekst;
-de kleur Tekst;
-de afmeting Numeriek (getal met 2 decimalen);
+Uniciteit kan verder ook gecontroleerd worden voor een combinatie van attributen. Er wordt dan gecontroleerd of de combinatie van de attribuutwaarden uniek is. Een consistentieregel met twee of meer attributen schrijven we door een concatenatie (zie ook paragraaf 5.7) van deze twee attributen te specificeren. Twee vluchten bijvoorbeeld kunnen niet tegelijkertijd van dezelfde luchthaven vertrekken, zoals in het onderstaande voorbeeld:
 
+```
+- de concatenatie van de luchthaven van vertrek en de vertrektijd van de vlucht van alle Vluchten is uniek
+```
+
+Uniciteit kan ook gecontroleerd worden met betrekking tot de attributen van twee verschillende objecttypen. Dit is wat lastig uit te leggen met de TOKA-casus dus we zullen hiervoor een abstracter voorbeeld gebruiken. Stel we hebben de volgende twee objecttypen voor twee verschillende vormen:
+
+```
+Objecttype de Cirke1 (mv: Cirkels)
+  de naam Tekst;
+  de kleur Tekst;
+  de radius Numeriek (getal met 2 decimalen);
+
+Objecttype het vierkant (mv: Vierkanten)
+  de naam Tekst;
+  de kleur Tekst;
+  de afmeting Numeriek (getal met 2 decimalen);
 ```
 
 We willen zowel een Cirkel als Vierkant kunnen aanwijzen met de naam. We kunnen dan controleren of er geen vormen zijn met dezelfde naam, oftewel
@@ -2969,10 +2990,16 @@ We willen zowel een Cirkel als Vierkant kunnen aanwijzen met de naam. We kunnen 
 3. of er geen Cirkel met dezelfde naam is als een Vierkant.
 
 Dit doen we door een vereniging te specificeren van de twee attributen. Let wel: een vereniging is de combinatie van twee attributen met hetzelfde datatype. Het attribuut naam heeft het datatype Tekst voor zowel Cirkel als Vierkant; we kunnen deze combineren door gebruik te maken van de operator verenigd met. Het resultaat hiervan is een verzameling die bestaat uit de waarden van naam voor alle instanties van beide objecttypen:
+
+```
 - de namen van alle Cirkels verenigd met de namen van alle Vierkanten moeten uniek zijn
+```
 
 Tenslotte kan de uniciteit gecontroleerd worden voor een combinatie van twee attributen van twee objecttypen. We kunnen dan bijvoorbeeld controleren of er geen figuren zijn met dezelfde combinatie van naam en kleur. We specificeren dan twee concatenaties van deze attributen voor beide objecttypen die we gebruiken voor de vereniging waarvoor vervolgens de uniciteit bepaald moet worden:
+
+```
 - de concatenatie van de namen en de kleuren van alle Cirkels verenigd met de concatenatie van de namen en de kleuren van alle Vierkanten moeten uniek zijn
+```
 
 Belangrijk hierbij is dat de volgorde van de gebruikte attributen voor beide concatenaties hetzelfde moet zijn. In het bovenstaande voorbeeld is dat het geval: het eerste attribuut is naam en het tweede attribuut is kleur, voor zowel het objecttype Cirkel als het objecttype Vierkant. Als dit niet het geval zou zijn, dan zou RegelSpraak een naam/kleur combinatie vergelijken met een kleur/naam combinatie, en geen uniciteit vaststellen bij gelijke naam en
 kleur. Immers, "blauw/eerste vorm" is niet gelijk aan "eerste vorm/blauw".
@@ -2996,10 +3023,16 @@ kleur. Immers, "blauw/eerste vorm" is niet gelijk aan "eerste vorm/blauw".
 Met een rolcheck kan gecontroleerd worden of een instantie al dan niet een bepaalde rol (zie paragraaf 3.11) invult. Hiervoor worden de predicaten is/heeft een of is/heeft geen gebruikt waar de te controleren rol achter wordt gezet.
 
 Als we bijvoorbeeld willen controleren of een instantie van Natuurlijk persoon ook de rol passagier invult bij de instanties van Vlucht, dan gebruiken we de volgende conditie:
+
+```
 - hij is een passagier
+```
 
 De controle of er natuurlijke personen zijn die passagier zijn kan worden uitgedrukt met "heeft" in combinatie met het andere objecttype in het feittype. Bijvoorbeeld:
-- de v7ucht heeft een passagier
+
+```
+- de Vlucht heeft een passagier
+```
 
 \subsection*{8.1.8 Kenmerkcheck}
 
@@ -3008,8 +3041,11 @@ Met een kenmerkcheck kan gecontroleerd worden of een instantie al dan niet een b
 2. Bij bezittelijke kenmerken wordt heeft <kenmerknaam> of heeft geen <kenmerknaam> gebruikt.
 3. Bij een kenmerk dat niet bijvoeglijk of bezittelijk is, wordt is een <kenmerknaam> of is geen <kenmerknaam> gebruikt.
 Voor een volledig beeld van de verschillende schrijfwijzen kan Tabel 16 geraadpleegd worden.
-Het predicaat dient voorafgegaan te worden door een onderwerpexpressie die verwijst naar een objecttype (eventueel via een rol). De onderwerpexpressie kan niet verwijzen naar een datatype (via een attribuut) aangezien datatypes geen kenmerken hebben Als we bijvoorbeeld willen controleren of een Natuurlijk persoon minderjarig is, dan gebruiken we de volgende conditie:
+Het predicaat dient voorafgegaan te worden door een onderwerpexpressie die verwijst naar een objecttype (eventueel via een rol). De onderwerpexpressie kan niet verwijzen naar een datatype (via een attribuut) aangezien datatypes geen kenmerken hebben Als we bijvoorbeeld willen controleren of een Natuurlijk persoon minderjarig is, dan gebruiken we de volgende conditie: 
+
+```
 - hij is minderjarig
+```
 
 \subsection*{8.1.9 Regelpredicaat}
 
@@ -3071,29 +3107,26 @@ Als er slechts één specifiek onderdeel gecontroleerd moet worden, dan spreken 
 Bij een enkele conditie is er slechts één predicaat. Hiervoor wordt de vragende vorm van het predicaat gebruikt. Als de conditie wordt gebruikt als voorwaarde, dan wordt het woord indien voor de onderwerpexpressie gezet. Als de conditie gebruikt wordt als criterium, dan wordt het woord moet tussen de onderwerpexpressie en het predicaat gezet, en wordt de meervoudsvorm (van de vragende vorm) van het predicaat gebruikt.
 
 Stel dat we willen controleren of een Natuurlijk persoon minderjarig is. Dit is het geval als de leeftijd van deze natuurlijke persoon kleiner is dan de leeftijd waarop mensen als volwassen worden beschouwd. We specificeren daarvoor een parameter volwassenleeftijd.
+
 ```
-
 Parameter volwassenleeftijd : Numeriek (niet-negatief geheel getal) met eenheid jr
-
 ```
 
 Met deze parameter kunnen we het predicaat kleiner dan gebruiken, dat controleert of een bepaalde waarde kleiner is dan een andere waarde. Als we onze controle willen gebruiken als criterium, dus in een consistentieregel, dan ziet een dergelijke regel er als volgt uit:
+
 ```
-
 Regel controleer minderjarig
-geldig altijd
-De leeftijd van een Natuurlijk persoon moet kleiner zijn dan de volwassenleeftijd.
-
+  geldig altijd
+    De leeftijd van een Natuurlijk persoon moet kleiner zijn dan de volwassenleeftijd.
 ```
 
 Als we onze controle willen gebruiken als voorwaarde, dus in het voorwaardendeel van een regel, dan ziet zo'n regel ziet er als volgt uit:
+
 ```
-
 Regel bepaal minderjarig
-geldig altijd
-Een Natuurlijk persoon is minderjarig
-indien zijn leeftijd kleiner is dan de volwassenleeftijd.
-
+  geldig altijd
+    Een Natuurlijk persoon is minderjarig
+    indien zijn leeftijd kleiner is dan de volwassenleeftijd.
 ```
 
 \section*{Syntax enkele conditie specificatie:}
@@ -3137,59 +3170,52 @@ Deze kwantificatie wordt op de volgende manier gebruikt bij een samengestelde co
 Let op: voor de condities in de lijst wordt de stellende vorm van het predicaat gebruikt.
 
 Voorbeeld: als we willen controleren of een passagier recht heeft op duurzaamheidskorting, dan moeten we twee punten nagaan. Ten eerste of de reis het kenmerk duurzaam heeft, en ten tweede of de afstand tot bestemming groot genoeg is om voor de korting in aanmerking te komen. Dit is een samengestelde conditie, bestaande uit twee condities die allebei waar moeten zijn om de samengestelde conditie waar te maken. Dit zouden we als volgt kunnen opschrijven:
+
 ```
-
 Regel recht op duurzaamheidskorting
-geldig altijd
-Een passagier heeft recht op duurzaamheidskorting
-indien er aan alle van de volgende voorwaarden wordt voldaan:
-- zijn reis is duurzaam
-- de afstand tot bestemming van zijn reis is groter of gelijk aan
-duurzaamheidskorting minimale afstand.
-
+  geldig altijd
+    Een passagier heeft recht op duurzaamheidskorting
+    indien er aan alle van de volgende voorwaarden wordt voldaan:
+    - zijn reis is duurzaam
+    - de afstand tot bestemming van zijn reis is groter of gelijk aan duurzaamheidskorting minimale afstand.
 ```
 
 Aangezien we hier een kenmerk en een attribuut van slechts één instantie controleren, kunnen we de deze regel ook als volgt opschrijven:
+
 ```
-
 Regel recht op duurzaamheidskorting
-geldig altijd
-Een passagier heeft recht op duurzaamheidskorting
-indien hij aan alle volgende voorwaarden voldoet:
-- zijn reis is duurzaam
-- de afstand tot bestemming van zijn reis is groter of gelijk aan
-duurzaamheidskorting minimale atstand.
-
+  geldig altijd
+    Een passagier heeft recht op duurzaamheidskorting
+    indien hij aan alle volgende voorwaarden voldoet:
+    - zijn reis is duurzaam
+    - de afstand tot bestemming van zijn reis is groter of gelijk aan duurzaamheidskorting minimale atstand.
 ```
 
 We zouden deze samengestelde conditie ook kunnen gebruiken als criterium in een consistentieregel. De regel hieronder zal inconsistent zijn wanneer de Passagier niet aan het samengestelde criterium voldoen:
+
 ```
-
 Regel controleer duurzaamheidskorting
-ge1dig altijd
-Een passagier moet voldoen aan alle van de volgende criteria:
-- zijn reis is duurzaam
-- de afstand tot bestemming van zijn reis is groter of gelijk aan
-duurzaamheidskorting minimale afstand.
-
+  ge1dig altijd
+    Een passagier moet voldoen aan alle van de volgende criteria:
+    - zijn reis is duurzaam
+    - de afstand tot bestemming van zijn reis is groter of gelijk aan duurzaamheidskorting minimale afstand.
 ```
 
 De lijst met condities kan bestaan uit enkele condities zoals hierboven besproken, maar kan ook weer zelf samengestelde condities bevatten. Zo kunnen samengestelde condities in elkaar genest worden waarbij de nestingsdiepte in principe onbeperkt is. Voor ieder nestingsniveau krijgt de voorwaarde één bullet ('•') erbij, het aantal bullets zal dus gelijk zijn aan het nestingsniveau. Het tweede niveau krijgt dan ook twee bullets, het derde drie etc.
 
 Om het gebruik van geneste predicaten te illustreren breiden we het voorwaardendeel uit het bovenstaand voorbeeld uit, door toe te voegen dat een persoon ouder dan 64 jaar moet zijn om in aanmerking te komen voor duurzaamheidskorting. Gebruikmakend van enkele kenmerken van Natuurlijk persoon kunnen we dan het volgende schrijven:
-```
 
+```
 Regel recht op duurzaamheidskorting voor ouderen
-geldig altijd
-Een passagier heeft recht op duurzaamheidskorting
-indien hij aan alle volgende voorwaarden voldoet:
-. zijn reis is duurzaam
-- de afstand tot bestemming van zijn reis is groter of gelijk aan
-duurzaamheidskorting minimale afstand
-- hij voldoet aan geen van de volgende voorwaarden:
-\bullet. hij is een passagier jonger dan 18 jaar
-.. hij is een passagier van }18\mathrm{ tot en met 24 jaar
-.. hij is een passagier van }24\mathrm{ tot en met }64\mathrm{ jaar.
+  geldig altijd
+    Een passagier heeft recht op duurzaamheidskorting
+    indien hij aan alle volgende voorwaarden voldoet:
+    - zijn reis is duurzaam
+    - de afstand tot bestemming van zijn reis is groter of gelijk aan duurzaamheidskorting minimale afstand
+    - hij voldoet aan geen van de volgende voorwaarden:
+      * hij is een passagier jonger dan 18 jaar
+      * hij is een passagier van 18 tot en met 24 jaar
+      * hij is een passagier van 24 tot en met 64 jaar.
 
 ```
 Syntax samengestelde conditie specificatie:
@@ -3228,22 +3254,20 @@ De reden hiervoor is dat de regel anders ambigu wordt doordat niet duidelijk is 
 \subsection*{8.4.2 Gedurende de tijd dat}
 
 Als een tijdsafhankelijke conditie wordt gebruikt dan wordt die conditie vooraf gegaan door de uitdrukking "gedurende de tijd dat...". Bijvoorbeeld bij een enkelvoudige conditie:
+
 ```
-
 gedurende de tijd dat hij een recht op belastingvermindering heeft
-
 ```
 
 In dit voorbeeld is het bezittelijk kenmerk recht op belastingvermindering een tijdsafhankelijk kenmerk dat het object op bepaalde momenten in de tijd wel heeft en op andere momenten niet. De conditie is waar in de periode(s) waarin het object wel het kenmerk heeft.
 
 In een samengestelde conditie ziet het gebruik van gedurende de tijd dat er bijvoorbeeld zo uit:
-```
 
+```
 gedurende de tijd dat er aan alle volgende voorwaarden wordt voldaan
-
-```
 - hij heeft een recht op belastingvermindering
 - zijn geboortedatum is eerder dan 1-1-2002
+```
 
 In dit voorbeeld is de eerste conditie tijdsafhankelijk, maar de tweede niet (de geboortedatum heeft geen verschillende waarden op verschillende momenten). De samengestelde conditie is als geheel wel tijdsafhankelijk en wordt voorafgegaan door gedurende de tijd dat.
 
@@ -3263,16 +3287,21 @@ Verwijzingsbron niet gevonden..
 
 Voorbeeld van de toepassing van deze conditie in een regel met een enkelvoudige conditie in het voorwaardendeel:
 
+```
 De te betalen belasting van een passagier moet berekend worden als zijn belasting op basis van afstand plus zijn belasting op basis van reisduur
 van dd. 1-1-2024 tot dd. 8-2-2025
+```
+
 In dit voorbeeld zijn de datums als literal opgenomen ("harde" waarde), maar in plaats daarvan kunnen alle andere expressies die als resultaat een datum hebben worden gebruikt (attributen, parameters, berekening van datum).
 
 Als deze conditie wordt opgenomen in een samengestelde conditie, dan wordt dit uitgedrukt met het is de periode gevolgd door de conditie. Bijvoorbeeld:
 
+```
 De te betalen belasting van een passagier moet berekend worden als zijn belasting op basis van afstand plus zijn belasting op basis van reisduur
 gedurende de tijd dat er aan alle volgende voorwaarden wordt voldaan
 - hij heeft een recht op belastingvermindering
 - het is de periode van dd. 1-1-2024 tot dd. 8-2-2025
+```
 
 \section*{9 Resultaatdeel}
 
@@ -3296,22 +3325,19 @@ De volgende resultaatdelen zijn hierbij als actie mogelijk welke in de genoemde 
 
 Een gelijkstelling is een actie waarbij een attribuut een waarde krijgt die wordt uitgedrukt door een expressie. Hierbij is het taalpatroon afhankelijk van het feit of hier sprake is van een berekeningsexpressie.
 1) Bij het toekennen van een waarde uit een berekeningsexpressie is het taalpatroon "De/het <attribuut> van een <onderwerpexpressie> moet berekend worden als <expressie>" waarbij de expressie zowel een getalexpressie als datumexpressie kan zijn (met beide kan immers gerekend worden). Een voorbeeld uit de TOKA-casus is de te betalen belasting, in het geval dat de vlucht geen rondvlucht is en de vlucht niet duurzaam is:
+
 ```
-
 Regel Te betalen belasting
-geldig altijd
-De te betalen belasting van een Natuurlijk persoon moet berekend worden als
-zijn belasting op basis van afstand plus zijn belasting op basis van reisduur
-
+  geldig altijd
+    De te betalen belasting van een Natuurlijk persoon moet berekend worden als
+    zijn belasting op basis van afstand plus zijn belasting op basis van reisduur
 ```
 2) Bij het toekennen van een andere waarde is het taalpatroon "De/het <attribuut> van een <onderwerpexpressie> moet gesteld worden op <waarde>". Als we bovenstaande regel schrijven met een variabele (zie paragraaf 4.3 en hoofdstuk 11), dan ziet deze er als volgt uit:
+
 ```
-
 Regel Te betalen belasting
-geldig altijd
-De te betalen belasting van een Natuurlijk persoon moet gesteld worden op zijn
-belasting op basis van afstand.
-
+  geldig altijd
+    De te betalen belasting van een Natuurlijk persoon moet gesteld worden op zijn belasting op basis van afstand.
 ```
 
 De linker- en de rechterkant van een gelijkstelling moeten hetzelfde datatype hebben, en indien er verschillende eenheden worden gebruikt dan moeten deze in elkaar om te rekenen zijn via een eenheidssysteem (zie paragraaf 3.7).
@@ -3335,16 +3361,21 @@ Een kenmerktoekenning bepaalt of een instantie van een objecttype het kenmerk mo
 
 Als een kenmerk niet bezittelijk of bijvoeglijk is, is het taalpatroon "Een <objecttype> is een <kenmerk>". In RegelSpraak ziet dit er als volgt uit:
 
-Een V lucht is een belaste reis
-Indien een kenmerk echter als bijvoeglijk is gespecificeerd (zie paragraaf 3.5 voor meer informatie hierover) dan leidt dat tot een afwijkend taalpatroon: "Een <objecttype> is <kenmerk>". Dit ziet er als volgt uit in RegelSpraak:
+```
+Een Vlucht is een belaste reis
 ```
 
-Een vlucht is duurzaam
+Indien een kenmerk echter als bijvoeglijk is gespecificeerd (zie paragraaf 3.5 voor meer informatie hierover) dan leidt dat tot een afwijkend taalpatroon: "Een <objecttype> is <kenmerk>". Dit ziet er als volgt uit in RegelSpraak:
 
+```
+Een vlucht is duurzaam
 ```
 
 Indien een kenmerk tot slot als bezittelijk is gespecificeerd (zie paragraaf 3.5 voor meer informatie hierover) dan leidt dat tot een afwijkend taalpatroon: "Een <objecttype> heeft <kenmerk>". In RegelSpraak ziet dit er als volgt uit:
+
+```
 Een passagier heeft recht op korting
+```
 
 \section*{Syntax kenmerktoekenning specificatie:}
 <kenmerktoekenning> : := <onderwerpketen> ("is" | "heeft") ["een"] <kenmerknaam>
@@ -3361,27 +3392,22 @@ objecttype Contingent treinmiles bijvoorbeeld wordt gebruikt om het aantal toe t
 \section*{ObjectCreatie.}
 
 Een nieuwe instantie kan bij ObjectCreatie alleen gecreëerd worden in relatie met een al bestaande instantie. Deze relatie zal moeten zijn gespecificeerd met een feittype. Als we bijvoorbeeld een instantie van Contingent treinmiles willen creëren, dan is dat alleen zinvol als we al een instantie van Vlucht hebben waar we de instantie aan kunnen koppelen. Immers, de instantie zal gebruikt worden voor het bepalen van de treinmiles van de vlucht. Behalve het specificeren van Contingent treinmiles zal er dus ook een feittype gespecificeerd moeten worden, dat het objecttype verbindt met objecttype Vlucht.
-```
 
+```
 Objecttype het Contingent treinmiles
-het totaal aantal treinmiles
-het aantal treinmiles op basis van aantal passagiers
-het restant na verdeling
+  het totaal aantal treinmiles  Numeriek (positief geheel getal);
+  het aantal treinmiles op basis van aantal passagiers  Numeriek (positief geheel getal);
+  het restant na verdeling  Numeriek (positief geheel getal);
+  
 Feittype reis met contingent treinmiles
-de reis met treinmiles
-v1ucht
-het vastgestelde contingent treinmiles Contingent treinmiles
+  de reis met treinmiles  Vlucht
+  het vastgestelde contingent treinmiles  Contingent treinmiles
 één reis met treinmiles heeft één vastgestelde contingent treinmiles;
-
 ```
-Numeriek (positief geheel getal);
-Numeriek (positief geheel getal);
-Numeriek (positief gehee1 getal);
 
 De actie om een nieuw object te creëren heeft het taalpatroon "Een <onderwerpexpressie> heeft <rol>". Een ObjectCreatie actie om een instantie van Contingent treinmiles te creëren en die met een nieuw feit van reis met contingent treinmiles te koppelen aan een instantie van Vlucht ziet er als volgt uit:
 ```
 
-een vlucht heeft het vastgestelde contingent treinmiles
 
 ```
 ![](https://cdn.mathpix.com/cropped/2025_04_10_a97b267819259447320dg-100.jpg?height=459&width=1570&top_left_y=1498&top_left_x=246)
@@ -3391,14 +3417,13 @@ Figuur 16: een ObjectCreatie expressie. Een nieuwe instantie van Contingent trei
 Het is ook mogelijk om attributen van de nieuwe instantie in dezelfde expressie meteen een waarde te geven. Het taalpatroon wordt dan "met <attribuut1 van nieuwe instantie> gelijk aan <expressiel> en <attribuut2 van nieuwe instantie> gelijk aan <expressie2>". We kunnen bijvoorbeeld het attribuut aantal treinmiles op basis van aantal passagiers van onze nieuwe instantie van Contingent treinmiles meteen bij ObjectCreatie de juiste waarde toekennen. We gebruiken hiervoor een parameter aantal treinmiles per passagier voor contingent die aangeeft hoeveel treinmiles er per passagier moeten worden toegekend.
 Parameter de aantal treinmiles per passagier voor contingent: Numeriek (positief geheel getal)
 Met deze parameter en de ObjectCreatie actie kunnen we nu de volgende regel schrijven:
-Regel vastgestelde contingent treinmiles
+
 ```
-
-geldig altijd
-Een vlucht heeft het vastgestelde contingent treinmiles met
-aantal treinmiles op basis van aantal passagiers gelijk aan het aantal passagiers
-van de Vlucht maal het aantal treinmiles per passagier voor contingent.
-
+Regel vastgestelde contingent treinmiles
+  geldig altijd
+    Een vlucht heeft het vastgestelde contingent treinmiles met
+    aantal treinmiles op basis van aantal passagiers gelijk aan het aantal passagiers
+    van de Vlucht maal het aantal treinmiles per passagier voor contingent.
 ```
 
 \section*{Syntax ObjectCreatie specificatie:}
@@ -3415,17 +3440,21 @@ van de Vlucht maal het aantal treinmiles per passagier voor contingent.
 \subsection*{9.4 FeitCreatie}
 
 In de vorige paragraaf hebben we een nieuwe instantie van Contingent treinmiles gemaakt, dat met een feit was verbonden aan een instantie van Vlucht. Met deze nieuwe instantie kunnen we nu het totaal aantal treinmiles bepalen dat bij een bepaalde vlucht hoort. Deze treinmiles moeten vervolgens verdeeld worden over de passagiers van de vlucht. Om dat te doen, moeten we de nieuwe instantie verbinden met de instanties van Natuurlijk persoon die de rol passagier invullen bij een instantie van Vlucht; we moeten een nieuw feit creëren. Hiervoor moeten we eerst een feittype specificeren dat deze twee objecttypen met elkaar in verband brengt. Nieuwe instanties van een feittype kunnen aangemaakt worden met een FeitCreatie actie.
-```
 
+```
 Feittype verdeling contingent treinmiles over passagiers
-het te verdelen contingent treinmiles Contingent Treinmiles
-de passagier met recht op treinmiles Natuurlijk persoon
+  het te verdelen contingent treinmiles Contingent Treinmiles
+  de passagier met recht op treinmiles Natuurlijk persoon
 één te verdelen contingent treinmiles wordt verdeeld over meerdere passagiers met recht op
 treinmiles
-We kunnen nu een regel schrijven die ons nieuwe feit aanmaakt:
-egel passagier met recht op treinmiles
-geldig altijd Een passagier met recht op treinmiles van een vastgestelde contingent treinmiles is een passagier van de reis met treinmiles van het vastgestelde contingent treinmiles.
+```
 
+We kunnen nu een regel schrijven die ons nieuwe feit aanmaakt:
+
+```
+Regel passagier met recht op treinmiles
+  geldig altijd
+    Een passagier met recht op treinmiles van een vastgestelde contingent treinmiles is een passagier van de reis met treinmiles van het vastgestelde contingent treinmiles.
 ```
 ![](https://cdn.mathpix.com/cropped/2025_04_10_a97b267819259447320dg-101.jpg?height=931&width=1506&top_left_y=1519&top_left_x=232)
 
@@ -3445,20 +3474,21 @@ Consistentieregels zijn regels die niet bedoeld zijn om aan een attribuut of een
 
 Als er sprake is van één enkel criterium, dan kan een consistentieregel opgesteld worden als een enkele conditie (zie paragraaf 8.3.1). Dat betekent dat een onderwerpexpressie gecombineerd moet worden met de enkele schrijfwijze voor een criterium van het predicaat. Een voorbeeld van een enkel criterium is de controle of een vlucht geen rondvlucht is. Dat kunnen we bepalen door te kijken naar de luchthavens waar het vliegtuig opstijgt en weer landt. Als dat dezelfde luchthavens zijn, dan is de vlucht een rondvlucht. In RegelSpraak betekent dat, dat we de twee attributen luchthaven van vertrek en luchthaven van bestemming van Vlucht met elkaar moeten vergelijken. We gebruiken hiervoor het predicaat moet ongelijk zijn aan, met de schrijfwijze die voor een enkel criterium gebruikt moet worden (zie paragraaf 8.3.1). Dit leidt tot de volgende regel:
 
+```
 Regel Controleer of vlucht geen rondvlucht is
-geldig altijd
-De luchthaven van vertrek van een vlucht moet ongelijk zijn aan de luchthaven van bestemming van de vlucht.
+  geldig altijd
+   De luchthaven van vertrek van een vlucht moet ongelijk zijn aan de luchthaven van bestemming van de vlucht.
+```
 
 Als er sprake is van meerdere criteria, dan moet de regel anders geschreven worden zoals besproken in paragraaf 8.3.2. De criteria vormen dan een lijst met bullets die voorafgegaan moeten worden door de woorden moet voldoen aan <kwantificatie> volgende criteria:. Tevens moet een andere schrijfwijze van het predicaat gebruikt worden.
 Een voorbeeld van samengestelde criteria is het controleren of de TOKA wet van toepassing is op een Vlucht. Het eerste criterium hiervoor is of een Vlucht belast is. Dit kunnen we controleren met een kenmerkcheck. Het tweede criterium is of een Vlucht passagiers heeft. Dit kunnen we controleren met een vergelijkingspredicaat en het attribuut aantal passagiers. Als niet aan één van deze criteria voldaan wordt, dan zal de regel inconsistent opleveren. Dit leidt tot de volgende regel:
+
 ```
-
 Regel Controleer of de TOKA wet van toepassing is
-geldig altijd
-Een reis moet voldoen aan ten minste één van de volgende criteria:
-- de reis is belast
-- het aantal passagiers van de reis is groter dan 0.
-
+  geldig altijd
+  Een reis moet voldoen aan ten minste één van de volgende criteria:
+  - de reis is belast
+  - het aantal passagiers van de reis is groter dan 0.
 ```
 
 \section*{Syntax consistentieregel specificatie}
@@ -3493,16 +3523,18 @@ topleveltweezijdigetekstvergelijkingsoperatormeervoud>)
 
 Initialisatie wordt gebruikt voor attributen waarvan de waarde niet leeg mag zijn. Een initialisatieregel controleert of een attribuut een waarde bevat, welke eventueel nog wordt toegekend vanuit een specifieke regel zoals een gelijkstelling (zie paragraaf 9.1) of een verdeling (zie paragraaf 9.7). Als dit niet het geval is, dan kent de initialisatieregel een gespecificeerde waarde toe aan het attribuut. Het taalpatroon dat hiervoor gebruikt wordt, is: "De/het <attribuut> van een <onderwerpexpressie> moet geïnitialiseerd worden op <waarde>". Een voorbeeld in RegelSpraak kan er dan als volgt uitzien:
 
+```
 Parameter de initiele belasting : Bedrag
-Regel Initialiseer te betalen belasting op initiele belasting
-geldig altijd
-De te betalen belasting van een passagier moet geïnitialiseerd worden op de initiele belasting.
 
-\section*{Syntax initialisatie specificatie:}
+Regel Initialiseer te betalen belasting op initiele belasting
+  geldig altijd
+   De te betalen belasting van een passagier moet geïnitialiseerd worden op de initiele belasting.
 ```
 
-<initialisatie> ::= <attribuutvanonderwerp> "moet geïnitialiseerd worden op"
+\section*{Syntax initialisatie specificatie:}
 
+```
+<initialisatie> ::= <attribuutvanonderwerp> "moet geïnitialiseerd worden op"
 ```
 <expressie>.
 
@@ -3516,13 +3548,15 @@ Bij een verdeling wordt altijd vastgelegd of er gelijk verdeeld moet worden of n
 
 Twee basisverdelingen staan hieronder als voorbeeld waarvan het eerste voorbeeld een gelijke verdeling illustreert en het tweede voorbeeld een verdeling naar rato (op basis van woonregio factor):
 
-Regel verdeling treinmiles in gelijke delen geldig altijd
+```
+Regel verdeling treinmiles in gelijke delen
+  geldig altijd
+    Het totaal aantal treinmiles van een te verdelen contingent treinmiles wordt verdeeld over de treinmiles van alle passagiers met recht op treinmiles van het te verdelen contingent treinmiles, waarbij wordt verdeeld in gelijke delen.
 
-Het totaal aantal treinmiles van een te verdelen contingent treinmiles wordt verdeeld over de treinmiles van alle passagiers met recht op treinmiles van het te verdelen contingent treinmiles, waarbij wordt verdeeld in gelijke delen.
-
-Regel verdeling treinmiles op basis van woonregio factor geldig altijd
-
-Het totaal aantal treinmiles van een te verdelen contingent treinmiles wordt verdeeld over de treinmiles van alle passagiers met recht op treinmiles van het te verdelen contingent treinmiles, waarbij wordt verdeeld naar rato van de woonregio factor.
+Regel verdeling treinmiles op basis van woonregio factor
+  geldig altijd
+   Het totaal aantal treinmiles van een te verdelen contingent treinmiles wordt verdeeld over de treinmiles van alle passagiers met recht op treinmiles van het te verdelen contingent treinmiles, waarbij wordt verdeeld naar rato van de woonregio factor.
+```
 
 Ter illustratie van de twee bovenstaande regels zijn hieronder rekenvoorbeelden toegevoegd. Wanneer bijvoorbeeld een contingent van 1000 treinmiles wordt verdeeld over twee passagiers, Tom met woonregio factor 3 en Maria met woonregio factor 2, dan worden deze treinmiles als volgt over hen verdeeld:
 - Bij verdeling in gelijke delen krijgen Tom en Maria hetzelfde aandeel van het beschikbare contingent treinmiles. Oftewel, 1000/2=500 treinmiles per passagier.
@@ -3534,11 +3568,14 @@ Binnen een verdeling kan een groepering van de ontvangers gespecificeerd worden 
 met een hogere leeftijd.
 Zodra verdeeld wordt over groepen moet ook iets gespecificeerd worden over wat er gebeurt wanneer er meerdere instanties zijn die in dezelfde groep vallen (meerdere passagier met dezelfde leeftijd bijvoorbeeld). Hierbij bestaat opnieuw de mogelijkheid om dit in gelijke delen te doen of naar rato op basis van een attribuut van de ontvanger. Hieronder volgt een voorbeeld met een verdeling over groepen ${ }^{32}$ :
 
-Regel Verdeling treinmiles op basis van leeftijd en woonregio factor ge1dig altijd
-
-Het totaal aantal treinmiles van een te verdelen contingent treinmiles wordt verdeeld over de treinmiles van alle passagiers met recht op treinmiles van het te verdelen contingent treinmiles, waarbij wordt verdeeld:
-- op volgorde van toenemende de leeftijd,
-- bij een even groot criterium naar rato van de woonregio factor. Als onverdeelde rest blijft het restant na verdeling van het te verdelen contingent treinmiles over.
+```
+Regel Verdeling treinmiles op basis van leeftijd en woonregio factor
+  geldig altijd
+    Het totaal aantal treinmiles van een te verdelen contingent treinmiles wordt verdeeld over de treinmiles van alle passagiers met recht op treinmiles van het te verdelen contingent treinmiles, waarbij wordt verdeeld:
+    - op volgorde van toenemende de leeftijd,
+    - bij een even groot criterium naar rato van de woonregio factor.
+    Als onverdeelde rest blijft het restant na verdeling van het te verdelen contingent treinmiles over.
+```
 
 Ter illustratie van het bovenstaande voorbeeld volgt een rekenvoorbeeld. Er wordt een contingent van 1200 treinmiles verdeeld over 3 passagiers conform onderstaande tabel:
 \begin{tabular}{|l|l|l|}
@@ -3564,18 +3601,14 @@ Hieronder staat een voorbeeld van een verdeling met een aanspraak:
 \footnotetext{
 ${ }^{32}$ Let op dat in het voorbeeld ook iets over een onverdeelde rest staat, dit is om het voorbeeld compleet en correct te houden. De onverdeelde rest wordt later in deze paragraaf verder toegelicht.
 }
+
 ```
-
 Regel verdeling treinmiles op basis van woonregio factor en met maximum waarde
-geldig altijd
-Het totaal aantal treinmiles van een te verdelen contingent treinmiles wordt verdeeld
-over de treinmiles van alle passagiers met recht op treinmiles van het te verdelen
-contingent treinmiles, waarbij wordt verdeeld:
-- naar rato van de woonregio factor,
-- met een maximum van het maximaal aantal te ontvangen treinmiles.
-Als onverdeelde rest blijft het restant na verdeling van het te verdelen contingent
-treinmiles over.
-
+  geldig altijd
+    Het totaal aantal treinmiles van een te verdelen contingent treinmiles wordt verdeeld over de treinmiles van alle passagiers met recht op treinmiles van het te verdelen contingent treinmiles, waarbij wordt verdeeld:
+    - naar rato van de woonregio factor,
+    - met een maximum van het maximaal aantal te ontvangen treinmiles.
+    Als onverdeelde rest blijft het restant na verdeling van het te verdelen contingent treinmiles over.
 ```
 
 Ter illustratie van het bovenstaande voorbeeld volgt wederom een rekenvoorbeeld. Hierbij gebruiken we gegevens die we al eerder hebben gebruikt: Er wordt een contingent van 1200 treinmiles verdeeld over 3 personen, zie Tabel 17. Daarnaast geldt een maximum van 300 treinmiles per passagier. Volgens deze regel is leeftijd niet relevant maar wordt wel verdeeld op basis van woonregio factor. Samen hebben Wilma, Hans en Diederik $3+1+2=6$ woonregio factoren. Dat betekent dat Wilma recht heeft op $3 / 6^{e}$ van de beschikbare 1200 treinmiles, dus 600 treinmiles. Dit mag echter niet volgens de tweede voorwaarde van deze regel. 600 treinmiles overschrijdt immers het maximum van 300 treinmiles per passagier. Wilma krijgt dus 300 treinmiles. Hans krijgt $1 / 6^{\mathrm{e}}$ van de beschikbare 1200 treinmiles, dus 200 treinmiles. Diederik heeft recht op $2 / 6^{\text {e }}$ van de 1200 treinmiles, dus 400 treinmiles. Dit is wederom meer dan het maximum van 300, waardoor Diederik 300 treinmiles krijgt. Nu alle passagiers hun treinmiles hebben gekregen, zijn nog niet alle treinmiles verdeeld. Er zijn nog 1200-300-200 $-300=400$ treinmiles beschikbaar. Dit is het restant na verdeling.
@@ -3589,15 +3622,11 @@ Hieronder staat een voorbeeld van een verdeling met een afronding:
 ```
 
 Regel verdeling treinmiles op basis van woonregio factor met afronding
-geldig altijd
-Het totaal aantal treinmiles van een te verdelen contingent treinmiles wordt verdeeld
-over de treinmiles van alle passagiers met recht op treinmiles van het te verdelen
-contingent treinmiles, waarbij wordt verdeeld:
-- naar rato van de woonregio factor,
-- afgerond op 0 decimalen naar beneden
-Als onverdeelde rest blijft het restant na verdeling van het te verdelen contingent
-treinmiles over.
-
+  geldig altijd
+    Het totaal aantal treinmiles van een te verdelen contingent treinmiles wordt verdeeld over de treinmiles van alle passagiers met recht op treinmiles van het te verdelen contingent treinmiles, waarbij wordt verdeeld:
+    - naar rato van de woonregio factor,
+    - afgerond op 0 decimalen naar beneden
+   Als onverdeelde rest blijft het restant na verdeling van het te verdelen contingent treinmiles over.
 ```
 
 Ter illustratie van het bovenstaande voorbeeld volgt hier een rekenvoorbeeld. We verdelen 1001 treinmiles over 2 passagiers: Tom met woonregio factor 3 en Maria met woonregio factor
@@ -3609,13 +3638,16 @@ In het geval van verdelen met een aanspraak of een afronding kan het voorkomen d
 
 Voor de volledigheid is hierna nog een voorbeeld opgenomen van een verdeling over groepen met aanspraak en afronding.
 
+```
 Regel Verdeling treinmiles op basis van leeftijd, woonregio factor, met maximum waarde en afronding
-ge1dig altijd
-Het totaal aantal treinmiles van een te verdelen contingent treinmiles wordt verdeeld over de treinmiles van alle passagiers met recht op treinmiles van het te verdelen contingent treinmiles, waarbij wordt verdeeld:
-- op volgorde van toenemende de leeftijd,
-- bij een even groot criterium naar rato van de woonregio factor,
-- met een maximum van het maximaal aantal te ontvangen treinmiles,
-- afgerond op 0 decimalen naar beneden. Als onverdeelde rest blijft het restant na verdeling van het te verdelen contingent treinmiles over.
+  geldig altijd
+    Het totaal aantal treinmiles van een te verdelen contingent treinmiles wordt verdeeld over de treinmiles van alle passagiers met recht op treinmiles van het te verdelen contingent treinmiles, waarbij wordt verdeeld:
+    - op volgorde van toenemende de leeftijd,
+    - bij een even groot criterium naar rato van de woonregio factor,
+    - met een maximum van het maximaal aantal te ontvangen treinmiles,
+    - afgerond op 0 decimalen naar beneden.
+    Als onverdeelde rest blijft het restant na verdeling van het te verdelen contingent treinmiles over.
+```
 
 Ter illustratie van het bovenstaande voorbeeld volgt hier een rekenvoorbeeld. In dit rekenvoorbeeld worden 1800 treinmiles verdeeld over 5 mensen. De leeftijd, woonregio factor, maximaal te ontvangen treinmiles en de uiteindelijk ontvangen treinmiles staan weergegeven in onderstaande tabel. Onder de tabel is uitgelegd hoe de ontvangen treinmiles berekend zijn.
 \begin{tabular}{|lllll|}
@@ -3669,21 +3701,20 @@ N.B. Als de situatie uit bovenstaande tabel bij één van de ontvangers optreedt
 
 \section*{Syntax verdeling specificatie:}
 ```
-
-    <verdeling> ::= <attribuutvanonderwerp> "wordt verdeeld over" <attribuutvanonderwerp> ",
-    waarbij wordt verdeeld" (<verdelenzondergroepen> | <meervoudigcriterium>)
-    <verdelenzondergroepen> ::= "in gelijke delen" | ("naar rato van"
-    <attribuutmetlidwoord>)
-    <meervoudigcriterium> ::= ":" \n (<verdelenovergroepen> | (<verdelenzondergroepen> ","))
-    [\n <maximumaanspraak>] [\n <veldeelafronding>] [\n <onverdeelderest>]
-    <verdelenovergroepen> ::= "- op volgorde van" (afnemende | toenemende)
-    <attribuutmetlidwoord> \n <criteriumbijgelijkevolgorde> ","
-    <criteriumbijgelijkevolgorde> ::= "- bij even groot criterium" ("in gelijke delen" |
-    ("naar rato van" <attribuutmetlidwoord>)) ","
-    <maximumaanspraak> ::= "- met een maximum van" <attribuutmetlidwoord> ","
-    <verdeelafronding> ::= "- afgerond op" <geheelgetal> "decimalen naar beneden."
-    <onverdeelderest> ::= "Als onverdeelde rest blijft" <attribuutvanonderwerp> "over."
-    ```
+<verdeling> ::= <attribuutvanonderwerp> "wordt verdeeld over" <attribuutvanonderwerp> ",
+waarbij wordt verdeeld" (<verdelenzondergroepen> | <meervoudigcriterium>)
+<verdelenzondergroepen> ::= "in gelijke delen" | ("naar rato van"
+<attribuutmetlidwoord>)
+<meervoudigcriterium> ::= ":" \n (<verdelenovergroepen> | (<verdelenzondergroepen> ","))
+[\n <maximumaanspraak>] [\n <veldeelafronding>] [\n <onverdeelderest>]
+<verdelenovergroepen> ::= "- op volgorde van" (afnemende | toenemende)
+<attribuutmetlidwoord> \n <criteriumbijgelijkevolgorde> ","
+<criteriumbijgelijkevolgorde> ::= "- bij even groot criterium" ("in gelijke delen" |
+("naar rato van" <attribuutmetlidwoord>)) ","
+<maximumaanspraak> ::= "- met een maximum van" <attribuutmetlidwoord> ","
+<verdeelafronding> ::= "- afgerond op" <geheelgetal> "decimalen naar beneden."
+<onverdeelderest> ::= "Als onverdeelde rest blijft" <attribuutvanonderwerp> "over."
+```
 
 \subsection*{9.8 Dagsoortdefinitie}
 
@@ -3691,18 +3722,18 @@ Een dagsoortdefinitie wordt gebruikt om te definiëren wanneer een dag van een b
 
 In een dagsoortdefinitie worden voorwaarden opgenomen om concreet te bepalen wanneer een datum van die dagsoort is. Zo is een datum een feestdag wanneer het een nieuwjaarsdag, paasdag, koningsdag, hemelvaartsdag, pinksterdag of kerstdag is. Of een datum is een kerstdag wanneer de datum de $25^{\text {ste }}$ of $26^{\text {ste }}$ dag van de $12^{\text {de }}$ maand is. Het onderwerp van een dagsoortdefinitie is altijd "de/een" (willekeurige) dag. Een voorbeeld van een dagsoortdefinitie
 voor de dagsoort kerstdag kan dan ook als volgt opgesteld worden:
-```
 
+```
 Regel Kerstdag
-geldig altijd
-Een dag is een kerstdag
-indien de dag aan alle volgende voorwaarden voldoet:
-- de maand uit (de dag) is gelijk aan 12
-- de dag voldoet aan ten minste één van de volgende voorwaarden:
-.. de dag uit (de dag) is gelijk aan 25
-.. de dag uit (de dag) is gelijk aan 26.
-
+  geldig altijd
+    Een dag is een kerstdag
+    indien de dag aan alle volgende voorwaarden voldoet:
+    - de maand uit (de dag) is gelijk aan 12
+    - de dag voldoet aan ten minste één van de volgende voorwaarden:
+    .. de dag uit (de dag) is gelijk aan 25
+    .. de dag uit (de dag) is gelijk aan 26.
 ```
+
 Syntax dagsoortdefinitie specificatie:
 <dagsoortdefinitie> ::= "Een dag is een " <dagsoortnaam>
 <dagsoortnaam> ::= <karakterreeks>
@@ -3734,14 +3765,16 @@ De actie in het resultaatdeel wordt pas uitgevoerd als aan de voorwaarden is vol
 Er moet verder onderscheid gemaakt worden tussen voorwaarden over enkelvoudige en meervoudige onderwerpexpressies. Een enkelvoudige voorwaarde controleert slechts één enkele instantie terwijl een meervoudige voorwaarde meerdere instanties controleert. Bij een meervoudige voorwaarde dient ook de onderwerpexpressie meervoudig te zijn, en moet het voorafgegaan worden door een kwantificatie.
 
 Een voorbeeld van een enkelvoudige voorwaarde is het nagaan of een Vlucht een belaste reis is. Dit is het geval als de bestemming ook per trein bereikbaar is, oftewel als het attribuut bereikbaar per trein van de instantie van Vlucht die de rol reis de waarde waar heeft. Dit is een enkelvoudige conditie aangezien slechts één instantie gecontroleerd moeten worden. We kunnen in dit geval schrijven:
+
 ```
-
 indien bereikbaar per trein van de vlucht gelijk is aan waar
-
 ```
 
 Een voorbeeld van een meervoudige voorwaarde is het nagaan of een Vlucht geen minderjarige passagiers bevat. Dit is het geval als er geen passagier is waarvan de leeftijd kleiner is dan de volwassenleeftijd. Dit is een meervoudige voorwaarde: alle instanties van Natuurlijk persoon die de rol passagier invullen voor de instantie van Vlucht moeten gecontroleerd worden. In dit geval kunnen we schrijven:
+
+```
 indien alle leeftijden van alle passagiers van de vlucht groter zijn dan volwassenleeftijd
+```
 
 \subsection*{10.1 Elementaire voorwaarde}
 
@@ -3753,27 +3786,29 @@ Een voorbeeld is de toekenning van het kenmerk minderjarig van Natuurlijk persoo
 ${ }^{33}$ Het predicaat is gevuurd (zie paragraaf Fout! Verwijzingsbron niet gevonden.) kan gebruikt worden, om te controleren of dit b ij een bepaalde regel het geval is geweest.
 }
 
+```
 Parameter volwassenleeftijd : Numeriek (niet-negatief geheel getal) met eenheid jr
+
 Regel Kenmerktoekenning persoon minderjarig
-geldig altijd
-Een Natuurlijk persoon is minderjarig
-indien zijn leeftijd kleiner is dan de volwassenleeftijd.
+  geldig altijd
+    Een Natuurlijk persoon is minderjarig
+    indien zijn leeftijd kleiner is dan de volwassenleeftijd.
+```
 Een ander voorbeeld is de toekenning van het kenmerk belaste reis voor het objecttype Vlucht.
 Dit is geen bezield objecttype, we moeten de expressie bij het predicaat dus anders formuleren.
+
 ```
-
 Regel belaste reis
-geldig altijd
-Een Vlucht is een belaste reis
-indien bereikbaar per trein van de vlucht gelijk is aan waar.
-
+  geldig altijd
+    Een Vlucht is een belaste reis
+    indien bereikbaar per trein van de vlucht gelijk is aan waar.
 ```
 
 \section*{Syntax voorwaardendeel specificatie:}
 
 Opmerking: deze syntaxspecificatie makt reeds gebruik van RegelSpraak-concepten die in navolgende paragrafen behandeld worden.
-```
 
+```
 <voorwaardendeel> ::= (("indien" | ("gedurende de tijd dat")
 (<toplevelelementairevoorwaarde> | <toplevelsamengesteldevoorwaarde>)) |
 <periodevergelijkingenkelvoudig>
@@ -3817,62 +3852,64 @@ gelijk zijn aan" | "kleiner zijn dan"
 Bij een samengestelde voorwaarde is sprake van meerdere condities waaraan voldaan moet worden. Elke conditie is een elementaire of samengestelde voorwaarde. Deze voorwaarden vormen een lijst met bullets. De lijst moet voorafgegaan worden door de woorden er aan <kwantificatie> volgende voorwaarden wordt voldaan:., of als de condities slechts één attribuut controleren <expressie> aan <kwantificatie> volgende voorwaarden voldoet. De samengestelde schrijfwijze van de condities moet hier gebruikt worden. Deze schrijfwijze is een stellende vorm; het werkwoord staat vooraan. De onderstaande voorbeelden zullen dit verder verduidelijken.
 
 Een voorbeeld van een samengestelde voorwaarde met de kwantificatie 'alle' is als volgt:
-Parameter de pensioenleeftijd : Numeriek (geheel getal) met eenheid jr
-Parameter de duurzaamheidskorting minimale afstand : Numeriek (geheel getal) met eenheid km
-Rege 1 Recht op Duurzaamheidskorting
-geldig altijd
-Een passagier heeft recht op duurzaamheidskorting indien hij aan alle volgende voorwaarden voldoet:
-- zijn reis is duurzaam
-- de afstand tot bestemming in kilometers van zijn reis is groter of gelijk aan
-de duurzaamheidskorting minimale afstand.
-- zijn leeftijd is groter of gelijk aan de pensioenleeftijd
 
-We kunnen bovenstaande regel ook specificeren met een aantal kenmerken van Natuurlijk persoon in plaats van het attribuut leeftijd door gebruik te maken van een geneste voorwaarde waarbij ieder niveau een bullet meer krijgt dan het bovenliggende niveau:
 ```
+Parameter de pensioenleeftijd : Numeriek (geheel getal) met eenheid jr
+
+Parameter de duurzaamheidskorting minimale afstand : Numeriek (geheel getal) met eenheid km
 
 Regel Recht op Duurzaamheidskorting
-geldig altijd
-Een passagier heeft recht op duurzaamheidskorting
-indien hij aan alle volgende voorwaarden voldoet:
-- zijn reis is duurzaam
-- de afstand tot bestemming in kilometers van zijn reis is groter of gelijk aan
-de duurzaamheidskorting minimale afstand
-- hij voldoet aan geen van de volgende voorwaarden:
-.. hij is een passagier jonger dan 18 jaar
-\bullet. hij is een passagier van }18\mathrm{ tot en met 24 jaar
-\bullet. hij is een passagier van 24 tot en met 64 jaar.
+  geldig altijd
+    Een passagier heeft recht op duurzaamheidskorting indien hij aan alle volgende voorwaarden voldoet:
+    - zijn reis is duurzaam
+    - de afstand tot bestemming in kilometers van zijn reis is groter of gelijk aan de duurzaamheidskorting minimale afstand.
+    - zijn leeftijd is groter of gelijk aan de pensioenleeftijd
+```
 
+We kunnen bovenstaande regel ook specificeren met een aantal kenmerken van Natuurlijk persoon in plaats van het attribuut leeftijd door gebruik te maken van een geneste voorwaarde waarbij ieder niveau een bullet meer krijgt dan het bovenliggende niveau:
+
+```
+Regel Recht op Duurzaamheidskorting
+  geldig altijd
+    Een passagier heeft recht op duurzaamheidskorting
+    indien hij aan alle volgende voorwaarden voldoet:
+    - zijn reis is duurzaam
+    - de afstand tot bestemming in kilometers van zijn reis is groter of gelijk aan de duurzaamheidskorting minimale afstand
+    - hij voldoet aan geen van de volgende voorwaarden:
+      ** hij is een passagier jonger dan 18 jaar
+      ** hij is een passagier van 18 tot en met 24 jaar
+      ** hij is een passagier van 24 tot en met 64 jaar.
 ```
 
 Samengestelde voorwaarden kunnen ook zo geformuleerd worden zodat ze alleen voorwaarden stellen aan een enkel attribuut. Dit kan middels het volgende (taal)patroon: <expressie> aan <kwantificatie> volgende voorwaarden voldoet: Het objecttype Natuurlijk persoon heeft een attribuut burgerservicenummer. In het volgende voorbeeld moet dit attribuut burgerservicenummer aan twee voorwaarden voldoen.
+
 ```
-
 Parameter de burgerservicenummer lengte : Numeriek (gehee1 geta1)
-Regel Geldig burgerservicenummer
-geldig altijd
-Een Natuurlijk persoon heeft een geldig burgerservicenummer
-indien zijn burgerservicenummer aan alle volgende voorwaarden voldoet:
-- het burgerservicenummer is numeriek met exact 9 cijfers
-- het burgerservicenummer voldoet aan de elfproef.
 
+Regel Geldig burgerservicenummer
+  Geldig altijd
+    Een Natuurlijk persoon heeft een geldig burgerservicenummer
+    indien zijn burgerservicenummer aan alle volgende voorwaarden voldoet:
+    - het burgerservicenummer is numeriek met exact 9 cijfers
+    - het burgerservicenummer voldoet aan de elfproef.
 ```
 
 In het volgende voorbeeld wordt bepaald of een natuurlijk persoon een passagier is van 18 tot en met 24 jaar. Hiervoor moet hij aan een aantal voorwaarden voldoen. In het voorbeeld zie je dit terug in de tekst hij aan .... Het woord "hij" verwijst hier terug naar de natuurlijk persoon.
-```
 
+```
 Regel Passagier van 18 tm 24 jaar
-geldig altijd
-Een Natuurlijk persoon is een passagier van 18 tot en met 24 jaar
-indien hij aan alle volgende voorwaarden voldoet:
-- zijn leeftijd is groter of gelijk aan de volwassenleeftijd
-- zijn leeftijd is kleiner of gelijk aan 24 jr
-- hij is een passagier.
+  geldig altijd
+    Een Natuurlijk persoon is een passagier van 18 tot en met 24 jaar
+    indien hij aan alle volgende voorwaarden voldoet:
+    - zijn leeftijd is groter of gelijk aan de volwassenleeftijd
+    - zijn leeftijd is kleiner of gelijk aan 24 jr
+    - hij is een passagier.
 
 ```
 
 \section*{Syntax samengestelde voorwaarde specificatie:}
-```
 
+```
 <toplevelsamengesteldevoorwaarde> ::= (<objectexpressie> | <referentie> | <aggregatie> |
 "er") "aan" <voorwaardekwantificatie> "volgende voorwaarde"["n"] ("voldoet" | "voldoen"
 | "wordt voldaan") ":" <samengesteldevoorwaardeonderdeel>
@@ -3886,7 +3923,6 @@ indien hij aan alle volgende voorwaarden voldoet:
 <genestevoorwaarde> ::= ("\bullet")+ (<elementairevoorwaarde> |
 <genestesamengesteldevoorwaarde>)
 ")
-
 ```
 
 \subsection*{10.3 Tijdsafhankelijke voorwaarde}
@@ -3901,11 +3937,10 @@ De tijdlijn van het attribuut waarvoor de waarde wordt afgeleid moet knips bevat
 
 De waarde van het attribuut te betalen belasting wordt afgeleid uit de optelling van de waarden van de attributen belasting op basis van afstand en belasting op basis van reisduur.
 Alle drie deze attributen hebben het datatype numeriek $€ / m n d$ met een tijdlijn "voor elke dag". De regel ziet er als volgt uit:
-```
 
+```
 De te betalen belasting van een passagier moet berekend worden als zijn belasting op
 basis van afstand plus zijn belasting op basis van reisduur
-
 ```
 
 Als de invoer voor deze regel bestaat uit:
@@ -3921,7 +3956,9 @@ dan is het resultaat van deze regel:
 
 Aan deze regel kan de specifieke tijdsafhankelijke conditie (zie paragraaf 8.4.3) worden toegevoegd dat het resultaat alleen moet worden afgeleid voor de periode van 1-1-2024 tot 8-2-2025. Die regel ziet er dan zo uit:
 
+```
 De te betalen belasting van een passagier moet berekend worden als zijn belasting op basis van afstand plus zijn belasting op basis van reisduur van dd. 1-1-2024 tot dd. 8-2-2025
+```
 
 De voorwaarde staat niet na een "indien" in verband met de leesbaarheid van de regel, maar geldt wel als voorwaarde voor het af te leiden resultaat. Het resultaat van deze regel wordt:
 - Te betalen belasting
@@ -3930,14 +3967,13 @@ De voorwaarde staat niet na een "indien" in verband met de leesbaarheid van de r
 
 Zoals in paragraaf 8.4.18.4 beschreven wordt in andere gevallen dan bij de enkelvoudige specifieke tijdsafhankelijke conditie (zoals in het voorbeeld hierboven) de "indien" vervangen door "gedurende de tijd dat".
 Bij gebruik hiervan ziet de regel er bijvoorbeeld zo uit:
+
 ```
-
 Regel Belastingvermindering
-geldig altijd
-De te betalen belasting van een passagier moet berekend worden als
-zijn belasting,op basis van afstand plus zijn belasting op basis van reisduur
-gedurende de tijd dat hij een recht op belastingvermindering heeft.
-
+  geldig altijd
+    De te betalen belasting van een passagier moet berekend worden als
+    zijn belasting op basis van afstand plus zijn belasting op basis van reisduur
+    gedurende de tijd dat hij een recht op belastingvermindering heeft.
 ```
 
 Nu is de periode waarin de passagier het kenmerk recht op belastingvermindering heeft, de periode waarvoor de regel een resultaat voor het attribuut te betalen belasting oplevert.
@@ -3949,26 +3985,24 @@ Na het voorwaardendeel kunnen variabelen gedefinieerd worden in het zogenaamde v
 Een variabele wordt gedefinieerd met een expressie. Voor uitgebreidere informatie hierover wordt verwezen naar hoofdstuk 5, voor nu volstaat de opmerking dat een variabele een enkele attribuutwaarde kan zijn maar ook het resultaat van een berekening of logische bewerking.
 
 Als er variabelen worden gebruikt in een regel, dan staan ze gespecificeerd achter de woorden Daarbij geldt: aan het eind van een regelversie. De specificatie van een variabele bestaat uit de naam van de variabele (eventueel voorafgegaan door een bepaald lidwoord), gevolgd door het woord is en tot slot de expressie die de variabele specificeert. Ter illustratie volgt hieronder een regel om de belasting op basis van afstand te bepalen, waarbij gebruik gemaakt wordt van twee variabelen $X$ en $Y$ :
-```
 
+```
 Regel belasting op basis van afstand
-geldig vanaf 2018
-De belasting op basis van afstand van een passagier moet gesteld worden op X min Y
-indien hij aan alle volgende voorwaarden voldoet:
-- zijn reis is een belaste reis
-- hij voldoet aan ten minste één van de volgende voorwaarden:
-.. hij is een passagier jonger dan 18 jaar
-.. hij is een passagier van 25 tot en met 64 jaar
-- de afstand tot bestemming in kilometers van zijn reis is groter dan 0
-- de afstand tot bestemming in kilometers van zijn reis is kleiner of gelijk aan de
-bovengrens afstand eerste schijf
-- X min Y is groter of gelijk aan 0
-Daarbij geldt:
-X is het lage basistarief eerste schijf
-Ys het lage tarief vermindering eerste schijf maal
-de afstand tot bestemming in kilometers van zijn reis.
-
+  geldig vanaf 2018
+    De belasting op basis van afstand van een passagier moet gesteld worden op X min Y
+    indien hij aan alle volgende voorwaarden voldoet:
+      - zijn reis is een belaste reis
+      - hij voldoet aan ten minste één van de volgende voorwaarden:
+        .. hij is een passagier jonger dan 18 jaar
+        .. hij is een passagier van 25 tot en met 64 jaar
+      - de afstand tot bestemming in kilometers van zijn reis is groter dan 0
+      - de afstand tot bestemming in kilometers van zijn reis is kleiner of gelijk aan de bovengrens afstand eerste schijf
+      - X min Y is groter of gelijk aan 0
+    Daarbij geldt:
+      X is het lage basistarief eerste schijf
+      Y is het lage tarief vermindering eerste schijf maal de afstand tot bestemming in kilometers van zijn reis.
 ```
+
 Syntax variabelendeel specificatie:
     <variabelendeel> : := "Daarbij geldt:" (\n \t <variabeleonderdeel>)* "."
     <variabeleonderdeel> ::= [ <bepaaldlidwoord> ] <variabelenaam> "is" <expressie>
@@ -3988,26 +4022,24 @@ Er wordt dus een volgorde bepaald van variabelen en voorwaarden, zodanig dat
 - variabelen niet onnodig worden berekend.
 
 Aan de hand van een voorbeeld zal deze volgorde toegelicht en geill voor dat we te maken hebben met het volgende deel van een RegelSpraak-regel:
-```
 
+```
 Een a van een persoon moet berekend worden als B plus C plus D
 indien er aan alle volgende voorwaarden wordt voldaan:
-
 - A is ongelijk aan 0
 - B is groter dan 0.
 Daarbij geldt:
-A is zijn a
-B is zijn b gedeeld door A
-C is zijn c maal }10
-D is zijn d.
-
+  A is zijn a
+  B is zijn b gedeeld door A
+  C is zijn c maal }10
+  D is zijn d.
 ```
 
 Hierbij is de volgende volgorde van toepassing conform bovenstaande beschrijving:
 1. A is zijn a
 2. A is ongelijk aan 0
-3. $B$ is zijn b gedeeld door $A$
-4. $B$ is groter dan 0
+3. B is zijn b gedeeld door A
+4. B is groter dan 0
 5. C is zijn c maal 100
 6. D is zijn d
 7. B plus C plus D
@@ -4024,55 +4056,58 @@ In een beslistabel kunnen alleen gelijkstellingen (zie paragraaf 9.1) en kenmerk
 
 Het patroon voor de naamgevingsconstructie van een beslistabel is structureel hetzelfde als voor een RegelSpraak-regel (zie paragraaf 4.1). De enige afwijking hiervan is dat de naamgevingsconstructie van een RegelSpraak beslistabel altijd begint met het (vaste) woord Beslistabel, gevolgd door een zelf te kiezen naam.
 
+```
 Beslistabel Woonregio factor
-Het patroon voor de regelversie van een beslistabel is hetzelfde als voor een RegelSpraak-regel, zie hiervoor paragraaf 4.2.
 ```
 
-Beslistabe1 Woonregio factor
-geldig altijd
+Het patroon voor de regelversie van een beslistabel is hetzelfde als voor een RegelSpraak-regel, zie hiervoor paragraaf 4.2.
 
+```
+Beslistabe1 Woonregio factor
+  geldig altijd
 ```
 
 Een voorbeeld van RegelSpraakregels met overeenkomstige delen zijn de regels omtrent de Woonregio factor:
+
 ```
-
 Regel woonregio factor 1
-geldig altijd
-De woonregio factor van een Natuurlijk persoon moet gesteld worden op 1
-indien er aan tenminste één van de volgende voorwaarden wordt voldaan:
-- zijn woonprovincie is gelijk aan Friesland
-- zijn woonprovincie is gelijk aan Groningen
-- zijn woonprovincie is gelijk aan Drenthe
-- zijn woonprovincie is gelijk aan zeeland
-- zijn woonprovincie is gelijk aan Limburg.
-Regel Woonregio factor 2
-geldig altijd
-De woonregio factor van een Natuurlijk persoon moet gesteld worden op 2
-indien er aan tenminste één van de volgende voorwaarden wordt voldaan:
-- zijn woonprovincie is gelijk aan Noord-Brabant
-- zijn woonprovincie is gelijk aan Gelderland
-- zijn woonprovincie is gelijk aan Overijssel
-- zijn woonprovincie is gelijk aan Flevoland.
-Regel Woonregio factor 3
-geldig altijd
-De woonregio factor van een Natuurlijk persoon moet gesteld worden op 3
-indien er aan tenminste één van de volgende voorwaarden wordt voldaan:
-- zijn woonprovincie is gelijk aan Noord-Holland
-- zijn woonprovincie is gelijk aan Zuid-Holland
-- zijn woonprovincie is gelijk aan Utrecht.
+  geldig altijd
+    De woonregio factor van een Natuurlijk persoon moet gesteld worden op 1
+    indien er aan tenminste één van de volgende voorwaarden wordt voldaan:
+      - zijn woonprovincie is gelijk aan Friesland
+      - zijn woonprovincie is gelijk aan Groningen
+      - zijn woonprovincie is gelijk aan Drenthe
+      - zijn woonprovincie is gelijk aan zeeland
+      - zijn woonprovincie is gelijk aan Limburg.
 
+Regel Woonregio factor 2
+  geldig altijd
+    De woonregio factor van een Natuurlijk persoon moet gesteld worden op 2
+    indien er aan tenminste één van de volgende voorwaarden wordt voldaan:
+      - zijn woonprovincie is gelijk aan Noord-Brabant
+      - zijn woonprovincie is gelijk aan Gelderland
+      - zijn woonprovincie is gelijk aan Overijssel
+      - zijn woonprovincie is gelijk aan Flevoland.
+
+Regel Woonregio factor 3
+  geldig altijd
+    De woonregio factor van een Natuurlijk persoon moet gesteld worden op 3
+    indien er aan tenminste één van de volgende voorwaarden wordt voldaan:
+      - zijn woonprovincie is gelijk aan Noord-Holland
+      - zijn woonprovincie is gelijk aan Zuid-Holland
+      - zijn woonprovincie is gelijk aan Utrecht.
 ```
 
 Alle drie deze regels hebben een resultaatdeel met een gelijkstelling die de woonregio factor van een Natuurlijk persoon gelijkstelt aan een waarde en een voorwaardendeel dat condities stelt aan de woonprovincie. Omdat alleen de waardes van de gelijkstelling en de waardes van de voorwaarden van elkaar verschillen, kunnen deze RegelSpraakregels ook worden weergegeven in een beslistabel. Hierbij is de eerste kolom de nummering van de rijen in de tabel, de tweede
 kolom het resultaatdeel en de derde kolom het voorwaardendeel. De kolom of kolommen waar het resultaatdeel in staat, wordt ook wel de conclusie-kolom genoemd. Vergelijkbaar wordt de kolom of de kolommen waar het voorwaardendeel in staat de conditie-kolom genoemd.
 
 In algemene zin bestaat een beslistabel uit één kolom met nummering gevolgd door één of meerdere conclusie-kolommen en één of meerdere conditie-kolommen. De conclusiekolom(men) kan zowel voor als na de conditie-kolom(men) geplaatst worden.
-```
 
+```
 Beslistabel Woonregio factor
-geldig altijd
-
+  geldig altijd
 ```
+
 \begin{tabular}{|c|c|c|}
 \hline & de woonregio factor van een Natuurlijk persoon moet gesteld worden op & indien zijn woonprovincie gelijk is aan \\
 \hline 1 & 1 & \begin{tabular}{l}
@@ -4099,7 +4134,10 @@ N.B. Hier wordt "of" gebruikt omdat bij het predicaat "is gelijk aan" er hooguit
 
 In een beslistabel bevat het resultaatdeel (de conclusie-kolom) van een gelijkstelling altijd het zinsdeel moet gesteld worden op, het is niet mogelijk om hier wordt berekend als te gebruiken, wat wel het geval is bij RegelSpraakregels. In de ene resultaatregel kan namelijk een vaste waarde toegekend worden, maar in een andere een berekende waarde. Daarom is ervoor gekozen om altijd moet gesteld worden op te gebruiken. Onderstaande beslistabel geeft hiervan een fictief voorbeeld.
 
-Beslistabel woonregio factor geldig altijd
+```
+Beslistabel woonregio factor
+  geldig altijd
+```
 \begin{tabular}{|l|l|l|}
 \cline { 2 - 3 } \multicolumn{1}{c|}{} & \begin{tabular}{l} 
 de woonregio factor van \\
@@ -4122,19 +4160,16 @@ De beslistabel voor Woonregio factor heeft 2 kolommen (de kolom voor de nummerin
 verschillende gelijkstellingen of kenmerktoekenningen hebben, maar wel dezelfde voorwaarden hanteren, dan wordt het aantal conclusie-kolommen groter dan 1. Wanneer in een beslistabel meerdere RegelSpraakregels worden genoteerd die dezelfde gelijkstelling of kenmerktoekenning hebben, maar meerdere voorwaarden kennen, dan wordt het aantal conditie-kolommen groter dan 1.
 
 In de regels voor Woonregio factor wordt alleen gebruik gemaakt van de voorwaarde 'gelijk is aan', waardoor één conditie-kolom nodig is. In onderstaande regel voor Belasting op basis van reisduur Tweede schijf worden twee voorwaarden gebruikt: 'is groter dan' en 'is kleiner of gelijk aan'.
+
 ```
-
 Regel Belasting op basis van reisduur Tweede schijf
-geldig altijd
-De belasting op basis van reisduur van een passagier moet berekend worden als het
-percentage reisduur tweede schijf van zijn belasting op basis van afstand naar
-beneden afgerond op 0 decimalen
-indien hij aan alle volgende voorwaarden voldoet:
-- de reisduur per trein in minuten van zijn reis is groter dan de bovengrens
-reisduur eerste schijf
-- de reisduur per trein in minuten van zijn reis is kleiner of gelijk aan de
-bovengrens tweede schijf.
-
+  geldig altijd
+    De belasting op basis van reisduur van een passagier moet berekend worden als het
+    percentage reisduur tweede schijf van zijn belasting op basis van afstand naar
+    beneden afgerond op 0 decimalen
+    indien hij aan alle volgende voorwaarden voldoet:
+      - de reisduur per trein in minuten van zijn reis is groter dan de bovengrens reisduur eerste schijf
+      - de reisduur per trein in minuten van zijn reis is kleiner of gelijk aan de bovengrens tweede schijf.
 ```
 
 Naast deze regel voor Belasting op basis van reisduur Tweede schijf, kunnen we op vergelijkbare wijze regels voor Belasting op basis van reisduur Eerst schijf en Belasting op basis van reisduur Derde schijf opstellen. Deze zijn hier niet uitgeschreven, maar wel verwerkt in onderstaande beslistabel.
