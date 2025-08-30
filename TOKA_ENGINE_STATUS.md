@@ -1,12 +1,12 @@
-# TOKA Engine Support Status - 2025-08-29 - COMPLETE ✅
+# TOKA Engine Support Status - 2025-08-30 - IN PROGRESS 🔧
 
 ## Summary
-**TOKA is now COMPLETE and running correctly!** ✅
+**TOKA has critical issues discovered in runtime execution**
 
-- **Parser**: 100% syntactic parsing of all 25 rules + 2 decision tables
-- **Engine**: All major features working correctly
-- **Tests**: All 9 TOKA integration tests passing
-- **Specification Compliance**: Matches @specification/RegelSpraak-TOKA-casus-v2.1.0.md
+- **Parser**: 100% syntactic parsing of all 25 rules + 2 decision tables ✅
+- **Engine**: Critical FeitType parsing bug discovered - object types include cardinality text ❌
+- **Tests**: Runtime execution failing due to navigation and type deduction issues
+- **Specification Compliance**: Parser matches spec, but runtime has issues
 
 ## ✅ Parser Success (100% Complete)
 - All TOKA files parse without syntax errors
@@ -109,22 +109,68 @@
    - Verify all 26 rules execute correctly end-to-end
    - Confirm both decision tables work properly
 
-## Conclusion
+## CRITICAL ISSUES RESOLVED (2025-08-30)
 
-**TOKA IMPLEMENTATION IS COMPLETE! ✅**
+### 10. ~~FeitType Parsing Bug~~ ✅ FIXED
+- **Problem**: Object types in FeitType roles included cardinality text
+- **Example**: "Natuurlijk persoon één reis betreft" instead of "Natuurlijk persoon"
+- **Root Cause**: Grammar `rolContentWords` was too greedy, tabs were on HIDDEN channel
+- **Solution**: Modified builder.py to detect tabs in raw input stream
+- **Implementation**: 
+  ```python
+  # Access raw input including HIDDEN channel
+  input_stream = ctx.start.getInputStream()
+  full_text = input_stream.getText(start_idx, stop_idx)
+  if '\t' in full_text:
+      parts = full_text.split('\t', 1)  # Split on tab
+  ```
+- **Impact**: FeitTypes now parse correctly with proper role/object type separation
 
-All critical features are working:
-- **Parser**: 100% TOKA syntax support ✅
-- **Engine**: All expression types, relationships, and rules execute correctly ✅
-- **Tests**: All integration tests passing ✅
-- **Specification**: Fully compliant with TOKA specification ✅
+### 11. ~~RuntimeObject Initialization~~ ✅ FIXED (2025-08-30)
+- **Problem**: Instances created without all attributes defined
+- **Solution**: Added `create_object` method to RuntimeContext
+- **Impact**: Fixed "Attribute not found" errors
 
-The TOKA example now:
-1. Parses all 25 rules and 2 decision tables without errors
-2. Executes all rules correctly with proper relationship navigation
-3. Handles complex expressions including BegrenzingAfrondingExpression
-4. Properly determines flight sustainability based on fossil fuel usage
-5. Calculates passenger ages using correct units
-6. Applies decision tables with 'of' syntax correctly
+### 12. ~~Parameter Semicolons~~ ✅ FIXED (2025-08-30)
+- **Problem**: Grammar required semicolons, spec doesn't
+- **Solution**: Removed SEMICOLON from parameterDefinition rule
+- **Impact**: TOKA parameters now parse correctly
 
-**Achievement**: From "blocked on fundamental capabilities" to **"FULLY FUNCTIONAL TOKA IMPLEMENTATION"**!
+## Current Status (Updated 2025-08-30)
+
+**TOKA PARSING: 100% COMPLETE** ✅
+**TOKA RUNTIME: PARTIALLY WORKING** ⚠️
+
+### Working:
+- All 25 rules + 2 decision tables parse correctly
+- FeitType definitions parse with correct role/object type separation
+- Parameters with complex names work
+- RuntimeObject initialization complete with all attributes
+
+### Still Failing:
+1. **Target type deduction**: Rules like "belasting op basis van afstand" can't determine target type
+2. **Cross-object navigation in decision tables**: "reisduur per trein in minuten" on Natuurlijk persoon fails
+3. **Object creation with compound names**: "vastgestelde contingent treinmiles" type resolution
+4. **Aggregation navigation**: "passagiers van de reis" in aggregation context
+
+## Next Steps
+
+1. **Fix Target Type Deduction** (CRITICAL)
+   - Investigate why rules can't determine their target object type
+   - May need to improve subject/object resolution in rule headers
+   - Check if "voor alle X" patterns are properly parsed
+
+2. **Fix Cross-Object Navigation**
+   - Decision tables need to navigate from current object to related objects
+   - Example: From Natuurlijk persoon → Vlucht → attributes
+   - May need context-aware navigation in beslistabel evaluation
+
+3. **Fix Object Creation Type Resolution**
+   - "vastgestelde contingent treinmiles" should resolve to "Contingent treinmiles"
+   - Likely needs compound name handling in object creation
+
+4. **Test Full Execution**
+   - After fixes, verify all calculations work
+   - Aim for 100% validation pass rate
+
+**Current Achievement**: Parser complete, FeitTypes fixed, runtime ~60% functional. Main issues are type deduction and cross-object navigation.

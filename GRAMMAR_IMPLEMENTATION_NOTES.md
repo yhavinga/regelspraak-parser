@@ -116,7 +116,45 @@ Domein Korting is van het type Numeriek (niet-negatief getal met 1 decimalen) me
 ```
 (From tests/test_domein.py, tests/test_beslistabel.py)
 
-## 4. Dimension Definitions (§3.4)
+## 4. FeitType Definitions (§3.11)
+
+### Grammar Structure:
+```antlr
+feitTypeDefinition
+    : FEITTYPE feittypenaam=naamwoord
+      rolDefinition rolDefinition+
+      cardinalityLine
+    ;
+```
+
+### Critical Implementation Note:
+
+**Specification Requirement**: The EBNF specification (§13.1.8, §13.3.9) requires tab characters (`\t`) to separate role names from object types:
+```
+[article] <role_name> \t <object_type>
+```
+
+**Implementation Challenge**: Tabs are consumed by `WS: [ \t\r\n]+ -> channel(HIDDEN);` making them invisible to parser rules.
+
+**Solution**: The builder accesses the raw input stream to detect tabs:
+```python
+# In visitRolDefinition
+input_stream = ctx.start.getInputStream()
+full_text = input_stream.getText(start_idx, stop_idx)
+if '\t' in full_text:
+    parts = full_text.split('\t', 1)
+```
+
+### Working Test Examples:
+```regelspraak
+Feittype vlucht van natuurlijke personen
+    de reis	Vlucht  // Tab separates role from type
+    de passagier	Natuurlijk persoon
+    één reis betreft de verplaatsing van meerdere passagiers
+```
+(From examples/toka/gegevens.rs)
+
+## 5. Dimension Definitions (§3.4)
 
 ### Grammar Structure:
 ```antlr
@@ -152,7 +190,7 @@ Objecttype de Natuurlijk persoon
 ```
 (From tests/test_dimension_simple.py, tests/test_dimension_spec_examples.py)
 
-## 5. Expression Parsing
+## 6. Expression Parsing
 
 ### Grammar Structure (Precedence Hierarchy):
 ```antlr
@@ -205,7 +243,7 @@ Regel bereken bruto inkomen huidig jaar
 ```
 (From tests/test_steelthread.py, tests/test_dimension_spec_examples.py)
 
-## 6. Unit System Implementation
+## 7. Unit System Implementation
 
 ### Grammar Structure:
 ```antlr
@@ -312,7 +350,7 @@ The [ANTLR4 Listeners documentation](https://github.com/antlr/antlr4/blob/master
 
 **Important clarification about tokenization**: The original implementation notes incorrectly claimed "the lexer must tokenize the entire input before the parser starts." This is false - ANTLR actually uses on-demand tokenization through `CommonTokenStream`, where tokens are generated as the parser requests them. However, this doesn't solve the fundamental issue: the lexer still operates independently of parser context and cannot respond to parser state decisions.
 
-## 7. Timeline Support (§8)
+## 8. Timeline Support (§8)
 
 ### Grammar Structure:
 ```antlr
@@ -341,7 +379,7 @@ Regel timeline leeftijd berekening
 ```
 (From specification examples - timeline feature partially implemented)
 
-## 7. Subselectie (Filtered Collections) (§10.5)
+## 9. Subselectie (Filtered Collections) (§10.5)
 
 ### Grammar Structure:
 ```antlr
@@ -374,7 +412,7 @@ Regel bereken totale belasting minderjarigen
 ```
 (From tests/test_subselectie.py)
 
-## 8. Object and Relationship Creation
+## 10. Object and Relationship Creation
 
 ### Object Creation (ObjectCreatie):
 ```antlr
@@ -422,7 +460,7 @@ Regel passagier met recht op treinmiles
 ```
 (From tests/test_object_creation_integration.py, tests/test_feitcreatie_integration.py)
 
-## 9. Rule Types
+## 11. Rule Types
 
 ### Grammar Structure:
 ```antlr
@@ -457,7 +495,7 @@ Regel Minderjarigheid voor alle personen
 ```
 (From tests/test_recursie.py, tests/test_steelthread.py)
 
-## 9. Function Registry
+## 12. Function Registry
 
 ### Implementation Evolution:
 
@@ -489,7 +527,7 @@ Regel bereken aantal passagiers
 ```
 (From tests/test_aggregation_functions.py, tests/test_tijdsduur_toka.py)
 
-## 10. Advanced Predicates
+## 13. Advanced Predicates
 
 ### Elfproef Implementation:
 ```antlr
@@ -553,7 +591,7 @@ Regel Vlucht op kerstdag
 (From tests/test_dagsoortdefinitie.py, tests/test_dagsoort_integration.py)
 
 
-## 11. Decision Tables (Beslistabel)
+## 14. Decision Tables (Beslistabel)
 
 ### Grammar Structure:
 ```antlr
@@ -586,7 +624,7 @@ Beslistabel Woonregio factor
 ```
 (From tests/test_beslistabel.py)
 
-## 12. Distribution Rules (Verdeling)
+## 15. Distribution Rules (Verdeling)
 
 ### Grammar Structure:
 ```antlr
@@ -635,7 +673,7 @@ Regel verdeling treinmiles complex
 ```
 (From tests/test_verdeling.py)
 
-## 13. Compound Predicates (Samengesteld Predicaat)
+## 16. Compound Predicates (Samengesteld Predicaat)
 
 ### Grammar Structure:
 ```antlr
@@ -676,7 +714,7 @@ Regel test ten minste 3 personen
 ```
 (From tests/test_samengesteld_predicaat.py)
 
-## 14. Reference Disambiguation Deep Dive
+## 17. Reference Disambiguation Deep Dive
 
 ### The Three-Way Ambiguity Problem:
 
@@ -715,7 +753,7 @@ onderwerpBasis
 
 **Engineering Trade-off**: The grammar doesn't distinguish these uses syntactically. Semantic analysis must determine intent from context (rule type, position in AST).
 
-## 15. Attribute vs Subject Reference Architecture
+## 18. Attribute vs Subject Reference Architecture
 
 ### The Compositional Design:
 

@@ -3327,6 +3327,42 @@ class RegelSpraakModelBuilder(RegelSpraakVisitor):
             logger.error("No content found in role definition")
             return None
             
+        # Get the full text including hidden channel tokens (whitespace/tabs)
+        # This allows us to detect tab separators even though they're on HIDDEN channel
+        input_stream = ctx.start.getInputStream()
+        start_idx = ctx.content.start.start
+        stop_idx = ctx.content.stop.stop
+        full_text = input_stream.getText(start_idx, stop_idx)
+        
+        # Check if there's a tab separator
+        if '\t' in full_text:
+            # Split on tab - role name before tab, object type after
+            parts = full_text.split('\t', 1)
+            rol_naam = parts[0].strip()
+            object_type = parts[1].strip() if len(parts) > 1 else ""
+            
+            # Handle any cardinality text that might be included
+            # Stop at cardinality indicators
+            for indicator in ['één', 'meerdere', 'vele', 'enkele', 'Eén', 'Een', 'Één', 'Meerdere']:
+                if indicator in object_type.lower():
+                    object_type = object_type[:object_type.lower().index(indicator)].strip()
+                    break
+            
+            logger.debug(f"Parsed tab-separated role: name='{rol_naam}', type='{object_type}'")
+            
+            # Extract plural form if present
+            meervoud = None
+            if ctx.meervoud:
+                meervoud = self.visitNaamwoord(ctx.meervoud)
+            
+            return Rol(
+                naam=rol_naam,
+                meervoud=meervoud,
+                object_type=object_type,
+                span=self.get_span(ctx)
+            )
+        
+        # Fallback to original word-based parsing for backward compatibility
         # Get all words from the content
         words = []
         for child in ctx.content.children:
