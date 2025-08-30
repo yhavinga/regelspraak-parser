@@ -19,7 +19,7 @@ class TestObjectCreationAmbiguity(unittest.TestCase):
         Regel TestAmbiguity
         geldig altijd
             Er wordt een nieuw Persoon aangemaakt
-            met de naam de naam.
+            met de naam gelijk aan de naam.
         """
         
         model = parse_text(model_text)
@@ -48,9 +48,9 @@ class TestObjectCreationAmbiguity(unittest.TestCase):
         Regel MaakProduct
         geldig altijd
             Er wordt een nieuw Product aangemaakt
-            met naam "Test Product"
-            en standaard prijs 100
-            en korting percentage 10.
+            met naam gelijk aan "Test Product"
+            en standaard prijs gelijk aan 100
+            en korting percentage gelijk aan 10.
         """
         
         model = parse_text(model_text)
@@ -86,9 +86,9 @@ class TestObjectCreationAmbiguity(unittest.TestCase):
         Regel MaakWerknemer
         geldig altijd
             Er wordt een nieuw Werknemer aangemaakt
-            met naam "Jan"
-            en salaris 3000
-            en manager de naam van de Manager.
+            met naam gelijk aan "Jan"
+            en salaris gelijk aan 3000
+            en manager gelijk aan de naam van de Manager.
         """
         
         model = parse_text(model_text)
@@ -115,7 +115,7 @@ class TestObjectCreationAmbiguity(unittest.TestCase):
         Regel TestCase1
         geldig altijd
             Er wordt een nieuw Test aangemaakt
-            met de naam de waarde.
+            met de naam gelijk aan de waarde.
         """
         
         model = parse_text(model_text)
@@ -137,7 +137,7 @@ class TestObjectCreationAmbiguity(unittest.TestCase):
         Regel TestCase2
         geldig altijd
             Er wordt een nieuw Product aangemaakt
-            met standaard catalogus prijs de actuele prijs.
+            met standaard catalogus prijs gelijk aan de actuele prijs.
         """
         
         model2 = parse_text(model_text2)
@@ -164,9 +164,9 @@ class TestObjectCreationAmbiguity(unittest.TestCase):
         Regel MaakKlant
         geldig altijd
             Er wordt een nieuw Klant aangemaakt
-            met naam "Test"
-            en email "test@example.com"
-            en leeftijd 25.
+            met naam gelijk aan "Test"
+            en email gelijk aan "test@example.com"
+            en leeftijd gelijk aan 25.
         """
         
         model = parse_text(model_text)

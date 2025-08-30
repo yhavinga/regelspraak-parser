@@ -478,13 +478,13 @@ objectCreatie
     ;
 
 // Attribute initialization during object creation
-// Use simpleNaamwoord to avoid ambiguity when attribute name and expression both start with articles
+// Per specification: "met <attribuut> gelijk aan <expressie>"
 objectAttributeInit
-    : MET attribuut=simpleNaamwoord waarde=expressie attributeInitVervolg*
+    : MET attribuut=simpleNaamwoord GELIJK_AAN waarde=expressie attributeInitVervolg*
     ;
 
 attributeInitVervolg
-    : EN attribuut=simpleNaamwoord waarde=expressie
+    : EN attribuut=simpleNaamwoord GELIJK_AAN waarde=expressie
     ;
 
 // Simple naamwoord without prepositions for unambiguous attribute names

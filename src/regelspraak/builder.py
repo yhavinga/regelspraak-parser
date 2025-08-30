@@ -913,15 +913,10 @@ class RegelSpraakModelBuilder(RegelSpraakVisitor):
         
         # Build the full path
         if is_object_type_spec:
-            # Object type specification - include object reference for rule target deduction
-            # Example: "Het inkomen van een Natuurlijk persoon" → ['inkomen', 'Natuurlijk persoon']
-            # Example: "De belasting op basis van afstand van een passagier" → ['belasting op basis van afstand', 'passagier']
-            # The object reference is needed by _deduce_rule_target_type in the engine
-            if final_base_path:
-                # Include the object reference in the path
-                full_path = [actual_attribute_name] + final_base_path
-            else:
-                full_path = [actual_attribute_name]
+            # Object type specification - just the attribute
+            # Example: "Het inkomen van een Natuurlijk persoon" → ['inkomen']
+            # The object type is already encoded in the is_object_type_spec flag
+            full_path = [actual_attribute_name]
         elif final_base_path or additional_path_elements:
             # Navigation case: use Dutch right-to-left order per specification
             # Example: "De naam van de eigenaar van het gebouw" → ['gebouw', 'eigenaar', 'naam']

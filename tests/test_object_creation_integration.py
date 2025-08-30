@@ -55,9 +55,9 @@ class ObjectCreationIntegrationTests(unittest.TestCase):
         Regel MaakVasteKlant
         geldig altijd
             Er wordt een nieuw Klant aangemaakt 
-            met naam "Jan Jansen"
-            en leeftijd 35
-            en email "jan@example.com".
+            met naam gelijk aan "Jan Jansen"
+            en leeftijd gelijk aan 35
+            en email gelijk aan "jan@example.com".
         """
         
         # Parse and validate
@@ -96,10 +96,10 @@ class ObjectCreationIntegrationTests(unittest.TestCase):
         Regel MaakProduct
         geldig altijd
             Er wordt een nieuw Product aangemaakt
-            met naam "Laptop"
-            en prijs 1000 EUR
-            en btw_tarief de standaard_btw_tarief
-            en prijs_incl 1000 EUR plus (21% van 1000 EUR).
+            met naam gelijk aan "Laptop"
+            en prijs gelijk aan 1000 EUR
+            en btw_tarief gelijk aan de standaard_btw_tarief
+            en prijs_incl gelijk aan 1000 EUR plus (21% van 1000 EUR).
         """
         
         # Parse model
@@ -144,8 +144,8 @@ class ObjectCreationIntegrationTests(unittest.TestCase):
         Regel BonusVoorHoogSalaris
         geldig altijd
             Er wordt een nieuw Bonus aangemaakt
-            met bedrag 500 EUR
-            en ontvanger de naam
+            met bedrag gelijk aan 500 EUR
+            en ontvanger gelijk aan de naam
             indien het salaris groter is dan de bonus_drempel.
         """
         
@@ -219,8 +219,8 @@ class ObjectCreationIntegrationTests(unittest.TestCase):
         Regel MaakProductFout
         geldig altijd
             Er wordt een nieuw Product aangemaakt
-            met naam "Test"
-            en onbekend_attribuut 123.
+            met naam gelijk aan "Test"
+            en onbekend_attribuut gelijk aan 123.
         """
         
         model = parse_text(model_text)

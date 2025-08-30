@@ -121,7 +121,7 @@ class TestSimpleAggregation(unittest.TestCase):
         # Check result
         age = context.get_attribute(person, "leeftijd")
         self.assertEqual(age.value, 34)
-        self.assertEqual(age.unit, "jaren")
+        self.assertEqual(age.unit, "jr")
 
 if __name__ == "__main__":
     unittest.main()

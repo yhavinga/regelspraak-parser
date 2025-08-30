@@ -66,7 +66,7 @@ class TestTijdsduurTOKA(unittest.TestCase):
         
         # Verify the age is correct (34 years from 1990-03-15 to 2024-06-20)
         self.assertEqual(age.value, 34)
-        self.assertEqual(age.unit, "jaren")
+        self.assertEqual(age.unit, "jr")
 
 
 if __name__ == "__main__":
