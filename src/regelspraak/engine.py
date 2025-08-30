@@ -5665,7 +5665,23 @@ class Evaluator:
             # Check for direct object type counting pattern
             if len(expr.arguments) == 1 and isinstance(expr.arguments[0], AttributeReference):
                 attr_ref = expr.arguments[0]
-                if len(attr_ref.path) == 1:
+                
+                # Handle "passagiers van de reis" pattern with path ['passagiers', 'reis']
+                if len(attr_ref.path) == 2:
+                    role_name = attr_ref.path[0]
+                    context_ref = attr_ref.path[1]
+                    
+                    # Check if the context refers to current instance's type
+                    if self.context.current_instance:
+                        # Try to resolve via FeitType
+                        collection_objects = self._resolve_collection_from_feittype(
+                            role_name,
+                            self.context.current_instance
+                        )
+                        if collection_objects:
+                            return Value(value=len(collection_objects), datatype="Numeriek", unit=None)
+                
+                elif len(attr_ref.path) == 1:
                     path_item = attr_ref.path[0]
                     
                     # Remove "alle " prefix if present
@@ -5673,6 +5689,22 @@ class Evaluator:
                         collection_type = path_item[5:]
                     else:
                         collection_type = path_item
+                    
+                    # Check for "X van de Y" navigation pattern in single path element
+                    if " van " in collection_type:
+                        # This is a navigation expression like "passagiers van de reis"
+                        # Split on " van " to get role and context
+                        parts = collection_type.split(" van ")
+                        if len(parts) == 2 and self.context.current_instance:
+                            role_name = parts[0].strip()
+                            # The context should be "de reis" which refers to current instance
+                            # Try to resolve via FeitType
+                            collection_objects = self._resolve_collection_from_feittype(
+                                role_name,
+                                self.context.current_instance
+                            )
+                            if collection_objects:
+                                return Value(value=len(collection_objects), datatype="Numeriek", unit=None)
                     
                     # Check if it's an object type name
                     matched_type = None
@@ -7113,20 +7145,19 @@ class Evaluator:
         
         # Look through all feittypes to find matching relationships
         for feittype_naam, feittype in self.context.domain_model.feittypen.items():
-            # Check if current object type can participate in this feittype
-            context_type_matches = False
+            # Find the role that the context object plays in this feittype
+            context_role = None
             target_role = None
             
             for rol in feittype.rollen:
-                # Check if context object matches this role
+                # Check if context object matches this role's object type
                 if rol.object_type == context_obj.object_type_naam:
-                    context_type_matches = True
+                    context_role = rol
                 else:
-                    # Check if the other role matches our collection name
-                    # Be flexible - check if the role name contains or starts with our target
+                    # Check if this role matches our collection name
                     if rol.naam:
                         role_name_lower = rol.naam.lower()
-                        # Check various matching patterns
+                        # Check various matching patterns for the collection name
                         if (singular_name in role_name_lower or 
                             collection_name.lower() in role_name_lower or
                             role_name_lower.startswith(singular_name) or
@@ -7134,41 +7165,31 @@ class Evaluator:
                             target_role = rol
                             logger.info(f"    Role '{rol.naam}' matches collection name '{collection_name}'")
             
-            if context_type_matches and target_role:
-                # Found a matching feittype - get related objects
-                logger.info(f"  Found matching feittype '{feittype_naam}' with target role '{target_role.naam}'")
+            # If we found both a context role and target role, get the relationships
+            if context_role and target_role:
+                logger.info(f"  Found matching feittype '{feittype_naam}' with context role '{context_role.naam}' and target role '{target_role.naam}'")
+                
+                # Get relationships where context_obj is the subject (plays context_role)
                 relationships = self.context.find_relationships(
                     subject=context_obj,
                     feittype_naam=feittype_naam
                 )
                 logger.info(f"  Found {len(relationships)} relationships as subject")
                 for rel in relationships:
-                    logger.info(f"    Checking relationship: object={rel.object.object_type_naam if rel.object else None}, target_type={target_role.object_type}")
-                    # Be flexible with object type matching
-                    # Check if the role name contains the object type name or vice versa
-                    if rel.object:
-                        object_type = rel.object.object_type_naam
-                        # Direct match
-                        if object_type == target_role.object_type:
-                            collection_objects.append(rel.object)
-                            logger.info(f"    Added {object_type} to collection (direct match)")
-                        # Check if the role name contains the object type
-                        elif target_role.naam and object_type.lower() in target_role.naam.lower():
-                            collection_objects.append(rel.object)
-                            logger.info(f"    Added {object_type} to collection (role name contains type)")
-                        # Check if object matches the expected pattern for this collection
-                        elif singular_name in target_role.naam.lower():
-                            collection_objects.append(rel.object)
-                            logger.info(f"    Added {object_type} to collection (matches collection pattern)")
+                    if rel.object and rel.object.object_type_naam == target_role.object_type:
+                        collection_objects.append(rel.object)
+                        logger.info(f"    Added {rel.object.object_type_naam} to collection")
                 
-                # Also check reverse relationships
+                # Also check reverse relationships where context_obj is the object
                 reverse_rels = self.context.find_relationships(
                     object=context_obj,
                     feittype_naam=feittype_naam
                 )
+                logger.info(f"  Found {len(reverse_rels)} relationships as object")
                 for rel in reverse_rels:
                     if rel.subject and rel.subject.object_type_naam == target_role.object_type:
                         collection_objects.append(rel.subject)
+                        logger.info(f"    Added {rel.subject.object_type_naam} to collection (reverse)")
         
         return collection_objects
     
