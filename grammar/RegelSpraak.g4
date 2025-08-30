@@ -324,7 +324,7 @@ parameterDefinition
     : PARAMETER parameterNamePhrase COLON ( datatype | domeinRef )
       ( MET_EENHEID eenheidExpressie )?
       ( IS expressie )?
-      tijdlijn? SEMICOLON
+      tijdlijn?
     ;
 
 parameterNamePhrase // Dedicated rule for parameter names - allow prepositions for spec compliance

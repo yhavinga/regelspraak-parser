@@ -401,6 +401,42 @@ class RuntimeContext:
 
     # --- Object Instance / Attribute / Kenmerk Handling ---
 
+    def create_object(self, object_type_naam: str, instance_id: Optional[str] = None) -> RuntimeObject:
+        """Creates a new RuntimeObject with all attributes initialized from the object type definition."""
+        obj_type_def = self.domain_model.objecttypes.get(object_type_naam)
+        if not obj_type_def:
+            raise RuntimeError(f"Unknown object type: {object_type_naam}")
+        
+        # Create the object
+        obj = RuntimeObject(object_type_naam=object_type_naam, instance_id=instance_id)
+        
+        # Initialize ALL attributes from the definition with null/empty values
+        for attr_name, attr_def in obj_type_def.attributen.items():
+            # Initialize with appropriate null value based on datatype
+            if attr_def.datatype.startswith(("Numeriek", "Bedrag", "Percentage")):
+                initial_value = None  # Will be treated as unset but exists
+            elif attr_def.datatype == "Boolean":
+                initial_value = None
+            elif attr_def.datatype in ["Tekst", "Enumeratie"]:
+                initial_value = None
+            elif attr_def.datatype.startswith("Datum"):
+                initial_value = None
+            else:
+                initial_value = None
+            
+            # Create the Value object with proper datatype and unit
+            obj.attributen[attr_name] = Value(
+                value=initial_value,
+                datatype=attr_def.datatype,
+                unit=attr_def.eenheid
+            )
+        
+        # Initialize kenmerken as False
+        for kenmerk_name in obj_type_def.kenmerken.keys():
+            obj.kenmerken[kenmerk_name] = False
+        
+        return obj
+    
     def add_object(self, obj: RuntimeObject):
         """Adds an object instance to the context, grouped by type."""
         self.instances[obj.object_type_naam].append(obj)

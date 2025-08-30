@@ -4,7 +4,7 @@
   "parameters": {
     "volwassenleeftijd": {"value": 18, "unit": "jr"},
     "pensioenleeftijd": {"value": 65, "unit": "jr"},
-    "korting fossiele brandstof": 5.00,
+    "korting bij gebruik niet-fossiele brandstof": 5.00,
     "initiele belasting": 25.00,
     "duurzaamheidskorting minimale afstand": {"value": 500, "unit": "km"},
     "bovengrens afstand eerste schijf": {"value": 500, "unit": "km"},

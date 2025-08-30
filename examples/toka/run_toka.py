@@ -8,12 +8,12 @@ from typing import Dict, Any, List, Optional
 from datetime import date, datetime
 
 # Add parent directory to path to import regelspraak
-sys.path.insert(0, str(Path(__file__).parent.parent.parent))
+sys.path.insert(0, str(Path(__file__).parent.parent.parent / "src"))
 
-from src.regelspraak.parsing import parse_text
-from src.regelspraak.engine import Evaluator, PrintTraceSink
-from src.regelspraak.runtime import RuntimeContext, RuntimeObject, Value
-from src.regelspraak.errors import ParseError, SemanticError, RuntimeError as RegelspraakRuntimeError
+from regelspraak.parsing import parse_text
+from regelspraak.engine import Evaluator, PrintTraceSink
+from regelspraak.runtime import RuntimeContext, RuntimeObject, Value
+from regelspraak.errors import ParseError, SemanticError, RuntimeError as RegelspraakRuntimeError
 
 
 class TOKARunner:
@@ -142,7 +142,7 @@ class TOKARunner:
         
         # Create passengers
         for passenger_data in objects.get('passengers', []):
-            passenger = RuntimeObject(object_type_naam="Natuurlijk persoon", instance_id=passenger_data['id'])
+            passenger = self.context.create_object("Natuurlijk persoon", instance_id=passenger_data['id'])
             self.context.add_object(passenger)
             
             # Set attributes
@@ -165,7 +165,7 @@ class TOKARunner:
         
         # Create flights
         for flight_data in objects.get('flights', []):
-            flight = RuntimeObject(object_type_naam="Vlucht", instance_id=flight_data['id'])
+            flight = self.context.create_object("Vlucht", instance_id=flight_data['id'])
             self.context.add_object(flight)
             
             # Set flight attributes
