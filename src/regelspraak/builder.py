@@ -913,10 +913,10 @@ class RegelSpraakModelBuilder(RegelSpraakVisitor):
         
         # Build the full path
         if is_object_type_spec:
-            # Object type specification - just the attribute
-            # Example: "Het inkomen van een Natuurlijk persoon" → ['inkomen']
-            # The object type is already encoded in the is_object_type_spec flag
-            full_path = [actual_attribute_name]
+            # Object type specification - include both attribute and object type
+            # Example: "Het inkomen van een Natuurlijk persoon" → ['inkomen', 'Natuurlijk persoon']
+            # This allows the engine to resolve role names via FeitType
+            full_path = [actual_attribute_name] + final_base_path
         elif final_base_path or additional_path_elements:
             # Navigation case: use Dutch right-to-left order per specification
             # Example: "De naam van de eigenaar van het gebouw" → ['gebouw', 'eigenaar', 'naam']
