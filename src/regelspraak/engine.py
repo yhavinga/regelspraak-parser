@@ -60,8 +60,10 @@ class Evaluator:
             "absolute_waarde": self._func_abs,  # Dutch alias
             "max": self._func_max,
             "maximale_waarde": self._func_max,  # Dutch alias
+            "maximale_waarde_van": self._func_max,  # Dutch alias with 'van'
             "min": self._func_min,
             "minimale_waarde": self._func_min,  # Dutch alias
+            "minimale_waarde_van": self._func_min,  # Dutch alias with 'van'
             
             # Date/time functions
             "tijdsduur": self._func_tijdsduur_van,
@@ -4893,11 +4895,13 @@ class Evaluator:
     
     def _handle_aggregation_collection_pattern(self, expr: FunctionCall, func_type: str) -> Value:
         """Handle 'functie van X van alle Y' pattern for collection aggregation."""
+        logger.debug(f"_handle_aggregation_collection_pattern: func_type={func_type}, args={len(expr.arguments)}")
         attr_expr = expr.arguments[0]
         collection_expr = expr.arguments[1]
         
         # Resolve the collection
         collection_objects = self._resolve_collection_for_aggregation(collection_expr)
+        logger.debug(f"Resolved {len(collection_objects)} objects in collection")
         
         # Collect values from all objects in the collection
         values = []
@@ -4909,6 +4913,19 @@ class Evaluator:
             saved_instance = self.context.current_instance
             try:
                 self.context.current_instance = obj
+                # If attr_expr is a simple AttributeReference with a plural attribute name,
+                # convert it to singular before evaluation
+                logger.debug(f"Checking attr_expr: type={type(attr_expr).__name__}, path={attr_expr.path if hasattr(attr_expr, 'path') else 'N/A'}")
+                if isinstance(attr_expr, AttributeReference) and len(attr_expr.path) == 1:
+                    attr_name = attr_expr.path[0]
+                    logger.debug(f"Single-path attribute: '{attr_name}', ends with 'en': {attr_name.endswith('en')}")
+                    # Convert plural to singular: "leeftijden" -> "leeftijd"
+                    if attr_name.endswith("en"):
+                        singular_name = attr_name[:-2]
+                        logger.debug(f"Converting plural '{attr_name}' to singular '{singular_name}' for aggregation")
+                        # Create a new AttributeReference with singular name
+                        attr_expr = AttributeReference(span=attr_expr.span, path=[singular_name])
+                        logger.debug(f"New attr_expr path: {attr_expr.path}")
                 # Evaluate the attribute expression on this object
                 value = self.evaluate_expression(attr_expr)
                 
@@ -4946,6 +4963,7 @@ class Evaluator:
     
     def _perform_aggregation(self, func_type: str, values: List[Value], datatype: str, unit: str, span) -> Value:
         """Perform the actual aggregation based on function type."""
+        logger.debug(f"_perform_aggregation called with func_type='{func_type}', {len(values) if values else 0} values")
         if not values:
             # Empty collection - return appropriate empty/zero value
             if func_type in ["som_van", "totaal_van"]:
@@ -4996,6 +5014,22 @@ class Evaluator:
                 if self._compare_values(val, latest) > 0:
                     latest = val
             return latest
+            
+        elif func_type in ["maximale_waarde_van", "max"]:
+            # Find maximum value
+            max_val = values[0]
+            for val in values[1:]:
+                if self._compare_values(val, max_val) > 0:
+                    max_val = val
+            return max_val
+            
+        elif func_type in ["minimale_waarde_van", "min"]:
+            # Find minimum value
+            min_val = values[0]
+            for val in values[1:]:
+                if self._compare_values(val, min_val) < 0:
+                    min_val = val
+            return min_val
             
         else:
             raise RegelspraakError(f"Unknown aggregation function: {func_type}", span=span)
@@ -5077,10 +5111,10 @@ class Evaluator:
         # This avoids errors when trying to evaluate attributes on wrong instances
         aggregation_functions = ["som_van", "gemiddelde_van", "totaal_van", "eerste_van", "laatste_van", 
                                 "het_gemiddelde_van", "het_totaal_van", "de_eerste_van", "de_laatste_van",
-                                "aantal", "het_aantal"]
+                                "aantal", "het_aantal", "maximale_waarde_van", "minimale_waarde_van"]
         
         if func_name in aggregation_functions:
-            logger.debug(f"Processing aggregation function: {func_name}")
+            logger.debug(f"Processing aggregation function: {func_name}, args={len(expr.arguments)}")
             # Normalize function name (remove articles)
             base_func_name = func_name
             if func_name.startswith("het_"):
@@ -5123,8 +5157,10 @@ class Evaluator:
             
             # Two argument case: "som van X van alle Y" (from DimensieAggExpr)
             elif len(expr.arguments) == 2:
+                logger.debug(f"Two-argument aggregation case")
                 # Check if second argument is a collection expression
                 if isinstance(expr.arguments[1], AttributeReference):
+                    logger.debug(f"Second arg is AttributeReference, handling collection pattern with func_type={base_func_name}")
                     # Don't evaluate arguments yet - handle collection pattern
                     return self._handle_aggregation_collection_pattern(expr, base_func_name)
             
@@ -5154,7 +5190,7 @@ class Evaluator:
                 logger.debug(f"Found {func_name} in registry, calling handler")
                 # For aggregation functions, pass None for args if they haven't been evaluated yet
                 # This allows the function to handle special patterns before evaluation
-                if func_name in ["som_van", "aantal", "het_aantal", "totaal_van"] and ('args' not in locals() or args is None):
+                if func_name in ["som_van", "aantal", "het_aantal", "totaal_van", "maximale_waarde_van", "minimale_waarde_van"] and ('args' not in locals() or args is None):
                     logger.debug(f"Calling registry with args=None for {func_name}")
                     result = self._function_registry[func_name](expr, None)
                 else:
@@ -5503,6 +5539,10 @@ class Evaluator:
         if args is None:
             if self._in_timeline_evaluation:
                 raise RegelspraakError("max cannot be evaluated in timeline context", span=expr.span)
+            # Check if this is a two-argument aggregation pattern
+            if len(expr.arguments) == 2 and isinstance(expr.arguments[1], AttributeReference):
+                # This is an aggregation pattern - delegate to collection handler
+                return self._handle_aggregation_collection_pattern(expr, "maximale_waarde_van")
             args = [self.evaluate_expression(arg) for arg in expr.arguments]
             
         if not args: 
@@ -5534,6 +5574,10 @@ class Evaluator:
         if args is None:
             if self._in_timeline_evaluation:
                 raise RegelspraakError("min cannot be evaluated in timeline context", span=expr.span)
+            # Check if this is a two-argument aggregation pattern
+            if len(expr.arguments) == 2 and isinstance(expr.arguments[1], AttributeReference):
+                # This is an aggregation pattern - delegate to collection handler
+                return self._handle_aggregation_collection_pattern(expr, "minimale_waarde_van")
             args = [self.evaluate_expression(arg) for arg in expr.arguments]
             
         if not args: 
@@ -7044,30 +7088,6 @@ class Evaluator:
         # Perform the aggregation
         return self._perform_aggregation(base_func_name, attr_expr, collection_objects, expr)
     
-    def _handle_aggregation_collection_pattern(self, expr: FunctionCall, base_func_name: str) -> Value:
-        """Handle aggregation patterns like 'functie van X van alle Y'.
-        
-        Args:
-            expr: The function call expression
-            base_func_name: The base function name (e.g., 'gemiddelde', 'eerste', 'laatste', 'totaal')
-        
-        Returns:
-            The aggregated value
-        """
-        # Two arguments: attribute and collection
-        attr_expr = expr.arguments[0]
-        collection_expr = expr.arguments[1]
-        
-        if not isinstance(attr_expr, AttributeReference):
-            raise RegelspraakError(f"First argument to '{base_func_name}_van' must be an attribute reference", span=expr.span)
-        if not isinstance(collection_expr, AttributeReference):
-            raise RegelspraakError(f"Second argument to '{base_func_name}_van' must be a collection reference", span=expr.span)
-        
-        # Resolve the collection
-        collection_objects = self._resolve_collection_for_aggregation(collection_expr)
-        
-        # Perform the aggregation
-        return self._perform_aggregation(base_func_name, attr_expr, collection_objects, expr)
     
     def _resolve_collection_for_aggregation(self, collection_expr: AttributeReference) -> List[RuntimeObject]:
         """Resolve a collection expression to a list of RuntimeObjects.
@@ -7193,125 +7213,6 @@ class Evaluator:
         
         return collection_objects
     
-    def _perform_aggregation(self, func_name: str, attr_expr: AttributeReference, 
-                           collection_objects: List[RuntimeObject], expr: FunctionCall) -> Value:
-        """Perform the actual aggregation over a collection of objects.
-        
-        Args:
-            func_name: The aggregation function name ('gemiddelde', 'eerste', 'laatste', 'totaal', 'som')
-            attr_expr: The attribute to aggregate
-            collection_objects: The objects to aggregate over
-            expr: The original function call expression
-        
-        Returns:
-            The aggregated value
-        """
-        # Collect values from all objects
-        values = []
-        datatype = None
-        unit = None
-        
-        # Try to determine expected datatype from the attribute definition
-        # This is important for empty collections
-        expected_datatype = None
-        expected_unit = None
-        if attr_expr and len(attr_expr.path) == 1:
-            attr_name = attr_expr.path[0]
-            # Look through all object types to find one that has this attribute
-            for obj_type_name, obj_type_def in self.context.domain_model.objecttypes.items():
-                if attr_name in obj_type_def.attributen:
-                    attr_def = obj_type_def.attributen[attr_name]
-                    expected_datatype = attr_def.datatype
-                    expected_unit = attr_def.eenheid if hasattr(attr_def, 'eenheid') else None
-                    break
-        
-        for obj in collection_objects:
-            # Temporarily set this object as current for attribute evaluation
-            saved_instance = self.context.current_instance
-            try:
-                self.context.current_instance = obj
-                # Evaluate the attribute on this object
-                value = self.evaluate_expression(attr_expr)
-                
-                # Skip None/empty values per RegelSpraak spec
-                if value.value is not None:
-                    # Check datatype consistency
-                    if datatype is None:
-                        datatype = value.datatype
-                        unit = value.unit
-                    elif value.datatype != datatype:
-                        raise RegelspraakError(
-                            f"Cannot aggregate values of different types: {datatype} and {value.datatype}", 
-                            span=expr.span
-                        )
-                    
-                    values.append(value)
-            finally:
-                self.context.current_instance = saved_instance
-        
-        # Perform the aggregation based on function type
-        # Extract base function name (remove "_van" suffix if present)
-        base_func_name = func_name.replace('_van', '') if func_name.endswith('_van') else func_name
-        
-        # Check if this is a count aggregation
-        if base_func_name in ['aantal']:
-            # For count, just return the number of objects in the collection
-            count = len(collection_objects)
-            return Value(value=count, datatype="Numeriek", unit=None)
-        
-        if base_func_name in ['som', 'totaal']:
-            if not values:
-                # Empty collection - return 0
-                # Use expected datatype if we found it from the schema
-                return Value(value=Decimal(0), datatype=datatype or expected_datatype or "Numeriek", unit=unit or expected_unit)
-            
-            # Sum all values
-            result = values[0]
-            for val in values[1:]:
-                result = self.arithmetic.add(result, val)
-            return result
-        
-        elif base_func_name == 'gemiddelde':
-            if not values:
-                # Empty collection - return None
-                return Value(value=None, datatype=datatype or "Numeriek", unit=unit)
-            
-            # Calculate average
-            total = values[0]
-            for val in values[1:]:
-                total = self.arithmetic.add(total, val)
-            
-            # Divide by count
-            count = Decimal(len(values))
-            avg_value = total.to_decimal() / count
-            return Value(value=avg_value, datatype=datatype, unit=unit)
-        
-        elif base_func_name == 'eerste':
-            if not values:
-                # Empty collection - return None
-                return Value(value=None, datatype=datatype or "Datum", unit=unit)
-            
-            # Find earliest/minimum value
-            result = values[0]
-            for val in values[1:]:
-                if self._compare_values(val, result) < 0:
-                    result = val
-            return result
-        
-        elif base_func_name == 'laatste':
-            if not values:
-                # Empty collection - return None
-                return Value(value=None, datatype=datatype or "Datum", unit=unit)
-            
-            # Find latest/maximum value
-            result = values[0]
-            for val in values[1:]:
-                if self._compare_values(val, result) > 0:
-                    result = val
-            return result
-        
-        else:
-            raise RegelspraakError(f"Unknown aggregation function: {func_name}", span=expr.span)
     
     def _resolve_object_reference(self, ref: AttributeReference) -> Optional[RuntimeObject]:
         """Resolve an object reference to an actual RuntimeObject.
