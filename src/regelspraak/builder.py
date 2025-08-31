@@ -3331,8 +3331,20 @@ class RegelSpraakModelBuilder(RegelSpraakVisitor):
         # This allows us to detect tab separators even though they're on HIDDEN channel
         input_stream = ctx.start.getInputStream()
         start_idx = ctx.content.start.start
-        stop_idx = ctx.content.stop.stop
-        full_text = input_stream.getText(start_idx, stop_idx)
+        
+        # Get the full input text and find the end of the current line
+        full_input = input_stream.getText(0, input_stream.size)
+        
+        # Find where this role starts in the full input
+        role_start_in_full = start_idx
+        
+        # Find the next newline after the role start
+        next_newline = full_input.find('\n', role_start_in_full)
+        if next_newline == -1:
+            next_newline = len(full_input)
+        
+        # Extract the full line text
+        full_text = full_input[role_start_in_full:next_newline].rstrip()
         
         # Check if there's a tab separator
         if '\t' in full_text:
@@ -3340,6 +3352,8 @@ class RegelSpraakModelBuilder(RegelSpraakVisitor):
             parts = full_text.split('\t', 1)
             rol_naam = parts[0].strip()
             object_type = parts[1].strip() if len(parts) > 1 else ""
+            
+            logger.debug(f"Tab-separated role raw: full_text='{repr(full_text)}', parts={parts}")
             
             # Handle any cardinality text that might be included
             # Stop at cardinality indicators

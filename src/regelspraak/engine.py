@@ -4725,47 +4725,75 @@ class Evaluator:
         and returns objects in the matching role.
         """
         collection_objects = []
+        logger.debug(f"Resolving collection '{collection_name}' from {base_instance.object_type_naam}")
         
         # Try to find relationships where base_instance participates
         # Look in both directions (as subject and as object)
         relationships = self.context.find_relationships(subject=base_instance)
         relationships.extend(self.context.find_relationships(object=base_instance))
+        logger.debug(f"Found {len(relationships)} relationships involving {base_instance.object_type_naam}")
         
         for rel in relationships:
             # Get the feittype definition
             feittype = self.context.domain_model.feittypen.get(rel.feittype_naam)
             if not feittype:
                 continue
-                
-            # Check each role to see if it matches the collection name
+            
+            # Identify which role the base_instance plays and which is the target role
+            base_role = None
+            target_role = None
+            
             for rol in feittype.rollen:
-                if not rol.naam:
-                    continue
-                    
-                # Match role name (handle singular/plural forms)
-                role_matches = False
-                if collection_name.lower() == rol.naam.lower():
-                    role_matches = True
-                elif collection_name.lower() == rol.meervoud.lower() if hasattr(rol, 'meervoud') and rol.meervoud else False:
-                    role_matches = True
-                elif collection_name.lower().endswith("en") and collection_name[:-2].lower() == rol.naam.lower():
-                    # Simple plural check: "passagiers" -> "passagier"
-                    role_matches = True
-                elif collection_name.lower().endswith("s") and collection_name[:-1].lower() == rol.naam.lower():
-                    # Alternative plural: "reis" -> "reizen"  
-                    role_matches = True
-                    
-                if role_matches:
-                    # Found matching role - get the object in that role
-                    if rel.subject == base_instance and rel.object:
-                        # Base instance is subject, return object
+                if rol.object_type == base_instance.object_type_naam:
+                    base_role = rol
+                else:
+                    # Check if this role matches the collection name
+                    if rol.naam:
+                        # Match role name (handle singular/plural forms)
+                        role_matches = False
+                        if collection_name.lower() == rol.naam.lower():
+                            role_matches = True
+                        elif hasattr(rol, 'meervoud') and rol.meervoud and collection_name.lower() == rol.meervoud.lower():
+                            role_matches = True
+                        elif collection_name.lower().endswith("en") and collection_name[:-2].lower() == rol.naam.lower():
+                            # Simple plural check: "passagiers" -> "passagier"
+                            role_matches = True
+                        elif collection_name.lower().endswith("s") and collection_name[:-1].lower() == rol.naam.lower():
+                            # Alternative plural: "reis" -> "reizen"  
+                            role_matches = True
+                        
+                        if role_matches:
+                            target_role = rol
+                            logger.debug(f"Found target role '{rol.naam}' matching '{collection_name}'")
+            
+            # If we found both roles, get the object in the target role
+            if base_role and target_role:
+                logger.debug(f"Base is '{base_role.naam}', target is '{target_role.naam}'")
+                logger.debug(f"Checking relationship: subject={rel.subject.object_type_naam if rel.subject else None}, object={rel.object.object_type_naam if rel.object else None}")
+                logger.debug(f"Base instance is: {base_instance.object_type_naam}, id={base_instance.instance_id}")
+                # Determine which position base_instance is in
+                if rel.subject == base_instance and rel.object:
+                    logger.debug(f"Base instance is subject, checking if object type {rel.object.object_type_naam} == target type {target_role.object_type}")
+                    # Check if object matches target role type
+                    if rel.object.object_type_naam == target_role.object_type:
                         if rel.object not in collection_objects:
                             collection_objects.append(rel.object)
-                    elif rel.object == base_instance and rel.subject:
-                        # Base instance is object, return subject
+                            logger.debug(f"Added {rel.object.object_type_naam} from subject position")
+                    else:
+                        logger.debug(f"Type mismatch: {rel.object.object_type_naam} != {target_role.object_type}")
+                elif rel.object == base_instance and rel.subject:
+                    logger.debug(f"Base instance is object, checking if subject type {rel.subject.object_type_naam} == target type {target_role.object_type}")
+                    # Check if subject matches target role type  
+                    if rel.subject.object_type_naam == target_role.object_type:
                         if rel.subject not in collection_objects:
                             collection_objects.append(rel.subject)
-                    
+                            logger.debug(f"Added {rel.subject.object_type_naam} from object position")
+                    else:
+                        logger.debug(f"Type mismatch: {rel.subject.object_type_naam} != {target_role.object_type}")
+                else:
+                    logger.debug(f"Base instance not found in relationship positions")
+        
+        logger.debug(f"Resolved {len(collection_objects)} objects for collection '{collection_name}'")
         return collection_objects
     
     def _resolve_collection_for_aggregation(self, collection_expr: Expression) -> List[RuntimeObject]:
@@ -4820,8 +4848,25 @@ class Evaluator:
                             collection_objects.extend(instances)
                             
             elif len(collection_expr.path) == 2:
-                # Pattern like "passagiers van de reis"
+                # Pattern like "passagiers van de reis" (when parsed as 2 elements)
                 collection_name = collection_expr.path[0]
+                if self.context.current_instance:
+                    collection_objects = self._resolve_collection_from_feittype(
+                        collection_name,
+                        self.context.current_instance
+                    )
+            elif len(collection_expr.path) == 4 and collection_expr.path[1] == 'van':
+                # Pattern like ['passagiers', 'van', 'de', 'reis'] 
+                # This is "passagiers van de reis" parsed with articles as separate elements
+                collection_name = collection_expr.path[0]  # 'passagiers'
+                if self.context.current_instance:
+                    collection_objects = self._resolve_collection_from_feittype(
+                        collection_name,
+                        self.context.current_instance
+                    )
+            elif len(collection_expr.path) >= 5 and collection_expr.path[0] == 'alle':
+                # Pattern like ['alle', 'passagiers', 'van', 'de', 'reis']
+                collection_name = collection_expr.path[1]  # 'passagiers'
                 if self.context.current_instance:
                     collection_objects = self._resolve_collection_from_feittype(
                         collection_name,
@@ -7089,129 +7134,7 @@ class Evaluator:
         return self._perform_aggregation(base_func_name, attr_expr, collection_objects, expr)
     
     
-    def _resolve_collection_for_aggregation(self, collection_expr: AttributeReference) -> List[RuntimeObject]:
-        """Resolve a collection expression to a list of RuntimeObjects.
-        
-        Handles patterns like:
-        - "alle Personen" - all instances of a type
-        - "passagiers van de reis" - related objects through feittype
-        """
-        collection_objects = []
-        
-        if len(collection_expr.path) == 1:
-            collection_path = collection_expr.path[0]
-            
-            # Handle "alle X" pattern
-            if collection_path.lower().startswith("alle "):
-                collection_type = collection_path[5:]  # Remove "alle "
-                
-                # Find the actual object type (case-insensitive match)
-                matched_type = None
-                for obj_type in self.context.domain_model.objecttypes.keys():
-                    if obj_type.lower() == collection_type.lower():
-                        matched_type = obj_type
-                        break
-                
-                if matched_type:
-                    collection_objects = self.context.find_objects_by_type(matched_type)
-            
-            # Handle "X van Y" pattern
-            elif " van " in collection_path:
-                # Use feittype resolution
-                collection_name = collection_path.split(" van ")[0].strip()
-                if self.context.current_instance:
-                    collection_objects = self._resolve_collection_from_feittype(
-                        collection_name, 
-                        self.context.current_instance
-                    )
-            
-            # Handle simple plural reference
-            else:
-                # Try to find related objects through relationships
-                if self.context.current_instance:
-                    relationships = self.context.find_relationships(subject=self.context.current_instance)
-                    for rel in relationships:
-                        if rel.object and self._matches_role_name(collection_path, rel):
-                            collection_objects.append(rel.object)
-        
-        elif len(collection_expr.path) >= 2:
-            # Complex path - use feittype resolution
-            collection_name = collection_expr.path[0]
-            if self.context.current_instance:
-                collection_objects = self._resolve_collection_from_feittype(
-                    collection_name, 
-                    self.context.current_instance
-                )
-        
-        return collection_objects
     
-    def _resolve_collection_from_feittype(self, collection_name: str, context_obj: RuntimeObject) -> List[RuntimeObject]:
-        """Resolve a collection based on feittype relationships.
-        
-        Args:
-            collection_name: Name of the collection (e.g., "passagiers")
-            context_obj: The context object (e.g., current flight)
-        
-        Returns:
-            List of related objects
-        """
-        collection_objects = []
-        
-        # Debug logging
-        logger.info(f"Resolving collection '{collection_name}' from context object {context_obj.object_type_naam}")
-        
-        # Normalize collection name - try to match singular form
-        singular_name = collection_name.rstrip('s').lower()
-        
-        # Look through all feittypes to find matching relationships
-        for feittype_naam, feittype in self.context.domain_model.feittypen.items():
-            # Find the role that the context object plays in this feittype
-            context_role = None
-            target_role = None
-            
-            for rol in feittype.rollen:
-                # Check if context object matches this role's object type
-                if rol.object_type == context_obj.object_type_naam:
-                    context_role = rol
-                else:
-                    # Check if this role matches our collection name
-                    if rol.naam:
-                        role_name_lower = rol.naam.lower()
-                        # Check various matching patterns for the collection name
-                        if (singular_name in role_name_lower or 
-                            collection_name.lower() in role_name_lower or
-                            role_name_lower.startswith(singular_name) or
-                            role_name_lower.startswith(collection_name.lower())):
-                            target_role = rol
-                            logger.info(f"    Role '{rol.naam}' matches collection name '{collection_name}'")
-            
-            # If we found both a context role and target role, get the relationships
-            if context_role and target_role:
-                logger.info(f"  Found matching feittype '{feittype_naam}' with context role '{context_role.naam}' and target role '{target_role.naam}'")
-                
-                # Get relationships where context_obj is the subject (plays context_role)
-                relationships = self.context.find_relationships(
-                    subject=context_obj,
-                    feittype_naam=feittype_naam
-                )
-                logger.info(f"  Found {len(relationships)} relationships as subject")
-                for rel in relationships:
-                    if rel.object and rel.object.object_type_naam == target_role.object_type:
-                        collection_objects.append(rel.object)
-                        logger.info(f"    Added {rel.object.object_type_naam} to collection")
-                
-                # Also check reverse relationships where context_obj is the object
-                reverse_rels = self.context.find_relationships(
-                    object=context_obj,
-                    feittype_naam=feittype_naam
-                )
-                logger.info(f"  Found {len(reverse_rels)} relationships as object")
-                for rel in reverse_rels:
-                    if rel.subject and rel.subject.object_type_naam == target_role.object_type:
-                        collection_objects.append(rel.subject)
-                        logger.info(f"    Added {rel.subject.object_type_naam} to collection (reverse)")
-        
-        return collection_objects
     
     
     def _resolve_object_reference(self, ref: AttributeReference) -> Optional[RuntimeObject]:
