@@ -770,9 +770,25 @@ class RegelSpraakModelBuilder(RegelSpraakVisitor):
             raw_attribute_text = self.visitNaamwoord(ctx.attribuutMetLidwoord().naamwoord())
         
         # Check if the raw attribute contains nested path info that was split off
+        # BUT first check if this is a known compound attribute name that should NOT be split
         prepositional_dimension = None
         additional_path_elements = []
-        if raw_attribute_text and " van " in raw_attribute_text and raw_attribute_text != attribute_part:
+        
+        # Check if this attribute exists in the domain model as a compound name
+        # Look for attributes that contain "van" or "op" that are defined as single attributes
+        is_compound_attribute = False
+        if raw_attribute_text and (" van " in raw_attribute_text or " op " in raw_attribute_text or " bij " in raw_attribute_text):
+            # Check if this compound name exists as an attribute in any object type
+            if hasattr(self, 'domain_model') and self.domain_model:
+                for obj_type in self.domain_model.objecttypes.values():
+                    if raw_attribute_text in obj_type.attributen:
+                        is_compound_attribute = True
+                        # Use the full raw_attribute_text as the attribute name
+                        attribute_part = raw_attribute_text
+                        break
+        
+        # Only split on "van" if it's NOT a compound attribute
+        if not is_compound_attribute and raw_attribute_text and " van " in raw_attribute_text and raw_attribute_text != attribute_part:
             # Extract the parts that were removed
             parts = raw_attribute_text.split(" van ")
             if len(parts) > 1:

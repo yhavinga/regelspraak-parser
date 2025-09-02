@@ -512,6 +512,7 @@ class Evaluator:
                 # Path could be in two orderings:
                 # 1. Dutch right-to-left for FeitType roles: ["reis", "totaal te betalen belasting"]
                 # 2. Original left-to-right: ["inkomen", "Natuurlijk persoon"]
+                # 3. Complex attribute with object type: ["belasting op basis van afstand", "passagier"]
                 
                 # Try both elements as potential object type/role
                 for i in [0, 1]:
@@ -535,6 +536,7 @@ class Evaluator:
                     
                     # Check if it's a role name in a feittype
                     # "reis" -> "Vlucht" via feittype definition
+                    # "passagier" -> object type via feittype definition
                     for feittype_naam, feittype in self.context.domain_model.feittypen.items():
                         for rol in feittype.rollen:
                             if rol.naam and rol.naam.lower() == potential_type.lower():
@@ -1629,6 +1631,52 @@ class Evaluator:
                 # Check if elements of the path refer to the current instance type
                 working_path = expr.path[:]  # Make a copy
                 logger.debug(f"AttributeReference evaluation: path={expr.path}, current_instance={self.context.current_instance.object_type_naam}")
+                
+                # Handle "zijn/haar/hun X" pattern for relationship navigation
+                if len(working_path) >= 1 and working_path[0].startswith(("zijn ", "haar ", "hun ")):
+                    # Extract the relationship/role name after the pronoun
+                    first_part = working_path[0]
+                    pronoun_parts = first_part.split(" ", 1)
+                    if len(pronoun_parts) == 2:
+                        pronoun = pronoun_parts[0]  # "zijn", "haar", or "hun"
+                        role_or_attr = pronoun_parts[1]  # e.g., "reis"
+                        
+                        logger.debug(f"Found pronoun navigation: pronoun='{pronoun}', role='{role_or_attr}'")
+                        
+                        # Look for this role through FeitTypes
+                        for feittype_name, feittype in self.context.domain_model.feittypen.items():
+                            # Check if current instance can participate in this FeitType
+                            for rol in feittype.rollen:
+                                if rol.object_type == self.context.current_instance.object_type_naam:
+                                    # Current instance can participate - find the other role
+                                    for other_rol in feittype.rollen:
+                                        if other_rol != rol and other_rol.naam and other_rol.naam.lower() == role_or_attr.lower():
+                                            # Found the relationship - get related objects
+                                            related_objects = self.context.find_objects_by_feittype_and_role(
+                                                feittype_name, other_rol.naam, self.context.current_instance
+                                            )
+                                            if related_objects:
+                                                # If there are more path elements, continue navigation
+                                                if len(working_path) > 1:
+                                                    # Navigate further through the related object
+                                                    related_obj = related_objects[0]
+                                                    remaining_path = working_path[1:]
+                                                    
+                                                    # Temporarily switch context to the related object
+                                                    old_instance = self.context.current_instance
+                                                    self.context.current_instance = related_obj
+                                                    
+                                                    # Create a new AttributeReference with the remaining path
+                                                    remaining_ref = AttributeReference(span=expr.span, path=remaining_path)
+                                                    result = self.evaluate_expression(remaining_ref)
+                                                    
+                                                    # Restore context
+                                                    self.context.current_instance = old_instance
+                                                    return result
+                                                else:
+                                                    # Return the related object itself
+                                                    result = Value(value=related_objects[0], datatype="ObjectReference")
+                                                    return result
                 
                 # First check if the FIRST element matches current instance type (e.g., ['vlucht', 'vluchtdatum'])
                 if len(working_path) > 1:
@@ -4963,11 +5011,15 @@ class Evaluator:
                 logger.debug(f"Checking attr_expr: type={type(attr_expr).__name__}, path={attr_expr.path if hasattr(attr_expr, 'path') else 'N/A'}")
                 if isinstance(attr_expr, AttributeReference) and len(attr_expr.path) == 1:
                     attr_name = attr_expr.path[0]
-                    logger.debug(f"Single-path attribute: '{attr_name}', ends with 'en': {attr_name.endswith('en')}")
-                    # Convert plural to singular: "leeftijden" -> "leeftijd"
+                    logger.debug(f"Single-path attribute: '{attr_name}'")
+                    # For attributes, we rely on direct matching - attributes don't have formal plural declarations
+                    # The engine will try to match the attribute name directly on the object
+                    # If it's a plural form like "leeftijden" and the object only has "leeftijd",
+                    # we try a simple suffix removal as a fallback
                     if attr_name.endswith("en"):
+                        # Try simple suffix removal as fallback - but log warning about potential mismatch
                         singular_name = attr_name[:-2]
-                        logger.debug(f"Converting plural '{attr_name}' to singular '{singular_name}' for aggregation")
+                        logger.debug(f"Attempting fallback: converting potential plural '{attr_name}' to '{singular_name}' for aggregation")
                         # Create a new AttributeReference with singular name
                         attr_expr = AttributeReference(span=attr_expr.span, path=[singular_name])
                         logger.debug(f"New attr_expr path: {attr_expr.path}")
