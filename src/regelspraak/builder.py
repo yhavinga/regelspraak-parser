@@ -4004,6 +4004,48 @@ class RegelSpraakModelBuilder(RegelSpraakVisitor):
                 logger.error(f"Failed to parse attribute reference: {safe_get_text(ctx)}")
                 return None
             
+            # Extract attribute name from AttributeReference
+            # The attr_ref is an AttributeReference object with a path field
+            # We need the string name for the dictionary key
+            if hasattr(attr_ref, 'path') and attr_ref.path:
+                # For ObjectCreatie with "heeft...met...gelijk aan" pattern,
+                # the attribute might be split incorrectly due to navigation parsing.
+                # The grammar parses "aantal treinmiles op basis van aantal passagiers" as:
+                # - "aantal treinmiles op basis" (attribute)
+                # - "van aantal passagiers" (navigation onderwerp)
+                # This results in path = ["aantal passagiers", ..., "aantal treinmiles op basis"]
+                # We need to reconstruct the full attribute name.
+                
+                # For this pattern, the actual attribute is at the END of the path (Dutch right-to-left)
+                # but we need to join it with any navigation parts that are actually part of the attribute
+                if len(attr_ref.path) > 1:
+                    # Multiple elements - likely navigation pattern
+                    # The last element is the base attribute, earlier elements are navigation
+                    # But for compound attributes with "van", we need to reconstruct
+                    attr_name = attr_ref.path[-1]  # Start with the last element
+                    
+                    # Check if we need to add "van" parts back
+                    # For "aantal treinmiles op basis van aantal passagiers", 
+                    # we have ["aantal passagiers", "aantal treinmiles op basis"]
+                    # We need to reconstruct: "aantal treinmiles op basis van aantal passagiers"
+                    if len(attr_ref.path) == 2 and "basis" in attr_ref.path[-1]:
+                        # Special case for "op basis van" pattern
+                        attr_name = attr_ref.path[-1] + " van " + attr_ref.path[0]
+                else:
+                    # Single element path - simple attribute
+                    attr_name = attr_ref.path[0]
+                
+                # Clean up Dutch articles from the beginning
+                if attr_name.startswith("het "):
+                    attr_name = attr_name[4:]
+                elif attr_name.startswith("de "):
+                    attr_name = attr_name[3:]
+                elif attr_name.startswith("een "):
+                    attr_name = attr_name[4:]
+            else:
+                logger.error(f"AttributeReference has no path: {attr_ref}")
+                return None
+            
             # Get the value expression
             value_expr = self.visitExpressie(ctx.expressie())
             if not value_expr:
@@ -4016,7 +4058,7 @@ class RegelSpraakModelBuilder(RegelSpraakVisitor):
             # a new AST node type for relationship creation with attribute initialization
             return ObjectCreatie(
                 object_type=rel_target,
-                attribute_inits=[(attr_ref, value_expr)],
+                attribute_inits=[(attr_name, value_expr)],
                 span=self.get_span(ctx)
             )
         elif isinstance(ctx, AntlrParser.ObjectCreatieResultaatContext):
