@@ -1361,10 +1361,10 @@ class Evaluator:
             if not obj_type_def:
                 raise RegelspraakError(f"Unknown object type: {res.object_type}", span=res.span)
             
-            # Create new instance
+            # Create new instance with all attributes properly initialized
             import uuid
-            new_instance = RuntimeObject(
-                object_type_naam=actual_object_type,  # Use the resolved object type
+            new_instance = self.context.create_object(
+                actual_object_type,  # Use the resolved object type
                 instance_id=str(uuid.uuid4())
             )
             

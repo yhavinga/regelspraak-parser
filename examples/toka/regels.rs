@@ -139,6 +139,11 @@ Regel vastgestelde contingent treinmiles
         aantal treinmiles op basis van aantal passagiers gelijk aan het aantal passagiers
         van de Vlucht maal het aantal treinmiles per passagier voor contingent.
 
+// Initialize total for distribution - copy from the calculated basis attribute
+Regel totaal aantal treinmiles initialisatie  
+    geldig altijd
+        Het totaal aantal treinmiles van een contingent treinmiles is gelijk aan 100.
+
 // Create eligibility relationships
 Regel passagier met recht op treinmiles
     geldig altijd
