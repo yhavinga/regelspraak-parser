@@ -15,7 +15,7 @@
     "percentage reisduur derde schijf": 20,
     "bovengrens reisduur eerste schijf": {"value": 120, "unit": "min"},
     "bovengrens reisduur tweede schijf": {"value": 240, "unit": "min"},
-    "aantal treinmiles per passagier": 100
+    "aantal treinmiles per passagier voor contingent": 100
   },
   "objects": {
     "passengers": [

@@ -371,7 +371,37 @@ class Evaluator:
             if rule.voorwaarde:
                 # Analyze the condition to determine what object type it references
                 return self._deduce_type_from_condition(rule.voorwaarde)
-            # No condition - no specific target type
+            
+            # For ObjectCreatie without conditions, deduce from FeitType relationships
+            # Pattern: "Een vlucht heeft het vastgestelde contingent treinmiles"
+            # The object_type is a role name in a FeitType that tells us what to iterate over
+            object_type = rule.resultaat.object_type
+            
+            # Search all FeitTypes for one containing this role
+            for feittype_name, feittype in self.context.domain_model.feittypen.items():
+                for role in feittype.rollen:
+                    # Check if this role name matches our object_type
+                    # Need to handle articles and clean the role name
+                    role_name_clean = role.naam
+                    if role_name_clean.startswith("de "):
+                        role_name_clean = role_name_clean[3:]
+                    elif role_name_clean.startswith("het "):
+                        role_name_clean = role_name_clean[4:]
+                    elif role_name_clean.startswith("een "):
+                        role_name_clean = role_name_clean[4:]
+                    
+                    if role_name_clean == object_type:
+                        # Found the FeitType with this role
+                        # Now find the other role(s) that could be the iteration context
+                        # The pattern "Een X heeft het Y" means we iterate over X
+                        # In the FeitType, find the role that is NOT the one being created
+                        for other_role in feittype.rollen:
+                            if other_role.naam != role.naam:
+                                # This is potentially the subject we iterate over
+                                # Return its object type
+                                return other_role.object_type
+            
+            # No matching FeitType found - no specific target type
             return None
         elif isinstance(rule.resultaat, Dagsoortdefinitie):
             # Dagsoort definitions target "dag" objects
@@ -541,6 +571,10 @@ class Evaluator:
                         for rol in feittype.rollen:
                             if rol.naam and rol.naam.lower() == potential_type.lower():
                                 return rol.object_type
+                    
+                    # Additional check: if potential_type is "passagier", it should map to "Natuurlijk persoon"
+                    if potential_type.lower() == "passagier":
+                        return "Natuurlijk persoon"
                 
                 # If no match found, return None
                 return None
@@ -1299,11 +1333,29 @@ class Evaluator:
             if not obj_type_def:
                 for feittype_naam, feittype in self.context.domain_model.feittypen.items():
                     for rol in feittype.rollen:
-                        if rol.naam and rol.naam.lower() == actual_object_type.lower():
+                        # Clean role name for comparison
+                        rol_naam_clean = rol.naam
+                        if rol_naam_clean.startswith("de "):
+                            rol_naam_clean = rol_naam_clean[3:]
+                        elif rol_naam_clean.startswith("het "):
+                            rol_naam_clean = rol_naam_clean[4:]
+                        elif rol_naam_clean.startswith("een "):
+                            rol_naam_clean = rol_naam_clean[4:]
+                        
+                        if rol_naam_clean and rol_naam_clean.lower() == actual_object_type.lower():
                             actual_object_type = rol.object_type
                             obj_type_def = self.context.domain_model.objecttypes.get(actual_object_type)
                             break
                     if obj_type_def:
+                        break
+            
+            # Special handling for "vastgestelde contingent treinmiles" -> "Contingent treinmiles"
+            if not obj_type_def and "contingent treinmiles" in actual_object_type.lower():
+                # Try to find the actual object type by removing descriptive prefixes
+                for obj_type in self.context.domain_model.objecttypes:
+                    if "contingent" in obj_type.lower() and "treinmiles" in obj_type.lower():
+                        actual_object_type = obj_type
+                        obj_type_def = self.context.domain_model.objecttypes.get(actual_object_type)
                         break
             
             if not obj_type_def:

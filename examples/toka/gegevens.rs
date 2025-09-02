@@ -117,7 +117,7 @@ Parameter de bovengrens reisduur eerste schijf: Numeriek (geheel getal) met eenh
 Parameter de bovengrens reisduur tweede schijf: Numeriek (geheel getal) met eenheid minuut
 
 // Treinmiles parameters - per spec line 86
-Parameter de aantal treinmiles per passagier voor contingent: Numeriek (positief geheel getal)
+Parameter het aantal treinmiles per passagier voor contingent: Numeriek (positief geheel getal)
 
 // Date calculation parameters
 Parameter de bevestigingsinterval: Datum en tijd in millisecondes

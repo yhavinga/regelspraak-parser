@@ -2043,7 +2043,16 @@ class RegelSpraakModelBuilder(RegelSpraakVisitor):
             
         elif isinstance(ctx, AntlrParser.AantalFuncExprContext):
             # HET? AANTAL (ALLE? onderwerpReferentie)
-            # Get the subject reference
+            # First check if the entire expression is a parameter name
+            # This handles cases like "het aantal treinmiles per passagier voor contingent"
+            full_text = get_text_with_spaces(ctx)
+            canonical_name = self._extract_canonical_name_from_text(full_text)
+            
+            if canonical_name in self.parameter_names:
+                # This is actually a parameter reference, not a function call
+                return ParameterReference(parameter_name=canonical_name, span=self.get_span(ctx))
+            
+            # Not a parameter - proceed with function call interpretation
             subject_ref = None
             if ctx.onderwerpReferentie():
                 subject_ref = self.visitOnderwerpReferentie(ctx.onderwerpReferentie())
