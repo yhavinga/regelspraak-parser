@@ -467,7 +467,7 @@ class RegelSpraakModelBuilder(RegelSpraakVisitor):
     # 3. Main Visitor Entry Point & Generic ANTLR Overrides
     def visitRegelSpraakDocument(self, ctx: AntlrParser.RegelSpraakDocumentContext) -> DomainModel:
         """Visit the root document node and build the DomainModel."""
-        domain_model = DomainModel(span=self.get_span(ctx))
+        self.domain_model = domain_model = DomainModel(span=self.get_span(ctx))
         # Reset parameter names for new document
         self.parameter_names = set()
         
@@ -928,7 +928,12 @@ class RegelSpraakModelBuilder(RegelSpraakVisitor):
         is_object_type_spec = self._is_object_type_specification(ctx.onderwerpReferentie())
         
         # Build the full path
-        if is_object_type_spec:
+        if is_compound_attribute:
+            # Compound attribute - the attribute name is complete, no navigation needed
+            # Example: "luchthaven van vertrek" is a single attribute, not a navigation pattern
+            # The onderwerp just specifies which object has this attribute
+            full_path = [actual_attribute_name]
+        elif is_object_type_spec:
             # Object type specification - include both attribute and object type
             # Example: "Het inkomen van een Natuurlijk persoon" → ['inkomen', 'Natuurlijk persoon']
             # This allows the engine to resolve role names via FeitType
