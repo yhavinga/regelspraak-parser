@@ -422,12 +422,33 @@ class Evaluator:
                         if defined_type.lower() in obj_type.lower() or obj_type.lower() in defined_type.lower():
                             return defined_type
             elif rule.resultaat.criterium_type == "inconsistent":
-                # For inconsistency rules with conditions, examine the condition
-                if rule.voorwaarde and hasattr(rule.voorwaarde, 'expressie'):
-                    # Try to infer from the condition's subject
-                    # This is a simplified approach - may need refinement
-                    for obj_type in self.context.domain_model.objecttypes:
-                        return obj_type  # Return first object type for now
+                # Spec 9.5: Extract target from condition's attribute references
+                if rule.resultaat.condition:
+                    refs = self._extract_attribute_references(rule.resultaat.condition)
+                    if refs:
+                        # First try to find object type from the path
+                        for ref in refs:
+                            if ref.path:
+                                # Try to find object type from the path
+                                for path_element in ref.path:
+                                    if path_element in self.context.domain_model.objecttypes:
+                                        return path_element
+                                    # Check if it's a role that maps to an object type
+                                    for feittype in self.context.domain_model.feittypen.values():
+                                        for role in feittype.rollen:
+                                            cleaned_role = role.naam.replace("de ", "").replace("het ", "").replace("een ", "")
+                                            if cleaned_role == path_element:
+                                                return role.object_type
+                        
+                        # If no object type found in path, deduce from which object has these attributes
+                        # This handles cases where the object reference was lost during parsing
+                        for ref in refs:
+                            if ref.path and len(ref.path) > 0:
+                                attr_name = ref.path[0]  # Get the attribute name
+                                # Search all object types to find which one has this attribute
+                                for obj_type_name, obj_type in self.context.domain_model.objecttypes.items():
+                                    if attr_name in obj_type.attributen:
+                                        return obj_type_name
             return None
         elif isinstance(rule.resultaat, Verdeling):
             # For Verdeling, the target type is the "contingent" that contains the source amount

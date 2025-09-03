@@ -3893,10 +3893,12 @@ class RegelSpraakModelBuilder(RegelSpraakVisitor):
                 span=self.get_span(ctx)
             )
             
-            # Return as a consistency assertion (similar to Gelijkstelling but with assertion semantics)
-            return Gelijkstelling(
-                target=target_ref,
-                expressie=comparison,
+            # SPEC COMPLIANT: Section 9.5 requires Consistentieregel for "moet ongelijk zijn aan"
+            # Consistency rules validate data integrity, they don't assign values
+            return Consistentieregel(
+                criterium_type="inconsistent",  # Spec: consistency check type
+                condition=comparison,  # The BinaryExpression with IS_ONGELIJK_AAN
+                target=None,  # Spec: no specific target for inconsistency checks
                 span=self.get_span(ctx)
             )
         elif isinstance(ctx, AntlrParser.GelijkstellingResultaatContext):
