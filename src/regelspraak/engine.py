@@ -1706,50 +1706,11 @@ class Evaluator:
                 logger.debug(f"AttributeReference evaluation: path={expr.path}, current_instance={self.context.current_instance.object_type_naam}")
                 
                 # Handle "zijn/haar/hun X" pattern for relationship navigation
-                if len(working_path) >= 1 and working_path[0].startswith(("zijn ", "haar ", "hun ")):
-                    # Extract the relationship/role name after the pronoun
-                    first_part = working_path[0]
-                    pronoun_parts = first_part.split(" ", 1)
-                    if len(pronoun_parts) == 2:
-                        pronoun = pronoun_parts[0]  # "zijn", "haar", or "hun"
-                        role_or_attr = pronoun_parts[1]  # e.g., "reis"
-                        
-                        logger.debug(f"Found pronoun navigation: pronoun='{pronoun}', role='{role_or_attr}'")
-                        
-                        # Look for this role through FeitTypes
-                        for feittype_name, feittype in self.context.domain_model.feittypen.items():
-                            # Check if current instance can participate in this FeitType
-                            for rol in feittype.rollen:
-                                if rol.object_type == self.context.current_instance.object_type_naam:
-                                    # Current instance can participate - find the other role
-                                    for other_rol in feittype.rollen:
-                                        if other_rol != rol and other_rol.naam and other_rol.naam.lower() == role_or_attr.lower():
-                                            # Found the relationship - get related objects
-                                            related_objects = self.context.find_objects_by_feittype_and_role(
-                                                feittype_name, other_rol.naam, self.context.current_instance
-                                            )
-                                            if related_objects:
-                                                # If there are more path elements, continue navigation
-                                                if len(working_path) > 1:
-                                                    # Navigate further through the related object
-                                                    related_obj = related_objects[0]
-                                                    remaining_path = working_path[1:]
-                                                    
-                                                    # Temporarily switch context to the related object
-                                                    old_instance = self.context.current_instance
-                                                    self.context.current_instance = related_obj
-                                                    
-                                                    # Create a new AttributeReference with the remaining path
-                                                    remaining_ref = AttributeReference(span=expr.span, path=remaining_path)
-                                                    result = self.evaluate_expression(remaining_ref)
-                                                    
-                                                    # Restore context
-                                                    self.context.current_instance = old_instance
-                                                    return result
-                                                else:
-                                                    # Return the related object itself
-                                                    result = Value(value=related_objects[0], datatype="ObjectReference")
-                                                    return result
+                possessive_result = self._handle_possessive_navigation(
+                    working_path, self.context.current_instance, expr.span, 'timeline'
+                )
+                if possessive_result is not None:
+                    return possessive_result
                 
                 # First check if the FIRST element matches current instance type (e.g., ['vlucht', 'vluchtdatum'])
                 if len(working_path) > 1:
@@ -2601,6 +2562,13 @@ class Evaluator:
 
                 # Check if elements of the path refer to the current instance type
                 working_path = expr.path[:]  # Make a copy
+                
+                # Handle "zijn/haar/hun X" pattern for relationship navigation
+                possessive_result = self._handle_possessive_navigation(
+                    working_path, self.context.current_instance, expr.span, 'non-timeline'
+                )
+                if possessive_result is not None:
+                    return possessive_result
                 
                 # First check if the FIRST element matches current instance type (e.g., ['vlucht', 'vluchtdatum'])
                 if len(working_path) > 1:
@@ -7668,6 +7636,97 @@ class Evaluator:
         # If no exact match, use the role name as feittype name
         # This handles cases where feittype name includes the role
         return role_name
+
+    # --- Possessive Navigation Helper ---
+    
+    def _handle_possessive_navigation(self, path, current_obj, span, evaluation_method='timeline'):
+        """Handle possessive pronoun navigation patterns ('zijn', 'haar', 'hun').
+        
+        Args:
+            path: List of path elements to navigate
+            current_obj: Current RuntimeObject context
+            span: SourceSpan for error reporting
+            evaluation_method: 'timeline' or 'non-timeline' to determine which evaluation method to use
+        
+        Returns:
+            Value if possessive navigation successful, None otherwise
+        """
+        if not path:
+            return None
+        
+        # Check if possessive pronoun is at path[0] (regular case) or path[1] (decision table case)
+        if path[0].startswith(("zijn ", "haar ", "hun ")):
+            # Regular case: ["zijn reis", ...]
+            possessive_index = 0
+            prefix_path = []  # No prefix
+        elif len(path) > 1 and path[1].startswith(("zijn ", "haar ", "hun ")):
+            # Decision table case: ["attribute", "zijn reis"]  
+            # Need to navigate to "zijn reis" first, then get "attribute" from it
+            possessive_index = 1
+            prefix_path = [path[0]]  # Save the attribute to get after navigation
+        else:
+            return None
+            
+        # Extract the relationship/role name after the pronoun
+        possessive_part = path[possessive_index]
+        pronoun_parts = possessive_part.split(" ", 1)
+        if len(pronoun_parts) != 2:
+            return None
+            
+        pronoun = pronoun_parts[0]  # "zijn", "haar", or "hun"
+        role_or_attr = pronoun_parts[1]  # e.g., "reis"
+        
+        logger.debug(f"Found pronoun navigation: pronoun='{pronoun}', role='{role_or_attr}'")
+        
+        # Look for this role through FeitTypes
+        for feittype_name, feittype in self.context.domain_model.feittypen.items():
+            # Check if current instance can participate in this FeitType
+            for i, rol in enumerate(feittype.rollen):
+                if rol.object_type == current_obj.object_type_naam:
+                    # Current instance can participate - find the other role
+                    for j, other_rol in enumerate(feittype.rollen):
+                        if other_rol != rol and other_rol.naam and other_rol.naam.lower() == role_or_attr.lower():
+                            # Found the relationship - get related objects
+                            # Determine as_subject: if current object is at role 0, it's the subject
+                            as_subject = (i == 0)
+                            related_objects = self.context.get_related_objects(
+                                current_obj, feittype_name, as_subject=as_subject
+                            )
+                            if related_objects:
+                                # Navigate to the related object
+                                related_obj = related_objects[0]
+                                
+                                # Determine what to do after navigation
+                                if prefix_path:
+                                    # Decision table case: we need to get the attribute from the related object
+                                    # prefix_path contains the attribute name
+                                    remaining_path = prefix_path
+                                else:
+                                    # Regular case: continue with remaining path after possessive part
+                                    remaining_path = path[possessive_index + 1:] if len(path) > possessive_index + 1 else []
+                                
+                                if remaining_path:
+                                    # Temporarily switch context to the related object
+                                    old_instance = self.context.current_instance
+                                    self.context.current_instance = related_obj
+                                    
+                                    # Create a new AttributeReference with the remaining path
+                                    remaining_ref = AttributeReference(span=span, path=remaining_path)
+                                    
+                                    # Use appropriate evaluation method
+                                    if evaluation_method == 'timeline':
+                                        result = self.evaluate_expression(remaining_ref)
+                                    else:
+                                        result = self._evaluate_expression_non_timeline(remaining_ref)
+                                    
+                                    # Restore context
+                                    self.context.current_instance = old_instance
+                                    return result
+                                else:
+                                    # Return the related object itself
+                                    return Value(value=related_obj, datatype="ObjectReference")
+        
+        return None
 
     # --- Beslistabel (Decision Table) Methods ---
 

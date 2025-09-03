@@ -90,6 +90,10 @@ class BeslistabelParser:
                     # e.g., "indien zijn leeftijd gelijk is aan"
                     attribute = match.group(1).strip()
                     operator_text = match.group(2).strip()
+                    
+                    # Remove unit specifications from attribute name (e.g., "in jaren")
+                    attribute = re.sub(r"\s+in\s+\w+$", "", attribute)
+                    
                     return ParsedCondition(
                         subject_path=[attribute],
                         object_type=None,  # Will be inferred from context
@@ -103,9 +107,27 @@ class BeslistabelParser:
                     object_ref = match.group(2).strip()
                     operator_text = match.group(3).strip()
                     
-                    # Build path as [attribute, object]
+                    # Remove unit specifications from attribute name (e.g., "in minuten", "in euro")
+                    # Common pattern: attribute ends with "in [unit]"
+                    attribute = re.sub(r"\s+in\s+\w+$", "", attribute)
+                    
+                    # Check if there's a possessive pronoun before the object reference
+                    # The regex captured "zijn|haar|de|een" but we need to check which one
+                    full_match = match.group(0)
+                    # Extract the part between "van" and the object
+                    van_part = full_match[full_match.index(" van "):]
+                    if " van zijn " in van_part:
+                        object_ref_with_pronoun = "zijn " + object_ref
+                    elif " van haar " in van_part:
+                        object_ref_with_pronoun = "haar " + object_ref
+                    elif " van hun " in van_part:
+                        object_ref_with_pronoun = "hun " + object_ref
+                    else:
+                        object_ref_with_pronoun = object_ref
+                    
+                    # Build path as [attribute, object with possessive]
                     return ParsedCondition(
-                        subject_path=[attribute, object_ref],
+                        subject_path=[attribute, object_ref_with_pronoun],
                         object_type=None,
                         operator=self.OPERATOR_MAP.get(operator_text.lower()),
                         is_kenmerk_check=False
