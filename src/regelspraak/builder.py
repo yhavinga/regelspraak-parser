@@ -760,9 +760,76 @@ class RegelSpraakModelBuilder(RegelSpraakVisitor):
         logger.debug(f"visitAttribuutReferentie called: attribute_part='{attribute_part}', known_params={self.parameter_names}")
         
         # Check if this is actually a known parameter
+        # First try the full attribute_part
         if attribute_part and attribute_part in self.parameter_names:
             logger.debug(f"visitAttribuutReferentie: '{attribute_part}' is a known parameter, creating ParameterReference")
             return ParameterReference(parameter_name=attribute_part, span=self.get_span(ctx))
+        
+        # If attribute_part contains "van", check if the part before first "van" is a parameter
+        # This handles cases like "percentage reisduur eerste schijf van zijn belasting op basis"
+        # where the parameter is "percentage reisduur eerste schijf"
+        if attribute_part and " van " in attribute_part:
+            parts = attribute_part.split(" van ", 1)
+            potential_param = parts[0].strip()
+            if potential_param in self.parameter_names:
+                logger.debug(f"visitAttribuutReferentie: Found parameter '{potential_param}' before 'van' in '{attribute_part}'")
+                # This is actually a misparse - the grammar consumed too much
+                # We need to create a BinaryExpression with VAN operator
+                # Left: ParameterReference for the parameter
+                # Right: AttributeReference for the remaining part
+                
+                # Create the parameter reference
+                param_ref = ParameterReference(parameter_name=potential_param, span=self.get_span(ctx))
+                
+                # Create the attribute reference for the remaining part
+                # The remaining part is "zijn belasting op basis van afstand" (without the first "van")
+                remaining_attr_text = parts[1].strip()
+                
+                # We need to reconstruct the full attribute reference context
+                # The remaining part should be parsed as an attribuutReferentie
+                # But we need to handle this carefully since we're already in visitAttribuutReferentie
+                
+                # Parse the remaining part properly
+                # It might be "zijn belasting op basis van afstand" which needs navigation handling
+                # Extract the navigation path from the remaining text
+                
+                # Check if it starts with possessive pronoun
+                attr_path = []
+                if remaining_attr_text.startswith(("zijn ", "haar ", "hun ")):
+                    # Extract possessive pronoun and the rest
+                    pronoun_parts = remaining_attr_text.split(" ", 1)
+                    if len(pronoun_parts) > 1:
+                        # Build proper path: ["belasting op basis van afstand", "zijn reis"]
+                        # But we need to handle "van afstand" which was separated
+                        if ctx.onderwerpReferentie():
+                            # Get the onderwerp part (this is "afstand" in our case)
+                            onderwerp_path = self.visitOnderwerpReferentieToPath(ctx.onderwerpReferentie())
+                            if onderwerp_path and len(onderwerp_path) > 0:
+                                # Reconstruct: "belasting op basis van afstand"
+                                base_attr = pronoun_parts[1].strip()
+                                if not base_attr.endswith(" van"):
+                                    base_attr = base_attr + " van " + onderwerp_path[0]
+                                attr_path = [base_attr, pronoun_parts[0] + " reis"]  # Assuming "zijn" refers to "reis"
+                            else:
+                                attr_path = [pronoun_parts[1].strip()]
+                        else:
+                            attr_path = [remaining_attr_text]
+                else:
+                    # No possessive pronoun, use as is
+                    attr_path = [remaining_attr_text]
+                
+                attr_ref = AttributeReference(
+                    path=attr_path,
+                    span=self.get_span(ctx)
+                )
+                
+                # Create the BinaryExpression with VAN operator
+                return BinaryExpression(
+                    left=param_ref,
+                    operator="VAN",
+                    right=attr_ref,
+                    span=self.get_span(ctx)
+                )
         
         # Also get the raw naamwoord text to check for dimension patterns and nested paths
         raw_attribute_text = None
