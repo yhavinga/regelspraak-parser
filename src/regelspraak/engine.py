@@ -382,19 +382,11 @@ class Evaluator:
                 for role in feittype.rollen:
                     # Check if this role name matches our object_type
                     # Need to handle articles and clean the role name
-                    role_name_clean = role.naam.lower()
-                    for article in ['de ', 'het ', 'een ']:
-                        if role_name_clean.startswith(article):
-                            role_name_clean = role_name_clean[len(article):]
-                            break
+                    role_name_clean = self._strip_articles(role.naam).lower()
                     
                     # Also check if the object_type contains the role name (for compound names)
                     # e.g., "vastgestelde contingent treinmiles" should match "contingent treinmiles"
-                    object_type_clean = object_type.lower()
-                    for article in ['de ', 'het ', 'een ']:
-                        if object_type_clean.startswith(article):
-                            object_type_clean = object_type_clean[len(article):]
-                            break
+                    object_type_clean = self._strip_articles(object_type).lower()
                     
                     # Check for exact match or if role name is contained in object_type
                     if (role_name_clean == object_type_clean or 
@@ -607,11 +599,7 @@ class Evaluator:
                         for rol in feittype.rollen:
                             if rol.naam:
                                 # Clean role name by removing articles
-                                role_name_clean = rol.naam.lower()
-                                for article in ['de ', 'het ', 'een ']:
-                                    if role_name_clean.startswith(article):
-                                        role_name_clean = role_name_clean[len(article):]
-                                        break
+                                role_name_clean = self._strip_articles(rol.naam).lower()
                                 
                                 if role_name_clean == potential_type.lower():
                                     return rol.object_type
@@ -656,11 +644,7 @@ class Evaluator:
                             for rol in feittype.rollen:
                                 if rol.naam:
                                     # Clean role name by removing articles
-                                    role_name_clean = rol.naam.lower()
-                                    for article in ['de ', 'het ', 'een ']:
-                                        if role_name_clean.startswith(article):
-                                            role_name_clean = role_name_clean[len(article):]
-                                            break
+                                    role_name_clean = self._strip_articles(rol.naam).lower()
                                     
                                     if role_name_clean == potential_type.lower():
                                         return rol.object_type
@@ -1790,10 +1774,7 @@ class Evaluator:
                                 logger.debug(f"AttributeReference: Parsed navigation pattern - role_name='{role_name}', context_ref='{context_ref}'")
                                 
                                 # Remove articles from context
-                                for article in ['de ', 'het ', 'een ']:
-                                    if context_ref.startswith(article):
-                                        context_ref = context_ref[len(article):]
-                                        break
+                                context_ref = self._strip_articles(context_ref)
                                 
                                 # Check if context matches current instance type
                                 current_type_lower = self.context.current_instance.object_type_naam.lower()
@@ -2711,10 +2692,20 @@ class Evaluator:
                         current_obj = self.context.current_instance
                         nav_path = expr.path
                         
+                        # Debug log the path we're trying to navigate
+                        logger.debug(f"AttributeReference navigation: path={nav_path}, current_instance={current_obj.object_type_naam if current_obj else None}")
+                        
                         # For paths with 2 elements, check if the second element is a role name
                         if len(nav_path) == 2:
                             # Check if the second element (nav_path[1]) is a role name
                             role_name = nav_path[1]
+                            
+                            # Strip possessive pronouns if present ("zijn reis" -> "reis")
+                            role_name = self._strip_possessive_pronoun(role_name)
+                            
+                            # Debug log
+                            logger.debug(f"Navigation: trying role '{role_name}' from path {nav_path}")
+                            
                             try:
                                 # Try to navigate to the role
                                 role_result = self._evaluate_role_navigation(role_name, current_obj)
@@ -5565,10 +5556,7 @@ class Evaluator:
                                 logger.debug(f"som_van: Parsed collection pattern - role_name='{role_name}', context_ref='{context_ref}'")
                                 
                                 # Remove articles from context
-                                for article in ['de ', 'het ', 'een ']:
-                                    if context_ref.startswith(article):
-                                        context_ref = context_ref[len(article):]
-                                        break
+                                context_ref = self._strip_articles(context_ref)
                                 
                                 # Find feittype that matches this pattern
                                 # "passagiers" (passengers) + "reis" (journey/flight) -> look for related persons
@@ -7610,18 +7598,38 @@ class Evaluator:
         
         return result
     
+    def _strip_possessive_pronoun(self, text: str) -> str:
+        """Strip possessive pronouns from the beginning of text."""
+        text_lower = text.lower()
+        for pronoun in ['zijn ', 'haar ', 'hun ']:
+            if text_lower.startswith(pronoun):
+                return text[len(pronoun):]
+        return text
+    
+    def _strip_articles(self, text: str) -> str:
+        """Strip Dutch articles from the beginning of text."""
+        text_lower = text.lower()
+        for article in ['de ', 'het ', 'een ']:
+            if text_lower.startswith(article):
+                return text[len(article):]
+        return text
+    
     def _evaluate_role_navigation(self, role_name: str, from_object: RuntimeObject) -> Value:
         """Evaluate navigation to related objects via a role name.
         Returns a collection if the role name is plural, single object otherwise."""
+        # Strip possessive pronouns first ("zijn reis" -> "reis")
+        role_name = self._strip_possessive_pronoun(role_name)
+        # Strip articles next ("de reis" -> "reis")
+        role_name = self._strip_articles(role_name)
         role_name_lower = role_name.lower()
-        role_name_clean = role_name_lower.replace("de ", "").replace("het ", "").replace("een ", "")
+        role_name_clean = role_name_lower  # Already cleaned
         
         # Look for matching role in feittypen
         for feittype_name, feittype in self.context.domain_model.feittypen.items():
             for rol in feittype.rollen:
                 # Match against role name or plural form
                 role_naam_lower = rol.naam.lower()
-                role_naam_clean = role_naam_lower.replace("de ", "").replace("het ", "").replace("een ", "")
+                role_naam_clean = self._strip_articles(rol.naam).lower()
                 
                 # Handle broken role parsing where role name includes object type
                 role_first_word = role_naam_clean.split()[0] if role_naam_clean else ""
