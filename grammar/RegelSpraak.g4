@@ -106,7 +106,7 @@ identifierOrKeywordNoIs
     ;
 
 naamPhrase // Used within naamwoord
-    : (DE | HET | EEN | ZIJN)? identifierOrKeyword+
+    : (DE | HET | EEN | ZIJN)? identifierOrKeyword+ // Regular identifier sequences
     | identifierOrKeyword+ // Allow all identifiers (covers capitalized Het, De, etc.)
     | NIEUWE identifierOrKeyword+ // Allow 'nieuwe' in names
     | NIEUWE identifierOrKeyword+ MET identifierOrKeyword+ // Allow 'nieuwe X met Y' pattern in rule names
@@ -707,14 +707,24 @@ datumExpressie : expressie ;
 
 
 // §13.4.2 Variabele Deel
-variabeleDeel // Use single token
+// Per spec EBNF: <variabelendeel> ::= "Daarbij geldt:" (\n \t <variabeleonderdeel>)* "."
+// Each variable assignment MUST be on a new line starting with tab
+// Since whitespace is on HIDDEN channel, we can't enforce the newline-tab delimiter directly
+// We restrict variable names to simple IDENTIFIER and add optional SEMICOLON for disambiguation
+variabeleDeel
     : DAARBIJ_GELDT
-      variabeleToekenning* // Changed to * to allow zero or more
+      variabeleToekenning*
       DOT
     ;
 
 variabeleToekenning
-    : naamwoord IS expressie SEMICOLON?
+    : varName=IDENTIFIER IS varExpr=variabeleExpressie
+    ;
+
+// Special expression rule for variable assignments that doesn't cross lines
+// This prevents greedy consumption of identifiers across line boundaries
+variabeleExpressie
+    : primaryExpression ( (additiveOperator | multiplicativeOperator) primaryExpression )*
     ;
 
 // --- RegelSpraak Expressions (§13.4.15, §13.4.16) --- NOW INCLUDES CONDITIONS

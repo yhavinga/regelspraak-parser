@@ -4361,13 +4361,73 @@ class RegelSpraakModelBuilder(RegelSpraakVisitor):
         """Visit a variable part and build a dictionary of variable assignments."""
         variables = {}
         for toekenning_ctx in ctx.variabeleToekenning():
-            var_name = self._extract_canonical_name(toekenning_ctx.naamwoord())
-            expression = self.visitExpressie(toekenning_ctx.expressie())
+            # Variable names are simple identifiers per spec
+            var_name = toekenning_ctx.varName.text if toekenning_ctx.varName else None
+            expression = self.visitVariabeleExpressie(toekenning_ctx.varExpr) if toekenning_ctx.varExpr else None
             if var_name and expression:
                 variables[var_name] = expression
             else:
                 logger.warning(f"Could not parse variable assignment in {safe_get_text(toekenning_ctx)}")
         return variables
+    
+    def visitVariabeleExpressie(self, ctx: AntlrParser.VariabeleExpressieContext) -> Expression:
+        """Visit a variable expression (limited expression that doesn't cross lines)."""
+        # Start with the first primary expression
+        result = self.visitPrimaryExpression(ctx.primaryExpression(0))
+        
+        # Process operators and operands in sequence
+        # The grammar ensures operators and operands alternate
+        op_index = 0
+        for i in range(1, len(ctx.primaryExpression())):
+            # Find the next operator (additive or multiplicative)
+            operator = None
+            
+            # Check if we have an additive operator at this position
+            if op_index < len(ctx.additiveOperator()):
+                op_ctx = ctx.additiveOperator(op_index)
+                if op_ctx.PLUS():
+                    operator = Operator.PLUS
+                elif op_ctx.MIN():
+                    operator = Operator.MIN
+                elif op_ctx.VERENIGD_MET():
+                    operator = Operator.UNION
+                elif op_ctx.VERMINDERD_MET():
+                    operator = Operator.DIFFERENCE
+                op_index += 1
+            
+            # Check if we have a multiplicative operator at this position  
+            if operator is None and op_index - len(ctx.additiveOperator()) < len(ctx.multiplicativeOperator()):
+                mult_index = op_index - len(ctx.additiveOperator())
+                op_ctx = ctx.multiplicativeOperator(mult_index)
+                if op_ctx.MAAL():
+                    operator = Operator.MULTIPLY
+                elif op_ctx.GEDEELD_DOOR():
+                    operator = Operator.DIVIDE
+                elif op_ctx.GEDEELD_DOOR_ABS():
+                    operator = Operator.DIVIDE_ABS
+                op_index += 1
+                
+            if operator is None:
+                continue
+                
+            right = self.visitPrimaryExpression(ctx.primaryExpression(i))
+            # Combine spans from left and right expressions
+            if hasattr(result, 'span') and hasattr(right, 'span') and result.span and right.span:
+                combined_span = SourceSpan(
+                    result.span.start_line, result.span.start_col,
+                    right.span.end_line, right.span.end_col
+                )
+            else:
+                combined_span = self.get_span(ctx)
+            
+            result = BinaryExpression(
+                operator=operator,
+                left=result,
+                right=right,
+                span=combined_span
+            )
+        
+        return result
 
     # --- Beslistabel (Decision Table) Methods ---
 
