@@ -382,15 +382,24 @@ class Evaluator:
                 for role in feittype.rollen:
                     # Check if this role name matches our object_type
                     # Need to handle articles and clean the role name
-                    role_name_clean = role.naam
-                    if role_name_clean.startswith("de "):
-                        role_name_clean = role_name_clean[3:]
-                    elif role_name_clean.startswith("het "):
-                        role_name_clean = role_name_clean[4:]
-                    elif role_name_clean.startswith("een "):
-                        role_name_clean = role_name_clean[4:]
+                    role_name_clean = role.naam.lower()
+                    for article in ['de ', 'het ', 'een ']:
+                        if role_name_clean.startswith(article):
+                            role_name_clean = role_name_clean[len(article):]
+                            break
                     
-                    if role_name_clean == object_type:
+                    # Also check if the object_type contains the role name (for compound names)
+                    # e.g., "vastgestelde contingent treinmiles" should match "contingent treinmiles"
+                    object_type_clean = object_type.lower()
+                    for article in ['de ', 'het ', 'een ']:
+                        if object_type_clean.startswith(article):
+                            object_type_clean = object_type_clean[len(article):]
+                            break
+                    
+                    # Check for exact match or if role name is contained in object_type
+                    if (role_name_clean == object_type_clean or 
+                        role_name_clean in object_type_clean or
+                        object_type_clean in role_name_clean):
                         # Found the FeitType with this role
                         # Now find the other role(s) that could be the iteration context
                         # The pattern "Een X heeft het Y" means we iterate over X
@@ -569,6 +578,12 @@ class Evaluator:
                 for i in [0, 1]:
                     potential_type = target_ref.path[i]
                     
+                    # Remove articles if present
+                    for article in ['een ', 'de ', 'het ']:
+                        if potential_type.lower().startswith(article):
+                            potential_type = potential_type[len(article):]
+                            break
+                    
                     # Check if it matches a known object type
                     if hasattr(self.context, 'domain_model') and self.context.domain_model:
                         # First try exact match
@@ -590,8 +605,16 @@ class Evaluator:
                     # "passagier" -> object type via feittype definition
                     for feittype_naam, feittype in self.context.domain_model.feittypen.items():
                         for rol in feittype.rollen:
-                            if rol.naam and rol.naam.lower() == potential_type.lower():
-                                return rol.object_type
+                            if rol.naam:
+                                # Clean role name by removing articles
+                                role_name_clean = rol.naam.lower()
+                                for article in ['de ', 'het ', 'een ']:
+                                    if role_name_clean.startswith(article):
+                                        role_name_clean = role_name_clean[len(article):]
+                                        break
+                                
+                                if role_name_clean == potential_type.lower():
+                                    return rol.object_type
                     
                     # Additional check: if potential_type is "passagier", it should map to "Natuurlijk persoon"
                     if potential_type.lower() == "passagier":
@@ -631,8 +654,16 @@ class Evaluator:
                         # Check if it's a role name in a feittype
                         for feittype_naam, feittype in self.context.domain_model.feittypen.items():
                             for rol in feittype.rollen:
-                                if rol.naam and rol.naam.lower() == potential_type.lower():
-                                    return rol.object_type
+                                if rol.naam:
+                                    # Clean role name by removing articles
+                                    role_name_clean = rol.naam.lower()
+                                    for article in ['de ', 'het ', 'een ']:
+                                        if role_name_clean.startswith(article):
+                                            role_name_clean = role_name_clean[len(article):]
+                                            break
+                                    
+                                    if role_name_clean == potential_type.lower():
+                                        return rol.object_type
 
         # Fallback for steel thread Kenmerktoekenning where target might be implicit
         if isinstance(rule.resultaat, KenmerkToekenning) and "persoon" in rule.naam.lower():
@@ -2673,14 +2704,48 @@ class Evaluator:
                             result = value
                     else:
                         # Handle nested object references
-                        # After the fix to visitAttribuutReferentie, paths are already in Dutch right-to-left order
+                        # Path like ["afstand tot bestemming", "reis"] means: navigate to reis, then get afstand tot bestemming
                         # Path like ["reis", "vluchtdatum"] means: navigate to reis, then get vluchtdatum
                         
                         # Start from current instance and traverse the path
                         current_obj = self.context.current_instance
-                        # Path is already in correct order, don't reverse
                         nav_path = expr.path
                         
+                        # For paths with 2 elements, check if the second element is a role name
+                        if len(nav_path) == 2:
+                            # Check if the second element (nav_path[1]) is a role name
+                            role_name = nav_path[1]
+                            try:
+                                # Try to navigate to the role
+                                role_result = self._evaluate_role_navigation(role_name, current_obj)
+                                if isinstance(role_result.value, list) and role_result.value:
+                                    # Role navigation returned a collection, take the first object
+                                    target_obj = role_result.value[0]
+                                elif hasattr(role_result.value, 'object_type_naam'):
+                                    # Role navigation returned a single object
+                                    target_obj = role_result.value
+                                else:
+                                    raise RegelspraakError(f"Unexpected role navigation result: {role_result}", span=expr.span)
+                                
+                                # Get the attribute from the target object
+                                attr_name = nav_path[0]
+                                value = self.context.get_attribute(target_obj, attr_name)
+                                
+                                # Trace attribute read
+                                if self.context.trace_sink:
+                                    self.context.trace_sink.attribute_read(
+                                        target_obj,
+                                        attr_name,
+                                        value.value if isinstance(value, Value) else value,
+                                        expr=expr
+                                    )
+                                
+                                return value
+                            except RegelspraakError:
+                                # Not a role navigation, fall through to general path handling
+                                pass
+                        
+                        # General path handling for other cases
                         # Navigate through all but the last element
                         for i, segment in enumerate(nav_path[:-1]):
                             # First, check if segment is a role name in a feittype

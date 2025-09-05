@@ -927,12 +927,16 @@ class RegelSpraakModelBuilder(RegelSpraakVisitor):
         # Check if the onderwerpReferentie is an object type specification (not navigation)
         is_object_type_spec = self._is_object_type_specification(ctx.onderwerpReferentie())
         
+        
         # Build the full path
         if is_compound_attribute:
             # Compound attribute - the attribute name is complete, no navigation needed
-            # Example: "luchthaven van vertrek" is a single attribute, not a navigation pattern
-            # The onderwerp just specifies which object has this attribute
-            full_path = [actual_attribute_name]
+            # But we still need to include the object type for target type deduction
+            # Example: "belasting op basis van afstand van een passagier" → ['belasting op basis van afstand', 'passagier']
+            if is_object_type_spec and final_base_path:
+                full_path = [actual_attribute_name] + final_base_path
+            else:
+                full_path = [actual_attribute_name]
         elif is_object_type_spec:
             # Object type specification - include both attribute and object type
             # Example: "Het inkomen van een Natuurlijk persoon" → ['inkomen', 'Natuurlijk persoon']
@@ -4081,6 +4085,36 @@ class RegelSpraakModelBuilder(RegelSpraakVisitor):
             # Handle object creation
             object_ctx = ctx.objectCreatie()
             object_type = self.visit(object_ctx.objectType)
+            
+            # Resolve role name to actual object type if needed
+            # e.g., "vastgestelde contingent treinmiles" -> "Contingent treinmiles"
+            if hasattr(self, 'domain_model') and self.domain_model:
+                # Check if object_type is actually a role name that needs to be resolved
+                for feittype_name, feittype in self.domain_model.feittypen.items():
+                    for rol in feittype.rollen:
+                        # Clean role name by removing articles
+                        role_name_clean = rol.naam.lower()
+                        for article in ['de ', 'het ', 'een ']:
+                            if role_name_clean.startswith(article):
+                                role_name_clean = role_name_clean[len(article):]
+                                break
+                        
+                        # Clean object_type by removing articles
+                        object_type_clean = object_type.lower()
+                        for article in ['de ', 'het ', 'een ']:
+                            if object_type_clean.startswith(article):
+                                object_type_clean = object_type_clean[len(article):]
+                                break
+                        
+                        # Check if object_type matches or contains the role name
+                        if (role_name_clean == object_type_clean or 
+                            role_name_clean in object_type_clean or
+                            object_type_clean in role_name_clean):
+                            # Found matching role - use the actual object type
+                            object_type = rol.object_type
+                            break
+                    if object_type != self.visit(object_ctx.objectType):  # If we found a match
+                        break
             
             # Parse attribute initializations if present
             attribute_inits = []
