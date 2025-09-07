@@ -1715,6 +1715,57 @@ class Evaluator:
                     raise RegelspraakError("Cannot evaluate attribute reference: No current instance.", span=expr.span)
                 if not expr.path:
                     raise RegelspraakError("Attribute reference path is empty.", span=expr.span)
+                
+                # Special handling for percentage calculation pattern from beslistabels
+                # Pattern: ['afstand', 'percentage X van zijn belasting op basis']
+                # Should be converted to: (percentage X * belasting op basis van afstand) / 100
+                logger.debug(f"ENGINE: Checking AttributeReference path={expr.path} for percentage pattern")
+                if (len(expr.path) == 2 and " van zijn " in expr.path[1] and 
+                    expr.path[1].startswith(("percentage ", "het percentage "))):
+                    
+                    logger.debug(f"ENGINE: Path matches percentage pattern")
+                    attr_part = expr.path[1]
+                    # Clean "het " prefix if present
+                    if attr_part.startswith("het "):
+                        attr_part = attr_part[4:]
+                    
+                    parts = attr_part.split(" van zijn ", 1)
+                    potential_param = parts[0].strip()
+                    logger.debug(f"ENGINE: Potential parameter: '{potential_param}'")
+                    logger.debug(f"ENGINE: Available parameters: {list(self.context.domain_model.parameters.keys())}")
+                    
+                    # Check if this is a known parameter
+                    if potential_param in self.context.domain_model.parameters:
+                        logger.debug(f"ENGINE: Found percentage parameter '{potential_param}' in path {expr.path}")
+                        
+                        # Reconstruct compound attribute name: "belasting op basis van afstand"
+                        compound_attr_name = parts[1].strip() + " van " + expr.path[0]
+                        logger.debug(f"ENGINE: Reconstructed compound attribute: '{compound_attr_name}'")
+                        
+                        # Get parameter value
+                        param_value = self.context.get_parameter(potential_param)
+                        if not param_value:
+                            raise RegelspraakError(f"Parameter '{potential_param}' not found", span=expr.span)
+                        
+                        # Navigate to the attribute using possessive navigation
+                        # "zijn belasting op basis van afstand" means navigate from current instance via "zijn reis" to the attribute
+                        attr_path = [compound_attr_name, "zijn reis"]
+                        attr_ref = AttributeReference(path=attr_path, span=expr.span)
+                        attr_value = self.evaluate_expression(attr_ref)
+                        
+                        if not attr_value:
+                            raise RegelspraakError(f"Could not evaluate attribute '{compound_attr_name}' for percentage calculation", span=expr.span)
+                        
+                        # Calculate percentage: (param * attr) / 100
+                        from decimal import Decimal
+                        result_value = (Decimal(str(param_value.value)) * Decimal(str(attr_value.value))) / Decimal('100')
+                        
+                        # Preserve unit from attribute value
+                        result_unit = attr_value.unit
+                        result = Value(value=result_value, datatype=attr_value.datatype, unit=result_unit)
+                        
+                        logger.debug(f"ENGINE: Percentage calculation result: {result.value} {result.unit}")
+                        return result
 
                 # Check if elements of the path refer to the current instance type
                 working_path = expr.path[:]  # Make a copy
@@ -2571,6 +2622,57 @@ class Evaluator:
                     raise RegelspraakError("Cannot evaluate attribute reference: No current instance.", span=expr.span)
                 if not expr.path:
                     raise RegelspraakError("Attribute reference path is empty.", span=expr.span)
+                
+                # Special handling for percentage calculation pattern from beslistabels
+                # Pattern: ['afstand', 'percentage X van zijn belasting op basis']
+                # Should be converted to: (percentage X * belasting op basis van afstand) / 100
+                logger.debug(f"ENGINE (non-timeline): Checking AttributeReference path={expr.path} for percentage pattern")
+                if (len(expr.path) == 2 and " van zijn " in expr.path[1] and 
+                    expr.path[1].startswith(("percentage ", "het percentage "))):
+                    
+                    logger.debug(f"ENGINE (non-timeline): Path matches percentage pattern")
+                    attr_part = expr.path[1]
+                    # Clean "het " prefix if present
+                    if attr_part.startswith("het "):
+                        attr_part = attr_part[4:]
+                    
+                    parts = attr_part.split(" van zijn ", 1)
+                    potential_param = parts[0].strip()
+                    logger.debug(f"ENGINE (non-timeline): Potential parameter: '{potential_param}'")
+                    logger.debug(f"ENGINE (non-timeline): Available parameters: {list(self.context.domain_model.parameters.keys())}")
+                    
+                    # Check if this is a known parameter
+                    if potential_param in self.context.domain_model.parameters:
+                        logger.debug(f"ENGINE (non-timeline): Found percentage parameter '{potential_param}' in path {expr.path}")
+                        
+                        # Reconstruct compound attribute name: "belasting op basis van afstand"
+                        compound_attr_name = parts[1].strip() + " van " + expr.path[0]
+                        logger.debug(f"ENGINE (non-timeline): Reconstructed compound attribute: '{compound_attr_name}'")
+                        
+                        # Get parameter value
+                        param_value = self.context.get_parameter(potential_param)
+                        if not param_value:
+                            raise RegelspraakError(f"Parameter '{potential_param}' not found", span=expr.span)
+                        
+                        # Navigate to the attribute using possessive navigation
+                        # "zijn belasting op basis van afstand" means navigate from current instance via "zijn reis" to the attribute
+                        attr_path = [compound_attr_name, "zijn reis"]
+                        attr_ref = AttributeReference(path=attr_path, span=expr.span)
+                        attr_value = self._evaluate_expression_non_timeline(attr_ref, instance_id)
+                        
+                        if not attr_value:
+                            raise RegelspraakError(f"Could not evaluate attribute '{compound_attr_name}' for percentage calculation", span=expr.span)
+                        
+                        # Calculate percentage: (param * attr) / 100
+                        from decimal import Decimal
+                        result_value = (Decimal(str(param_value.value)) * Decimal(str(attr_value.value))) / Decimal('100')
+                        
+                        # Preserve unit from attribute value
+                        result_unit = attr_value.unit
+                        result = Value(value=result_value, datatype=attr_value.datatype, unit=result_unit)
+                        
+                        logger.debug(f"ENGINE (non-timeline): Percentage calculation result: {result.value} {result.unit}")
+                        return result
 
                 # Check if elements of the path refer to the current instance type
                 working_path = expr.path[:]  # Make a copy
