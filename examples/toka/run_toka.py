@@ -290,7 +290,7 @@ class TOKARunner:
                 if tax:
                     print(f"    - te betalen belasting: €{tax.value}")
                 
-                miles = self.context.get_attribute(p, 'treinmiles')
+                miles = self.context.get_attribute(p, 'treinmiles op basis van evenredige verdeling')
                 if miles:
                     print(f"    - treinmiles: {miles.value}")
                 
@@ -320,7 +320,12 @@ class TOKARunner:
         """Extract final state of all objects."""
         state = {}
         
-        for obj in self.context.objects:
+        # Get all objects from all instances
+        all_objects = []
+        for instances in self.context.instances.values():
+            all_objects.extend(instances)
+        
+        for obj in all_objects:
             obj_data = {
                 'type': obj.object_type_naam,
                 'attributes': {},

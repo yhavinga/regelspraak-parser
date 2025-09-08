@@ -155,21 +155,21 @@ Regel passagier met recht op treinmiles
 Regel verdeling treinmiles in gelijke delen
     geldig altijd
         Het totaal aantal treinmiles van een te verdelen contingent treinmiles wordt verdeeld over
-        de treinmiles van alle passagiers met recht op treinmiles van het te verdelen
+        de treinmiles op basis van evenredige verdeling van alle passagiers met recht op treinmiles van het te verdelen
         contingent treinmiles, waarbij wordt verdeeld in gelijke delen.
 
 // Distribution by residence factor - per spec lines 308-314
 Regel verdeling treinmiles op basis van woonregio factor
     geldig altijd
         Het totaal aantal treinmiles van een te verdelen contingent treinmiles wordt verdeeld over
-        de treinmiles van alle passagiers met recht op treinmiles van het te verdelen
+        de treinmiles op basis van evenredige verdeling van alle passagiers met recht op treinmiles van het te verdelen
         contingent treinmiles, waarbij wordt verdeeld naar rato van de woonregio factor.
 
 // Complex distribution by age and residence with maximum and rounding - per spec lines 355-366
 Regel Verdeling treinmiles op basis van leeftijd, woonregio factor, met maximum waarde en afronding
     geldig altijd
         Het totaal aantal treinmiles van een te verdelen contingent treinmiles wordt verdeeld over
-        de treinmiles van alle passagiers met recht op treinmiles van het te verdelen
+        de treinmiles op basis van evenredige verdeling van alle passagiers met recht op treinmiles van het te verdelen
         contingent treinmiles, waarbij wordt verdeeld:
         - op volgorde van toenemende de leeftijd,
         - bij een even groot criterium naar rato van de woonregio factor,

@@ -1815,8 +1815,15 @@ class Evaluator:
                         # Return the current instance as a reference
                         result = Value(value=self.context.current_instance, datatype="ObjectReference")
                     else:
-                        # Check for "X van de Y" pattern in single element path
-                        if " van " in attr_name:
+                        # Before checking for navigation patterns, check if attr_name is a compound attribute
+                        obj_type = self.context.domain_model.objecttypes.get(self.context.current_instance.object_type_naam)
+                        is_compound_attribute = False
+                        if obj_type and attr_name in obj_type.attributen:
+                            is_compound_attribute = True
+                            logger.debug(f"AttributeReference: '{attr_name}' is a compound attribute, not a navigation pattern")
+                        
+                        # Check for "X van de Y" pattern in single element path (only if not a compound attribute)
+                        if " van " in attr_name and not is_compound_attribute:
                             # Split on " van " to get role and context
                             parts = attr_name.split(" van ")
                             if len(parts) == 2:
