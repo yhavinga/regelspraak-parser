@@ -449,6 +449,36 @@ class RuntimeContext:
     def set_current_instance(self, instance: Optional[RuntimeObject]):
         """Sets the instance currently being processed (e.g., by a rule)."""
         self.current_instance = instance
+    
+    def _resolve_attr_name(self, obj_type_def, attr_name: str) -> Optional[str]:
+        """Resolve attribute name with article-insensitive matching.
+        
+        Returns the canonical attribute name from the object type definition,
+        handling optional articles (de/het/een) per spec §13.4.2.
+        """
+        if not obj_type_def or not obj_type_def.attributen:
+            return None
+            
+        # Try exact match first
+        if attr_name in obj_type_def.attributen:
+            return attr_name
+            
+        # Strip leading articles for comparison
+        def strip_article(s: str) -> str:
+            """Remove leading articles (de/het/een) from string."""
+            lower = s.lower()
+            for article in ['de ', 'het ', 'een ']:
+                if lower.startswith(article):
+                    return s[len(article):]
+            return s
+        
+        # Try article-insensitive match
+        query_stripped = strip_article(attr_name).lower()
+        for canonical_name in obj_type_def.attributen.keys():
+            if strip_article(canonical_name).lower() == query_stripped:
+                return canonical_name
+                
+        return None
 
     def get_attribute(self, instance: RuntimeObject, attr_name: str) -> Value:
         """Gets an attribute's Value from a specific object instance.
@@ -459,6 +489,10 @@ class RuntimeContext:
         # Check if this attribute has a timeline in the definition
         obj_type_def = self.domain_model.objecttypes.get(instance.object_type_naam)
         if obj_type_def:
+            # Resolve attribute name with article-insensitive matching
+            canonical_attr_name = self._resolve_attr_name(obj_type_def, attr_name)
+            if canonical_attr_name:
+                attr_name = canonical_attr_name  # Use canonical name for lookups
             attr_def = obj_type_def.attributen.get(attr_name)
             if attr_def and attr_def.timeline and self.evaluation_date:
                 # This is a timeline attribute - get from timeline storage
@@ -505,9 +539,13 @@ class RuntimeContext:
         if not obj_type_def:
              raise RuntimeError(f"ObjectType '{instance.object_type_naam}' definition not found.")
 
-        attr_def = obj_type_def.attributen.get(attr_name)
-        if not attr_def:
+        # Resolve attribute name with article-insensitive matching
+        canonical_attr_name = self._resolve_attr_name(obj_type_def, attr_name)
+        if not canonical_attr_name:
              raise RuntimeError(f"Attribute '{attr_name}' not defined in ObjectType '{instance.object_type_naam}'.")
+        
+        attr_def = obj_type_def.attributen.get(canonical_attr_name)
+        attr_name = canonical_attr_name  # Use canonical name for storage
 
         # If value is already a Value object, use it; otherwise wrap it
         if isinstance(value, Value):
@@ -548,9 +586,13 @@ class RuntimeContext:
         if not obj_type_def:
             raise RuntimeError(f"ObjectType '{instance.object_type_naam}' definition not found.")
         
-        attr_def = obj_type_def.attributen.get(attr_name)
-        if not attr_def:
+        # Resolve attribute name with article-insensitive matching
+        canonical_attr_name = self._resolve_attr_name(obj_type_def, attr_name)
+        if not canonical_attr_name:
             raise RuntimeError(f"Attribute '{attr_name}' not defined in ObjectType '{instance.object_type_naam}'.")
+        
+        attr_def = obj_type_def.attributen.get(canonical_attr_name)
+        attr_name = canonical_attr_name  # Use canonical name for storage
         
         if not attr_def.timeline:
             raise RuntimeError(f"Attribute '{attr_name}' is not defined as a timeline attribute")
@@ -570,9 +612,13 @@ class RuntimeContext:
         if not obj_type_def:
             raise RuntimeError(f"ObjectType '{instance.object_type_naam}' definition not found.")
         
-        attr_def = obj_type_def.attributen.get(attr_name)
-        if not attr_def:
+        # Resolve attribute name with article-insensitive matching
+        canonical_attr_name = self._resolve_attr_name(obj_type_def, attr_name)
+        if not canonical_attr_name:
             raise RuntimeError(f"Attribute '{attr_name}' not defined in ObjectType '{instance.object_type_naam}'.")
+        
+        attr_def = obj_type_def.attributen.get(canonical_attr_name)
+        attr_name = canonical_attr_name  # Use canonical name for lookups
         
         # Check if attribute is dimensioned
         if not hasattr(attr_def, 'dimensions') or not attr_def.dimensions:
@@ -607,9 +653,13 @@ class RuntimeContext:
         if not obj_type_def:
             raise RuntimeError(f"ObjectType '{instance.object_type_naam}' definition not found.")
         
-        attr_def = obj_type_def.attributen.get(attr_name)
-        if not attr_def:
+        # Resolve attribute name with article-insensitive matching
+        canonical_attr_name = self._resolve_attr_name(obj_type_def, attr_name)
+        if not canonical_attr_name:
             raise RuntimeError(f"Attribute '{attr_name}' not defined in ObjectType '{instance.object_type_naam}'.")
+        
+        attr_def = obj_type_def.attributen.get(canonical_attr_name)
+        attr_name = canonical_attr_name  # Use canonical name for storage
         
         # Check if attribute is dimensioned
         if not hasattr(attr_def, 'dimensions') or not attr_def.dimensions:

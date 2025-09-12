@@ -933,16 +933,16 @@ class RegelSpraakModelBuilder(RegelSpraakVisitor):
         if is_compound_attribute:
             # Compound attribute - the attribute name is complete, no navigation needed
             # But we still need to include the object type for target type deduction
-            # Example: "belasting op basis van afstand van een passagier" → ['belasting op basis van afstand', 'passagier']
+            # Example: "belasting op basis van afstand van een passagier" → ['passagier', 'belasting op basis van afstand']
             if is_object_type_spec and final_base_path:
-                full_path = [actual_attribute_name] + final_base_path
+                full_path = final_base_path + [actual_attribute_name]
             else:
                 full_path = [actual_attribute_name]
         elif is_object_type_spec:
             # Object type specification - include both attribute and object type
-            # Example: "Het inkomen van een Natuurlijk persoon" → ['inkomen', 'Natuurlijk persoon']
+            # Example: "Het inkomen van een Natuurlijk persoon" → ['Natuurlijk persoon', 'inkomen']
             # This allows the engine to resolve role names via FeitType
-            full_path = [actual_attribute_name] + final_base_path
+            full_path = final_base_path + [actual_attribute_name]
         elif final_base_path or additional_path_elements:
             # Navigation case: use Dutch right-to-left order per specification
             # Example: "De naam van de eigenaar van het gebouw" → ['gebouw', 'eigenaar', 'naam']
@@ -3876,9 +3876,9 @@ class RegelSpraakModelBuilder(RegelSpraakVisitor):
             return None
         
         # Create an AttributeReference that represents "attribute of all ObjectType"
-        # The path structure represents the navigation: [attribute, "alle", object_type]
+        # The path structure represents the navigation: ["alle", object_type, attribute]
         return AttributeReference(
-            path=[attr_plural, "alle", obj_type],
+            path=["alle", obj_type, attr_plural],
             span=self.get_span(ctx)
         )
     
