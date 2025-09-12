@@ -16,12 +16,16 @@ import { IdentifierContext } from "./RegelSpraakParser";
 import { IdentifierOrKeywordContext } from "./RegelSpraakParser";
 import { IdentifierOrKeywordNoIsContext } from "./RegelSpraakParser";
 import { NaamPhraseContext } from "./RegelSpraakParser";
+import { NaamPhraseWithNumbersContext } from "./RegelSpraakParser";
+import { IdentifierOrKeywordWithNumbersContext } from "./RegelSpraakParser";
 import { NaamPhraseNoIsContext } from "./RegelSpraakParser";
 import { NaamwoordContext } from "./RegelSpraakParser";
+import { NaamwoordWithNumbersContext } from "./RegelSpraakParser";
 import { NaamwoordNoIsContext } from "./RegelSpraakParser";
 import { VoorzetselContext } from "./RegelSpraakParser";
 import { DatumLiteralContext } from "./RegelSpraakParser";
 import { UnitContext } from "./RegelSpraakParser";
+import { TimeUnitContext } from "./RegelSpraakParser";
 import { ObjectTypeDefinitionContext } from "./RegelSpraakParser";
 import { ObjectTypeMemberContext } from "./RegelSpraakParser";
 import { KenmerkSpecificatieContext } from "./RegelSpraakParser";
@@ -51,6 +55,7 @@ import { TijdlijnContext } from "./RegelSpraakParser";
 import { DimensieRefContext } from "./RegelSpraakParser";
 import { ParameterDefinitionContext } from "./RegelSpraakParser";
 import { ParameterNamePhraseContext } from "./RegelSpraakParser";
+import { ParameterNamePartContext } from "./RegelSpraakParser";
 import { ParameterMetLidwoordContext } from "./RegelSpraakParser";
 import { FeitTypeDefinitionContext } from "./RegelSpraakParser";
 import { RolDefinitionContext } from "./RegelSpraakParser";
@@ -61,14 +66,18 @@ import { CardinalityWordContext } from "./RegelSpraakParser";
 import { RegelContext } from "./RegelSpraakParser";
 import { RegelGroepContext } from "./RegelSpraakParser";
 import { RegelNameContext } from "./RegelSpraakParser";
+import { RegelNameExtensionContext } from "./RegelSpraakParser";
 import { RegelVersieContext } from "./RegelSpraakParser";
 import { VersieGeldigheidContext } from "./RegelSpraakParser";
 import { DagsoortdefinitieResultaatContext } from "./RegelSpraakParser";
 import { GelijkstellingResultaatContext } from "./RegelSpraakParser";
+import { ConsistencyCheckResultaatContext } from "./RegelSpraakParser";
 import { FeitCreatieResultaatContext } from "./RegelSpraakParser";
 import { KenmerkFeitResultaatContext } from "./RegelSpraakParser";
+import { RelationshipWithAttributeResultaatContext } from "./RegelSpraakParser";
 import { ObjectCreatieResultaatContext } from "./RegelSpraakParser";
 import { VerdelingContext } from "./RegelSpraakParser";
+import { ConsistencyOperatorContext } from "./RegelSpraakParser";
 import { FeitCreatiePatternContext } from "./RegelSpraakParser";
 import { FeitCreatieRolPhraseContext } from "./RegelSpraakParser";
 import { FeitCreatieSubjectPhraseContext } from "./RegelSpraakParser";
@@ -91,11 +100,15 @@ import { BulletPrefixContext } from "./RegelSpraakParser";
 import { ElementaireVoorwaardeContext } from "./RegelSpraakParser";
 import { GenesteSamengesteldeVoorwaardeContext } from "./RegelSpraakParser";
 import { OnderwerpReferentieContext } from "./RegelSpraakParser";
+import { OnderwerpReferentieWithNumbersContext } from "./RegelSpraakParser";
 import { OnderwerpBasisContext } from "./RegelSpraakParser";
+import { OnderwerpBasisWithNumbersContext } from "./RegelSpraakParser";
 import { BasisOnderwerpContext } from "./RegelSpraakParser";
+import { BasisOnderwerpWithNumbersContext } from "./RegelSpraakParser";
 import { AttribuutReferentieContext } from "./RegelSpraakParser";
 import { AttribuutMetLidwoordContext } from "./RegelSpraakParser";
 import { KenmerkNaamContext } from "./RegelSpraakParser";
+import { KenmerkPhraseContext } from "./RegelSpraakParser";
 import { BezieldeReferentieContext } from "./RegelSpraakParser";
 import { PredicaatContext } from "./RegelSpraakParser";
 import { ElementairPredicaatContext } from "./RegelSpraakParser";
@@ -119,7 +132,11 @@ import { TekstExpressieContext } from "./RegelSpraakParser";
 import { DatumExpressieContext } from "./RegelSpraakParser";
 import { VariabeleDeelContext } from "./RegelSpraakParser";
 import { VariabeleToekenningContext } from "./RegelSpraakParser";
-import { ExpressieContext } from "./RegelSpraakParser";
+import { VariabeleExpressieContext } from "./RegelSpraakParser";
+import { ExprBegrenzingAfrondingContext } from "./RegelSpraakParser";
+import { ExprBegrenzingContext } from "./RegelSpraakParser";
+import { ExprAfrondingContext } from "./RegelSpraakParser";
+import { SimpleExprContext } from "./RegelSpraakParser";
 import { LogicalExprContext } from "./RegelSpraakParser";
 import { SubordinateClauseExprContext } from "./RegelSpraakParser";
 import { IsKenmerkExprContext } from "./RegelSpraakParser";
@@ -174,6 +191,8 @@ import { OnderwerpRefExprContext } from "./RegelSpraakParser";
 import { SomFuncExprContext } from "./RegelSpraakParser";
 import { SomAlleExprContext } from "./RegelSpraakParser";
 import { SimpleConcatenatieExprContext } from "./RegelSpraakParser";
+import { BegrenzingAfrondingExprContext } from "./RegelSpraakParser";
+import { PercentageOfExprContext } from "./RegelSpraakParser";
 import { MinValFuncExprContext } from "./RegelSpraakParser";
 import { MaxAlleAttribuutExprContext } from "./RegelSpraakParser";
 import { BezieldeRefExprContext } from "./RegelSpraakParser";
@@ -317,6 +336,18 @@ export default class RegelSpraakVisitor<Result> extends ParseTreeVisitor<Result>
 	 */
 	visitNaamPhrase?: (ctx: NaamPhraseContext) => Result;
 	/**
+	 * Visit a parse tree produced by `RegelSpraakParser.naamPhraseWithNumbers`.
+	 * @param ctx the parse tree
+	 * @return the visitor result
+	 */
+	visitNaamPhraseWithNumbers?: (ctx: NaamPhraseWithNumbersContext) => Result;
+	/**
+	 * Visit a parse tree produced by `RegelSpraakParser.identifierOrKeywordWithNumbers`.
+	 * @param ctx the parse tree
+	 * @return the visitor result
+	 */
+	visitIdentifierOrKeywordWithNumbers?: (ctx: IdentifierOrKeywordWithNumbersContext) => Result;
+	/**
 	 * Visit a parse tree produced by `RegelSpraakParser.naamPhraseNoIs`.
 	 * @param ctx the parse tree
 	 * @return the visitor result
@@ -328,6 +359,12 @@ export default class RegelSpraakVisitor<Result> extends ParseTreeVisitor<Result>
 	 * @return the visitor result
 	 */
 	visitNaamwoord?: (ctx: NaamwoordContext) => Result;
+	/**
+	 * Visit a parse tree produced by `RegelSpraakParser.naamwoordWithNumbers`.
+	 * @param ctx the parse tree
+	 * @return the visitor result
+	 */
+	visitNaamwoordWithNumbers?: (ctx: NaamwoordWithNumbersContext) => Result;
 	/**
 	 * Visit a parse tree produced by `RegelSpraakParser.naamwoordNoIs`.
 	 * @param ctx the parse tree
@@ -352,6 +389,12 @@ export default class RegelSpraakVisitor<Result> extends ParseTreeVisitor<Result>
 	 * @return the visitor result
 	 */
 	visitUnit?: (ctx: UnitContext) => Result;
+	/**
+	 * Visit a parse tree produced by `RegelSpraakParser.timeUnit`.
+	 * @param ctx the parse tree
+	 * @return the visitor result
+	 */
+	visitTimeUnit?: (ctx: TimeUnitContext) => Result;
 	/**
 	 * Visit a parse tree produced by `RegelSpraakParser.objectTypeDefinition`.
 	 * @param ctx the parse tree
@@ -527,6 +570,12 @@ export default class RegelSpraakVisitor<Result> extends ParseTreeVisitor<Result>
 	 */
 	visitParameterNamePhrase?: (ctx: ParameterNamePhraseContext) => Result;
 	/**
+	 * Visit a parse tree produced by `RegelSpraakParser.parameterNamePart`.
+	 * @param ctx the parse tree
+	 * @return the visitor result
+	 */
+	visitParameterNamePart?: (ctx: ParameterNamePartContext) => Result;
+	/**
 	 * Visit a parse tree produced by `RegelSpraakParser.parameterMetLidwoord`.
 	 * @param ctx the parse tree
 	 * @return the visitor result
@@ -587,6 +636,12 @@ export default class RegelSpraakVisitor<Result> extends ParseTreeVisitor<Result>
 	 */
 	visitRegelName?: (ctx: RegelNameContext) => Result;
 	/**
+	 * Visit a parse tree produced by `RegelSpraakParser.regelNameExtension`.
+	 * @param ctx the parse tree
+	 * @return the visitor result
+	 */
+	visitRegelNameExtension?: (ctx: RegelNameExtensionContext) => Result;
+	/**
 	 * Visit a parse tree produced by `RegelSpraakParser.regelVersie`.
 	 * @param ctx the parse tree
 	 * @return the visitor result
@@ -613,6 +668,13 @@ export default class RegelSpraakVisitor<Result> extends ParseTreeVisitor<Result>
 	 */
 	visitGelijkstellingResultaat?: (ctx: GelijkstellingResultaatContext) => Result;
 	/**
+	 * Visit a parse tree produced by the `ConsistencyCheckResultaat`
+	 * labeled alternative in `RegelSpraakParser.resultaatDeel`.
+	 * @param ctx the parse tree
+	 * @return the visitor result
+	 */
+	visitConsistencyCheckResultaat?: (ctx: ConsistencyCheckResultaatContext) => Result;
+	/**
 	 * Visit a parse tree produced by the `FeitCreatieResultaat`
 	 * labeled alternative in `RegelSpraakParser.resultaatDeel`.
 	 * @param ctx the parse tree
@@ -627,6 +689,13 @@ export default class RegelSpraakVisitor<Result> extends ParseTreeVisitor<Result>
 	 */
 	visitKenmerkFeitResultaat?: (ctx: KenmerkFeitResultaatContext) => Result;
 	/**
+	 * Visit a parse tree produced by the `RelationshipWithAttributeResultaat`
+	 * labeled alternative in `RegelSpraakParser.resultaatDeel`.
+	 * @param ctx the parse tree
+	 * @return the visitor result
+	 */
+	visitRelationshipWithAttributeResultaat?: (ctx: RelationshipWithAttributeResultaatContext) => Result;
+	/**
 	 * Visit a parse tree produced by the `ObjectCreatieResultaat`
 	 * labeled alternative in `RegelSpraakParser.resultaatDeel`.
 	 * @param ctx the parse tree
@@ -640,6 +709,12 @@ export default class RegelSpraakVisitor<Result> extends ParseTreeVisitor<Result>
 	 * @return the visitor result
 	 */
 	visitVerdeling?: (ctx: VerdelingContext) => Result;
+	/**
+	 * Visit a parse tree produced by `RegelSpraakParser.consistencyOperator`.
+	 * @param ctx the parse tree
+	 * @return the visitor result
+	 */
+	visitConsistencyOperator?: (ctx: ConsistencyOperatorContext) => Result;
 	/**
 	 * Visit a parse tree produced by `RegelSpraakParser.feitCreatiePattern`.
 	 * @param ctx the parse tree
@@ -773,17 +848,35 @@ export default class RegelSpraakVisitor<Result> extends ParseTreeVisitor<Result>
 	 */
 	visitOnderwerpReferentie?: (ctx: OnderwerpReferentieContext) => Result;
 	/**
+	 * Visit a parse tree produced by `RegelSpraakParser.onderwerpReferentieWithNumbers`.
+	 * @param ctx the parse tree
+	 * @return the visitor result
+	 */
+	visitOnderwerpReferentieWithNumbers?: (ctx: OnderwerpReferentieWithNumbersContext) => Result;
+	/**
 	 * Visit a parse tree produced by `RegelSpraakParser.onderwerpBasis`.
 	 * @param ctx the parse tree
 	 * @return the visitor result
 	 */
 	visitOnderwerpBasis?: (ctx: OnderwerpBasisContext) => Result;
 	/**
+	 * Visit a parse tree produced by `RegelSpraakParser.onderwerpBasisWithNumbers`.
+	 * @param ctx the parse tree
+	 * @return the visitor result
+	 */
+	visitOnderwerpBasisWithNumbers?: (ctx: OnderwerpBasisWithNumbersContext) => Result;
+	/**
 	 * Visit a parse tree produced by `RegelSpraakParser.basisOnderwerp`.
 	 * @param ctx the parse tree
 	 * @return the visitor result
 	 */
 	visitBasisOnderwerp?: (ctx: BasisOnderwerpContext) => Result;
+	/**
+	 * Visit a parse tree produced by `RegelSpraakParser.basisOnderwerpWithNumbers`.
+	 * @param ctx the parse tree
+	 * @return the visitor result
+	 */
+	visitBasisOnderwerpWithNumbers?: (ctx: BasisOnderwerpWithNumbersContext) => Result;
 	/**
 	 * Visit a parse tree produced by `RegelSpraakParser.attribuutReferentie`.
 	 * @param ctx the parse tree
@@ -802,6 +895,12 @@ export default class RegelSpraakVisitor<Result> extends ParseTreeVisitor<Result>
 	 * @return the visitor result
 	 */
 	visitKenmerkNaam?: (ctx: KenmerkNaamContext) => Result;
+	/**
+	 * Visit a parse tree produced by `RegelSpraakParser.kenmerkPhrase`.
+	 * @param ctx the parse tree
+	 * @return the visitor result
+	 */
+	visitKenmerkPhrase?: (ctx: KenmerkPhraseContext) => Result;
 	/**
 	 * Visit a parse tree produced by `RegelSpraakParser.bezieldeReferentie`.
 	 * @param ctx the parse tree
@@ -941,11 +1040,39 @@ export default class RegelSpraakVisitor<Result> extends ParseTreeVisitor<Result>
 	 */
 	visitVariabeleToekenning?: (ctx: VariabeleToekenningContext) => Result;
 	/**
-	 * Visit a parse tree produced by `RegelSpraakParser.expressie`.
+	 * Visit a parse tree produced by `RegelSpraakParser.variabeleExpressie`.
 	 * @param ctx the parse tree
 	 * @return the visitor result
 	 */
-	visitExpressie?: (ctx: ExpressieContext) => Result;
+	visitVariabeleExpressie?: (ctx: VariabeleExpressieContext) => Result;
+	/**
+	 * Visit a parse tree produced by the `ExprBegrenzingAfronding`
+	 * labeled alternative in `RegelSpraakParser.expressie`.
+	 * @param ctx the parse tree
+	 * @return the visitor result
+	 */
+	visitExprBegrenzingAfronding?: (ctx: ExprBegrenzingAfrondingContext) => Result;
+	/**
+	 * Visit a parse tree produced by the `ExprBegrenzing`
+	 * labeled alternative in `RegelSpraakParser.expressie`.
+	 * @param ctx the parse tree
+	 * @return the visitor result
+	 */
+	visitExprBegrenzing?: (ctx: ExprBegrenzingContext) => Result;
+	/**
+	 * Visit a parse tree produced by the `ExprAfronding`
+	 * labeled alternative in `RegelSpraakParser.expressie`.
+	 * @param ctx the parse tree
+	 * @return the visitor result
+	 */
+	visitExprAfronding?: (ctx: ExprAfrondingContext) => Result;
+	/**
+	 * Visit a parse tree produced by the `SimpleExpr`
+	 * labeled alternative in `RegelSpraakParser.expressie`.
+	 * @param ctx the parse tree
+	 * @return the visitor result
+	 */
+	visitSimpleExpr?: (ctx: SimpleExprContext) => Result;
 	/**
 	 * Visit a parse tree produced by the `LogicalExpr`
 	 * labeled alternative in `RegelSpraakParser.logicalExpression`.
@@ -1317,6 +1444,20 @@ export default class RegelSpraakVisitor<Result> extends ParseTreeVisitor<Result>
 	 * @return the visitor result
 	 */
 	visitSimpleConcatenatieExpr?: (ctx: SimpleConcatenatieExprContext) => Result;
+	/**
+	 * Visit a parse tree produced by the `BegrenzingAfrondingExpr`
+	 * labeled alternative in `RegelSpraakParser.primaryExpression`.
+	 * @param ctx the parse tree
+	 * @return the visitor result
+	 */
+	visitBegrenzingAfrondingExpr?: (ctx: BegrenzingAfrondingExprContext) => Result;
+	/**
+	 * Visit a parse tree produced by the `PercentageOfExpr`
+	 * labeled alternative in `RegelSpraakParser.primaryExpression`.
+	 * @param ctx the parse tree
+	 * @return the visitor result
+	 */
+	visitPercentageOfExpr?: (ctx: PercentageOfExprContext) => Result;
 	/**
 	 * Visit a parse tree produced by the `MinValFuncExpr`
 	 * labeled alternative in `RegelSpraakParser.primaryExpression`.
