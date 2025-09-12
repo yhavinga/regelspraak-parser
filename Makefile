@@ -15,7 +15,7 @@ all: parser test
 
 # Target to generate ANTLR parser files for both Python and TypeScript
 .PHONY: parser
-parser: parser-python parser-ts
+parser: parser-python parser-ts parser-java
 	@echo "All parsers generated successfully."
 
 # Target to generate Python parser files
@@ -48,6 +48,16 @@ parser-ts:
 	          RegelSpraakLexer.g4 RegelSpraak.g4 && \
 	cd ..
 	@echo "TypeScript parser generation complete."
+
+# Target to generate Java parser files for grun debugging
+.PHONY: parser-java
+parser-java:
+	@echo "Generating Java parser files for grun debugging..."
+	@cd $(GRAMMAR_DIR) && \
+	$(ANTLR4) RegelSpraakLexer.g4 RegelSpraak.g4 && \
+	javac -cp ../lib/antlr-4.13.1-complete.jar *.java && \
+	cd ..
+	@echo "Java parser generation and compilation complete. Ready for grun debugging."
 
 # Target to run unit tests
 # Usage: make test                    # Run all tests

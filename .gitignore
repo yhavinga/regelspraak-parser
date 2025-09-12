@@ -32,3 +32,4 @@ build/
 # Project-specific files
 CLAUDE.md
 CLAUDE_USE_GEMINI.md
+/ff/

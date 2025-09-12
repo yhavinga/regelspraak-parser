@@ -607,6 +607,10 @@ class Evaluator:
                     # Additional check: if potential_type is "passagier", it should map to "Natuurlijk persoon"
                     if potential_type.lower() == "passagier":
                         return "Natuurlijk persoon"
+                    
+                    # Additional check: if potential_type is "reis", it should map to "Vlucht"
+                    if potential_type.lower() == "reis":
+                        return "Vlucht"
                 
                 # If no match found, return None
                 return None
@@ -1365,8 +1369,17 @@ class Evaluator:
             # Check if it's a direct object type
             obj_type_def = self.context.domain_model.objecttypes.get(actual_object_type)
             
-            # If not found, check if it's a role name in a FeitType
+            # If not found, check if it's a role name in a FeitType  
             if not obj_type_def:
+                # Also clean the actual_object_type for comparison
+                actual_object_type_clean = actual_object_type
+                if actual_object_type_clean.startswith("de "):
+                    actual_object_type_clean = actual_object_type_clean[3:]
+                elif actual_object_type_clean.startswith("het "):
+                    actual_object_type_clean = actual_object_type_clean[4:]
+                elif actual_object_type_clean.startswith("een "):
+                    actual_object_type_clean = actual_object_type_clean[4:]
+                
                 for feittype_naam, feittype in self.context.domain_model.feittypen.items():
                     for rol in feittype.rollen:
                         # Clean role name for comparison
@@ -1378,7 +1391,9 @@ class Evaluator:
                         elif rol_naam_clean.startswith("een "):
                             rol_naam_clean = rol_naam_clean[4:]
                         
-                        if rol_naam_clean and rol_naam_clean.lower() == actual_object_type.lower():
+                        # Compare cleaned versions OR check if original rol.naam matches actual_object_type
+                        if (rol_naam_clean and rol_naam_clean.lower() == actual_object_type_clean.lower()) or \
+                           (rol.naam.lower() == actual_object_type.lower()):
                             actual_object_type = rol.object_type
                             obj_type_def = self.context.domain_model.objecttypes.get(actual_object_type)
                             break
@@ -1392,6 +1407,25 @@ class Evaluator:
                     if "contingent" in obj_type.lower() and "treinmiles" in obj_type.lower():
                         actual_object_type = obj_type
                         obj_type_def = self.context.domain_model.objecttypes.get(actual_object_type)
+                        break
+            
+            # Additional fallback: try to match role names from FeitTypes
+            if not obj_type_def:
+                for feittype_name, feittype in self.context.domain_model.feittypen.items():
+                    for rol in feittype.rollen:
+                        # Clean role name by removing articles
+                        role_name_clean = self._strip_articles(rol.naam).lower()
+                        object_type_clean = self._strip_articles(actual_object_type).lower()
+                        
+                        # Check if role name matches or is contained in object type
+                        if (role_name_clean == object_type_clean or 
+                            role_name_clean in object_type_clean or
+                            object_type_clean in role_name_clean):
+                            # Found matching role, use its object type
+                            actual_object_type = rol.object_type
+                            obj_type_def = self.context.domain_model.objecttypes.get(actual_object_type)
+                            break
+                    if obj_type_def:
                         break
             
             if not obj_type_def:
@@ -1419,6 +1453,42 @@ class Evaluator:
             
             # Add to context
             self.context.add_object(new_instance)
+            
+            # If the object creation is for a role in a FeitType, establish the relationship
+            # Check if actual_object_type came from a FeitType role
+            for feittype_naam, feittype in self.context.domain_model.feittypen.items():
+                for rol in feittype.rollen:
+                    rol_naam_clean = self._strip_articles(rol.naam).lower()
+                    object_type_clean = self._strip_articles(res.object_type).lower()
+                    
+                    # If this role matches our object type, check if we should create a relationship
+                    if (rol_naam_clean == object_type_clean or 
+                        rol.naam.lower() == res.object_type.lower()):
+                        # Found matching role - check if current instance matches the other role
+                        for other_rol in feittype.rollen:
+                            if other_rol != rol and self.context.current_instance:
+                                if other_rol.object_type == self.context.current_instance.object_type_naam:
+                                    # Create relationship between current instance and new object
+                                    # Determine which is subject and which is object based on role positions
+                                    if feittype.rollen[0] == other_rol:
+                                        # Current instance is subject (role 0)
+                                        self.context.add_relationship(
+                                            feittype_naam=feittype_naam,
+                                            subject=self.context.current_instance,
+                                            object=new_instance,
+                                            preposition="HEEFT"
+                                        )
+                                    else:
+                                        # Current instance is object (role 1)
+                                        self.context.add_relationship(
+                                            feittype_naam=feittype_naam,
+                                            subject=new_instance,
+                                            object=self.context.current_instance,
+                                            preposition="HEEFT"
+                                        )
+                                    logger.info(f"Established FeitType relationship '{feittype_naam}' between {self.context.current_instance.object_type_naam} and {new_instance.object_type_naam}")
+                                    break
+                        break
             
             # Trace object creation
             if self.context.trace_sink:
@@ -1947,6 +2017,8 @@ class Evaluator:
                                                  (role_naam_clean == 'lid' and attr_name_clean == 'leden') or
                                                  (role_naam_clean == 'kind' and attr_name_clean == 'kinderen') or
                                                  (role_naam_clean == 'ei' and attr_name_clean == 'eieren') or
+                                                 # Special case: "reis" should match "de reis" role
+                                                 (role_naam_clean == 'reis' and attr_name_clean == 'reis') or
                                                  # Match first word of role (for broken parsing)
                                                  (role_first_word and (
                                                      role_first_word == attr_name_clean or

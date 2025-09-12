@@ -125,9 +125,9 @@ class BeslistabelParser:
                     else:
                         object_ref_with_pronoun = object_ref
                     
-                    # Build path as [attribute, object with possessive]
+                    # Build path as [object with possessive, attribute] - Dutch right-to-left navigation
                     return ParsedCondition(
-                        subject_path=[attribute, object_ref_with_pronoun],
+                        subject_path=[object_ref_with_pronoun, attribute],
                         object_type=None,
                         operator=self.OPERATOR_MAP.get(operator_text.lower()),
                         is_kenmerk_check=False

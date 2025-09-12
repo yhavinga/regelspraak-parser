@@ -420,7 +420,7 @@ resultaatDeel
     | attribuutReferentie MOET consistencyOperator expressie                          # ConsistencyCheckResultaat
     | feitCreatiePattern # FeitCreatieResultaat
     | onderwerpReferentie (IS | HEEFT) kenmerkNaam periodeDefinitie?                  # KenmerkFeitResultaat
-    | onderwerpReferentie HEEFT (DE | HET) naamwoord MET attribuutReferentie (GELIJK_AAN | IS_GELIJK_AAN | GELIJK_IS_AAN) expressie # RelationshipWithAttributeResultaat
+    | onderwerpReferentie HEEFT (DE | HET) naamwoord MET attribuutMetLidwoord (GELIJK_AAN | IS_GELIJK_AAN | GELIJK_IS_AAN) expressie # RelationshipWithAttributeResultaat
     | objectCreatie                                                                    # ObjectCreatieResultaat
     | verdelingResultaat                                                               # Verdeling
     ;
@@ -573,13 +573,13 @@ onderwerpBasisWithNumbers // Base onderwerp that allows numbers
     : basisOnderwerpWithNumbers ( voorzetsel basisOnderwerpWithNumbers )* // Allow any voorzetsel for nesting
     ;
 
-basisOnderwerp // Base unit for subject/object reference
-    : (DE | HET | EEN | ZIJN | ALLE)? identifierOrKeyword+
+basisOnderwerp // Base unit for subject/object reference - MUST have article/possessive per spec §13.4.1
+    : (DE | HET | EEN | ZIJN) identifierOrKeyword+  // Required article/possessive per spec (ALLE not allowed here)
     | HIJ
     ;
 
-basisOnderwerpWithNumbers // Base unit that allows numbers  
-    : (DE | HET | EEN | ZIJN | ALLE | IS)? identifierOrKeywordWithNumbers+
+basisOnderwerpWithNumbers // Base unit that allows numbers - MUST have article/possessive per spec §13.4.1
+    : (DE | HET | EEN | ZIJN) identifierOrKeywordWithNumbers+  // Required article/possessive per spec (ALLE not allowed here)
     | HIJ
     ;
 
@@ -587,14 +587,12 @@ attribuutReferentie // According to spec: attribuutmetlidwoord "van" onderwerpke
     : attribuutMetLidwoord VAN onderwerpReferentie // Simple attribute + "van" + complex subject chain
     ;
 
-attribuutMetLidwoord // Simple attribute name with optional article
-    : naamwoord
+attribuutMetLidwoord // Simple attribute name with optional article - no "zijn" per spec §13.3.2.6
+    : naamwoordNoIs  // Use naamwoordNoIs to prevent "zijn" in attribute names
     ;
 
-kenmerkNaam 
-    : kenmerkPhrase                    // Allow complex kenmerk names with prepositions
-    | onderwerpReferentieWithNumbers  // Allow kenmerk names with numbers
-    | onderwerpReferentie              // Fallback to regular onderwerp reference
+kenmerkNaam  // Per spec §13.3.2: kenmerknaam is free text, not an onderwerpketen
+    : voorzetsel? naamwoordWithNumbers  // Allow kenmerk phrases without forcing article requirements
     ;
 
 kenmerkPhrase  // Handle complex kenmerk names like "in het hoogseizoen"
@@ -801,6 +799,7 @@ primaryExpression : // Corresponds roughly to terminals/functions/references in 
     | HET? AANTAL (ALLE? onderwerpReferentie)                                                         # AantalFuncExpr // Made HET optional
     | HET? AANTAL attribuutReferentie                                                              # AantalAttribuutExpr // Count attributes with filtering
     | (NUMBER (PERCENT_SIGN | p=IDENTIFIER) | PERCENTAGE_LITERAL) VAN primaryExpression            # PercentageFuncExpr
+    | primaryExpression VAN primaryExpression                                                      # PercentageOfExpr  // Support percentage-typed expressions
     | primaryExpression afronding                                                                   # AfrondingExpr  // EBNF 13.4.16.21
     | primaryExpression COMMA begrenzing afronding                                                  # BegrenzingAfrondingExpr // Combined begrenzing and afronding
     | primaryExpression COMMA begrenzing                                                            # BegrenzingExpr // EBNF 13.4.16.23

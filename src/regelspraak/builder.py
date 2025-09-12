@@ -767,8 +767,8 @@ class RegelSpraakModelBuilder(RegelSpraakVisitor):
         
         # Also get the raw naamwoord text to check for dimension patterns and nested paths
         raw_attribute_text = None
-        if ctx.attribuutMetLidwoord() and ctx.attribuutMetLidwoord().naamwoord():
-            raw_attribute_text = self.visitNaamwoord(ctx.attribuutMetLidwoord().naamwoord())
+        if ctx.attribuutMetLidwoord() and ctx.attribuutMetLidwoord().naamwoordNoIs():
+            raw_attribute_text = self.visitNaamwoordNoIs(ctx.attribuutMetLidwoord().naamwoordNoIs())
         
         # Check if the raw attribute contains nested path info that was split off
         # BUT first check if this is a known compound attribute name that should NOT be split
@@ -972,14 +972,14 @@ class RegelSpraakModelBuilder(RegelSpraakVisitor):
     def visitAttribuutMetLidwoord(self, ctx: AntlrParser.AttribuutMetLidwoordContext) -> str:
         """Extract the attribute name from attribuutMetLidwoord context."""
         logger.debug(f"visitAttribuutMetLidwoord called with: {safe_get_text(ctx)}")
-        # Now that attribuutMetLidwoord contains a naamwoord, delegate to it
-        if ctx.naamwoord():
-            # Get the full text via visitNaamwoord which already strips articles
-            result = self.visitNaamwoord(ctx.naamwoord())
+        # Now that attribuutMetLidwoord uses naamwoordNoIs, delegate to it
+        if ctx.naamwoordNoIs():
+            # Get the full text via visitNaamwoordNoIs which already strips articles
+            result = self.visitNaamwoordNoIs(ctx.naamwoordNoIs())
             # Return the full attribute name without splitting on "van"
             # Attribute names like "belasting op basis van afstand" should be kept intact
             return result
-        # Fallback to full text if no naamwoord (shouldn't happen with new grammar)
+        # Fallback to full text if no naamwoordNoIs (shouldn't happen with new grammar)
         return get_text_with_spaces(ctx)
 
     def visitBezieldeReferentie(self, ctx: AntlrParser.BezieldeReferentieContext) -> Optional[AttributeReference]:
@@ -2095,6 +2095,7 @@ class RegelSpraakModelBuilder(RegelSpraakVisitor):
             return func_call
             
         elif isinstance(ctx, AntlrParser.PercentageFuncExprContext) or \
+             isinstance(ctx, AntlrParser.PercentageOfExprContext) or \
              isinstance(ctx, AntlrParser.WortelFuncExprContext) or \
              isinstance(ctx, AntlrParser.MinValFuncExprContext) or \
              isinstance(ctx, AntlrParser.MaxValFuncExprContext) or \
@@ -2139,6 +2140,32 @@ class RegelSpraakModelBuilder(RegelSpraakVisitor):
                     )
                 else:
                     logger.warning(f"Could not parse percentage function: {safe_get_text(ctx)}")
+                    return None
+            
+            # Handle percentage-typed expression: param VAN expr
+            elif isinstance(ctx, AntlrParser.PercentageOfExprContext):
+                # This handles cases where a percentage-typed parameter is used
+                # e.g., "het percentage reisduur eerste schijf van zijn belasting op basis van afstand"
+                left_expr = self.visit(ctx.primaryExpression(0))  # The percentage expression
+                right_expr = self.visit(ctx.primaryExpression(1))  # The base expression
+                
+                if left_expr and right_expr:
+                    # Create: (left_expr / 100) * right_expr
+                    # This assumes the left expression evaluates to a percentage value
+                    percentage_decimal = BinaryExpression(
+                        operator=Operator.GEDEELD_DOOR,
+                        left=left_expr,
+                        right=Literal(value=100, datatype="Numeriek", span=self.get_span(ctx)),
+                        span=self.get_span(ctx)
+                    )
+                    return BinaryExpression(
+                        operator=Operator.MAAL,
+                        left=percentage_decimal,
+                        right=right_expr,
+                        span=self.get_span(ctx)
+                    )
+                else:
+                    logger.warning(f"Could not parse percentage-of expression: {safe_get_text(ctx)}")
                     return None
             
             # Handle specific date function contexts
@@ -4020,53 +4047,29 @@ class RegelSpraakModelBuilder(RegelSpraakVisitor):
             # We need to find the actual object type from the FeitType definition
             # This will be resolved in the engine which has access to the domain model
             
-            # Get the attribute to set
-            attr_ref = self.visitAttribuutReferentie(ctx.attribuutReferentie())
-            if not attr_ref:
-                logger.error(f"Failed to parse attribute reference: {safe_get_text(ctx)}")
+            # Get the attribute to set (now using attribuutMetLidwoord instead of attribuutReferentie)
+            attr_ctx = ctx.attribuutMetLidwoord()
+            if attr_ctx:
+                # Visit attribuutMetLidwoord which should give us just the attribute name
+                attr_name = self.visit(attr_ctx)
+            else:
+                attr_name = None
+            
+            if not attr_name:
+                logger.error(f"Failed to parse attribute: {safe_get_text(ctx)}")
                 return None
             
-            # Extract attribute name from AttributeReference
-            # The attr_ref is an AttributeReference object with a path field
-            # We need the string name for the dictionary key
-            if hasattr(attr_ref, 'path') and attr_ref.path:
-                # For ObjectCreatie with "heeft...met...gelijk aan" pattern,
-                # the attribute might be split incorrectly due to navigation parsing.
-                # The grammar parses "aantal treinmiles op basis van aantal passagiers" as:
-                # - "aantal treinmiles op basis" (attribute)
-                # - "van aantal passagiers" (navigation onderwerp)
-                # This results in path = ["aantal passagiers", ..., "aantal treinmiles op basis"]
-                # We need to reconstruct the full attribute name.
-                
-                # For this pattern, the actual attribute is at the END of the path (Dutch right-to-left)
-                # but we need to join it with any navigation parts that are actually part of the attribute
-                if len(attr_ref.path) > 1:
-                    # Multiple elements - likely navigation pattern
-                    # The last element is the base attribute, earlier elements are navigation
-                    # But for compound attributes with "van", we need to reconstruct
-                    attr_name = attr_ref.path[-1]  # Start with the last element
-                    
-                    # Check if we need to add "van" parts back
-                    # For "aantal treinmiles op basis van aantal passagiers", 
-                    # we have ["aantal passagiers", "aantal treinmiles op basis"]
-                    # We need to reconstruct: "aantal treinmiles op basis van aantal passagiers"
-                    if len(attr_ref.path) == 2 and "basis" in attr_ref.path[-1]:
-                        # Special case for "op basis van" pattern
-                        attr_name = attr_ref.path[-1] + " van " + attr_ref.path[0]
-                else:
-                    # Single element path - simple attribute
-                    attr_name = attr_ref.path[0]
-                
-                # Clean up Dutch articles from the beginning
+            # attr_name is now directly the attribute name string from attribuutMetLidwoord
+            # No need to extract from a complex AttributeReference object
+            
+            # Clean up Dutch articles from the beginning if present
+            if attr_name and isinstance(attr_name, str):
                 if attr_name.startswith("het "):
                     attr_name = attr_name[4:]
                 elif attr_name.startswith("de "):
                     attr_name = attr_name[3:]
                 elif attr_name.startswith("een "):
                     attr_name = attr_name[4:]
-            else:
-                logger.error(f"AttributeReference has no path: {attr_ref}")
-                return None
             
             # Get the value expression
             value_expr = self.visitExpressie(ctx.expressie())

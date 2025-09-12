@@ -67,10 +67,11 @@ class UnitArithmetic:
     
     def add(self, left: Value, right: Value) -> Value:
         """Add two values with unit checking."""
-        # Type checking
-        if not any(left.datatype.startswith(t) for t in ["Numeriek", "Percentage", "Bedrag"]):
+        # Type checking - allow Datum en tijd types (milliseconds can be added)
+        allowed_types = ["Numeriek", "Percentage", "Bedrag", "Datum en tijd"]
+        if not any(left.datatype.startswith(t) for t in allowed_types):
             raise RuntimeError(f"Cannot add {left.datatype} values")
-        if not any(right.datatype.startswith(t) for t in ["Numeriek", "Percentage", "Bedrag"]):
+        if not any(right.datatype.startswith(t) for t in allowed_types):
             raise RuntimeError(f"Cannot add {right.datatype} values")
         
         # Handle empty values (treat as 0)
