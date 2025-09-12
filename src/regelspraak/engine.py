@@ -6146,20 +6146,48 @@ class Evaluator:
             if len(expr.arguments) == 1 and isinstance(expr.arguments[0], AttributeReference):
                 attr_ref = expr.arguments[0]
                 
-                # Handle "passagiers van de reis" pattern with path ['passagiers', 'reis']
+                # Handle "passagiers van de reis" pattern 
+                # With new right-to-left order: path=['reis', 'passagiers']
                 if len(attr_ref.path) == 2:
-                    role_name = attr_ref.path[0]
-                    context_ref = attr_ref.path[1]
+                    # Need to determine which element is the role and which is the context
+                    # Use role alias mapping to disambiguate
+                    elem_a, elem_b = attr_ref.path[0], attr_ref.path[1]
                     
-                    # Check if the context refers to current instance's type
                     if self.context.current_instance:
-                        # Try to resolve via FeitType
-                        collection_objects = self._resolve_collection_from_feittype(
-                            role_name,
-                            self.context.current_instance
-                        )
-                        if collection_objects:
-                            return Value(value=len(collection_objects), datatype="Numeriek", unit=None)
+                        current_type = self.context.current_instance.object_type_naam.lower()
+                        
+                        # Check if either element maps to the current object type
+                        type_a = self._role_alias_to_object_type(elem_a)
+                        type_b = self._role_alias_to_object_type(elem_b)
+                        
+                        # Determine which is the role based on which maps to current type
+                        role_name = None
+                        if type_a and type_a.lower() == current_type:
+                            # elem_a is context (current type), elem_b is the role
+                            role_name = elem_b
+                        elif type_b and type_b.lower() == current_type:
+                            # elem_b is context (current type), elem_a is the role
+                            role_name = elem_a
+                        else:
+                            # Fallback: try both as potential roles
+                            # This handles cases where context isn't explicitly mapped
+                            collection_objects = self._resolve_collection_from_feittype(
+                                elem_b,  # Try second element first (new order)
+                                self.context.current_instance
+                            )
+                            if collection_objects:
+                                return Value(value=len(collection_objects), datatype="Numeriek", unit=None)
+                            # If that didn't work, try first element
+                            role_name = elem_a
+                        
+                        if role_name:
+                            # Try to resolve via FeitType
+                            collection_objects = self._resolve_collection_from_feittype(
+                                role_name,
+                                self.context.current_instance
+                            )
+                            if collection_objects:
+                                return Value(value=len(collection_objects), datatype="Numeriek", unit=None)
                 
                 elif len(attr_ref.path) == 1:
                     path_item = attr_ref.path[0]
