@@ -1093,13 +1093,15 @@ class Evaluator:
             # If no special pattern matched, treat as simple navigation
             logger.debug(f"_navigate_to_target: No special pattern matched for 2-element path")
         
-        # Check if the first element of path refers to current instance type
-        # E.g., path=['gebouw', 'eigenaar', 'naam'] when current instance is Gebouw
+        # Check if the first element of path refers to current instance type or its role alias
+        # E.g., path=['passagier', 'te betalen belasting'] when current instance is Natuurlijk persoon
+        # where 'passagier' is a role alias for Natuurlijk persoon
         working_path = path[:]  # Make a copy
         if len(working_path) > 1:
             first_elem_clean = self._strip_articles(working_path[0]).lower()
             current_type_clean = start_instance.object_type_naam.lower()
             
+            # Check if first element is the object type itself
             if first_elem_clean == current_type_clean:
                 logger.debug(f"_navigate_to_target: First element '{working_path[0]}' matches current instance type, removing it")
                 working_path = working_path[1:]  # Skip the first element
@@ -1107,6 +1109,12 @@ class Evaluator:
             elif first_elem_clean == "natuurlijk" and current_type_clean == "natuurlijk persoon":
                 logger.debug(f"_navigate_to_target WORKAROUND: Correcting incomplete 'Natuurlijk' to match 'Natuurlijk persoon'")
                 working_path = working_path[1:]  # Skip the incomplete object type reference
+            # Check if first element is a role alias for the current object type
+            else:
+                role_obj_type = self._role_alias_to_object_type(working_path[0])
+                if role_obj_type and role_obj_type.lower() == current_type_clean:
+                    logger.debug(f"_navigate_to_target: First element '{working_path[0]}' is role alias for current type {current_type_clean}, removing it")
+                    working_path = working_path[1:]  # Skip the role alias
         
         # If after removing the instance reference we have only one element, it's a direct attribute
         if len(working_path) == 1:
@@ -3530,8 +3538,18 @@ class Evaluator:
         
         # Check if this function is registered
         if func_name in self._function_registry:
-            # For non-timeline calls, pass None as args since we can't evaluate recursively
-            result = self._function_registry[func_name](expr, None)
+            # Special handling for functions that require evaluated arguments
+            if func_name in ['eerste_van', 'laatste_van']:
+                # These functions need evaluated arguments, not None
+                evaluated_args = []
+                if expr.arguments:
+                    for arg in expr.arguments:
+                        arg_val = self._evaluate_expression_non_timeline(arg)
+                        evaluated_args.append(arg_val)
+                result = self._function_registry[func_name](expr, evaluated_args)
+            else:
+                # For other non-timeline calls, pass None as args since we can't evaluate recursively
+                result = self._function_registry[func_name](expr, None)
             logger.debug(f"_handle_function_call_non_timeline: result type: {type(result)}")
             return result
         else:
@@ -7840,6 +7858,38 @@ class Evaluator:
             if text_lower.startswith(article):
                 return text[len(article):]
         return text
+    
+    def _role_alias_to_object_type(self, name: str) -> Optional[str]:
+        """Map a role alias to its object type via FeitType definitions.
+        
+        Returns the object type name if the given name is a role alias,
+        None otherwise.
+        """
+        if not name or not hasattr(self.context, 'domain_model') or not self.context.domain_model:
+            return None
+            
+        name_clean = self._strip_articles(name).lower()
+        
+        # Check all feittypen for matching role names
+        for feittype_name, feittype in self.context.domain_model.feittypen.items():
+            for rol in feittype.rollen:
+                if rol.naam:
+                    role_clean = self._strip_articles(rol.naam).lower()
+                    if role_clean == name_clean:
+                        return rol.object_type
+        
+        # Handle plural forms (basic support)
+        # "passagiers" -> "passagier" -> "Natuurlijk persoon"
+        if name_clean.endswith('s'):
+            singular = name_clean[:-1]
+            for feittype_name, feittype in self.context.domain_model.feittypen.items():
+                for rol in feittype.rollen:
+                    if rol.naam:
+                        role_clean = self._strip_articles(rol.naam).lower()
+                        if role_clean == singular:
+                            return rol.object_type
+        
+        return None
     
     def _evaluate_role_navigation(self, role_name: str, from_object: RuntimeObject) -> Value:
         """Evaluate navigation to related objects via a role name.
