@@ -1029,30 +1029,75 @@ class Evaluator:
         # This happens when parsing "De attribute van een ObjectType"
         if len(path) == 2:
             # Check if the second element is the object type (case-insensitive)
-            second_elem_clean = path[1].lower().replace("de ", "").replace("het ", "").replace("een ", "")
+            second_elem_clean = self._strip_articles(path[1]).lower()
             current_type_clean = start_instance.object_type_naam.lower()
             
-            # Also check for role names that map to the current object type
-            is_role_match = False
-            for feittype_name, feittype in self.context.domain_model.feittypen.items():
-                for rol in feittype.rollen:
-                    if rol.naam and rol.naam.lower() == second_elem_clean and rol.object_type.lower() == current_type_clean:
-                        is_role_match = True
-                        break
-                if is_role_match:
-                    break
+            # GPT-5 FIX: When context matches current instance, we should look for the OTHER role
+            # Example: "het aantal passagiers van de reis" when current is Vlucht
+            # Path = ["passagiers", "reis"]
+            # "reis" matches a role that points to Vlucht, so we should navigate using "passagiers"
             
-            if second_elem_clean == current_type_clean or is_role_match:
-                # This is an object type specification, not navigation
-                # Return the first element as the attribute on the current instance
-                logger.debug(f"_navigate_to_target: Object type specification pattern detected, returning ({start_instance.object_type_naam}, {path[0]})")
+            # First check if second element matches current object type directly
+            if second_elem_clean == current_type_clean:
+                # Direct match: "attribute van ObjectType" pattern
+                logger.debug(f"_navigate_to_target: Direct object type match, returning ({start_instance.object_type_naam}, {path[0]})")
                 return (start_instance, path[0])
+            
+            # Check if second element is a role that refers to current object type
+            # If so, use the FIRST element (complementary role) for navigation
+            for feittype_name, feittype in self.context.domain_model.feittypen.items():
+                for rol_idx, rol in enumerate(feittype.rollen):
+                    rol_clean = self._strip_articles(rol.naam).lower() if rol.naam else ""
+                    
+                    # Check if the second element matches this role AND this role's object type matches current
+                    if rol_clean == second_elem_clean and rol.object_type.lower() == current_type_clean:
+                        logger.debug(f"_navigate_to_target: Found role '{rol.naam}' pointing to current type {current_type_clean}")
+                        
+                        # This role points to our current type, so we need to navigate using the OTHER role
+                        # The first element of path should be the complementary role name
+                        first_elem_clean = self._strip_articles(path[0]).lower()
+                        
+                        # Find the complementary role in this feittype
+                        for other_idx, other_rol in enumerate(feittype.rollen):
+                            if other_idx != rol_idx:
+                                other_rol_clean = self._strip_articles(other_rol.naam).lower() if other_rol.naam else ""
+                                
+                                if other_rol_clean == first_elem_clean:
+                                    # Found the complementary role - navigate to it
+                                    logger.debug(f"_navigate_to_target: Using complementary role '{other_rol.naam}' for navigation")
+                                    
+                                    # Determine navigation direction
+                                    # Current object is playing the role at rol_idx
+                                    # We want objects playing the role at other_idx
+                                    as_subject = (rol_idx == 0)
+                                    
+                                    related_objects = self.context.get_related_objects(
+                                        start_instance, feittype_name, as_subject=as_subject
+                                    )
+                                    
+                                    if not related_objects:
+                                        logger.warning(f"No related objects found via role '{other_rol.naam}'")
+                                        # Continue checking other feittypen
+                                        break
+                                    
+                                    # For aggregation, we might need all objects
+                                    # But for simple navigation, take the first
+                                    # The caller should handle multiple objects if needed
+                                    result_obj = related_objects[0]
+                                    
+                                    # Since we navigated, there's no attribute - return role name as "attribute"
+                                    # This allows counting/aggregation over the collection
+                                    logger.debug(f"_navigate_to_target: Navigated to {result_obj.object_type_naam}, returning collection indicator")
+                                    return (result_obj, "__collection__")  # Special marker for collection access
+            
+            # If no special pattern matched, treat as simple navigation
+            logger.debug(f"_navigate_to_target: No special pattern matched for 2-element path")
         
         # Check if the first element of path refers to current instance type
         # E.g., path=['gebouw', 'eigenaar', 'naam'] when current instance is Gebouw
         working_path = path[:]  # Make a copy
         if len(working_path) > 1:
-            first_elem_clean = working_path[0].lower().replace("de ", "").replace("het ", "").replace("een ", "")
+            first_elem_clean = self._strip_articles(working_path[0]).lower()
             current_type_clean = start_instance.object_type_naam.lower()
             
             if first_elem_clean == current_type_clean:
@@ -1088,9 +1133,9 @@ class Evaluator:
             # Check all feittypen for matching roles
             for feittype_name, feittype in self.context.domain_model.feittypen.items():
                 for rol_idx, rol in enumerate(feittype.rollen):
-                    # Clean role name for matching
-                    role_naam_clean = rol.naam.lower().replace("de ", "").replace("het ", "").replace("een ", "")
-                    segment_clean = segment.lower().replace("de ", "").replace("het ", "").replace("een ", "")
+                    # Clean role name for matching using proper article stripping
+                    role_naam_clean = self._strip_articles(rol.naam).lower() if rol.naam else ""
+                    segment_clean = self._strip_articles(segment).lower()
                     
                     # Check if segment matches this role
                     if role_naam_clean == segment_clean:
@@ -1102,14 +1147,15 @@ class Evaluator:
                                 logger.debug(f"_navigate_to_target: Current object type matches role '{other_rol.naam}' -> {other_rol.object_type}")
                                 # Current object type matches the other role
                                 # Navigate from current object to the target role
-                                # as_subject=True means we're looking for relationships where current_obj is the subject
-                                # as_subject=False means we're looking for relationships where current_obj is the object
                                 
+                                # GPT-5 FIX: Correct the as_subject logic
                                 # In the feittype "vlucht van natuurlijke personen":
                                 # - Role 0: "reis" -> Vlucht (subject in relationship)
                                 # - Role 1: "passagier" -> Natuurlijk persoon (object in relationship)
                                 # When navigating from Natuurlijk persoon via "reis", we want the Vlucht
-                                # Since Natuurlijk persoon is the object (role 1), we need as_subject=False
+                                # Current object is at other_idx, we want objects at rol_idx
+                                # If current is at index 0 (subject), we're looking for relationships where we are subject -> as_subject=True
+                                # If current is at index 1 (object), we're looking for relationships where we are object -> as_subject=False
                                 as_subject = (other_idx == 0)
                                 related_objects = self.context.get_related_objects(
                                     current_obj, feittype_name, as_subject=as_subject
