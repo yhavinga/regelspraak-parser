@@ -3,6 +3,7 @@
 
 import json
 import sys
+import logging
 from pathlib import Path
 from typing import Dict, Any, List, Optional
 from datetime import date, datetime
@@ -355,9 +356,17 @@ def main():
     parser = argparse.ArgumentParser(description="TOKA Case Study Runner")
     parser.add_argument('scenario', help='Scenario name to execute (without .json extension)')
     parser.add_argument('--verbose', '-v', action='store_true', help='Enable verbose output')
+    parser.add_argument('--debug', '-d', action='store_true', help='Enable debug logging')
     parser.add_argument('--output', '-o', help='Output file for results (JSON)')
     
     args = parser.parse_args()
+    
+    # Configure logging if debug flag is set
+    if args.debug:
+        logging.basicConfig(
+            level=logging.DEBUG,
+            format='%(levelname)s - %(name)s - %(message)s'
+        )
     
     runner = TOKARunner(verbose=args.verbose)
     results = runner.execute_scenario(args.scenario)
