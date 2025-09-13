@@ -414,13 +414,20 @@ class Evaluator:
                 if isinstance(rule.resultaat.target, AttributeReference) and len(rule.resultaat.target.path) >= 3:
                     # The object type is the last element in the path
                     obj_type = rule.resultaat.target.path[2]
-                    # Clean the object type name
-                    obj_type_clean = obj_type.replace("Natuurlijke personen", "Natuurlijk persoon")
-                    if obj_type_clean in self.context.domain_model.objecttypes:
-                        return obj_type_clean
-                    # Try to find a matching object type
+                    
+                    # Try exact match first
+                    if obj_type in self.context.domain_model.objecttypes:
+                        return obj_type
+                    
+                    # Try to find a matching object type (case-insensitive)
+                    obj_type_lower = obj_type.lower()
                     for defined_type in self.context.domain_model.objecttypes:
-                        if defined_type.lower() in obj_type.lower() or obj_type.lower() in defined_type.lower():
+                        if defined_type.lower() == obj_type_lower:
+                            return defined_type
+                    
+                    # Try partial match as last resort
+                    for defined_type in self.context.domain_model.objecttypes:
+                        if defined_type.lower() in obj_type_lower or obj_type_lower in defined_type.lower():
                             return defined_type
             elif rule.resultaat.criterium_type == "inconsistent":
                 # Spec 9.5: Extract target from condition's attribute references
@@ -604,13 +611,6 @@ class Evaluator:
                                 if role_name_clean == potential_type.lower():
                                     return rol.object_type
                     
-                    # Additional check: if potential_type is "passagier", it should map to "Natuurlijk persoon"
-                    if potential_type.lower() == "passagier":
-                        return "Natuurlijk persoon"
-                    
-                    # Additional check: if potential_type is "reis", it should map to "Vlucht"
-                    if potential_type.lower() == "reis":
-                        return "Vlucht"
                 
                 # If no match found, return None
                 return None
@@ -652,10 +652,6 @@ class Evaluator:
                                     
                                     if role_name_clean == potential_type.lower():
                                         return rol.object_type
-
-        # Fallback for steel thread Kenmerktoekenning where target might be implicit
-        if isinstance(rule.resultaat, KenmerkToekenning) and "persoon" in rule.naam.lower():
-             return "Natuurlijk persoon"
 
         # TODO: Use rule header information (e.g., "Voor elke X geldt:") when grammar supports it.
         return None
@@ -1454,14 +1450,6 @@ class Evaluator:
                     if obj_type_def:
                         break
             
-            # Special handling for "vastgestelde contingent treinmiles" -> "Contingent treinmiles"
-            if not obj_type_def and "contingent treinmiles" in actual_object_type.lower():
-                # Try to find the actual object type by removing descriptive prefixes
-                for obj_type in self.context.domain_model.objecttypes:
-                    if "contingent" in obj_type.lower() and "treinmiles" in obj_type.lower():
-                        actual_object_type = obj_type
-                        obj_type_def = self.context.domain_model.objecttypes.get(actual_object_type)
-                        break
             
             # Additional fallback: try to match role names from FeitTypes
             if not obj_type_def:
@@ -4317,27 +4305,24 @@ class Evaluator:
         return []
     
     def _is_role_name_pattern(self, text: str) -> bool:
-        """Check if text matches a known role name pattern from FeitTypes.
+        """Check if text matches a role name pattern from domain model's FeitTypes.
         
-        Common patterns:
-        - "te verdelen contingent treinmiles"
-        - "passagier met recht op treinmiles"
+        Uses dynamic checking against defined FeitType roles rather than hardcoded patterns.
         """
         text_lower = text.lower()
+        text_clean = self._strip_articles(text).lower()
         
-        # Common role patterns from specification
-        role_patterns = [
-            "te verdelen contingent treinmiles",
-            "passagier met recht op treinmiles",
-            "reis met treinmiles",
-            "vastgestelde contingent treinmiles"
-        ]
+        # Check against actual FeitType role definitions
+        for feittype_name, feittype in self.context.domain_model.feittypen.items():
+            for rol in feittype.rollen:
+                if rol.naam:
+                    role_clean = self._strip_articles(rol.naam).lower()
+                    # Check if text contains or matches the role name
+                    if (role_clean in text_clean or text_clean in role_clean or
+                        role_clean == text_clean):
+                        return True
         
-        for pattern in role_patterns:
-            if pattern in text_lower:
-                return True
-        
-        # Additional heuristics
+        # Generic heuristics for role patterns (language-agnostic)
         if text_lower.startswith("te ") or " met " in text_lower:
             return True
         
@@ -4347,62 +4332,33 @@ class Evaluator:
         """Find objects that have a specific role in relation to source object."""
         related_objects = []
         
+        # Clean the role text by removing common articles and descriptive text
+        role_text_clean = self._strip_articles(role_text).lower()
+        
         # Look through all relationships where source_obj is involved
         for rel in self.context.relationships.values():
             if rel.subject == source_obj:
-                # Check if the object matches the role description
-                # This is simplified - a full implementation would match against feittype role names
                 obj = rel.object
-                # For TOKA, "passagiers met recht op treinmiles" refers to Natuurlijk persoon objects
-                if "passagier" in role_text.lower() and obj.object_type_naam == "Natuurlijk persoon":
-                    related_objects.append(obj)
+                
+                # Check if this relationship matches based on feittype definitions
+                # Look for feittype that defines this relationship
+                for feittype_name, feittype in self.context.domain_model.feittypen.items():
+                    for rol in feittype.rollen:
+                        if rol.naam:
+                            rol_clean = self._strip_articles(rol.naam).lower()
+                            # Check if the role name matches what we're looking for
+                            if (rol_clean in role_text_clean or 
+                                role_text_clean in rol_clean or
+                                rol.object_type == obj.object_type_naam):
+                                # This role matches - check if the object type is correct
+                                if rol.object_type == obj.object_type_naam:
+                                    related_objects.append(obj)
+                                    break
         
         logger.info(f"Verdeling: Found {len(related_objects)} objects with role '{role_text}' related to {source_obj.object_type_naam}")
         return related_objects
     
-    def _find_all_objects_of_type(self, type_text: str) -> List[RuntimeObject]:
-        """Find all objects matching a type description."""
-        objects = []
-        
-        # Extract the core object type from the description
-        # "passagiers met recht op treinmiles" -> look for "Natuurlijk persoon"
-        type_map = {
-            "passagier": "Natuurlijk persoon",
-            "persoon": "Natuurlijk persoon",
-            "personen": "Natuurlijk persoon",
-            "contingent": "Contingent treinmiles",
-            "vlucht": "Vlucht",
-            "vluchten": "Vlucht"
-        }
-        
-        # Find the object type
-        target_type = None
-        for key, obj_type in type_map.items():
-            if key in type_text.lower():
-                target_type = obj_type
-                break
-        
-        if not target_type:
-            # Try exact match
-            for obj_type in self.context.domain_model.objecttypes:
-                if obj_type.lower() == type_text.lower():
-                    target_type = obj_type
-                    break
-        
-        # Get all objects of this type
-        if target_type:
-            for obj in self.context.objects.values():
-                if obj.object_type_naam == target_type:
-                    objects.append(obj)
-        
-        logger.info(f"Verdeling: Found {len(objects)} objects of type '{target_type}' for description '{type_text}'")
-        return objects
     
-    def _navigate_feittype_for_collection(self, source_obj: RuntimeObject, path: List[str]) -> List[RuntimeObject]:
-        """Navigate feittype relationships to find a collection."""
-        # This is a simplified implementation
-        # Full implementation would properly parse the navigation pattern
-        return []
     
     def _extract_verdeling_target_attribute(self, collection_expr: Expression) -> str:
         """Extract the target attribute name from collection expression.
