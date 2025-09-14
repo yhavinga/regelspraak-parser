@@ -2314,6 +2314,10 @@ class Evaluator:
                 result = self._handle_unary(expr)
 
             elif isinstance(expr, FunctionCall):
+                if expr.function_name == "som_van":
+                    logger.debug(f"evaluate_expression: FunctionCall som_van with {len(expr.arguments)} args")
+                    for i, arg in enumerate(expr.arguments):
+                        logger.debug(f"  Arg {i}: {type(arg).__name__}")
                 result = self._handle_function_call(expr)
                 
             elif isinstance(expr, BegrenzingExpression):
@@ -3454,6 +3458,9 @@ class Evaluator:
         elif op == Operator.MAAL:
             return self.arithmetic.multiply(left_val, right_val)
         elif op == Operator.GEDEELD_DOOR:
+            # Debug percentage calculations
+            if hasattr(expr, 'right') and isinstance(expr.right, Literal) and expr.right.value == 100:
+                logger.debug(f"Percentage division: {left_val.value} / 100 = {float(left_val.value) / 100}")
             return self.arithmetic.divide(left_val, right_val, use_abs_style=False)
         elif op == Operator.GEDEELD_DOOR_ABS:
             return self.arithmetic.divide(left_val, right_val, use_abs_style=True)
@@ -4864,6 +4871,9 @@ class Evaluator:
         elif op == Operator.MAAL:
             return self.arithmetic.multiply(left_val, right_val)
         elif op == Operator.GEDEELD_DOOR:
+            # Debug percentage calculations
+            if hasattr(expr, 'right') and isinstance(expr.right, Literal) and expr.right.value == 100:
+                logger.debug(f"Percentage division: {left_val.value} / 100 = {float(left_val.value) / 100}")
             return self.arithmetic.divide(left_val, right_val, use_abs_style=False)
         elif op == Operator.GEDEELD_DOOR_ABS:
             return self.arithmetic.divide(left_val, right_val, use_abs_style=True)
@@ -5181,6 +5191,7 @@ class Evaluator:
         """
         collection_objects = []
         logger.debug(f"Resolving collection '{collection_name}' from {base_instance.object_type_naam}")
+        logger.debug(f"  Collection name to match: '{collection_name}'")
         
         # Try to find relationships where base_instance participates
         # Look in both directions (as subject and as object)
@@ -5204,18 +5215,28 @@ class Evaluator:
                 else:
                     # Check if this role matches the collection name
                     if rol.naam:
-                        # Match role name (handle singular/plural forms)
                         role_matches = False
-                        if collection_name.lower() == rol.naam.lower():
+                        
+                        # Strip articles from both for comparison
+                        role_name_clean = self._strip_articles(rol.naam).lower()
+                        collection_name_clean = self._strip_articles(collection_name).lower()
+                        
+                        # Direct match with role name
+                        if role_name_clean == collection_name_clean:
                             role_matches = True
-                        elif hasattr(rol, 'meervoud') and rol.meervoud and collection_name.lower() == rol.meervoud.lower():
+                            logger.debug(f"Matched role '{rol.naam}' directly with collection '{collection_name}'")
+                        
+                        # Check if collection is plural of role
+                        # NOTE: FeitType roles don't have meervoud defined in AST, only cardinality text
+                        # We need basic plural handling here until grammar is enhanced to capture role plurals
+                        elif collection_name_clean.endswith("s") and collection_name_clean[:-1] == role_name_clean:
+                            # "passagiers" -> "passagier"
                             role_matches = True
-                        elif collection_name.lower().endswith("en") and collection_name[:-2].lower() == rol.naam.lower():
-                            # Simple plural check: "passagiers" -> "passagier"
+                            logger.debug(f"Matched role '{rol.naam}' as singular of collection '{collection_name}'")
+                        elif collection_name_clean.endswith("en") and collection_name_clean[:-2] == role_name_clean:
+                            # Common Dutch plural pattern
                             role_matches = True
-                        elif collection_name.lower().endswith("s") and collection_name[:-1].lower() == rol.naam.lower():
-                            # Alternative plural: "reis" -> "reizen"  
-                            role_matches = True
+                            logger.debug(f"Matched role '{rol.naam}' as singular of collection '{collection_name}'")
                         
                         if role_matches:
                             target_role = rol
@@ -5268,11 +5289,21 @@ class Evaluator:
                 # Check if it's a feittype navigation pattern
                 # Example: "passagiers" -> find through relationships
                 if self.context.current_instance:
-                    # First try as a role name via feittype
-                    collection_objects = self._resolve_collection_from_feittype(
-                        collection_path,
-                        self.context.current_instance
-                    )
+                    # Check if it contains " van " pattern (e.g., "passagiers van de reis")
+                    if " van " in collection_path:
+                        # Extract just the role name before " van "
+                        role_name = collection_path.split(" van ")[0].strip()
+                        logger.debug(f"Extracted role name '{role_name}' from '{collection_path}'")
+                        collection_objects = self._resolve_collection_from_feittype(
+                            role_name,
+                            self.context.current_instance
+                        )
+                    else:
+                        # Try as a simple role name via feittype
+                        collection_objects = self._resolve_collection_from_feittype(
+                            collection_path,
+                            self.context.current_instance
+                        )
                 
                 # If no results from feittype, check if it's "alle X" pattern
                 if not collection_objects and collection_path.lower().startswith("alle "):
@@ -5625,6 +5656,12 @@ class Evaluator:
                 base_func_name = func_name[4:]
             elif func_name.startswith("de_"):
                 base_func_name = func_name[3:]
+            
+            # Check if function is in registry
+            if func_name in self._function_registry:
+                logger.debug(f"Found {func_name} in registry")
+            else:
+                logger.debug(f"{func_name} NOT in registry")
             logger.debug(f"Base function name: {base_func_name}")
                 
             # Single argument case: "som van alle bedragen" or "totaal van X"
@@ -5726,6 +5763,7 @@ class Evaluator:
                 # 1. Concatenation: som_van(X, Y, Z) - sum individual values
                 # 2. Collection with single arg: som_van(path_with_collection) 
                 # 3. Collection with two args: som_van(attribute, collection)
+                logger.debug(f"Handling som_van with {len(expr.arguments)} arguments")
                 
                 if len(expr.arguments) >= 3:
                     # Concatenation pattern: "de som van X, Y en Z"
@@ -5869,6 +5907,7 @@ class Evaluator:
                                 role_name = parts[0].strip()  # e.g., "passagiers"
                                 context_ref = parts[1].strip()  # e.g., "de reis"
                                 logger.debug(f"som_van: Parsed collection pattern - role_name='{role_name}', context_ref='{context_ref}'")
+                                logger.debug(f"  Current instance: {self.context.current_instance.object_type_naam if self.context.current_instance else 'None'}")
                                 
                                 # Remove articles from context
                                 context_ref = self._strip_articles(context_ref)
@@ -5896,13 +5935,16 @@ class Evaluator:
                                                         logger.debug(f"    Checking other_rol '{other_rol.naam}' against singular '{singular_role}'")
                                                         if singular_role in other_rol.naam.lower():
                                                             # Found matching feittype and role
+                                                            logger.debug(f"    MATCH! Finding relationships for feittype '{feittype_naam}'")
                                                             relationships = self.context.find_relationships(
                                                                 subject=self.context.current_instance,
                                                                 feittype_naam=feittype_naam
                                                             )
+                                                            logger.debug(f"    Found {len(relationships)} relationships")
                                                             for rel in relationships:
                                                                 if rel.object:
                                                                     collection_objects.append(rel.object)
+                                                                    logger.debug(f"      Added object: {rel.object.object_type_naam} ({rel.object.instance_id})")
                                                             found_match = True
                                                             break
                                                 if found_match:
@@ -5944,6 +5986,9 @@ class Evaluator:
                         logger.warning(f"Complex collection paths not yet fully supported: {collection_expr.path}")
                 
                 # Now sum the attribute values from all objects in the collection
+                logger.debug(f"Collection objects found: {len(collection_objects)}")
+                for obj in collection_objects:
+                    logger.debug(f"  - {obj.object_type_naam} ({obj.instance_id})")
                 values_to_sum = []
                 first_unit = None
                 datatype = None
@@ -7555,6 +7600,12 @@ class Evaluator:
         from datetime import datetime, timedelta
         from dateutil.relativedelta import relativedelta
         
+        # Handle None values gracefully
+        if date_val is None or date_val.value is None:
+            raise RegelspraakError("Cannot perform date arithmetic: date value is None")
+        if time_val is None or time_val.value is None:
+            raise RegelspraakError("Cannot perform date arithmetic: time value is None")
+        
         # Parse the date value
         date_value = date_val.value
         if isinstance(date_value, str):
@@ -8368,7 +8419,9 @@ class Evaluator:
     def _apply_beslistabel_result(self, beslistabel: Beslistabel, row: BeslistabelRow):
         """Apply the result expression from a matched row."""
         # Evaluate the result value
+        logger.debug(f"Evaluating beslistabel result expression: {row.result_expression}")
         result_value = self.evaluate_expression(row.result_expression)
+        logger.debug(f"Beslistabel result value: {result_value}")
         
         # Use parsed result information if available
         if beslistabel.parsed_result and self.context.current_instance:

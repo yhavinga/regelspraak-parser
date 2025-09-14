@@ -191,6 +191,12 @@ class TOKARunner:
                 elif attr_name == 'vluchtdatum':
                     flight_date = datetime.strptime(attr_value, '%Y-%m-%d').date()
                     self.context.set_attribute(flight, 'vluchtdatum', Value(flight_date, "Datum"))
+                elif attr_name == 'verwachte datum-tijd van vertrek':
+                    # Handle datetime string
+                    self.context.set_attribute(flight, attr_name, Value(attr_value, "Datum en tijd in millisecondes"))
+                elif attr_name == 'verwachte duur':
+                    # Duration in minutes
+                    self.context.set_attribute(flight, attr_name, Value(attr_value, "Numeriek", "minuut"))
                 elif attr_name in ['luchthaven van vertrek', 'luchthaven van bestemming']:
                     self.context.set_attribute(flight, attr_name, Value(attr_value, "Luchthavens"))
                 elif attr_name == 'afstand tot bestemming':

@@ -37,7 +37,9 @@
         "afstand tot bestemming": 450,
         "reisduur per trein": 180,
         "bereikbaar per trein": true,
-        "gebruik fossiele brandstof minder dan 50 procent": false
+        "gebruik fossiele brandstof minder dan 50 procent": false,
+        "verwachte datum-tijd van vertrek": "2024-06-20T10:00:00",
+        "verwachte duur": 90
       }
     ]
   },
@@ -55,13 +57,13 @@
       "is volwassene": true,
       "woonregio factor": 3,
       "belasting op basis van afstand": 27.50,
-      "belasting op basis van reisduur": 2.75,
-      "te betalen belasting": 27.50
+      "belasting op basis van reisduur": 4.0,
+      "te betalen belasting": 22.0
     },
     "flight_1": {
       "is belaste reis": true,
       "hoeveelheid passagiers": 1,
-      "totaal te betalen belasting": 27.50
+      "totaal te betalen belasting": 22.0
     }
   }
 }
