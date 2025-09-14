@@ -74,7 +74,7 @@
     "adult_eco_passenger": {
       "leeftijd": 44,
       "is passagier van 25 tot en met 64 jaar": true,
-      "recht op duurzaamheidskorting": false,
+      "recht op duurzaamheidskorting": true,
       "woonregio factor": 2,
       "belasting op basis van afstand": 38.00,
       "te betalen belasting": 28.00

@@ -697,7 +697,11 @@ class RuntimeContext:
             )
 
     def get_kenmerk(self, instance: RuntimeObject, kenmerk_name: str) -> bool:
-        """Gets a kenmerk's boolean state from an instance (defaults to False)."""
+        """Gets a kenmerk's boolean state from an instance (defaults to False).
+        
+        For bezittelijk kenmerken (those with "heeft" prefix), also checks for
+        corresponding boolean attributes.
+        """
         # Check if kenmerk is defined for the type?
         obj_type_def = self.domain_model.objecttypes.get(instance.object_type_naam)
         if not obj_type_def or kenmerk_name not in obj_type_def.kenmerken:
@@ -705,7 +709,23 @@ class RuntimeContext:
              # raise RuntimeError(f"Kenmerk '{kenmerk_name}' not defined for ObjectType '{instance.object_type_naam}'.")
              value = False
         else:
+             # First check if it's explicitly set as a kenmerk
              value = instance.kenmerken.get(kenmerk_name, False) # Default to False if not explicitly set
+             
+             # If not found in instance.kenmerken, check for corresponding boolean attribute
+             if not value:
+                 # Check if there's a boolean attribute with the same name
+                 if kenmerk_name in instance.attributen:
+                     attr_value = instance.attributen.get(kenmerk_name)
+                     if isinstance(attr_value, Value) and attr_value.datatype == "Boolean":
+                         value = bool(attr_value.value)
+                 # Also check with "heeft " prefix stripped (for bezittelijk kenmerken)
+                 elif kenmerk_name.startswith("heeft "):
+                     attr_name = kenmerk_name[6:]  # Remove "heeft " (6 chars)
+                     if attr_name in instance.attributen:
+                         attr_value = instance.attributen.get(attr_name)
+                         if isinstance(attr_value, Value) and attr_value.datatype == "Boolean":
+                             value = bool(attr_value.value)
         
         # Trace kenmerk read
         if self.trace_sink:
