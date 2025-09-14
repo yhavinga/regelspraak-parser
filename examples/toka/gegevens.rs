@@ -120,7 +120,7 @@ Parameter de bovengrens reisduur tweede schijf: Numeriek (geheel getal) met eenh
 Parameter het aantal treinmiles per passagier voor contingent: Numeriek (positief geheel getal)
 
 // Date calculation parameters
-Parameter de bevestigingsinterval: Datum en tijd in millisecondes
+Parameter de bevestigingsinterval: Numeriek (geheel getal) met eenheid minuut
 Parameter de eerste boekingsdatum: Datum in dagen
 
 // ============================================================================

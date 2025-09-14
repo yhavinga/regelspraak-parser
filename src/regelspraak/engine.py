@@ -504,14 +504,20 @@ class Evaluator:
             return self._deduce_type_from_subject_ref(rule.resultaat.subject2)
         elif isinstance(rule.resultaat, Verdeling):
             # For Verdeling, try to deduce from the source amount expression
-            # Pattern: "Het X van Y" where Y is the object type
+            # Pattern: "Het X van Y" where Y is the object type or role name
             if isinstance(rule.resultaat.source_amount, AttributeReference) and rule.resultaat.source_amount.path:
-                # e.g., ["totaal aantal treinmiles", "te verdelen contingent treinmiles"]
-                if len(rule.resultaat.source_amount.path) > 1:
-                    last_elem = rule.resultaat.source_amount.path[-1]
-                    # Extract object type from the last element
+                # e.g., ["te verdelen contingent treinmiles", "totaal aantal treinmiles"]
+                # The first element often contains the object reference
+                for path_elem in rule.resultaat.source_amount.path:
+                    # First check if it's a role name that maps to an object type
+                    role_obj_type = self._role_alias_to_object_type(path_elem)
+                    if role_obj_type:
+                        logger.debug(f"Verdeling target type deduced from role '{path_elem}' -> '{role_obj_type}'")
+                        return role_obj_type
+                    
+                    # Extract object type from the path element
                     # Split into words and try different combinations
-                    words = last_elem.lower().split()
+                    words = path_elem.lower().split()
                     
                     # Try each object type
                     for obj_type in self.context.domain_model.objecttypes:
@@ -573,6 +579,8 @@ class Evaluator:
                 # 2. Original left-to-right: ["inkomen", "Natuurlijk persoon"]
                 # 3. Complex attribute with object type: ["belasting op basis van afstand", "passagier"]
                 
+                logger.debug(f"Deducing target type for 2-element path: {target_ref.path}")
+                
                 # Try both elements as potential object type/role
                 for i in [0, 1]:
                     potential_type = target_ref.path[i]
@@ -609,8 +617,17 @@ class Evaluator:
                                 role_name_clean = self._strip_articles(rol.naam).lower()
                                 
                                 if role_name_clean == potential_type.lower():
+                                    logger.debug(f"Found role match: '{role_name_clean}' maps to object type '{rol.object_type}'")
                                     return rol.object_type
                     
+                
+                # If no match found, check if either path element is a known attribute
+                # This handles cases like ["passagier", "belasting op basis van afstand"]
+                for i in [0, 1]:
+                    name = target_ref.path[i]
+                    for obj_type_name, obj_type_def in self.context.domain_model.objecttypes.items():
+                        if name in obj_type_def.attributen:
+                            return obj_type_name
                 
                 # If no match found, return None
                 return None
@@ -1131,19 +1148,51 @@ class Evaluator:
         # Process navigation segments in order (no need to reverse anymore)
         for segment in nav_path:
             logger.debug(f"_navigate_to_target: Processing segment '{segment}' from {current_obj.object_type_naam}")
+            
+            # Check if segment refers to current object type (self-reference)
+            segment_obj_type = self._role_alias_to_object_type(segment)
+            logger.debug(f"_navigate_to_target: Checking role alias for '{segment}' -> '{segment_obj_type}', current type: '{current_obj.object_type_naam}'")
+            if segment_obj_type and segment_obj_type.lower() == current_obj.object_type_naam.lower():
+                logger.debug(f"Segment '{segment}' refers to current object type; skipping navigation")
+                continue
+            
+            # Also check direct object type match
+            segment_clean = self._strip_articles(segment).lower()
+            if segment_clean == current_obj.object_type_naam.lower():
+                logger.debug(f"Segment '{segment}' matches current object type; skipping navigation")
+                continue
+            
             # Try to navigate through feittype relationships
             found = False
             
             # Check all feittypen for matching roles
+            logger.debug(f"_navigate_to_target: Searching for role matching segment '{segment}' from object type '{current_obj.object_type_naam}'")
             for feittype_name, feittype in self.context.domain_model.feittypen.items():
                 for rol_idx, rol in enumerate(feittype.rollen):
                     # Clean role name for matching using proper article stripping
                     role_naam_clean = self._strip_articles(rol.naam).lower() if rol.naam else ""
                     segment_clean = self._strip_articles(segment).lower()
                     
+                    # Debug: show what we're comparing
+                    if segment_clean == "te verdelen contingent treinmiles":
+                        logger.debug(f"  Comparing: role '{rol.naam}' (cleaned: '{role_naam_clean}') vs segment '{segment}' (cleaned: '{segment_clean}')")
+                    
                     # Check if segment matches this role
                     if role_naam_clean == segment_clean:
                         logger.debug(f"_navigate_to_target: Found matching role '{rol.naam}' in feittype '{feittype_name}'")
+                        
+                        # Check if this role maps to the same object type (self-reference)
+                        rol_type_stripped = self._strip_articles(rol.object_type).lower()
+                        current_type_stripped = self._strip_articles(current_obj.object_type_naam).lower()
+                        logger.debug(f"Checking self-reference: rol.object_type='{rol.object_type}' (stripped: '{rol_type_stripped}') vs current_obj.object_type_naam='{current_obj.object_type_naam}' (stripped: '{current_type_stripped}')")
+                        # Use normalized comparison for self-reference check
+                        if rol_type_stripped == current_type_stripped:
+                            logger.debug(f"Role '{rol.naam}' maps to current object type '{current_obj.object_type_naam}'; using current object")
+                            # Stay on current object - this is a self-referential role
+                            # No navigation needed, current_obj remains the same
+                            found = True
+                            break
+                        
                         # Found a matching role - now check if current object can participate
                         # Look for the role that the current object plays in this feittype
                         for other_idx, other_rol in enumerate(feittype.rollen):
@@ -1896,10 +1945,17 @@ class Evaluator:
                     current_type = self.context.current_instance.object_type_naam.lower()
                     first_element_clean = first_element.replace("de ", "").replace("het ", "").replace("een ", "")
                     
+                    # Check direct type match
                     if first_element_clean == current_type:
                         # Remove the first element as it refers to the current instance
                         logger.debug(f"Removing first element '{first_element}' as it matches current instance type '{current_type}'")
                         working_path = working_path[1:]
+                    else:
+                        # Check if first element is a role name that maps to current object type
+                        role_obj_type = self._role_alias_to_object_type(working_path[0])
+                        if role_obj_type and role_obj_type.lower() == current_type:
+                            logger.debug(f"Removing first element '{first_element}' as it's a role that maps to current instance type '{current_type}'")
+                            working_path = working_path[1:]
                 
                 # Also check if the LAST element matches current instance type (e.g., ["passagiers", "vlucht"])
                 if len(working_path) > 1:
@@ -2162,9 +2218,7 @@ class Evaluator:
                     # Handle paths like ["leeftijd", "Persoon"] where the last element is the object type
                     elif len(expr.path) == 2 and (
                         expr.path[1] == self.context.current_instance.object_type_naam or 
-                        self.context.current_instance.object_type_naam.lower() in expr.path[1].lower() or
-                        (len(expr.path[1]) > 20 and  # Long descriptive phrases
-                         any(word in expr.path[1].lower() for word in self.context.current_instance.object_type_naam.lower().split()))):
+                        self._strip_articles(expr.path[1]).lower() == self.context.current_instance.object_type_naam.lower()):
                         # This refers to the current instance
                         attr_name = expr.path[0]
                         value = self.context.get_attribute(self.context.current_instance, attr_name)
@@ -2879,9 +2933,7 @@ class Evaluator:
                     # Handle paths like ["leeftijd", "Persoon"] where the last element is the object type
                     elif len(expr.path) == 2 and (
                         expr.path[1] == self.context.current_instance.object_type_naam or 
-                        self.context.current_instance.object_type_naam.lower() in expr.path[1].lower() or
-                        (len(expr.path[1]) > 20 and  # Long descriptive phrases
-                         any(word in expr.path[1].lower() for word in self.context.current_instance.object_type_naam.lower().split()))):
+                        self._strip_articles(expr.path[1]).lower() == self.context.current_instance.object_type_naam.lower()):
                         
                         # First check if path[0] is a role name (e.g., "passagiers" in ["passagiers", "vlucht"])
                         logger.debug(f"Checking if '{expr.path[0]}' is a role from '{self.context.current_instance.object_type_naam}'")
@@ -2958,6 +3010,23 @@ class Evaluator:
                             except RegelspraakError:
                                 # Not a role navigation, fall through to general path handling
                                 pass
+                        
+                        # Check if first element is a role alias for current object
+                        if len(nav_path) == 2:
+                            mapped = self._role_alias_to_object_type(nav_path[0])
+                            if mapped == current_obj.object_type_naam:
+                                # Direct attribute access on current instance
+                                attr_name = nav_path[1]
+                                value = self.context.get_attribute(current_obj, attr_name)
+                                # Trace attribute read
+                                if self.context.trace_sink:
+                                    self.context.trace_sink.attribute_read(
+                                        current_obj,
+                                        attr_name,
+                                        value,
+                                        expr=expr
+                                    )
+                                return value
                         
                         # General path handling for other cases
                         # Navigate through all but the last element
@@ -3430,6 +3499,31 @@ class Evaluator:
         # Standard evaluation for other operators
         right_val = self._evaluate_expression_non_timeline(expr.right)
 
+        # Handle date arithmetic per spec 6.11 (date +/- time-unit)
+        date_types = ["Datum in dagen", "Datum en tijd in millisecondes"]
+        time_units = ["jaar", "maand", "week", "dag", "uur", "minuut", "seconde", "milliseconde"]
+        
+        if op in [Operator.PLUS, Operator.MIN]:
+            # Check if this is date arithmetic
+            is_left_date = any(left_val.datatype.startswith(dt) for dt in date_types)
+            is_right_date = any(right_val.datatype.startswith(dt) for dt in date_types)
+            
+            if is_left_date and is_right_date:
+                # Date +/- date is not allowed per spec
+                raise RegelspraakError(f"Cannot {op.value} two date values per spec 6.11", span=expr.span)
+            
+            elif is_left_date and right_val.datatype.startswith("Numeriek") and right_val.unit in time_units:
+                # Date + time-unit: add time delta to date
+                return self._add_time_to_date(left_val, right_val, op == Operator.MIN)
+            
+            elif is_right_date and left_val.datatype.startswith("Numeriek") and left_val.unit in time_units and op == Operator.PLUS:
+                # time-unit + Date (only for PLUS, commutative)
+                return self._add_time_to_date(right_val, left_val, False)
+            
+            elif (is_left_date or is_right_date):
+                # Date with non-time-unit numeric is not allowed
+                raise RegelspraakError(f"Date arithmetic requires numeric value with time unit (jaar/maand/week/dag/uur/minuut/seconde/milliseconde)", span=expr.span)
+
         # Arithmetic operations using unit-aware arithmetic
         if op == Operator.PLUS:
             return self.arithmetic.add(left_val, right_val)
@@ -3794,21 +3888,67 @@ class Evaluator:
             old_instance = self.context.current_instance
             self.context.set_current_instance(instance)
             try:
-                left_value = self.evaluate_expression(vergelijking.attribuut)
-                if isinstance(left_value, Value):
-                    left_value = left_value.value
+                left_val = self.evaluate_expression(vergelijking.attribuut)
+                if not isinstance(left_val, Value):
+                    left_val = Value(value=left_val, datatype="Tekst", unit=None) if left_val is not None else None
             except Exception:
-                left_value = None
+                left_val = None
             finally:
                 self.context.set_current_instance(old_instance)
             
-            if left_value is None:
+            if left_val is None or left_val.value is None:
                 return False
             
             # Evaluate comparison value
-            right_value = self.evaluate_expression(vergelijking.waarde)
-            if isinstance(right_value, Value):
-                right_value = right_value.value
+            right_val = self.evaluate_expression(vergelijking.waarde)
+            if not isinstance(right_val, Value):
+                right_val = Value(value=right_val, datatype="Tekst", unit=None) if right_val is not None else None
+            
+            if right_val is None or right_val.value is None:
+                return False
+            
+            # For numeric/percentage/bedrag types, perform unit compatibility checks
+            if left_val.datatype in ["Numeriek", "Percentage", "Bedrag"] and \
+               right_val.datatype in ["Numeriek", "Percentage", "Bedrag"]:
+                # Check units are compatible
+                if not self.arithmetic._check_units_compatible(left_val, right_val, "comparison"):
+                    return False  # Incompatible units means comparison is false
+                
+                # Convert right to left's unit if needed
+                if left_val.unit != right_val.unit and left_val.unit and right_val.unit:
+                    try:
+                        right_val = self.arithmetic._convert_to_unit(right_val, left_val.unit)
+                    except Exception:
+                        return False  # Unit conversion failed
+            
+            # For date types, use proper date comparison
+            date_types = ["Datum", "Datum-tijd", "Datum in dagen", "Datum en tijd in millisecondes"]
+            if any(left_val.datatype.startswith(dt) for dt in date_types) and \
+               any(right_val.datatype.startswith(dt) for dt in date_types):
+                try:
+                    cmp_result = self._compare_values(left_val, right_val)
+                    
+                    # Map comparison result to boolean
+                    if vergelijking.operator == Operator.GELIJK_AAN:
+                        return cmp_result == 0
+                    elif vergelijking.operator == Operator.NIET_GELIJK_AAN:
+                        return cmp_result != 0
+                    elif vergelijking.operator == Operator.KLEINER_DAN:
+                        return cmp_result < 0
+                    elif vergelijking.operator == Operator.GROTER_DAN:
+                        return cmp_result > 0
+                    elif vergelijking.operator == Operator.KLEINER_OF_GELIJK_AAN:
+                        return cmp_result <= 0
+                    elif vergelijking.operator == Operator.GROTER_OF_GELIJK_AAN:
+                        return cmp_result >= 0
+                    else:
+                        return False
+                except Exception:
+                    return False
+            
+            # For other types, compare values directly
+            left_value = left_val.value
+            right_value = right_val.value
             
             # Apply operator
             if vergelijking.operator == Operator.GELIJK_AAN:
@@ -3831,9 +3971,17 @@ class Evaluator:
             if not vergelijking.onderwerp or not vergelijking.kenmerk_naam:
                 return False
             
-            # For object checks, we check if the instance has the specified role/type
-            # This is similar to ObjectPredicaat logic
-            return self.context.check_is(instance, vergelijking.kenmerk_naam)
+            # Evaluate the onderwerp to get the actual object to check
+            old_instance = self.context.current_instance
+            self.context.set_current_instance(instance)
+            try:
+                subj_val = self.evaluate_expression(vergelijking.onderwerp)
+                subj_obj = subj_val.value if isinstance(subj_val, Value) else subj_val
+                if not isinstance(subj_obj, RuntimeObject):
+                    return False
+                return self.context.check_is(subj_obj, vergelijking.kenmerk_naam)
+            finally:
+                self.context.set_current_instance(old_instance)
         
         elif vergelijking.type == "kenmerk_check":
             # Kenmerk check: attribute heeft kenmerk X
@@ -5583,6 +5731,11 @@ class Evaluator:
             # Use function registry for cleaner dispatch
             if func_name in self._function_registry:
                 logger.debug(f"Found {func_name} in registry, calling handler")
+                # For eerste_van/laatste_van, ensure args are evaluated
+                if func_name in ["eerste_van", "laatste_van"] and ('args' not in locals() or args is None):
+                    logger.debug(f"Evaluating args for {func_name}")
+                    args = [self.evaluate_expression(arg) for arg in expr.arguments]
+                    logger.debug(f"Evaluated args for {func_name}: {[(arg.value, arg.datatype) for arg in args]}")
                 # For aggregation functions, pass None for args if they haven't been evaluated yet
                 # This allows the function to handle special patterns before evaluation
                 if func_name in ["som_van", "aantal", "het_aantal", "totaal_van", "maximale_waarde_van", "minimale_waarde_van"] and ('args' not in locals() or args is None):
@@ -6299,7 +6452,7 @@ class Evaluator:
         non_none_dates = []
         for arg in args:
             if arg.value is not None:
-                if arg.datatype not in ["Datum", "Datum-tijd"]:
+                if arg.datatype not in ["Datum", "Datum-tijd", "Datum in dagen", "Datum en tijd in millisecondes"]:
                     raise RegelspraakError(f"Function 'eerste_van' requires date arguments, got {arg.datatype}", span=expr.span)
                 non_none_dates.append(arg)
         
@@ -6328,7 +6481,7 @@ class Evaluator:
         non_none_dates = []
         for arg in args:
             if arg.value is not None:
-                if arg.datatype not in ["Datum", "Datum-tijd"]:
+                if arg.datatype not in ["Datum", "Datum-tijd", "Datum in dagen", "Datum en tijd in millisecondes"]:
                     raise RegelspraakError(f"Function 'laatste_van' requires date arguments, got {arg.datatype}", span=expr.span)
                 non_none_dates.append(arg)
         
@@ -7436,24 +7589,116 @@ class Evaluator:
         
         return Value(value=easter_date, datatype="Datum", unit=None)
 
+    def _add_time_to_date(self, date_val: Value, time_val: Value, subtract: bool = False) -> Value:
+        """Add or subtract a time duration to/from a date per spec 6.11."""
+        from datetime import datetime, timedelta
+        from dateutil.relativedelta import relativedelta
+        
+        # Parse the date value
+        date_value = date_val.value
+        if isinstance(date_value, str):
+            # Parse ISO date string
+            if 'T' in date_value:
+                date_obj = datetime.fromisoformat(date_value.replace('Z', '+00:00'))
+            else:
+                date_obj = datetime.strptime(date_value, '%Y-%m-%d')
+        elif isinstance(date_value, datetime):
+            date_obj = date_value
+        elif isinstance(date_value, Decimal):
+            # This shouldn't happen with our fixes, but handle legacy data
+            if date_val.datatype == "Datum en tijd in millisecondes":
+                # Convert milliseconds since epoch to datetime
+                date_obj = datetime.fromtimestamp(float(date_value) / 1000)
+            else:
+                raise RegelspraakError(f"Invalid date representation: Decimal value for {date_val.datatype}")
+        else:
+            raise RegelspraakError(f"Unsupported date value type: {type(date_value)}")
+        
+        # Get the numeric value and unit
+        amount = float(time_val.to_decimal())
+        if subtract:
+            amount = -amount
+        unit = time_val.unit
+        
+        # Apply the time delta based on unit
+        if unit == "jaar":
+            new_date = date_obj + relativedelta(years=int(amount))
+        elif unit == "maand":
+            new_date = date_obj + relativedelta(months=int(amount))
+        elif unit == "week":
+            new_date = date_obj + timedelta(weeks=amount)
+        elif unit == "dag":
+            new_date = date_obj + timedelta(days=amount)
+        elif unit == "uur":
+            new_date = date_obj + timedelta(hours=amount)
+        elif unit == "minuut":
+            new_date = date_obj + timedelta(minutes=amount)
+        elif unit == "seconde":
+            new_date = date_obj + timedelta(seconds=amount)
+        elif unit == "milliseconde":
+            new_date = date_obj + timedelta(milliseconds=amount)
+        else:
+            raise RegelspraakError(f"Invalid time unit for date arithmetic: {unit}")
+        
+        # Return with same datatype as input
+        if date_val.datatype == "Datum in dagen":
+            # Return as date string
+            result_value = new_date.strftime('%Y-%m-%d')
+        else:  # "Datum en tijd in millisecondes"
+            # Return as ISO datetime string
+            result_value = new_date.isoformat()
+        
+        return Value(value=result_value, datatype=date_val.datatype, unit=None)
+    
     def _compare_values(self, val1: Value, val2: Value) -> int:
         """Compare two values, returning -1 if val1 < val2, 0 if equal, 1 if val1 > val2."""
+        # Check if both are date/time types (allow comparison between different date types)
+        date_types = ["Datum", "Datum-tijd", "Datum in dagen", "Datum en tijd in millisecondes"]
+        val1_is_date = any(val1.datatype.startswith(dt) for dt in date_types)
+        val2_is_date = any(val2.datatype.startswith(dt) for dt in date_types)
+        
         # Ensure compatible types
-        if val1.datatype != val2.datatype:
+        if not (val1_is_date and val2_is_date) and val1.datatype != val2.datatype:
             raise RegelspraakError(f"Cannot compare values of different types: {val1.datatype} and {val2.datatype}")
         
         # Handle dates specially
-        if val1.datatype in ["Datum", "Datum-tijd"]:
+        if val1_is_date and val2_is_date:
             from datetime import date, datetime
+            from decimal import Decimal
             import dateutil.parser
             
             # Parse dates if they're strings
             d1 = val1.value
             if isinstance(d1, str):
                 d1 = dateutil.parser.parse(d1)
+            elif isinstance(d1, Decimal):
+                # This is a spec violation - dates should never be Decimals
+                raise RegelspraakError(
+                    f"Invalid date representation: {val1.datatype} value stored as Decimal. "
+                    f"Per spec 3.3.4, dates must be date/time values, not numeric. "
+                    f"Check parameter definitions and ensure date intervals use numeric type with time units."
+                )
+            elif isinstance(d1, date) and not isinstance(d1, datetime):
+                # Convert date to datetime for consistent comparison
+                d1 = datetime.combine(d1, datetime.min.time())
+            elif not isinstance(d1, datetime):
+                raise RegelspraakError(f"Invalid date value type: {type(d1)} for {val1.datatype}")
+            
             d2 = val2.value
             if isinstance(d2, str):
                 d2 = dateutil.parser.parse(d2)
+            elif isinstance(d2, Decimal):
+                # This is a spec violation - dates should never be Decimals
+                raise RegelspraakError(
+                    f"Invalid date representation: {val2.datatype} value stored as Decimal. "
+                    f"Per spec 3.3.4, dates must be date/time values, not numeric. "
+                    f"Check parameter definitions and ensure date intervals use numeric type with time units."
+                )
+            elif isinstance(d2, date) and not isinstance(d2, datetime):
+                # Convert date to datetime for consistent comparison
+                d2 = datetime.combine(d2, datetime.min.time())
+            elif not isinstance(d2, datetime):
+                raise RegelspraakError(f"Invalid date value type: {type(d2)} for {val2.datatype}")
             
             if d1 < d2:
                 return -1

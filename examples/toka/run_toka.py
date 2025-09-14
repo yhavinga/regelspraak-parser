@@ -114,26 +114,41 @@ class TOKARunner:
     def _add_parameters(self, parameters: Dict[str, Any]):
         """Add parameter values to context."""
         for param_name, param_data in parameters.items():
+            # Get the parameter definition from the domain model to determine datatype
+            param_def = self.model.parameters.get(param_name)
+            
             if isinstance(param_data, dict):
                 # Parameter with value and unit
                 value = param_data.get('value')
                 unit = param_data.get('unit')
+                # Use the parameter's defined datatype if available
+                datatype = param_def.datatype if param_def else "Numeriek"
                 self.context.add_parameter(
                     param_name, 
-                    Value(value, "Numeriek", unit)
+                    Value(value, datatype, unit)
                 )
             else:
                 # Simple parameter value
-                if isinstance(param_data, (int, float)):
-                    self.context.add_parameter(
-                        param_name,
-                        Value(param_data, "Numeriek")
-                    )
+                if param_def and param_def.datatype:
+                    # Use the defined datatype
+                    datatype = param_def.datatype
+                    # For date types, keep the value as-is (string representation)
+                    value = param_data
+                    # Get unit from parameter definition if available
+                    unit = param_def.unit if param_def and hasattr(param_def, 'unit') else None
+                elif isinstance(param_data, (int, float)):
+                    datatype = "Numeriek"
+                    value = param_data
+                    unit = None
                 else:
-                    self.context.add_parameter(
-                        param_name,
-                        Value(param_data, "Tekst")
-                    )
+                    datatype = "Tekst"
+                    value = param_data
+                    unit = None
+                    
+                self.context.add_parameter(
+                    param_name,
+                    Value(value, datatype, unit)
+                )
         
         print(f"✅ Added {len(parameters)} parameters")
     
