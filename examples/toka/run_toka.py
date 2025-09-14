@@ -134,8 +134,8 @@ class TOKARunner:
                     datatype = param_def.datatype
                     # For date types, keep the value as-is (string representation)
                     value = param_data
-                    # Get unit from parameter definition if available
-                    unit = param_def.unit if param_def and hasattr(param_def, 'unit') else None
+                    # Get unit from parameter definition if available (using 'eenheid' field)
+                    unit = param_def.eenheid if param_def and hasattr(param_def, 'eenheid') else None
                 elif isinstance(param_data, (int, float)):
                     datatype = "Numeriek"
                     value = param_data
@@ -191,7 +191,7 @@ class TOKARunner:
                 elif attr_name == 'vluchtdatum':
                     flight_date = datetime.strptime(attr_value, '%Y-%m-%d').date()
                     self.context.set_attribute(flight, 'vluchtdatum', Value(flight_date, "Datum"))
-                elif attr_name == 'verwachte datum-tijd van vertrek':
+                elif attr_name in ['verwachte datum-tijd van vertrek', 'uiterste boekingstijdstip']:
                     # Handle datetime string
                     self.context.set_attribute(flight, attr_name, Value(attr_value, "Datum en tijd in millisecondes"))
                 elif attr_name == 'verwachte duur':

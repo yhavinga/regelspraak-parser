@@ -39,7 +39,8 @@
         "bereikbaar per trein": true,
         "gebruik fossiele brandstof minder dan 50 procent": false,
         "verwachte datum-tijd van vertrek": "2024-06-20T10:00:00",
-        "verwachte duur": 90
+        "verwachte duur": 90,
+        "uiterste boekingstijdstip": "2024-06-19T12:00:00"
       }
     ]
   },
