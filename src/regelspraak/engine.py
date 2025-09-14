@@ -582,42 +582,50 @@ class Evaluator:
                 logger.debug(f"Deducing target type for 2-element path: {target_ref.path}")
                 
                 # Try both elements as potential object type/role
+                # Typically: [attribute_name, object_type] like ["belasting op basis van afstand", "passagier"]
                 for i in [0, 1]:
                     potential_type = target_ref.path[i]
+                    logger.debug(f"Checking path element {i}: '{potential_type}'")
                     
                     # Remove articles if present
+                    potential_type_cleaned = potential_type
                     for article in ['een ', 'de ', 'het ']:
-                        if potential_type.lower().startswith(article):
-                            potential_type = potential_type[len(article):]
+                        if potential_type_cleaned.lower().startswith(article):
+                            potential_type_cleaned = potential_type_cleaned[len(article):]
+                            logger.debug(f"Removed article '{article}' -> '{potential_type_cleaned}'")
                             break
                     
                     # Check if it matches a known object type
                     if hasattr(self.context, 'domain_model') and self.context.domain_model:
                         # First try exact match
-                        if potential_type in self.context.domain_model.objecttypes:
-                            return potential_type
+                        if potential_type_cleaned in self.context.domain_model.objecttypes:
+                            logger.debug(f"Found exact object type match: '{potential_type_cleaned}'")
+                            return potential_type_cleaned
                         
                         # Try capitalized version
-                        potential_type_cap = potential_type.capitalize()
+                        potential_type_cap = potential_type_cleaned.capitalize()
                         if potential_type_cap in self.context.domain_model.objecttypes:
+                            logger.debug(f"Found capitalized object type match: '{potential_type_cap}'")
                             return potential_type_cap
                         
                         # Try case-insensitive match
                         for obj_type in self.context.domain_model.objecttypes:
-                            if obj_type.lower() == potential_type.lower():
+                            if obj_type.lower() == potential_type_cleaned.lower():
+                                logger.debug(f"Found case-insensitive object type match: '{obj_type}'")
                                 return obj_type
                     
                     # Check if it's a role name in a feittype
                     # "reis" -> "Vlucht" via feittype definition
-                    # "passagier" -> object type via feittype definition
+                    # "passagier" -> "Natuurlijk persoon" via feittype definition
+                    logger.debug(f"Checking FeitType roles for '{potential_type_cleaned}'")
                     for feittype_naam, feittype in self.context.domain_model.feittypen.items():
                         for rol in feittype.rollen:
                             if rol.naam:
                                 # Clean role name by removing articles
                                 role_name_clean = self._strip_articles(rol.naam).lower()
                                 
-                                if role_name_clean == potential_type.lower():
-                                    logger.debug(f"Found role match: '{role_name_clean}' maps to object type '{rol.object_type}'")
+                                if role_name_clean == potential_type_cleaned.lower():
+                                    logger.debug(f"Found role match in FeitType '{feittype_naam}': role '{role_name_clean}' maps to object type '{rol.object_type}'")
                                     return rol.object_type
                     
                 
@@ -1502,17 +1510,25 @@ class Evaluator:
             
             # Additional fallback: try to match role names from FeitTypes
             if not obj_type_def:
+                logger.debug(f"ObjectCreatie: Looking for role name '{actual_object_type}' in FeitTypes")
                 for feittype_name, feittype in self.context.domain_model.feittypen.items():
                     for rol in feittype.rollen:
                         # Clean role name by removing articles
                         role_name_clean = self._strip_articles(rol.naam).lower()
                         object_type_clean = self._strip_articles(actual_object_type).lower()
                         
-                        # Check if role name matches or is contained in object type
-                        if (role_name_clean == object_type_clean or 
-                            role_name_clean in object_type_clean or
-                            object_type_clean in role_name_clean):
-                            # Found matching role, use its object type
+                        # Check if role name matches exactly or with different word order
+                        # "vastgestelde contingent treinmiles" should match role "vastgestelde contingent treinmiles"
+                        if role_name_clean == object_type_clean:
+                            logger.debug(f"ObjectCreatie: Found exact role match in FeitType '{feittype_name}': '{rol.naam}' -> '{rol.object_type}'")
+                            actual_object_type = rol.object_type
+                            obj_type_def = self.context.domain_model.objecttypes.get(actual_object_type)
+                            break
+                        
+                        # Also check if the object type is contained in role name or vice versa
+                        # This handles cases where role includes adjectives
+                        elif (role_name_clean in object_type_clean or object_type_clean in role_name_clean):
+                            logger.debug(f"ObjectCreatie: Found partial role match in FeitType '{feittype_name}': '{rol.naam}' -> '{rol.object_type}'")
                             actual_object_type = rol.object_type
                             obj_type_def = self.context.domain_model.objecttypes.get(actual_object_type)
                             break
@@ -2021,19 +2037,8 @@ class Evaluator:
                                                         role_naam_lower = other_rol.naam.lower()
                                                         role_name_lower = role_name.lower()
                                                         
-                                                        # Remove articles for better matching
-                                                        role_naam_clean = role_naam_lower.replace("de ", "").replace("het ", "").replace("een ", "")
-                                                        role_name_clean = role_name_lower.replace("de ", "").replace("het ", "").replace("een ", "")
-                                                        
-                                                        # Check exact match or plural match
-                                                        matches = (role_naam_clean == role_name_clean or 
-                                                                 (other_rol.meervoud and other_rol.meervoud.lower() == role_name_lower) or
-                                                                 (other_rol.meervoud and other_rol.meervoud.lower().replace("de ", "").replace("het ", "") == role_name_clean) or
-                                                                 # Simple pluralization rules
-                                                                 (role_naam_clean + 's' == role_name_clean) or  # passagier -> passagiers
-                                                                 (role_naam_clean + 'en' == role_name_clean) or  # boek -> boeken
-                                                                 (role_name_clean + 's' == role_naam_clean) or  # passagiers -> passagier
-                                                                 (role_name_clean.endswith('en') and role_name_clean[:-2] == role_naam_clean))  # boeken -> boek
+                                                        # Check if role names match (using defined plurals)
+                                                        matches = self._match_with_plural(other_rol.naam, role_name, other_rol.meervoud)
                                                         
                                                         if matches:
                                                             # Found matching role - get related objects
@@ -2092,38 +2097,8 @@ class Evaluator:
                                 for feittype_name, feittype in self.context.domain_model.feittypen.items():
                                     for rol in feittype.rollen:
                                         # Match against role name or plural form
-                                        role_naam_lower = rol.naam.lower()
-                                        attr_name_lower = attr_name.lower()
-                                        
-                                        # Remove articles for better matching
-                                        role_naam_clean = role_naam_lower.replace("de ", "").replace("het ", "").replace("een ", "")
-                                        attr_name_clean = attr_name_lower.replace("de ", "").replace("het ", "").replace("een ", "")
-                                        
-                                        # Handle broken role parsing where role name includes object type
-                                        role_first_word = role_naam_clean.split()[0] if role_naam_clean else ""
-                                        
-                                        # Check exact match or plural match
-                                        matches = (role_naam_clean == attr_name_clean or 
-                                                 (rol.meervoud and rol.meervoud.lower() == attr_name_lower) or
-                                                 (rol.meervoud and rol.meervoud.lower().replace("de ", "").replace("het ", "") == attr_name_clean) or
-                                                 # Simple pluralization rules
-                                                 (role_naam_clean + 's' == attr_name_clean) or  # passagier -> passagiers
-                                                 (role_naam_clean + 'en' == attr_name_clean) or  # boek -> boeken
-                                                 (attr_name_clean + 's' == role_naam_clean) or  # passagiers -> passagier
-                                                 (attr_name_clean.endswith('en') and attr_name_clean[:-2] == role_naam_clean) or  # boeken -> boek
-                                                 # Irregular plurals (common Dutch cases)
-                                                 (role_naam_clean == 'lid' and attr_name_clean == 'leden') or
-                                                 (role_naam_clean == 'kind' and attr_name_clean == 'kinderen') or
-                                                 (role_naam_clean == 'ei' and attr_name_clean == 'eieren') or
-                                                 # Special case: "reis" should match "de reis" role
-                                                 (role_naam_clean == 'reis' and attr_name_clean == 'reis') or
-                                                 # Match first word of role (for broken parsing)
-                                                 (role_first_word and (
-                                                     role_first_word == attr_name_clean or
-                                                     role_first_word + 's' == attr_name_clean or
-                                                     role_first_word + 'en' == attr_name_clean or
-                                                     attr_name_clean + 's' == role_first_word or
-                                                     (attr_name_clean.endswith('en') and attr_name_clean[:-2] == role_first_word))))
+                                        # Check if attribute name matches role name (using defined plurals)
+                                        matches = self._match_with_plural(rol.naam, attr_name, rol.meervoud)
                                         
                                         if matches:
                                             # Check if current instance can participate in this feittype
@@ -2146,8 +2121,9 @@ class Evaluator:
                                                         )
                                                         
                                                         # For plural forms, return the collection
-                                                        is_plural = (attr_name_clean.endswith('s') or attr_name_clean.endswith('en') or 
-                                                                   attr_name_clean != role_naam_clean)
+                                                        # Check if attr_name matches the plural form
+                                                        attr_name_clean = self._strip_articles(attr_name).lower()
+                                                        is_plural = (rol.meervoud and self._strip_articles(rol.meervoud).lower() == attr_name_clean)
                                                         
                                                         if is_plural:
                                                             logger.debug(f"Returning {len(related_objects)} related objects as list for plural role '{attr_name}'")
@@ -2251,37 +2227,8 @@ class Evaluator:
                                 # Check if segment matches a role name in this feittype
                                 for rol in feittype.rollen:
                                     # Match against role name or plural form
-                                    role_naam_lower = rol.naam.lower()
-                                    segment_lower = segment.lower()
-                                    
-                                    # Remove articles for better matching
-                                    role_naam_clean = role_naam_lower.replace("de ", "").replace("het ", "").replace("een ", "")
-                                    segment_clean = segment_lower.replace("de ", "").replace("het ", "").replace("een ", "")
-                                    
-                                    # Handle broken role parsing where role name includes object type
-                                    # e.g., "passagier Natuurlijk persoon" should match "passagier" or "passagiers"
-                                    role_first_word = role_naam_clean.split()[0] if role_naam_clean else ""
-                                    
-                                    # Check exact match or plural match
-                                    matches = (role_naam_clean == segment_clean or 
-                                             (rol.meervoud and rol.meervoud.lower() == segment_lower) or
-                                             (rol.meervoud and rol.meervoud.lower().replace("de ", "").replace("het ", "") == segment_clean) or
-                                             # Simple pluralization rules
-                                             (role_naam_clean + 's' == segment_clean) or  # passagier -> passagiers
-                                             (role_naam_clean + 'en' == segment_clean) or  # boek -> boeken
-                                             (segment_clean + 's' == role_naam_clean) or  # passagiers -> passagier
-                                             (segment_clean.endswith('en') and segment_clean[:-2] == role_naam_clean) or  # boeken -> boek
-                                             # Irregular plurals (common Dutch cases)
-                                             (role_naam_clean == 'lid' and segment_clean == 'leden') or
-                                             (role_naam_clean == 'kind' and segment_clean == 'kinderen') or
-                                             (role_naam_clean == 'ei' and segment_clean == 'eieren') or
-                                             # Match first word of role (for broken parsing)
-                                             (role_first_word and (
-                                                 role_first_word == segment_clean or
-                                                 role_first_word + 's' == segment_clean or
-                                                 role_first_word + 'en' == segment_clean or
-                                                 segment_clean + 's' == role_first_word or
-                                                 (segment_clean.endswith('en') and segment_clean[:-2] == role_first_word))))  # leden -> lid
+                                    # Check if segment matches role name (using defined plurals)
+                                    matches = self._match_with_plural(rol.naam, segment, rol.meervoud)
                                     
                                     if matches:
                                         # Find related objects through this feittype
@@ -2302,8 +2249,9 @@ class Evaluator:
                                         
                                         # Check if this is the final segment and if it's a plural form
                                         is_final_segment = (i == len(nav_path) - 2)
-                                        is_plural = (segment_clean.endswith('s') or segment_clean.endswith('en') or 
-                                                   segment_clean != role_naam_clean)  # Different from role name suggests plural
+                                        # Check if segment matches the plural form
+                                        segment_clean = self._strip_articles(segment).lower()
+                                        is_plural = (rol.meervoud and self._strip_articles(rol.meervoud).lower() == segment_clean)
                                         
                                         if is_final_segment and is_plural and len(related_objects) > 1:
                                             # This is a collection navigation - return all related objects
@@ -3037,37 +2985,8 @@ class Evaluator:
                                 # Check if segment matches a role name in this feittype
                                 for rol in feittype.rollen:
                                     # Match against role name or plural form
-                                    role_naam_lower = rol.naam.lower()
-                                    segment_lower = segment.lower()
-                                    
-                                    # Remove articles for better matching
-                                    role_naam_clean = role_naam_lower.replace("de ", "").replace("het ", "").replace("een ", "")
-                                    segment_clean = segment_lower.replace("de ", "").replace("het ", "").replace("een ", "")
-                                    
-                                    # Handle broken role parsing where role name includes object type
-                                    # e.g., "passagier Natuurlijk persoon" should match "passagier" or "passagiers"
-                                    role_first_word = role_naam_clean.split()[0] if role_naam_clean else ""
-                                    
-                                    # Check exact match or plural match
-                                    matches = (role_naam_clean == segment_clean or 
-                                             (rol.meervoud and rol.meervoud.lower() == segment_lower) or
-                                             (rol.meervoud and rol.meervoud.lower().replace("de ", "").replace("het ", "") == segment_clean) or
-                                             # Simple pluralization rules
-                                             (role_naam_clean + 's' == segment_clean) or  # passagier -> passagiers
-                                             (role_naam_clean + 'en' == segment_clean) or  # boek -> boeken
-                                             (segment_clean + 's' == role_naam_clean) or  # passagiers -> passagier
-                                             (segment_clean.endswith('en') and segment_clean[:-2] == role_naam_clean) or  # boeken -> boek
-                                             # Irregular plurals (common Dutch cases)
-                                             (role_naam_clean == 'lid' and segment_clean == 'leden') or
-                                             (role_naam_clean == 'kind' and segment_clean == 'kinderen') or
-                                             (role_naam_clean == 'ei' and segment_clean == 'eieren') or
-                                             # Match first word of role (for broken parsing)
-                                             (role_first_word and (
-                                                 role_first_word == segment_clean or
-                                                 role_first_word + 's' == segment_clean or
-                                                 role_first_word + 'en' == segment_clean or
-                                                 segment_clean + 's' == role_first_word or
-                                                 (segment_clean.endswith('en') and segment_clean[:-2] == role_first_word))))  # leden -> lid
+                                    # Check if segment matches role name (using defined plurals)
+                                    matches = self._match_with_plural(rol.naam, segment, rol.meervoud)
                                     
                                     if matches:
                                         # Find related objects through this feittype
@@ -3088,8 +3007,9 @@ class Evaluator:
                                         
                                         # Check if this is the final segment and if it's a plural form
                                         is_final_segment = (i == len(nav_path) - 2)
-                                        is_plural = (segment_clean.endswith('s') or segment_clean.endswith('en') or 
-                                                   segment_clean != role_naam_clean)  # Different from role name suggests plural
+                                        # Check if segment matches the plural form
+                                        segment_clean = self._strip_articles(segment).lower()
+                                        is_plural = (rol.meervoud and self._strip_articles(rol.meervoud).lower() == segment_clean)
                                         
                                         if is_final_segment and is_plural and len(related_objects) > 1:
                                             # This is a collection navigation - return all related objects
@@ -4404,26 +4324,42 @@ class Evaluator:
                 # with the target object type (typically "Natuurlijk persoon" for passengers)
                 current_type = self.context.current_instance.object_type_naam
                 
-                # Find relevant feittype
+                # Find relevant feittype - look for one that matches the path elements
+                # For "passagiers met recht op treinmiles", we need FeitType "verdeling contingent treinmiles over passagiers"
+                logger.info(f"Looking for FeitType involving {current_type} and path elements: {actual_path}")
+                
                 for feittype_name, feittype in self.context.domain_model.feittypen.items():
                     # Check if this feittype involves the current object type
                     role_types = [rol.object_type for rol in feittype.rollen]
                     if current_type in role_types:
-                        # This feittype involves our current object type
-                        # Find the other role (the objects we want to distribute to)
-                        for i, rol in enumerate(feittype.rollen):
-                            if rol.object_type != current_type:
-                                # This is the target object type
-                                # Get all objects related through this feittype
-                                as_subject = (i == 1)  # If target is second role, we want subjects
-                                related = self.context.get_related_objects(
-                                    self.context.current_instance,
-                                    feittype_name,
-                                    as_subject=as_subject
-                                )
-                                if related:
-                                    logger.info(f"Found {len(related)} objects through feittype '{feittype_name}'")
-                                    return related
+                        # Check if any role name matches elements in our path
+                        for path_elem in actual_path:
+                            path_elem_clean = self._strip_articles(path_elem).lower()
+                            
+                            for i, rol in enumerate(feittype.rollen):
+                                role_name_clean = self._strip_articles(rol.naam).lower()
+                                
+                                # Check if path element contains or matches the role name
+                                # "passagiers met recht op treinmiles" should match "passagier met recht op treinmiles"
+                                # Handle plural forms
+                                if (role_name_clean in path_elem_clean or 
+                                    path_elem_clean in role_name_clean or
+                                    role_name_clean + 's' in path_elem_clean or
+                                    role_name_clean + 'en' in path_elem_clean):
+                                    
+                                    logger.info(f"Found matching role '{rol.naam}' in FeitType '{feittype_name}'")
+                                    
+                                    # This role matches - get objects of this type related to current instance
+                                    # We want objects fulfilling this specific role
+                                    as_subject = (i == 0)  # If this is the first role, we want subjects
+                                    related = self.context.get_related_objects(
+                                        self.context.current_instance,
+                                        feittype_name,
+                                        as_subject=as_subject
+                                    )
+                                    if related:
+                                        logger.info(f"Found {len(related)} objects of type '{rol.object_type}' through feittype '{feittype_name}'")
+                                        return related
                 
                 # If no feittype found, try to find all objects of a type
                 # Look for object type names in the path
@@ -4433,18 +4369,11 @@ class Evaluator:
                     if path.index(path_elem) == 0:
                         continue
                     
-                    # Check if this path element refers to an object type
-                    for obj_type in self.context.domain_model.objecttypes:
-                        obj_type_lower = obj_type.lower()
-                        path_elem_lower = path_elem.lower()
-                        
-                        # Check for exact match or plural forms
-                        if (obj_type_lower == path_elem_lower or 
-                            obj_type_lower + 'en' == path_elem_lower or  # Simple plural
-                            obj_type_lower + 's' == path_elem_lower or   # English plural
-                            (obj_type_lower == 'persoon' and path_elem_lower == 'personen')):  # Special case
-                            logger.info(f"Finding all objects of type '{obj_type}'")
-                            return self.context.find_objects_by_type(obj_type)
+                    # Check if this path element refers to an object type (singular or plural)
+                    matched_type = self._find_object_type_match(path_elem)
+                    if matched_type:
+                        logger.info(f"Finding all objects of type '{matched_type}'")
+                        return self.context.find_objects_by_type(matched_type)
         
         # Fallback: For patterns we can't resolve through relationships,
         # return empty list rather than trying to evaluate as expression
@@ -4892,6 +4821,38 @@ class Evaluator:
 
         # Standard evaluation for other operators
         right_val = self.evaluate_expression(expr.right)
+
+        # Handle date arithmetic per spec 6.11 (date +/- time-unit)
+        date_types = ["Datum in dagen", "Datum en tijd in millisecondes"]
+        time_units = ["jaar", "maand", "week", "dag", "uur", "minuut", "seconde", "milliseconde"]
+        
+        if op in [Operator.PLUS, Operator.MIN]:
+            # Check if this is date arithmetic
+            is_left_date = any(left_val.datatype.startswith(dt) for dt in date_types)
+            is_right_date = any(right_val.datatype.startswith(dt) for dt in date_types)
+            
+            # Date + time-unit or Date - time-unit
+            if is_left_date and not is_right_date and right_val.unit in time_units:
+                if op == Operator.PLUS:
+                    return self._add_time_to_date(left_val, right_val, expr.span)
+                else:  # MIN
+                    # For subtraction, negate the time value
+                    negated_time = Value(
+                        value=-right_val.value if right_val.value is not None else None,
+                        datatype=right_val.datatype,
+                        unit=right_val.unit
+                    )
+                    return self._add_time_to_date(left_val, negated_time, expr.span)
+            
+            # time-unit + Date (commutative)
+            elif not is_left_date and is_right_date and left_val.unit in time_units and op == Operator.PLUS:
+                return self._add_time_to_date(right_val, left_val, expr.span)
+            
+            # Date - Date -> time duration
+            elif is_left_date and is_right_date and op == Operator.MIN:
+                # This returns a duration, not handled yet
+                # Fall through to standard arithmetic for now
+                pass
 
         # Arithmetic operations using unit-aware arithmetic
         if op == Operator.PLUS:
@@ -8088,6 +8049,48 @@ class Evaluator:
                 return text[len(article):]
         return text
     
+    def _match_with_plural(self, singular: str, text: str, plural: Optional[str] = None) -> bool:
+        """Check if text matches singular form or its defined plural.
+        
+        Args:
+            singular: The singular form to match
+            text: The text to match against
+            plural: The defined plural form (meervoud) from AST, if available
+        
+        Returns:
+            True if text matches singular or plural form
+        """
+        # Clean inputs
+        singular_clean = self._strip_articles(singular).lower()
+        text_clean = self._strip_articles(text).lower()
+        
+        # Check exact match with singular
+        if singular_clean == text_clean:
+            return True
+        
+        # Check match with defined plural if available
+        if plural:
+            plural_clean = self._strip_articles(plural).lower()
+            if plural_clean == text_clean:
+                return True
+        
+        # No match found
+        return False
+    
+    def _find_object_type_match(self, text: str) -> Optional[str]:
+        """Find an object type that matches the given text (singular or plural).
+        
+        Returns:
+            The canonical object type name if found, None otherwise
+        """
+        text_clean = self._strip_articles(text).lower()
+        
+        for obj_type_name, obj_type in self.context.domain_model.objecttypes.items():
+            if self._match_with_plural(obj_type_name, text, obj_type.meervoud):
+                return obj_type_name
+        
+        return None
+    
     def _role_alias_to_object_type(self, name: str) -> Optional[str]:
         """Map a role alias to its object type via FeitType definitions.
         
@@ -8134,32 +8137,8 @@ class Evaluator:
         for feittype_name, feittype in self.context.domain_model.feittypen.items():
             for rol in feittype.rollen:
                 # Match against role name or plural form
-                role_naam_lower = rol.naam.lower()
-                role_naam_clean = self._strip_articles(rol.naam).lower()
-                
-                # Handle broken role parsing where role name includes object type
-                role_first_word = role_naam_clean.split()[0] if role_naam_clean else ""
-                
-                # Check exact match or plural match
-                matches = (role_naam_clean == role_name_clean or 
-                         (rol.meervoud and rol.meervoud.lower() == role_name_lower) or
-                         (rol.meervoud and rol.meervoud.lower().replace("de ", "").replace("het ", "") == role_name_clean) or
-                         # Simple pluralization rules
-                         (role_naam_clean + 's' == role_name_clean) or  # passagier -> passagiers
-                         (role_naam_clean + 'en' == role_name_clean) or  # boek -> boeken
-                         (role_name_clean + 's' == role_naam_clean) or  # passagiers -> passagier
-                         (role_name_clean.endswith('en') and role_name_clean[:-2] == role_naam_clean) or  # boeken -> boek
-                         # Irregular plurals (common Dutch cases)
-                         (role_naam_clean == 'lid' and role_name_clean == 'leden') or
-                         (role_naam_clean == 'kind' and role_name_clean == 'kinderen') or
-                         (role_naam_clean == 'ei' and role_name_clean == 'eieren') or
-                         # Match first word of role (for broken parsing)
-                         (role_first_word and (
-                             role_first_word == role_name_clean or
-                             role_first_word + 's' == role_name_clean or
-                             role_first_word + 'en' == role_name_clean or
-                             role_name_clean + 's' == role_first_word or
-                             (role_name_clean.endswith('en') and role_name_clean[:-2] == role_first_word))))
+                # Check if role names match (using defined plurals)
+                matches = self._match_with_plural(rol.naam, role_name, rol.meervoud)
                 
                 if matches:
                     # Found matching role - get related objects
@@ -8170,10 +8149,9 @@ class Evaluator:
                         from_object, feittype_name, as_subject=as_subject
                     )
                     
-                    # Check if this is a plural form
-                    is_plural = (role_name_clean.endswith('s') or role_name_clean.endswith('en') or 
-                               role_name_clean != role_naam_clean or 
-                               (role_first_word and role_name_clean != role_first_word))
+                    # Check if role_name matches the plural form
+                    role_name_clean = self._strip_articles(role_name).lower()
+                    is_plural = (rol.meervoud and self._strip_articles(rol.meervoud).lower() == role_name_clean)
                     
                     if is_plural:
                         # Return as collection
