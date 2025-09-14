@@ -57,7 +57,7 @@ Regel belaste reis
 Regel Vlucht is duurzaam
     geldig altijd
         Een vlucht is duurzaam
-        indien hij het gebruik fossiele brandstoffen minder dan 50 procent heeft.
+        indien hij het gebruik fossiele brandstof minder dan 50 procent heeft.
 
 // Determine high season - per spec lines 234-241
 Regel Hoogseizoen

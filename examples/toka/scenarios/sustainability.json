@@ -16,7 +16,8 @@
     "bovengrens reisduur eerste schijf": {"value": 120, "unit": "minuut"},
     "bovengrens reisduur tweede schijf": {"value": 240, "unit": "minuut"},
     "aantal treinmiles per passagier voor contingent": 150,
-    "bevestigingsinterval": 7200000
+    "bevestigingsinterval": 7200000,
+    "eerste boekingsdatum": "2024-09-14T09:00:00"
   },
   "objects": {
     "passengers": [
@@ -42,7 +43,10 @@
         "afstand tot bestemming": 550,
         "reisduur per trein": 180,
         "bereikbaar per trein": true,
-        "gebruik fossiele brandstof minder dan 50 procent": true
+        "gebruik fossiele brandstof minder dan 50 procent": true,
+        "verwachte datum-tijd van vertrek": "2024-09-15T10:00:00",
+        "verwachte duur": 90,
+        "uiterste boekingstijdstip": "2024-09-14T12:00:00"
       }
     ]
   },
@@ -60,7 +64,7 @@
   ],
   "expected": {
     "senior_eco_passenger": {
-      "leeftijd": 68,
+      "leeftijd": 67,
       "is passagier van 65 jaar of ouder": true,
       "recht op duurzaamheidskorting": true,
       "woonregio factor": 3,

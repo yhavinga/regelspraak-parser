@@ -49,7 +49,7 @@ Objecttype de Natuurlijk persoon (mv: Natuurlijke personen) (bezield)
 Objecttype de Vlucht (mv: vluchten)
     // Characteristics - per TOKA spec lines 36-45, 236
     is bereikbaar per trein kenmerk (bijvoeglijk);
-    de gebruik fossiele brandstoffen minder dan 50 procent kenmerk (bezittelijk);
+    de gebruik fossiele brandstof minder dan 50 procent kenmerk (bezittelijk);
     de reiziger kenmerk;
     is duurzaam kenmerk (bijvoeglijk);
     is belaste reis kenmerk;
