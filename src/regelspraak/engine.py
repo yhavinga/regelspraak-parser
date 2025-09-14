@@ -614,6 +614,13 @@ class Evaluator:
                                 logger.debug(f"Found case-insensitive object type match: '{obj_type}'")
                                 return obj_type
                     
+                    # Try centralized role alias mapping first
+                    mapped_obj = self._role_alias_to_object_type(potential_type_cleaned)
+                    if mapped_obj:
+                        logger.debug(f"Found role alias '{potential_type_cleaned}' -> object type '{mapped_obj}'")
+                        return mapped_obj
+                    
+                    # Fallback: explicit scan of feittypen (existing code continues)
                     # Check if it's a role name in a feittype
                     # "reis" -> "Vlucht" via feittype definition
                     # "passagier" -> "Natuurlijk persoon" via feittype definition
@@ -655,6 +662,18 @@ class Evaluator:
                             if potential_type.lower().startswith(article):
                                 potential_type = potential_type[len(article):].strip()
                                 break
+                        
+                        # Try role alias mapping first
+                        mapped_obj = self._role_alias_to_object_type(potential_type)
+                        if mapped_obj:
+                            logger.debug(f"Found role alias '{potential_type}' -> object type '{mapped_obj}'")
+                            return mapped_obj
+                        
+                        # Try plural-aware object type finder
+                        obj_type_match = self._find_object_type_match(potential_type)
+                        if obj_type_match:
+                            logger.debug(f"Found object type match '{potential_type}' -> '{obj_type_match}'")
+                            return obj_type_match
                         
                         # Check if it matches a known object type (case-insensitive)
                         if hasattr(self.context, 'domain_model') and self.context.domain_model:
@@ -1510,30 +1529,39 @@ class Evaluator:
             
             # Additional fallback: try to match role names from FeitTypes
             if not obj_type_def:
-                logger.debug(f"ObjectCreatie: Looking for role name '{actual_object_type}' in FeitTypes")
-                for feittype_name, feittype in self.context.domain_model.feittypen.items():
-                    for rol in feittype.rollen:
-                        # Clean role name by removing articles
-                        role_name_clean = self._strip_articles(rol.naam).lower()
-                        object_type_clean = self._strip_articles(actual_object_type).lower()
-                        
-                        # Check if role name matches exactly or with different word order
-                        # "vastgestelde contingent treinmiles" should match role "vastgestelde contingent treinmiles"
-                        if role_name_clean == object_type_clean:
-                            logger.debug(f"ObjectCreatie: Found exact role match in FeitType '{feittype_name}': '{rol.naam}' -> '{rol.object_type}'")
-                            actual_object_type = rol.object_type
-                            obj_type_def = self.context.domain_model.objecttypes.get(actual_object_type)
+                # Fast-path: map role phrase to its object type via FeitTypes
+                mapped = self._role_alias_to_object_type(actual_object_type)
+                if mapped:
+                    logger.debug(f"ObjectCreatie: Fast-path role alias '{actual_object_type}' -> '{mapped}'")
+                    actual_object_type = mapped
+                    obj_type_def = self.context.domain_model.objecttypes.get(actual_object_type)
+                
+                # Fallback to manual scan if fast-path didn't work
+                if not obj_type_def:
+                    logger.debug(f"ObjectCreatie: Looking for role name '{actual_object_type}' in FeitTypes")
+                    for feittype_name, feittype in self.context.domain_model.feittypen.items():
+                        for rol in feittype.rollen:
+                            # Clean role name by removing articles
+                            role_name_clean = self._strip_articles(rol.naam).lower()
+                            object_type_clean = self._strip_articles(actual_object_type).lower()
+                            
+                            # Check if role name matches exactly or with different word order
+                            # "vastgestelde contingent treinmiles" should match role "vastgestelde contingent treinmiles"
+                            if role_name_clean == object_type_clean:
+                                logger.debug(f"ObjectCreatie: Found exact role match in FeitType '{feittype_name}': '{rol.naam}' -> '{rol.object_type}'")
+                                actual_object_type = rol.object_type
+                                obj_type_def = self.context.domain_model.objecttypes.get(actual_object_type)
+                                break
+                            
+                            # Also check if the object type is contained in role name or vice versa
+                            # This handles cases where role includes adjectives
+                            elif (role_name_clean in object_type_clean or object_type_clean in role_name_clean):
+                                logger.debug(f"ObjectCreatie: Found partial role match in FeitType '{feittype_name}': '{rol.naam}' -> '{rol.object_type}'")
+                                actual_object_type = rol.object_type
+                                obj_type_def = self.context.domain_model.objecttypes.get(actual_object_type)
+                                break
+                        if obj_type_def:
                             break
-                        
-                        # Also check if the object type is contained in role name or vice versa
-                        # This handles cases where role includes adjectives
-                        elif (role_name_clean in object_type_clean or object_type_clean in role_name_clean):
-                            logger.debug(f"ObjectCreatie: Found partial role match in FeitType '{feittype_name}': '{rol.naam}' -> '{rol.object_type}'")
-                            actual_object_type = rol.object_type
-                            obj_type_def = self.context.domain_model.objecttypes.get(actual_object_type)
-                            break
-                    if obj_type_def:
-                        break
             
             if not obj_type_def:
                 raise RegelspraakError(f"Unknown object type: {res.object_type}", span=res.span)
@@ -6340,6 +6368,11 @@ class Evaluator:
                         # Count all instances of this type
                         instances = self.context.find_objects_by_type(matched_type)
                         return Value(value=len(instances), datatype="Numeriek", unit=None)
+                    
+                    # Generic fallback using collection resolver
+                    collection_objects = self._resolve_collection_for_aggregation(attr_ref)
+                    if collection_objects:
+                        return Value(value=len(collection_objects), datatype="Numeriek", unit=None)
             
             # Fall back to evaluating arguments
             args = [self.evaluate_expression(arg) for arg in expr.arguments]
