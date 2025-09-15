@@ -173,7 +173,7 @@ Regel Verdeling treinmiles op basis van leeftijd, woonregio factor, met maximum 
         contingent treinmiles, waarbij wordt verdeeld:
         - op volgorde van toenemende de leeftijd,
         - bij een even groot criterium naar rato van de woonregio factor,
-        - met een maximum van het maximaal aantal te ontvangen treinmiles,
+        - met een maximum van de maximaal te ontvangen treinmiles bij evenredige verdeling volgens rangorde,
         - afgerond op 0 decimalen naar beneden.
         Als onverdeelde rest blijft het restant na verdeling van het te verdelen contingent treinmiles over.
 

@@ -173,8 +173,13 @@ class TOKARunner:
                 self.context.set_attribute(passenger, 'identificatienummer', 
                                           Value(passenger_data['identificatienummer'], "Numeriek"))
             
-            if 'maximaal te ontvangen treinmiles' in passenger_data:
-                self.context.set_attribute(passenger, 'maximaal te ontvangen treinmiles',
+            # Handle both old (short) and new (full) attribute names for backward compatibility
+            if 'maximaal te ontvangen treinmiles bij evenredige verdeling volgens rangorde' in passenger_data:
+                self.context.set_attribute(passenger, 'maximaal te ontvangen treinmiles bij evenredige verdeling volgens rangorde',
+                                          Value(passenger_data['maximaal te ontvangen treinmiles bij evenredige verdeling volgens rangorde'], "Numeriek"))
+            elif 'maximaal te ontvangen treinmiles' in passenger_data:
+                # Fallback for legacy test data
+                self.context.set_attribute(passenger, 'maximaal te ontvangen treinmiles bij evenredige verdeling volgens rangorde',
                                           Value(passenger_data['maximaal te ontvangen treinmiles'], "Numeriek"))
             
             object_count += 1

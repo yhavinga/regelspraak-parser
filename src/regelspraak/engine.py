@@ -3340,11 +3340,11 @@ class Evaluator:
             return Value(value=bool_result, datatype="Boolean", unit=None)
             
         elif op == Operator.HEEFT:
-            # HEEFT operator for bezittelijk kenmerken (possessive characteristics)
-            # Right side should be a kenmerk name
+            # HEEFT operator for bezittelijk kenmerken (possessive characteristics) and role checks
+            # Right side should be a kenmerk name or role name
             right_val = self._evaluate_expression_non_timeline(expr.right)
             if not isinstance(right_val.value, str):
-                raise RegelspraakError(f"Right side of 'HEEFT' must evaluate to a string (kenmerk name), got {type(right_val.value)}", span=expr.right.span)
+                raise RegelspraakError(f"Right side of 'HEEFT' must evaluate to a string (kenmerk/role name), got {type(right_val.value)}", span=expr.right.span)
             # Check if the current instance has this kenmerk set to true
             # For bezittelijk kenmerken, we need to check both "heeft X" and "X" forms
             kenmerk_name = right_val.value
@@ -3369,18 +3369,46 @@ class Evaluator:
                     obj_type = self.context.domain_model.objecttypes[self.context.current_instance.object_type_naam]
                     if heeft_kenmerk_name in obj_type.kenmerken:
                         kenmerk_value = self.context.get_kenmerk(self.context.current_instance, heeft_kenmerk_name)
-                    else:
+                    elif kenmerk_name in obj_type.kenmerken:
                         # Fall back to just the kenmerk name without "heeft"
                         kenmerk_value = self.context.get_kenmerk(self.context.current_instance, kenmerk_name)
+                    else:
+                        # Not a kenmerk - check if it's a role (spec section 8.1.7 - rolcheck)
+                        # "heeft een passagier" checks if current instance has related objects with role 'passagier'
+                        # Need to check if any related objects have this role
+                        has_related_with_role = False
+                        for feittype_name, feittype in self.context.domain_model.feittypen.items():
+                            if not feittype.rollen:
+                                continue
+                            # Check if this FeitType has the role we're looking for
+                            for i, rol in enumerate(feittype.rollen):
+                                rol_naam_clean = self._strip_articles(rol.naam).lower()
+                                rol_meervoud_clean = self._strip_articles(rol.meervoud).lower() if rol.meervoud else None
+                                kenmerk_clean = self._strip_articles(kenmerk_name).lower()
+                                
+                                if rol_naam_clean == kenmerk_clean or (rol_meervoud_clean and rol_meervoud_clean == kenmerk_clean):
+                                    # Check if current instance has any relationships of this type
+                                    for rel in self.context.relationships:
+                                        if rel.feittype_naam != feittype_name:
+                                            continue
+                                        # Check if current instance is involved and has related objects
+                                        if rel.subject == self.context.current_instance or rel.object == self.context.current_instance:
+                                            has_related_with_role = True
+                                            break
+                                    if has_related_with_role:
+                                        break
+                            if has_related_with_role:
+                                break
+                        kenmerk_value = has_related_with_role
                 else:
                     kenmerk_value = self.context.get_kenmerk(self.context.current_instance, kenmerk_name)
             return Value(value=kenmerk_value, datatype="Boolean")
             
         elif op == Operator.HEEFT_NIET:
-            # Negated version of HEEFT
+            # Negated version of HEEFT - checks for absence of kenmerken or roles
             right_val = self._evaluate_expression_non_timeline(expr.right)
             if not isinstance(right_val.value, str):
-                raise RegelspraakError(f"Right side of 'HEEFT_NIET' must evaluate to a string (kenmerk name), got {type(right_val.value)}", span=expr.right.span)
+                raise RegelspraakError(f"Right side of 'HEEFT_NIET' must evaluate to a string (kenmerk/role name), got {type(right_val.value)}", span=expr.right.span)
             # Check if the current instance has this kenmerk set to true
             # For bezittelijk kenmerken, we need to check both "heeft X" and "X" forms
             kenmerk_name = right_val.value
@@ -3401,13 +3429,40 @@ class Evaluator:
                 # Regular kenmerk (not timeline)
                 # First try with "heeft " prefix
                 heeft_kenmerk_name = f"heeft {kenmerk_name}"
-                if self.context.current_instance.object_type_naam in self.context.domain_model.objecttypes:
+                if self.context.current_instance and self.context.current_instance.object_type_naam in self.context.domain_model.objecttypes:
                     obj_type = self.context.domain_model.objecttypes[self.context.current_instance.object_type_naam]
                     if heeft_kenmerk_name in obj_type.kenmerken:
                         kenmerk_value = self.context.get_kenmerk(self.context.current_instance, heeft_kenmerk_name)
-                    else:
+                    elif kenmerk_name in obj_type.kenmerken:
                         # Fall back to just the kenmerk name without "heeft"
                         kenmerk_value = self.context.get_kenmerk(self.context.current_instance, kenmerk_name)
+                    else:
+                        # Not a kenmerk - check if it's a role (spec section 8.1.7 - rolcheck)
+                        # "heeft geen passagier" checks if current instance has NO related objects with role 'passagier'
+                        has_related_with_role = False
+                        for feittype_name, feittype in self.context.domain_model.feittypen.items():
+                            if not feittype.rollen:
+                                continue
+                            # Check if this FeitType has the role we're looking for
+                            for i, rol in enumerate(feittype.rollen):
+                                rol_naam_clean = self._strip_articles(rol.naam).lower()
+                                rol_meervoud_clean = self._strip_articles(rol.meervoud).lower() if rol.meervoud else None
+                                kenmerk_clean = self._strip_articles(kenmerk_name).lower()
+                                
+                                if rol_naam_clean == kenmerk_clean or (rol_meervoud_clean and rol_meervoud_clean == kenmerk_clean):
+                                    # Check if current instance has any relationships of this type
+                                    for rel in self.context.relationships:
+                                        if rel.feittype_naam != feittype_name:
+                                            continue
+                                        # Check if current instance is involved and has related objects
+                                        if rel.subject == self.context.current_instance or rel.object == self.context.current_instance:
+                                            has_related_with_role = True
+                                            break
+                                    if has_related_with_role:
+                                        break
+                            if has_related_with_role:
+                                break
+                        kenmerk_value = has_related_with_role
                 else:
                     kenmerk_value = self.context.get_kenmerk(self.context.current_instance, kenmerk_name)
             return Value(value=not kenmerk_value, datatype="Boolean")
@@ -3672,10 +3727,10 @@ class Evaluator:
             kenmerk_value = self.context.check_is(instance, predicaat.naam)
             return bool(kenmerk_value)
         
-        # Check if it's a role
-        # Note: Role checking would require feittype navigation
-        # For now, focus on kenmerk checks
-        logger.warning(f"Role checking not yet implemented for: {predicaat.naam}")
+        # Check if it's a role (spec section 8.1.7 - rolcheck)
+        if self.context.instance_has_role(instance, predicaat.naam):
+            return True
+        
         return False
     
     def _evaluate_comparison_predicaat(self, predicaat: VergelijkingsPredicaat, 
@@ -4798,22 +4853,48 @@ class Evaluator:
             return Value(value=kenmerk_value, datatype="Boolean")
             
         elif op == Operator.HEEFT_NIET:
-            # Negated version of HEEFT
+            # Negated version of HEEFT - checks for absence of kenmerken or roles
             right_val = self.evaluate_expression(expr.right)
             if not isinstance(right_val.value, str):
-                raise RegelspraakError(f"Right side of 'HEEFT_NIET' must evaluate to a string (kenmerk name), got {type(right_val.value)}", span=expr.right.span)
+                raise RegelspraakError(f"Right side of 'HEEFT_NIET' must evaluate to a string (kenmerk/role name), got {type(right_val.value)}", span=expr.right.span)
             # Check if the current instance has this kenmerk set to true
             # For bezittelijk kenmerken, we need to check both "heeft X" and "X" forms
             kenmerk_name = right_val.value
             # First try with "heeft " prefix
             heeft_kenmerk_name = f"heeft {kenmerk_name}"
-            if self.context.current_instance.object_type_naam in self.context.domain_model.objecttypes:
+            if self.context.current_instance and self.context.current_instance.object_type_naam in self.context.domain_model.objecttypes:
                 obj_type = self.context.domain_model.objecttypes[self.context.current_instance.object_type_naam]
                 if heeft_kenmerk_name in obj_type.kenmerken:
                     kenmerk_value = self.context.get_kenmerk(self.context.current_instance, heeft_kenmerk_name)
-                else:
+                elif kenmerk_name in obj_type.kenmerken:
                     # Fall back to just the kenmerk name without "heeft"
                     kenmerk_value = self.context.get_kenmerk(self.context.current_instance, kenmerk_name)
+                else:
+                    # Not a kenmerk - check if it's a role (spec section 8.1.7 - rolcheck)
+                    has_related_with_role = False
+                    for feittype_name, feittype in self.context.domain_model.feittypen.items():
+                        if not feittype.rollen:
+                            continue
+                        # Check if this FeitType has the role we're looking for
+                        for i, rol in enumerate(feittype.rollen):
+                            rol_naam_clean = self._strip_articles(rol.naam).lower()
+                            rol_meervoud_clean = self._strip_articles(rol.meervoud).lower() if rol.meervoud else None
+                            kenmerk_clean = self._strip_articles(kenmerk_name).lower()
+                            
+                            if rol_naam_clean == kenmerk_clean or (rol_meervoud_clean and rol_meervoud_clean == kenmerk_clean):
+                                # Check if current instance has any relationships of this type
+                                for rel in self.context.relationships:
+                                    if rel.feittype_naam != feittype_name:
+                                        continue
+                                    # Check if current instance is involved and has related objects
+                                    if rel.subject == self.context.current_instance or rel.object == self.context.current_instance:
+                                        has_related_with_role = True
+                                        break
+                                if has_related_with_role:
+                                    break
+                        if has_related_with_role:
+                            break
+                    kenmerk_value = has_related_with_role
             else:
                 kenmerk_value = self.context.get_kenmerk(self.context.current_instance, kenmerk_name)
             return Value(value=not kenmerk_value, datatype="Boolean")

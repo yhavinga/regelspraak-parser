@@ -980,8 +980,55 @@ class RuntimeContext:
             return set()
         return set(obj_type.kenmerken.keys())
 
+    def instance_has_role(self, instance: RuntimeObject, role_name: str) -> bool:
+        """Check if an instance fulfills a specific role in any FeitType relationship.
+        
+        This implements the rolcheck requirement from spec section 8.1.7.
+        Example: "hij is een passagier" checks if the instance has the role 'passagier'.
+        """
+        # Strip articles from role name for comparison
+        def strip_articles(text: str) -> str:
+            """Remove Dutch articles from the beginning of text."""
+            articles = ['de ', 'het ', 'een ']
+            text_lower = text.lower()
+            for article in articles:
+                if text_lower.startswith(article):
+                    return text[len(article):]
+            return text
+        
+        role_name_clean = strip_articles(role_name).lower()
+        
+        # Search all FeitTypes for ones that have this role
+        for feittype_name, feittype in self.domain_model.feittypen.items():
+            if not feittype.rollen:
+                continue
+                
+            for i, rol in enumerate(feittype.rollen):
+                # Check if this role matches (check both singular and plural forms)
+                rol_naam_clean = strip_articles(rol.naam).lower()
+                rol_meervoud_clean = strip_articles(rol.meervoud).lower() if rol.meervoud else None
+                
+                if rol_naam_clean == role_name_clean or (rol_meervoud_clean and rol_meervoud_clean == role_name_clean):
+                    # Found a matching role - now check if instance has this role in any relationship
+                    for rel in self.relationships:
+                        if rel.feittype_naam != feittype_name:
+                            continue
+                        
+                        # Check if instance is in the correct position for this role
+                        # Role at index 0 corresponds to subject, role at index 1 to object
+                        if i == 0 and rel.subject == instance:
+                            return True
+                        elif i == 1 and rel.object == instance:
+                            return True
+                        # Handle reciprocal relationships where both roles have same type
+                        # (wederzijds attribute may not be present in all FeitType objects)
+                        elif hasattr(feittype, 'wederzijds') and feittype.wederzijds and (rel.subject == instance or rel.object == instance):
+                            return True
+        
+        return False
+
     def check_is(self, instance: RuntimeObject, kenmerk_or_type: str) -> bool:
-        """Handles the 'IS' operator for type or kenmerk checks."""
+        """Handles the 'IS' operator for type, kenmerk, or role checks."""
         if instance is None:
             raise RuntimeError("'IS' operator requires a valid object instance on the left.")
             
@@ -994,12 +1041,14 @@ class RuntimeContext:
         # TODO: Handle inheritance / subtyping if added later
         elif kenmerk_or_type == instance.object_type_naam:
              return True
-        # TODO: Check against Domein types if applicable?
+        
+        # Is it a role check? (spec section 8.1.7 - rolcheck)
+        elif self.instance_has_role(instance, kenmerk_or_type):
+            return True
              
         else:
-             # Assume it was intended as a kenmerk, but wasn't defined/set
-             # raise RuntimeError(f"Right side of 'IS' ('{kenmerk_or_type}') is not a known kenmerk or the type name for instance of '{instance.object_type_naam}'.")
-             return False # Treat undefined kenmerken as false for 'IS' check
+             # Not a kenmerk, type, or role - return False
+             return False
 
     def check_in(self, value: Any, collection_expr: Any) -> bool:
         """Handles the 'IN' operator for membership checks (basic implementation)."""
