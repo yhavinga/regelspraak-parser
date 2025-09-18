@@ -130,7 +130,7 @@ Parameter de eerste boekingsdatum: Datum in dagen
 // Core relationship between passengers and flights
 Feittype vlucht van natuurlijke personen
     de reis	Vlucht
-    de passagier	Natuurlijk persoon
+    de passagier (mv: passagiers)	Natuurlijk persoon
     één reis betreft de verplaatsing van meerdere passagiers
 
 // Relationship between flights and treinmiles contingents
@@ -142,7 +142,7 @@ Feittype reis met contingent treinmiles
 // Distribution relationship for treinmiles allocation
 Feittype verdeling contingent treinmiles over passagiers
     het te verdelen contingent treinmiles	Contingent treinmiles
-    de passagier met recht op treinmiles	Natuurlijk persoon
+    de passagier met recht op treinmiles (mv: passagiers met recht op treinmiles)	Natuurlijk persoon
     één te verdelen contingent treinmiles wordt verdeeld over meerdere passagiers met recht op treinmiles
 
 // ============================================================================

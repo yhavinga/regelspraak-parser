@@ -3413,24 +3413,38 @@ class RegelSpraakModelBuilder(RegelSpraakVisitor):
         if '\t' in full_text:
             # Split on tab - role name before tab, object type after
             parts = full_text.split('\t', 1)
-            rol_naam = parts[0].strip()
+            rol_naam_full = parts[0].strip()
             object_type = parts[1].strip() if len(parts) > 1 else ""
             
             logger.debug(f"Tab-separated role raw: full_text='{repr(full_text)}', parts={parts}")
             
-            # Handle any cardinality text that might be included
+            # Extract plural form from rol_naam if present (e.g., "de passagier (mv: passagiers)")
+            meervoud = None
+            rol_naam = rol_naam_full
+            if '(mv:' in rol_naam_full:
+                # Extract the plural form
+                mv_start = rol_naam_full.index('(mv:')
+                mv_end = rol_naam_full.index(')', mv_start)
+                meervoud_part = rol_naam_full[mv_start+4:mv_end].strip()
+                # Remove articles from plural
+                if meervoud_part.startswith('de '):
+                    meervoud = meervoud_part[3:]
+                elif meervoud_part.startswith('het '):
+                    meervoud = meervoud_part[4:]
+                else:
+                    meervoud = meervoud_part
+                # Clean up the rol_naam by removing the (mv: ...) part
+                rol_naam = rol_naam_full[:mv_start].strip()
+                logger.debug(f"Extracted plural from tab-separated: meervoud='{meervoud}'")
+            
+            # Handle any cardinality text that might be included in object_type
             # Stop at cardinality indicators
             for indicator in ['één', 'meerdere', 'vele', 'enkele', 'Eén', 'Een', 'Één', 'Meerdere']:
                 if indicator in object_type.lower():
                     object_type = object_type[:object_type.lower().index(indicator)].strip()
                     break
             
-            logger.debug(f"Parsed tab-separated role: name='{rol_naam}', type='{object_type}'")
-            
-            # Extract plural form if present
-            meervoud = None
-            if ctx.meervoud:
-                meervoud = self.visitNaamwoord(ctx.meervoud)
+            logger.debug(f"Parsed tab-separated role: name='{rol_naam}', meervoud='{meervoud}', type='{object_type}'")
             
             return Rol(
                 naam=rol_naam,

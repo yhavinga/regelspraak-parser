@@ -4429,13 +4429,35 @@ class Evaluator:
                             for i, rol in enumerate(feittype.rollen):
                                 role_name_clean = self._strip_articles(rol.naam).lower()
                                 
-                                # Check if path element contains or matches the role name
-                                # "passagiers met recht op treinmiles" should match "passagier met recht op treinmiles"
-                                # Handle plural forms
-                                if (role_name_clean in path_elem_clean or 
-                                    path_elem_clean in role_name_clean or
-                                    role_name_clean + 's' in path_elem_clean or
-                                    role_name_clean + 'en' in path_elem_clean):
+                                # Check if path element matches the role name (singular or plural)
+                                # Use _match_with_plural to properly handle defined plural forms
+                                # "passagiers met recht op treinmiles" should match role with meervoud defined
+                                role_matches = False
+                                
+                                # First check exact match with plural forms
+                                if self._match_with_plural(rol.naam, path_elem, rol.meervoud):
+                                    role_matches = True
+                                # Also check if the path element contains the role name
+                                elif role_name_clean in path_elem_clean or path_elem_clean in role_name_clean:
+                                    role_matches = True
+                                # Check if plural form is in path element
+                                elif rol.meervoud:
+                                    meervoud_clean = self._strip_articles(rol.meervoud).lower()
+                                    if meervoud_clean in path_elem_clean or path_elem_clean in meervoud_clean:
+                                        role_matches = True
+                                    # Also check if the plural is embedded in the path element
+                                    # "treinmiles ... van alle passagiers met recht op treinmiles" contains the plural
+                                    if not role_matches and meervoud_clean in path_elem_clean:
+                                        role_matches = True
+                                        logger.debug(f"Found embedded plural '{rol.meervoud}' in path element")
+                                
+                                # Finally, check if singular is embedded with 'alle' prefix
+                                # "van alle passagiers" should match role "passagier" 
+                                if not role_matches and f"alle {role_name_clean}" in path_elem_clean:
+                                    role_matches = True
+                                    logger.debug(f"Found 'alle {rol.naam}' pattern in path element")
+                                
+                                if role_matches:
                                     
                                     logger.info(f"Found matching role '{rol.naam}' in FeitType '{feittype_name}'")
                                     
@@ -4468,7 +4490,7 @@ class Evaluator:
         # Fallback: For patterns we can't resolve through relationships,
         # return empty list rather than trying to evaluate as expression
         # (which would fail if the attribute doesn't exist on current instance)
-        logger.warning(f"Could not resolve collection for Verdeling, returning empty list")
+        logger.warning(f"Could not resolve collection for Verdeling with path {path}, returning empty list")
         return []
     
     def _is_role_name_pattern(self, text: str) -> bool:
@@ -5335,9 +5357,14 @@ class Evaluator:
                             role_matches = True
                             logger.debug(f"Matched role '{rol.naam}' directly with collection '{collection_name}'")
                         
-                        # Check if collection is plural of role
-                        # NOTE: FeitType roles don't have meervoud defined in AST, only cardinality text
-                        # We need basic plural handling here until grammar is enhanced to capture role plurals
+                        # Check if collection matches role's plural form
+                        # FeitType roles now support meervoud through (mv: ...) syntax
+                        elif rol.meervoud:
+                            meervoud_clean = self._strip_articles(rol.meervoud).lower()
+                            if meervoud_clean == collection_name_clean:
+                                role_matches = True
+                                logger.debug(f"Matched role '{rol.naam}' via defined plural '{rol.meervoud}'")
+                        # Fallback to basic plural handling if no meervoud defined
                         elif collection_name_clean.endswith("s") and collection_name_clean[:-1] == role_name_clean:
                             # "passagiers" -> "passagier"
                             role_matches = True
@@ -8267,24 +8294,13 @@ class Evaluator:
             
         name_clean = self._strip_articles(name).lower()
         
-        # Check all feittypen for matching role names
+        # Check all feittypen for matching role names (both singular and plural)
         for feittype_name, feittype in self.context.domain_model.feittypen.items():
             for rol in feittype.rollen:
                 if rol.naam:
-                    role_clean = self._strip_articles(rol.naam).lower()
-                    if role_clean == name_clean:
+                    # Check if name matches the role using _match_with_plural
+                    if self._match_with_plural(rol.naam, name, rol.meervoud):
                         return rol.object_type
-        
-        # Handle plural forms (basic support)
-        # "passagiers" -> "passagier" -> "Natuurlijk persoon"
-        if name_clean.endswith('s'):
-            singular = name_clean[:-1]
-            for feittype_name, feittype in self.context.domain_model.feittypen.items():
-                for rol in feittype.rollen:
-                    if rol.naam:
-                        role_clean = self._strip_articles(rol.naam).lower()
-                        if role_clean == singular:
-                            return rol.object_type
         
         return None
     
