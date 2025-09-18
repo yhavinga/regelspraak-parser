@@ -4462,8 +4462,25 @@ class Evaluator:
                                     logger.info(f"Found matching role '{rol.naam}' in FeitType '{feittype_name}'")
                                     
                                     # This role matches - get objects of this type related to current instance
-                                    # We want objects fulfilling this specific role
-                                    as_subject = (i == 0)  # If this is the first role, we want subjects
+                                    # We need to determine which role the current instance fulfills
+                                    # to query the correct side of the relationship
+                                    
+                                    # Find which role index the current instance corresponds to
+                                    current_role_index = None
+                                    for idx, r in enumerate(feittype.rollen):
+                                        if r.object_type == current_type:
+                                            current_role_index = idx
+                                            break
+                                    
+                                    # If current instance is role 0 (subject), we want objects (as_subject=True)
+                                    # If current instance is role 1 (object), we want subjects (as_subject=False)
+                                    if current_role_index is not None:
+                                        as_subject = (current_role_index == 0)
+                                    else:
+                                        # Fallback to original logic if we can't determine role
+                                        as_subject = (i == 0)
+                                        logger.warning(f"Could not determine current instance role in FeitType '{feittype_name}', using fallback")
+                                    
                                     related = self.context.get_related_objects(
                                         self.context.current_instance,
                                         feittype_name,
@@ -4555,12 +4572,27 @@ class Evaluator:
         
         The path might be:
         ['te verdelen contingent treinmiles', 'alle passagiers met recht op treinmiles', 'treinmiles']
-        where the last element is the attribute."""
+        where the last element is the attribute.
+        
+        Or due to parser limitations:
+        ['te verdelen contingent treinmiles', 'treinmiles op basis van evenredige verdeling van alle passagiers...']
+        where we need to extract the attribute from the compound phrase."""
         if isinstance(collection_expr, AttributeReference) and collection_expr.path:
-            # The attribute is the last element in the path
-            # e.g., in ['te verdelen contingent treinmiles', 'alle passagiers...', 'treinmiles']
-            # 'treinmiles' is the attribute to set
-            return collection_expr.path[-1]
+            last_elem = collection_expr.path[-1]
+            
+            # Check if the last element contains "van alle" which indicates it's a compound phrase
+            if 'van alle' in last_elem:
+                # Extract the attribute part before "van alle"
+                # e.g., "treinmiles op basis van evenredige verdeling van alle passagiers..."
+                # -> "treinmiles op basis van evenredige verdeling"
+                parts = last_elem.split(' van alle ')
+                if parts:
+                    # Strip articles and clean up
+                    attr_part = self._strip_articles(parts[0]).strip()
+                    return attr_part
+            
+            # Otherwise, the last element is the attribute
+            return last_elem
         
         raise RegelspraakError(
             "Could not determine target attribute for distribution",
@@ -4667,7 +4699,12 @@ class Evaluator:
             self.context.current_instance = obj
             try:
                 ratio_value = self.evaluate_expression(ratio_expr)
-                ratios.append(Decimal(str(ratio_value.value)))
+                if ratio_value and ratio_value.value is not None:
+                    ratios.append(Decimal(str(ratio_value.value)))
+                else:
+                    # Default to 1 for equal distribution if ratio is unavailable
+                    logger.warning(f"Ratio value is None for object {obj.instance_id}, defaulting to 1")
+                    ratios.append(Decimal('1'))
             finally:
                 self.context.current_instance = old_instance
         
