@@ -4301,6 +4301,13 @@ class RegelSpraakModelBuilder(RegelSpraakVisitor):
         
         elif isinstance(ctx, AntlrParser.VerdelingMaximumContext):
             max_expr = self.visit(ctx.maxExpression)
+            # Per specification §9.7.2: maximum should reference attributes on receiver objects
+            # If the expression is a VariableReference, convert it to an AttributeReference
+            if isinstance(max_expr, VariableReference):
+                # Convert variable name to attribute path on the receiver objects
+                attr_path = [max_expr.variable_name]
+                max_expr = AttributeReference(path=attr_path, span=max_expr.span)
+                logger.debug(f"Converted VerdelingMaximum VariableReference to AttributeReference: {attr_path}")
             return VerdelingMaximum(
                 max_expression=max_expr,
                 span=self.get_span(ctx)

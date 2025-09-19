@@ -4662,8 +4662,15 @@ class Evaluator:
                     self.context.current_instance = obj
                     try:
                         max_value = self.evaluate_expression(method.max_expression)
-                        max_amount = Decimal(str(max_value.value))
-                        new_amounts.append(min(amt, max_amount))
+                        if max_value and max_value.value is not None:
+                            max_amount = Decimal(str(max_value.value))
+                            new_amounts.append(min(amt, max_amount))
+                        else:
+                            # Per specification §9.7.2: empty maximum value should result in a fault
+                            raise RegelspraakError(
+                                f"Maximum value is empty (None) for object {obj.instance_id}. "
+                                f"Per RegelSpraak v2.1.0 §9.7.2: 'Maximum aanspraak leeg → Fout'"
+                            )
                     finally:
                         self.context.current_instance = old_instance
                 amounts = new_amounts
@@ -4702,9 +4709,11 @@ class Evaluator:
                 if ratio_value and ratio_value.value is not None:
                     ratios.append(Decimal(str(ratio_value.value)))
                 else:
-                    # Default to 1 for equal distribution if ratio is unavailable
-                    logger.warning(f"Ratio value is None for object {obj.instance_id}, defaulting to 1")
-                    ratios.append(Decimal('1'))
+                    # Per specification §9.7.6: empty ratio value should result in a fault
+                    raise RegelspraakError(
+                        f"Ratio value is empty (None) for object {obj.instance_id}. "
+                        f"Per RegelSpraak v2.1.0 §9.7.6: 'Ontvanger / Naar rato / Leeg → Fout'"
+                    )
             finally:
                 self.context.current_instance = old_instance
         
@@ -8660,34 +8669,52 @@ class Evaluator:
 
     def _deduce_beslistabel_target_type(self, beslistabel: Beslistabel) -> Optional[str]:
         """Deduce the target object type from the result column text."""
-        # Simple heuristic: look for "van een X" pattern in result column
+        # Per specification §12: use parsed metadata from the header
+        if beslistabel.parsed_result and beslistabel.parsed_result.object_type:
+            parsed_type = beslistabel.parsed_result.object_type
+            logger.debug(f"Using parsed object type '{parsed_type}' from decision table header")
+
+            # Check if it's a known object type
+            if parsed_type in self.context.domain_model.objecttypes:
+                logger.info(f"Found target object type '{parsed_type}' for decision table '{beslistabel.naam}'")
+                return parsed_type
+
+            # Check if it's a role name that needs mapping to an object type
+            # Build a mapping from role names to object types
+            role_to_object_type = {}
+            for feit_type in self.context.domain_model.feittypen.values():
+                for rol in feit_type.rollen:
+                    # Map both singular and plural forms
+                    role_to_object_type[rol.naam.lower()] = rol.object_type
+                    # Also consider variations like "passagier" -> "passagiers"
+                    if rol.meervoud:
+                        role_to_object_type[rol.meervoud.lower()] = rol.object_type
+
+            # Try to find the object type for this role
+            if parsed_type.lower() in role_to_object_type:
+                object_type = role_to_object_type[parsed_type.lower()]
+                logger.info(f"Mapped role '{parsed_type}' to object type '{object_type}' for decision table '{beslistabel.naam}'")
+                return object_type
+
+            logger.warning(f"Could not find object type for parsed type '{parsed_type}'")
+
+        # Fallback to string matching if no parsed result
         result_text = beslistabel.result_column
-        
-        # Debug logging to understand what we're searching for
-        logger.debug(f"Deducing target type from result column: '{result_text[:100]}...'")
-        logger.debug(f"Available object types: {list(self.context.domain_model.objecttypes.keys()) if hasattr(self.context.domain_model.objecttypes, 'keys') else self.context.domain_model.objecttypes}")
-        
+        logger.debug(f"Falling back to string matching for result column: '{result_text[:100]}...'")
+
         # Try to find object type references
         for obj_type in self.context.domain_model.objecttypes:
             # Case-insensitive matching for robustness
             if obj_type.lower() in result_text.lower():
-                logger.info(f"Found target object type '{obj_type}' for decision table '{beslistabel.naam}'")
+                logger.info(f"Found target object type '{obj_type}' via string matching for decision table '{beslistabel.naam}'")
                 return obj_type
-            # Also check with "een" prefix
-            if f"een {obj_type}".lower() in result_text.lower():
-                logger.info(f"Found target object type '{obj_type}' (with 'een' prefix) for decision table '{beslistabel.naam}'")
-                return obj_type
-        
-        # Log failure to find object type
-        logger.warning(f"Could not determine target type for beslistabel '{beslistabel.naam}' from text: '{result_text[:100]}...'")
-        
-        # For the simple test case, just return the first object type
-        # TODO: Improve this with proper parsing of result column
+
+        # As a last resort, return the first object type
         if self.context.domain_model.objecttypes:
             first_type = next(iter(self.context.domain_model.objecttypes))
-            logger.warning(f"Falling back to first available object type: '{first_type}'")
+            logger.warning(f"Could not determine target type for beslistabel '{beslistabel.naam}', defaulting to '{first_type}'")
             return first_type
-        
+
         logger.error(f"No object types defined in domain model for decision table '{beslistabel.naam}'")
         return None
 
