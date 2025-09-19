@@ -8663,19 +8663,32 @@ class Evaluator:
         # Simple heuristic: look for "van een X" pattern in result column
         result_text = beslistabel.result_column
         
+        # Debug logging to understand what we're searching for
+        logger.debug(f"Deducing target type from result column: '{result_text[:100]}...'")
+        logger.debug(f"Available object types: {list(self.context.domain_model.objecttypes.keys()) if hasattr(self.context.domain_model.objecttypes, 'keys') else self.context.domain_model.objecttypes}")
+        
         # Try to find object type references
         for obj_type in self.context.domain_model.objecttypes:
-            if obj_type in result_text:
+            # Case-insensitive matching for robustness
+            if obj_type.lower() in result_text.lower():
+                logger.info(f"Found target object type '{obj_type}' for decision table '{beslistabel.naam}'")
                 return obj_type
             # Also check with "een" prefix
-            if f"een {obj_type}" in result_text:
+            if f"een {obj_type}".lower() in result_text.lower():
+                logger.info(f"Found target object type '{obj_type}' (with 'een' prefix) for decision table '{beslistabel.naam}'")
                 return obj_type
+        
+        # Log failure to find object type
+        logger.warning(f"Could not determine target type for beslistabel '{beslistabel.naam}' from text: '{result_text[:100]}...'")
         
         # For the simple test case, just return the first object type
         # TODO: Improve this with proper parsing of result column
         if self.context.domain_model.objecttypes:
-            return next(iter(self.context.domain_model.objecttypes))
+            first_type = next(iter(self.context.domain_model.objecttypes))
+            logger.warning(f"Falling back to first available object type: '{first_type}'")
+            return first_type
         
+        logger.error(f"No object types defined in domain model for decision table '{beslistabel.naam}'")
         return None
 
     def _is_truthy(self, value: Any) -> bool:
