@@ -71,7 +71,7 @@
       "recht op duurzaamheidskorting": true,
       "woonregio factor": 3,
       "belasting op basis van afstand": 38.00,
-      "te betalen belasting": 28.00
+      "te betalen belasting": 33.00
     },
     "adult_eco_passenger": {
       "leeftijd": 44,
@@ -79,13 +79,13 @@
       "recht op duurzaamheidskorting": true,
       "woonregio factor": 2,
       "belasting op basis van afstand": 38.00,
-      "te betalen belasting": 28.00
+      "te betalen belasting": 33.00
     },
     "eco_flight": {
       "is duurzaam": true,
       "is belaste reis": true,
       "hoeveelheid passagiers": 2,
-      "totaal te betalen belasting": 56.00
+      "totaal te betalen belasting": 66.00
     }
   }
 }

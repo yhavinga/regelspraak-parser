@@ -287,6 +287,39 @@ class Evaluator:
                 finally:
                     self.context.set_current_instance(original_instance)
 
+        # Phase 4: Re-run regular rules that depend on decision table outputs
+        # (like "Te betalen belasting" which needs "belasting op basis van reisduur" from phase 3)
+        for rule in domain_model.regels:
+            # Skip ObjectCreatie rules - they were already handled
+            if isinstance(rule.resultaat, ObjectCreatie):
+                continue
+
+            # Only re-run Gelijkstelling rules that might depend on decision table outputs
+            if not isinstance(rule.resultaat, Gelijkstelling):
+                continue
+
+            target_type_name = self._deduce_rule_target_type(rule)
+            if not target_type_name:
+                continue
+
+            target_instances = self.context.find_objects_by_type(target_type_name)
+            for instance in target_instances:
+                original_instance = self.context.current_instance
+                self.context.set_current_instance(instance)
+                try:
+                    self.evaluate_rule(rule)
+                    # Update existing result or add new one
+                    if rule.naam in results:
+                        for entry in results[rule.naam]:
+                            if entry.get("instance_id") == instance.instance_id:
+                                entry["status"] = "re-evaluated_phase4"
+                                break
+                except Exception:
+                    # Errors already logged in phase 2, silently continue
+                    pass
+                finally:
+                    self.context.set_current_instance(original_instance)
+
         # Execute regel groups
         for regelgroep in domain_model.regelgroepen:
             try:
