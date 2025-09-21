@@ -25,7 +25,8 @@
         "id": "passenger_1",
         "geboortedatum": "1985-03-15",
         "woonprovincie": "Noord-Holland",
-        "identificatienummer": 12345
+        "identificatienummer": 12345,
+        "maximaal te ontvangen treinmiles bij evenredige verdeling volgens rangorde": 300
       }
     ],
     "flights": [

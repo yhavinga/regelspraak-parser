@@ -116,9 +116,35 @@ class Evaluator:
         # TODO: Need a more sophisticated strategy for rule ordering and scoping.
         results = {}
         # Track how many objects we started with to prevent infinite loops
-        initial_object_counts = {obj_type: len(self.context.find_objects_by_type(obj_type)) 
+        initial_object_counts = {obj_type: len(self.context.find_objects_by_type(obj_type))
                                 for obj_type in domain_model.objecttypes.keys()}
-        
+
+        # Phase 1: Execute decision tables that provide lookup values
+        # (like Woonregio factor which maps province to region)
+        for beslistabel in domain_model.beslistabellen:
+            # Find target object type from result column
+            target_type = self._deduce_beslistabel_target_type(beslistabel)
+            if not target_type:
+                print(f"Could not determine target type for beslistabel '{beslistabel.naam}'")
+                continue
+
+            instances = self.context.find_objects_by_type(target_type)
+            for instance in instances:
+                original_instance = self.context.current_instance
+                self.context.set_current_instance(instance)
+                try:
+                    self.execute_beslistabel(beslistabel)
+                    results.setdefault(f"beslistabel:{beslistabel.naam}", []).append({
+                        "instance_id": instance.instance_id,
+                        "status": "evaluated_phase1"
+                    })
+                except Exception as e:
+                    # Silently continue - table might depend on rule output
+                    pass
+                finally:
+                    self.context.set_current_instance(original_instance)
+
+        # Phase 2: Execute regular rules
         for rule in domain_model.regels:
             # Special handling for ObjectCreatie rules
             if isinstance(rule.resultaat, ObjectCreatie):
@@ -214,35 +240,53 @@ class Evaluator:
                 finally:
                     # Restore original instance context
                     self.context.set_current_instance(original_instance)
-        
-        # Execute decision tables
+
+        # Phase 3: Re-execute decision tables that depend on rule outputs
+        # (like "Belasting op basis van reisduur" which needs "belasting op basis van afstand")
         for beslistabel in domain_model.beslistabellen:
             # Find target object type from result column
             target_type = self._deduce_beslistabel_target_type(beslistabel)
             if not target_type:
                 print(f"Could not determine target type for beslistabel '{beslistabel.naam}'")
                 continue
-                
+
             instances = self.context.find_objects_by_type(target_type)
             for instance in instances:
                 original_instance = self.context.current_instance
                 self.context.set_current_instance(instance)
                 try:
                     self.execute_beslistabel(beslistabel)
-                    results.setdefault(f"beslistabel:{beslistabel.naam}", []).append({
-                        "instance_id": instance.instance_id, 
-                        "status": "evaluated"
-                    })
+                    # Update result status if already exists from phase 1
+                    key = f"beslistabel:{beslistabel.naam}"
+                    if key in results:
+                        # Find and update the entry for this instance
+                        for entry in results[key]:
+                            if entry.get("instance_id") == instance.instance_id and entry.get("status") == "evaluated_phase1":
+                                entry["status"] = "evaluated"
+                                break
+                        else:
+                            # Not found in phase 1, add new entry
+                            results.setdefault(key, []).append({
+                                "instance_id": instance.instance_id,
+                                "status": "evaluated_phase3"
+                            })
+                    else:
+                        results.setdefault(key, []).append({
+                            "instance_id": instance.instance_id,
+                            "status": "evaluated_phase3"
+                        })
                 except Exception as e:
                     print(f"Error executing beslistabel '{beslistabel.naam}' for instance '{instance.instance_id}': {e}")
-                    results.setdefault(f"beslistabel:{beslistabel.naam}", []).append({
-                        "instance_id": instance.instance_id,
-                        "status": "error",
-                        "message": str(e)
-                    })
+                    key = f"beslistabel:{beslistabel.naam}"
+                    if key not in results or not any(entry.get("instance_id") == instance.instance_id for entry in results[key]):
+                        results.setdefault(key, []).append({
+                            "instance_id": instance.instance_id,
+                            "status": "error",
+                            "message": str(e)
+                        })
                 finally:
                     self.context.set_current_instance(original_instance)
-        
+
         # Execute regel groups
         for regelgroep in domain_model.regelgroepen:
             try:
