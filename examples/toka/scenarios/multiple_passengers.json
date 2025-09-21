@@ -16,7 +16,8 @@
     "bovengrens reisduur eerste schijf": {"value": 120, "unit": "minuut"},
     "bovengrens reisduur tweede schijf": {"value": 240, "unit": "minuut"},
     "aantal treinmiles per passagier voor contingent": 100,
-    "bevestigingsinterval": 7200000
+    "bevestigingsinterval": 7200000,
+    "eerste boekingsdatum": "2024-01-01"
   },
   "objects": {
     "passengers": [
@@ -24,25 +25,29 @@
         "id": "child_passenger",
         "geboortedatum": "2010-05-20",
         "woonprovincie": "Friesland",
-        "identificatienummer": 10001
+        "identificatienummer": 10001,
+        "maximaal te ontvangen treinmiles bij evenredige verdeling volgens rangorde": 300
       },
       {
         "id": "young_adult",
         "geboortedatum": "2003-08-15",
         "woonprovincie": "Utrecht",
-        "identificatienummer": 10002
+        "identificatienummer": 10002,
+        "maximaal te ontvangen treinmiles bij evenredige verdeling volgens rangorde": 300
       },
       {
         "id": "adult_passenger",
         "geboortedatum": "1975-11-30",
         "woonprovincie": "Noord-Brabant",
-        "identificatienummer": 10003
+        "identificatienummer": 10003,
+        "maximaal te ontvangen treinmiles bij evenredige verdeling volgens rangorde": 300
       },
       {
         "id": "senior_passenger",
         "geboortedatum": "1955-02-10",
         "woonprovincie": "Limburg",
-        "identificatienummer": 10004
+        "identificatienummer": 10004,
+        "maximaal te ontvangen treinmiles bij evenredige verdeling volgens rangorde": 300
       }
     ],
     "flights": [
@@ -54,7 +59,10 @@
         "afstand tot bestemming": 400,
         "reisduur per trein": 200,
         "bereikbaar per trein": true,
-        "gebruik fossiele brandstof minder dan 50 procent": false
+        "gebruik fossiele brandstof minder dan 50 procent": false,
+        "verwachte datum-tijd van vertrek": "2024-07-15T10:00:00",
+        "verwachte duur": 75,
+        "uiterste boekingstijdstip": "2024-07-14T12:00:00"
       }
     ]
   },

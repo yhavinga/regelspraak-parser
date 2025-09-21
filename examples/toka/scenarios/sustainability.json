@@ -25,13 +25,15 @@
         "id": "senior_eco_passenger",
         "geboortedatum": "1956-09-22",
         "woonprovincie": "Zuid-Holland",
-        "identificatienummer": 20001
+        "identificatienummer": 20001,
+        "maximaal te ontvangen treinmiles bij evenredige verdeling volgens rangorde": 300
       },
       {
-        "id": "adult_eco_passenger", 
+        "id": "adult_eco_passenger",
         "geboortedatum": "1980-04-10",
         "woonprovincie": "Gelderland",
-        "identificatienummer": 20002
+        "identificatienummer": 20002,
+        "maximaal te ontvangen treinmiles bij evenredige verdeling volgens rangorde": 300
       }
     ],
     "flights": [
