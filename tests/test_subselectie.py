@@ -12,7 +12,7 @@ class TestSubselectie(unittest.TestCase):
     def test_kenmerk_filtering(self):
         """Test filtering by kenmerk: 'passagiers die minderjarig zijn'"""
         input_text = """
-Parameter de volwassenleeftijd : Numeriek (geheel getal) met eenheid jr;
+Parameter de volwassenleeftijd : Numeriek (geheel getal) met eenheid jr
 
 Objecttype de Natuurlijk persoon (bezield)
     is minderjarig kenmerk (bijvoeglijk);
@@ -99,7 +99,7 @@ Regel tel minderjarigen
     def test_attribute_comparison(self):
         """Test filtering by attribute: 'personen die een leeftijd hebben kleiner dan 18'"""
         input_text = """
-Parameter de leeftijdsgrens : Numeriek (geheel getal) met eenheid jr;
+Parameter de leeftijdsgrens : Numeriek (geheel getal) met eenheid jr
 
 Objecttype de Natuurlijk persoon (bezield)
     de leeftijd Numeriek (geheel getal) met eenheid jr;
@@ -231,7 +231,7 @@ Regel tel senioren
     def test_with_aggregation(self):
         """Test subselectie with aggregation function."""
         input_text = """
-Parameter de volwassenleeftijd : Numeriek (geheel getal) met eenheid jr;
+Parameter de volwassenleeftijd : Numeriek (geheel getal) met eenheid jr
 
 Objecttype de Natuurlijk persoon (bezield)
     is minderjarig kenmerk (bijvoeglijk);

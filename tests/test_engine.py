@@ -20,7 +20,7 @@ class EngineSteelthreadTests(RegelSpraakTestCase):
         """Set up the test case with the steel thread RegelSpraak code."""
         super().setUp()
         self.steelthread_code = """
-        Parameter de volwassenleeftijd : Numeriek (geheel getal) met eenheid jr;
+        Parameter de volwassenleeftijd : Numeriek (geheel getal) met eenheid jr
 
         Objecttype de Natuurlijk persoon
             is minderjarig kenmerk (bijvoeglijk);

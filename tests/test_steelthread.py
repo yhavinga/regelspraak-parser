@@ -21,7 +21,7 @@ class SteelthreadTests(RegelSpraakTestCase):
     def test_steelthread_parsing_and_spans(self):
         """Test parsing the steelthread example and print key spans."""
         input_text = """
-        Parameter de volwassenleeftijd : Numeriek (geheel getal) met eenheid jr;
+        Parameter de volwassenleeftijd : Numeriek (geheel getal) met eenheid jr
 
         Objecttype de Natuurlijk persoon
             is minderjarig kenmerk (bijvoeglijk);

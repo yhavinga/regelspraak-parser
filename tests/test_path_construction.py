@@ -131,7 +131,7 @@ class TestPathConstruction(RegelSpraakTestCase):
             de naam Tekst;
             de leeftijd Numeriek (niet-negatief geheel getal) met eenheid jr;
             
-        Parameter de volwassenleeftijd : Numeriek (geheel getal) met eenheid jr;
+        Parameter de volwassenleeftijd : Numeriek (geheel getal) met eenheid jr
             
         Regel minderjarig_check
             geldig altijd

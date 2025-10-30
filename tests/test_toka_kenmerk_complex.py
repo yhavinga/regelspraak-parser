@@ -21,7 +21,7 @@ class TestTokaKenmerkComplex(unittest.TestCase):
             is passagier van 25 tot en met 64 jaar kenmerk;
             is passagier van 65 jaar of ouder kenmerk (bijvoeglijk);
         
-        Parameter de volwassenleeftijd : Numeriek (niet-negatief geheel getal) met eenheid jr;
+        Parameter de volwassenleeftijd : Numeriek (niet-negatief geheel getal) met eenheid jr
         
         Regel Passagier van 18 tm 24 jaar
             geldig altijd

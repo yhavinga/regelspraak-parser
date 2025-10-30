@@ -15,7 +15,7 @@ class TestIndienConditions(unittest.TestCase):
     def test_simple_indien_condition(self):
         """Test a simple 'indien' condition with parameter comparison."""
         text = """
-        Parameter de volwassenleeftijd: Numeriek (geheel getal) met eenheid jr;
+        Parameter de volwassenleeftijd: Numeriek (geheel getal) met eenheid jr
         
         Objecttype de Natuurlijk persoon
             is minderjarig kenmerk (bijvoeglijk);
@@ -60,8 +60,8 @@ class TestIndienConditions(unittest.TestCase):
     def test_indien_with_compound_conditions(self):
         """Test 'indien' with compound conditions using 'alle volgende voorwaarden'."""
         text = """
-        Parameter de minimum leeftijd: Numeriek (geheel getal) met eenheid jr;
-        Parameter de maximum leeftijd: Numeriek (geheel getal) met eenheid jr;
+        Parameter de minimum leeftijd: Numeriek (geheel getal) met eenheid jr
+        Parameter de maximum leeftijd: Numeriek (geheel getal) met eenheid jr
         
         Objecttype de Natuurlijk persoon
             is geschikt kenmerk (bijvoeglijk);
@@ -168,8 +168,8 @@ class TestIndienConditions(unittest.TestCase):
     def test_indien_with_gelijkstelling(self):
         """Test 'indien' with Gelijkstelling (moet berekend worden als)."""
         text = """
-        Parameter de basiskorting: Numeriek (getal);
-        Parameter de extrakorting: Numeriek (getal);
+        Parameter de basiskorting: Numeriek (getal)
+        Parameter de extrakorting: Numeriek (getal)
         
         Objecttype de Klant
             is vip kenmerk (bijvoeglijk);
@@ -215,7 +215,7 @@ class TestIndienConditions(unittest.TestCase):
     def disabled_test_indien_with_variables(self):
         """Test 'indien' with variables in 'Daarbij geldt' section."""
         text = """
-        Parameter de grens: Numeriek (geheel getal);
+        Parameter de grens: Numeriek (geheel getal)
         
         Objecttype de Item
             is speciaal kenmerk (bijvoeglijk);

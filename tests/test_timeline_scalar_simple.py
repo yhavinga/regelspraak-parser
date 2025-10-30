@@ -26,7 +26,7 @@ class TestTimelineScalarSimple(unittest.TestCase):
             het verdubbeld salaris Bedrag voor elke maand;
             het gehalveerd salaris Bedrag voor elke maand;
 
-        Parameter de standaard verhoging : Numeriek;
+        Parameter de standaard verhoging : Numeriek
 
         Regel verhoog salaris
             geldig altijd
@@ -104,7 +104,7 @@ class TestTimelineScalarSimple(unittest.TestCase):
             het doel bedrag Bedrag voor elke maand;
             het tekort Bedrag voor elke maand;
 
-        Parameter het minimum saldo : Bedrag;
+        Parameter het minimum saldo : Bedrag
 
         Regel bereken tekort
             geldig altijd

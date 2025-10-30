@@ -25,7 +25,7 @@ class TestFeitTypeBasic(RegelSpraakTestCase):
             de passagier Passagier
         Een vlucht vervoert passagiers
         
-        Parameter de volwassenleeftijd : Numeriek (geheel getal) met eenheid jr;
+        Parameter de volwassenleeftijd : Numeriek (geheel getal) met eenheid jr
         """
         
         # Parse and verify
@@ -48,7 +48,7 @@ class TestFeitTypeBasic(RegelSpraakTestCase):
         Domein Bedrag is van het type Numeriek (getal met 2 decimalen)
         
         Objecttype Passagier
-            de naam Tekst;
+            de naam Tekst
             het ticket bedrag Bedrag;
         
         Objecttype Vlucht
@@ -89,7 +89,7 @@ class TestFeitTypeBasic(RegelSpraakTestCase):
             de passagier Natuurlijk persoon
             Een vlucht vervoert passagiers
         
-        Parameter de volwassenleeftijd : Numeriek (geheel getal) met eenheid jr;
+        Parameter de volwassenleeftijd : Numeriek (geheel getal) met eenheid jr
         
         Regel kenmerktoekenning minderjarig
             geldig altijd

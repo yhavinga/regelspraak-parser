@@ -20,7 +20,7 @@ class TestGedurendeDeTijdDat(unittest.TestCase):
             het recht op belastingvermindering kenmerk (bezittelijk);
             de totale belastingvermindering Bedrag;
         
-        Parameter de inkomen drempel : Bedrag;
+        Parameter de inkomen drempel : Bedrag
         
         Regel bereken totale belastingvermindering
             geldig altijd
@@ -90,7 +90,7 @@ class TestGedurendeDeTijdDat(unittest.TestCase):
             de status score Numeriek voor elke maand;
             de totale inkomen Bedrag;
         
-        Parameter de minimum score : Numeriek;
+        Parameter de minimum score : Numeriek
         
         Regel bereken totale inkomen
             geldig altijd
@@ -147,7 +147,7 @@ class TestGedurendeDeTijdDat(unittest.TestCase):
             de inkomen Bedrag voor elke maand;
             de totale uitgaven Bedrag;
         
-        Parameter de drempel waarde : Bedrag;
+        Parameter de drempel waarde : Bedrag
         
         Regel bereken totale uitgaven
             geldig altijd

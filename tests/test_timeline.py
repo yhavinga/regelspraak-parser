@@ -56,8 +56,8 @@ class TestTimelineParsing(unittest.TestCase):
     def test_parameter_with_dag_timeline(self):
         """Test parsing a parameter with 'voor elke dag' timeline."""
         input_text = """
-        Parameter de dagkoers : Numeriek (getal) met eenheid euro voor elke dag;
-        Parameter de vaste waarde : Numeriek (getal);
+        Parameter de dagkoers : Numeriek (getal) met eenheid euro voor elke dag
+        Parameter de vaste waarde : Numeriek (getal)
         """
         result = parse_text(input_text)
         
@@ -76,7 +76,7 @@ class TestTimelineParsing(unittest.TestCase):
     
     def test_parameter_with_maand_timeline(self):
         """Test parsing a parameter with 'voor elke maand' timeline."""
-        input_text = """Parameter het maandbudget : Bedrag voor elke maand;"""
+        input_text = """Parameter het maandbudget : Bedrag voor elke maand"""
         result = parse_text(input_text)
         
         maandbudget = result.parameters["maandbudget"]
@@ -85,7 +85,7 @@ class TestTimelineParsing(unittest.TestCase):
     
     def test_parameter_with_jaar_timeline(self):
         """Test parsing a parameter with 'voor elk jaar' timeline."""
-        input_text = """Parameter de maximale aftrek : Numeriek (getal) met eenheid euro voor elk jaar;"""
+        input_text = """Parameter de maximale aftrek : Numeriek (getal) met eenheid euro voor elk jaar"""
         result = parse_text(input_text)
         
         max_aftrek = result.parameters["maximale aftrek"]
@@ -94,7 +94,7 @@ class TestTimelineParsing(unittest.TestCase):
     
     def test_datum_parameter_with_timeline(self):
         """Test parsing a Datum parameter with a timeline."""
-        input_text = """Parameter de startdatum : Datum in dagen voor elke dag;"""
+        input_text = """Parameter de startdatum : Datum in dagen voor elke dag"""
         result = parse_text(input_text)
         
         startdatum = result.parameters["startdatum"]

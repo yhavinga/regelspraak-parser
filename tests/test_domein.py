@@ -111,7 +111,7 @@ class TestDomeinSupport(RegelSpraakTestCase):
         regelspraak_code = """
         Domein Korting is van het type Numeriek (niet-negatief getal met 1 decimalen) met eenheid %
         
-        Parameter de standaard korting : Korting;
+        Parameter de standaard korting : Korting
         """
         
         model = parse_text(regelspraak_code)

@@ -12,8 +12,8 @@ class TestSamengesteldPredicaat(unittest.TestCase):
     def test_alle_voorwaarden(self):
         """Test 'alle' quantifier - all conditions must be true."""
         input_text = """
-Parameter de minimum leeftijd : Numeriek (geheel getal) met eenheid jr;
-Parameter de maximum leeftijd : Numeriek (geheel getal) met eenheid jr;
+Parameter de minimum leeftijd : Numeriek (geheel getal) met eenheid jr
+Parameter de maximum leeftijd : Numeriek (geheel getal) met eenheid jr
 
 Objecttype de Natuurlijk persoon (bezield)
     de naam Tekst;

@@ -66,7 +66,7 @@ class TestAllExpressions(RegelSpraakTestCase):
 #     de vertrekdatum Datum in dagen;
 #     de afstand Numeriek (geheel getal) met eenheid km;
 
-# Domein Bedrag is van het type Numeriek (getal met 2 decimalen);
+# Domein Bedrag is van het type Numeriek (getal met 2 decimalen)
 # Domein TestStatusDomein is van het type Enumeratie
 #     'Actief'
 #     'Inactief'
@@ -109,13 +109,13 @@ class TestAllExpressions(RegelSpraakTestCase):
     def _test_expression_in_rule(self, expression_snippet: str, extra_definitions: str = ""):
         """Helper to test an expression within a rule context."""
         regel_text = f"""
-Parameter de NumeriekeParam : Numeriek (geheel getal) met eenheid jr;
-Parameter de TekstParam : Tekst;
-Parameter de BooleanParam : Boolean;
-Parameter de DatumParam : Datum in dagen;
-Parameter de DatumTijdParam : Datum en tijd in millisecondes;
+Parameter de NumeriekeParam : Numeriek (geheel getal) met eenheid jr
+Parameter de TekstParam : Tekst
+Parameter de BooleanParam : Boolean
+Parameter de DatumParam : Datum in dagen
+Parameter de DatumTijdParam : Datum en tijd in millisecondes
 
-Domein Bedrag is van het type Numeriek (getal met 2 decimalen);
+Domein Bedrag is van het type Numeriek (getal met 2 decimalen)
 
 Domein TestStatusDomein is van het type Enumeratie
     'Actief'
@@ -346,7 +346,7 @@ Regel DeTestRegel
 
     def test_special_in_operator(self):
         """Test 'in' operator for collections."""
-        extra_defs = "Parameter DeTestLijst : Lijst van Numeriek;"
+        extra_defs = "Parameter DeTestLijst : Lijst van Numeriek"
         self._test_expression_in_rule("X in de DeTestLijst", extra_defs)
 
     # --- 8. Function Calls ---

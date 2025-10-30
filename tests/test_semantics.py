@@ -30,7 +30,7 @@ class SemanticAnalysisTests(RegelSpraakTestCase):
     def test_undefined_variable_reference(self):
         """Test that referencing undefined variables is caught."""
         input_text = """
-        Parameter test_param : Numeriek (geheel getal);
+        Parameter test_param : Numeriek (geheel getal)
         
         Objecttype de Persoon
             de leeftijd Numeriek (geheel getal) met eenheid jr;
@@ -52,7 +52,7 @@ class SemanticAnalysisTests(RegelSpraakTestCase):
     def test_valid_parameter_reference(self):
         """Test that valid parameter references pass validation."""
         input_text = """
-        Parameter de volwassenleeftijd : Numeriek (geheel getal) met eenheid jr;
+        Parameter de volwassenleeftijd : Numeriek (geheel getal) met eenheid jr
         
         Objecttype de Natuurlijk persoon
             is minderjarig kenmerk (bijvoeglijk);
@@ -72,7 +72,7 @@ class SemanticAnalysisTests(RegelSpraakTestCase):
     def test_variable_definition_and_use(self):
         """Test that variables defined with 'Daarbij geldt' can be used."""
         input_text = """
-        Parameter belastingpercentage : Numeriek (geheel getal);
+        Parameter belastingpercentage : Numeriek (geheel getal)
         
         Objecttype de Persoon
             het inkomen Numeriek (geheel getal) met eenheid EUR;
@@ -93,8 +93,8 @@ class SemanticAnalysisTests(RegelSpraakTestCase):
     def test_duplicate_parameter_definition(self):
         """Test that duplicate parameter definitions are caught."""
         input_text = """
-        Parameter test : Numeriek (geheel getal);
-        Parameter test : Numeriek (geheel getal);
+        Parameter test : Numeriek (geheel getal)
+        Parameter test : Numeriek (geheel getal)
         
         Objecttype de Dummy
             de waarde Numeriek (geheel getal);
@@ -116,7 +116,7 @@ class SemanticAnalysisTests(RegelSpraakTestCase):
     def test_parameter_as_attribute_reference(self):
         """Test that incorrectly referencing a parameter as an attribute is caught."""
         input_text = """
-        Parameter de volwassenleeftijd : Numeriek (geheel getal) met eenheid jr;
+        Parameter de volwassenleeftijd : Numeriek (geheel getal) met eenheid jr
         
         Objecttype de Persoon
             de leeftijd Numeriek (geheel getal) met eenheid jr;
@@ -135,7 +135,7 @@ class SemanticAnalysisTests(RegelSpraakTestCase):
     def test_valid_arithmetic_expression(self):
         """Test that valid arithmetic expressions pass validation."""
         input_text = """
-        Parameter factor : Numeriek (geheel getal);
+        Parameter factor : Numeriek (geheel getal)
         
         Objecttype de Product
             de prijs Numeriek (geheel getal) met eenheid EUR;
@@ -155,7 +155,7 @@ class SemanticAnalysisTests(RegelSpraakTestCase):
     def test_comparison_expression_validation(self):
         """Test that comparison expressions are validated."""
         input_text = """
-        Parameter grenswaarde : Numeriek (geheel getal);
+        Parameter grenswaarde : Numeriek (geheel getal)
         
         Objecttype de Meetwaarde
             is hoog kenmerk (bijvoeglijk);

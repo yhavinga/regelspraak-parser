@@ -67,10 +67,10 @@ class TestTokaIntegration(unittest.TestCase):
         Domein Bedrag is van het type Numeriek (getal met 2 decimalen)
         
         Objecttype de Passagier (mv: passagiers) (bezield)
-            de belasting op basis van afstand Bedrag;
+            de belasting op basis van afstand Bedrag
             de te betalen belasting Bedrag;
         
-        Parameter de korting bij gebruik niet-fossiele brandstof : Bedrag;
+        Parameter de korting bij gebruik niet-fossiele brandstof : Bedrag
         
         Regel Te betalen belasting van een passagier
             geldig altijd
@@ -108,7 +108,7 @@ class TestTokaIntegration(unittest.TestCase):
         Domein Bedrag is van het type Numeriek (getal met 2 decimalen)
         
         Objecttype de Test
-            de waarde Bedrag;
+            de waarde Bedrag
             de resultaat Bedrag;
         
         Regel bereken met begrenzing en afronding
@@ -152,7 +152,7 @@ class TestTokaIntegration(unittest.TestCase):
             'Parijs Charles de Gaulle'
         
         Objecttype de Vlucht (mv: vluchten)
-            de luchthaven van vertrek Luchthavens;
+            de luchthaven van vertrek Luchthavens
             de luchthaven van bestemming Luchthavens;
         
         Regel Controleer of vlucht geen rondvlucht is
@@ -188,7 +188,7 @@ class TestTokaIntegration(unittest.TestCase):
             het vastgestelde contingent treinmiles Contingent treinmiles
             één reis met treinmiles heeft één vastgestelde contingent treinmiles
         
-        Parameter het aantal treinmiles per passagier voor contingent : Numeriek (positief geheel getal);
+        Parameter het aantal treinmiles per passagier voor contingent : Numeriek (positief geheel getal)
         
         Regel vastgestelde contingent treinmiles
             geldig altijd

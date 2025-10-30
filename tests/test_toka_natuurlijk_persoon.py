@@ -29,7 +29,7 @@ class TestTokaNatuurlijkPersoon(unittest.TestCase):
             de treinmiles op basis van evenredige verdeling Numeriek (geheel getal);
             de maximaal te ontvangen treinmiles bij evenredige verdeling volgens rangorde Numeriek (geheel getal);
         
-        Domein Bedrag is van het type Numeriek (getal met 2 decimalen) met eenheid EUR;
+        Domein Bedrag is van het type Numeriek (getal met 2 decimalen) met eenheid EUR
         """
         
         # Try to parse the code

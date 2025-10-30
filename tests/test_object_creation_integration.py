@@ -91,7 +91,7 @@ class ObjectCreationIntegrationTests(unittest.TestCase):
             de btw_tarief Percentage;
             de prijs_incl Numeriek met eenheid EUR;
         
-        Parameter de standaard_btw_tarief : Percentage is 21%;
+        Parameter de standaard_btw_tarief : Percentage is 21%
         
         Regel MaakProduct
         geldig altijd
@@ -139,7 +139,7 @@ class ObjectCreationIntegrationTests(unittest.TestCase):
             de naam Tekst;
             de salaris Numeriek met eenheid EUR;
         
-        Parameter de bonus_drempel : Numeriek met eenheid EUR is 3000 EUR;
+        Parameter de bonus_drempel : Numeriek met eenheid EUR is 3000 EUR
         
         Regel BonusVoorHoogSalaris
         geldig altijd

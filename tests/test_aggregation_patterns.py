@@ -23,9 +23,9 @@ class TestAggregationPatterns(unittest.TestCase):
         Objecttype de Berekening
             het totaal Numeriek;
             
-        Parameter X : Numeriek;
-        Parameter Y : Numeriek;  
-        Parameter Z : Numeriek;
+        Parameter X : Numeriek
+        Parameter Y : Numeriek
+        Parameter Z : Numeriek
         
         Regel bereken totaal
             geldig altijd
@@ -68,7 +68,7 @@ class TestAggregationPatterns(unittest.TestCase):
         Objecttype de Administratie
             het totaal bedrag Bedrag;
             
-        Domein Bedrag is van het type Numeriek (getal met 2 decimalen);
+        Domein Bedrag is van het type Numeriek (getal met 2 decimalen)
         
         Regel bereken totaal bedrag
             geldig altijd
@@ -123,7 +123,7 @@ class TestAggregationPatterns(unittest.TestCase):
             de passagier Natuurlijk persoon
             Eén reis betreft de verplaatsing van meerdere passagiers
 
-        Domein Bedrag is van het type Numeriek (getal met 2 decimalen);
+        Domein Bedrag is van het type Numeriek (getal met 2 decimalen)
 
         Regel Totaal te betalen belasting
             geldig altijd
@@ -184,9 +184,9 @@ class TestAggregationPatterns(unittest.TestCase):
         Objecttype de Berekening
             het resultaat Numeriek;
             
-        Parameter A : Numeriek;
-        Parameter B : Numeriek;
-        Parameter C : Numeriek;
+        Parameter A : Numeriek
+        Parameter B : Numeriek
+        Parameter C : Numeriek
         
         Regel bereken met factor
             geldig altijd

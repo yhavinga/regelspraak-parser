@@ -799,7 +799,7 @@ primaryExpression : // Corresponds roughly to terminals/functions/references in 
     | HET? AANTAL (ALLE? onderwerpReferentie)                                                         # AantalFuncExpr // Made HET optional
     | HET? AANTAL attribuutReferentie                                                              # AantalAttribuutExpr // Count attributes with filtering
     | (NUMBER (PERCENT_SIGN | p=IDENTIFIER) | PERCENTAGE_LITERAL) VAN primaryExpression            # PercentageFuncExpr
-    | primaryExpression VAN primaryExpression                                                      # PercentageOfExpr  // Support percentage-typed expressions
+    | PERCENTAGE_LITERAL VAN primaryExpression                                                     # PercentageOfExpr  // Support percentage-typed expressions
     | primaryExpression afronding                                                                   # AfrondingExpr  // EBNF 13.4.16.21
     | primaryExpression COMMA begrenzing afronding                                                  # BegrenzingAfrondingExpr // Combined begrenzing and afronding
     | primaryExpression COMMA begrenzing                                                            # BegrenzingExpr // EBNF 13.4.16.23

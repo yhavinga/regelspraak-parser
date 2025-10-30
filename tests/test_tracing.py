@@ -50,7 +50,7 @@ class TracingTests(RegelSpraakTestCase):
     def setUp(self):
         super().setUp()
         self.regelspraak_code = """
-        Parameter de volwassenleeftijd : Numeriek (geheel getal) met eenheid jr;
+        Parameter de volwassenleeftijd : Numeriek (geheel getal) met eenheid jr
 
         Objecttype de Natuurlijk persoon
             is minderjarig kenmerk (bijvoeglijk);

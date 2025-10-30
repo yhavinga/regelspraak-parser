@@ -23,7 +23,7 @@ class TestTijdsevenredigDeel(unittest.TestCase):
             de belastingvermindering Numeriek (getal met 2 decimalen) met eenheid € voor elke maand;
             het recht op belastingvermindering kenmerk (bezittelijk) voor elke dag;
 
-        Parameter de STANDAARD_BELASTINGVERMINDERING : Numeriek (getal met 2 decimalen) met eenheid € voor elk jaar;
+        Parameter de STANDAARD_BELASTINGVERMINDERING : Numeriek (getal met 2 decimalen) met eenheid € voor elk jaar
 
         Regel Belastingvermindering
             geldig altijd
@@ -115,7 +115,7 @@ class TestTijdsevenredigDeel(unittest.TestCase):
             de belastingvermindering Numeriek (getal met 2 decimalen) met eenheid € voor elk jaar;
             het recht op belastingvermindering kenmerk (bezittelijk) voor elke dag;
 
-        Parameter de STANDAARD_BELASTINGVERMINDERING : Numeriek (getal met 2 decimalen) met eenheid € voor elk jaar;
+        Parameter de STANDAARD_BELASTINGVERMINDERING : Numeriek (getal met 2 decimalen) met eenheid € voor elk jaar
 
         Regel Belastingvermindering
             geldig altijd
@@ -200,7 +200,7 @@ class TestTijdsevenredigDeel(unittest.TestCase):
             de belastingvermindering Numeriek (getal met 2 decimalen) met eenheid € voor elke maand;
             het recht op belastingvermindering kenmerk (bezittelijk) voor elke dag;
 
-        Parameter de STANDAARD_BELASTINGVERMINDERING : Numeriek (getal met 2 decimalen) met eenheid € voor elk jaar;
+        Parameter de STANDAARD_BELASTINGVERMINDERING : Numeriek (getal met 2 decimalen) met eenheid € voor elk jaar
 
         Regel Belastingvermindering
             geldig altijd

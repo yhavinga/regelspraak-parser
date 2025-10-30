@@ -15,8 +15,8 @@ class TestTimelinePeriodDefinitions(unittest.TestCase):
         """Helper method to parse rules, execute them, and return the worker instance."""
         # Always include the base model definition
         model_text = f"""
-        Parameter het rekenjaar : Numeriek;
-        Parameter de rekendatum : Datum;
+        Parameter het rekenjaar : Numeriek
+        Parameter de rekendatum : Datum
         
         Objecttype de Werknemer
             het salaris Numeriek (getal) met eenheid euro voor elke maand;
@@ -182,7 +182,7 @@ class TestTimelinePeriodDefinitions(unittest.TestCase):
     def test_period_with_expression(self):
         """Test period definition with calculated expression."""
         rules_text = """
-        Parameter het basisSalaris : Numeriek (getal) met eenheid euro;
+        Parameter het basisSalaris : Numeriek (getal) met eenheid euro
         
         Regel salaris_met_toeslag
             geldig altijd

@@ -80,7 +80,7 @@ class ReplTests(unittest.TestCase):
         
         # Create steel thread file
         steel_thread = """
-Parameter de volwassenleeftijd : Numeriek (geheel getal) met eenheid jr;
+Parameter de volwassenleeftijd : Numeriek (geheel getal) met eenheid jr
 
 Objecttype de Natuurlijk persoon
     is minderjarig kenmerk (bijvoeglijk);

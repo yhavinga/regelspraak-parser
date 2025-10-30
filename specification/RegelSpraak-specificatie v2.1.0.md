@@ -2803,70 +2803,318 @@ Er bestaat een aantal verschillende predicaten in RegeISpraak:
 4. De overige predicaten controleren een waarde. Deze waarde is afkomstig van een onderwerpexpressie die voor het predicaat gezet moet worden. Hierbij is het datatype van de onderwerpexpressie van belang aangezien niet elk predicaat bij elk datatype gebruikt kan worden. Voor sommige van deze predicaten, de vergelijkingspredicaten, is een tweede onderwerp vereist dat achter het predicaat moet staan.
 
 Zoals al eerder gezegd hebben predicaten een vragende en een stellende vorm, die beide een enkelvoud- en meervoudsvorm kennen. De onderstaande tabel toont de predicaten met deze vormen, en met de datatypes die erbij moeten worden gebruikt. Deze predicaten zullen in de volgende subparagrafen verder worden besproken.
-\begin{tabular}{|c|c|c|c|c|c|c|}
-\hline \multicolumn{3}{|l|}{Soorten predicaten} & & & & \\
-\hline & & \multicolumn{5}{|c|}{Datatype} \\
-\hline Vragende vorm & Stellende vorm & \begin{tabular}{l}
-Numeriek/ \\
-Percentage
-\end{tabular} & \begin{tabular}{l}
-Datum- \\
-tijd
-\end{tabular} & Tekst & Boolean & Enumeratie waarde \\
-\hline \multicolumn{7}{|l|}{Vergelijking} \\
-\hline \begin{tabular}{l}
-gelijk is aan \\
-gelijk zijn aan
-\end{tabular} & is gelijk aan zijn gelijk aan & X & X & X & X & X \\
-\hline ongelijk is aan ongelijk zijn aan & is ongelijk aan zijn ongelijk aan & X & X & X & X & X \\
-\hline groter is dan groter zijn dan & is groter dan zijn groter dan & X & & & & \\
-\hline groter of gelijk is aan groter of gelijk zijn aan & is groter of gelijk aan zijn groter of gelijk aan & X & & & & \\
-\hline kleiner is dan kleiner zijn dan & is kleiner dan zijn kleiner dan & X & & & & \\
-\hline kleiner of gelijk is aan kleiner of gelijk zijn aan & is kleiner of gelijk aan zijn kleiner of gelijk aan & X & & & & \\
-\hline \begin{tabular}{l}
-later is dan \\
-later zijn dan
-\end{tabular} & is later dan zijn later dan & & X & & & \\
-\hline later of gelijk is aan lager of gelijk zijn aan & is later of gelijk aan zijn later of gelijk aan & & X & & & \\
-\hline eerder is dan eerder zijn dan & is eerder dan zijn eerder dan & & X & & & \\
-\hline eerder of gelijk is aan eerder of gelijk zijn aan & is eerder of gelijk aan zijn eerder of gelijk aan & & X & & & \\
-\hline \multicolumn{7}{|l|}{Lege waardes} \\
-\hline \begin{tabular}{l}
-leeg is \\
-leeg zijn
-\end{tabular} & is leeg zijn leeg & X & X & X & X & X \\
-\hline gevuld is gevuld zijn & is gevuld zijn gevuld & X & X & X & X & X \\
-\hline \multicolumn{7}{|l|}{Elfproef} \\
-\hline aan de elfproef voldoen & voldoet aan de elfproef & X & & X & & \\
-\hline niet aan de elfproef voldoen & voldoet niet aan de elfproef & X & & X & & \\
-\hline \multicolumn{7}{|l|}{Getalcontrole} \\
-\hline numeriek met exact <geheelgetal> cijfers is & is numeriek met exact <geheelgetal> cijfers & & & X & & \\
-\hline niet numeriek met exact <geheelgetal> cijfers is & is niet numeriek met exact <geheelgetal> cijfers & & & X & & \\
-\hline \multicolumn{7}{|l|}{Dagsoortcontrole} \\
-\hline een <dagsoort> is & is een <dagsoort> & & X & & & \\
-\hline geen <dagsoort> is & is geen <dagsoort> & & X & & & \\
-\hline \multicolumn{7}{|l|}{Uniciteit ${ }^{26}$} \\
-\hline uniek zijn & & X & X & X & X & X \\
-\hline \multicolumn{7}{|l|}{Rolcheck ${ }^{27}$} \\
-\hline \begin{tabular}{l}
-<rolnaam> is/heeft \\
-<rolnaam> zijn/hebben \\
-geen <rolnaam> is/heeft \\
-geen <rolnaam>
-\end{tabular} & \begin{tabular}{l}
-Is/heeft <rolnaam> \\
-Zijn/hebben <rolnaam> \\
-Is/heeft geen <rolnaam> \\
-zijn/hebben geen
-\end{tabular} & & & & & \\
-\hline
-\end{tabular}
 
 \footnotetext{
 ${ }^{26}$ Uniciteit predicaten kunnen alleen gebruikt worden in consistentieregels, en slechts in een elementair criterium. Er is dan ook slechts 1 vorm.
 ${ }^{27}$ Rolcheck predicaten controleren instanties van objecttypen. Het datatype is hier niet van belang, aangezien het onderwerp een verwijzing naar een objecttype is.
 }
-![](https://cdn.mathpix.com/cropped/2025_04_10_a97b267819259447320dg-086.jpg?height=612&width=1583&top_left_y=251&top_left_x=242)
+
+```json
+{
+  "language": "RegelSpraak",
+  "version": "2.1.0",
+  "datatypes": [
+    "Numeriek",
+    "Percentage",
+    "Datumtijd",
+    "Tekst",
+    "Boolean",
+    "Enumeratie"
+  ],
+  "placeholders": {
+    "<rolnaam>": "naam van een rol",
+    "<kenmerknaam>": "naam van een kenmerk",
+    "<dagsoort>": "naam van een gedefinieerde dagsoort",
+    "<geheelgetal>": "positief geheel getal"
+  },
+  "time_period_modifier": {
+    "applies_when": "Onderwerp is tijdsafhankelijk",
+    "periods": ["jaar", "maand"],
+    "interrogative_prefix": "gedurende het gehele <periode>",
+    "declarative_infix": "gedurende het gehele <periode>"
+  },
+  "predicates": [
+    {
+      "id": "equals",
+      "category": "Vergelijking",
+      "forms": {
+        "vragend": ["gelijk is aan", "gelijk zijn aan"],
+        "stellend": ["is gelijk aan", "zijn gelijk aan"]
+      },
+      "requires_second_operand": true,
+      "applicable_datatypes": ["Numeriek","Percentage","Datumtijd","Tekst","Boolean","Enumeratie"],
+      "notes": "Lege waarde in één van beide expressies → resultaat onwaar. Beide leeg: bij Numeriek/Percentage onwaar; bij andere datatypen foutmelding."
+    },
+    {
+      "id": "notEquals",
+      "category": "Vergelijking",
+      "forms": {
+        "vragend": ["ongelijk is aan", "ongelijk zijn aan"],
+        "stellend": ["is ongelijk aan", "zijn ongelijk aan"]
+      },
+      "requires_second_operand": true,
+      "applicable_datatypes": ["Numeriek","Percentage","Datumtijd","Tekst","Boolean","Enumeratie"],
+      "notes": "Lege waarde in één van beide expressies → resultaat waar. Beide leeg → onwaar."
+    },
+    {
+      "id": "greaterThan",
+      "category": "Vergelijking",
+      "forms": {
+        "vragend": ["groter is dan", "groter zijn dan"],
+        "stellend": ["is groter dan", "zijn groter dan"]
+      },
+      "requires_second_operand": true,
+      "applicable_datatypes": ["Numeriek","Percentage"],
+      "notes": "Lege waarde in één of beide expressies → onwaar."
+    },
+    {
+      "id": "greaterOrEqual",
+      "category": "Vergelijking",
+      "forms": {
+        "vragend": ["groter of gelijk is aan", "groter of gelijk zijn aan"],
+        "stellend": ["is groter of gelijk aan", "zijn groter of gelijk aan"]
+      },
+      "requires_second_operand": true,
+      "applicable_datatypes": ["Numeriek","Percentage"],
+      "notes": "Lege waarde in één of beide expressies → onwaar."
+    },
+    {
+      "id": "lessThan",
+      "category": "Vergelijking",
+      "forms": {
+        "vragend": ["kleiner is dan", "kleiner zijn dan"],
+        "stellend": ["is kleiner dan", "zijn kleiner dan"]
+      },
+      "requires_second_operand": true,
+      "applicable_datatypes": ["Numeriek","Percentage"],
+      "notes": "Lege waarde in één of beide expressies → onwaar."
+    },
+    {
+      "id": "lessOrEqual",
+      "category": "Vergelijking",
+      "forms": {
+        "vragend": ["kleiner of gelijk is aan", "kleiner of gelijk zijn aan"],
+        "stellend": ["is kleiner of gelijk aan", "zijn kleiner of gelijk aan"]
+      },
+      "requires_second_operand": true,
+      "applicable_datatypes": ["Numeriek","Percentage"],
+      "notes": "Lege waarde in één of beide expressies → onwaar."
+    },
+    {
+      "id": "laterThan",
+      "category": "Vergelijking",
+      "forms": {
+        "vragend": ["later is dan", "later zijn dan"],
+        "stellend": ["is later dan", "zijn later dan"]
+      },
+      "requires_second_operand": true,
+      "applicable_datatypes": ["Datumtijd"],
+      "notes": "Eén of beide leeg → onwaar."
+    },
+    {
+      "id": "laterOrEqual",
+      "category": "Vergelijking",
+      "forms": {
+        "vragend": ["later of gelijk is aan", "later of gelijk zijn aan"],
+        "stellend": ["is later of gelijk aan", "zijn later of gelijk aan"]
+      },
+      "requires_second_operand": true,
+      "applicable_datatypes": ["Datumtijd"],
+      "notes": "Eén of beide leeg → onwaar."
+    },
+    {
+      "id": "earlierThan",
+      "category": "Vergelijking",
+      "forms": {
+        "vragend": ["eerder is dan", "eerder zijn dan"],
+        "stellend": ["is eerder dan", "zijn eerder dan"]
+      },
+      "requires_second_operand": true,
+      "applicable_datatypes": ["Datumtijd"],
+      "notes": "Eén of beide leeg → onwaar."
+    },
+    {
+      "id": "earlierOrEqual",
+      "category": "Vergelijking",
+      "forms": {
+        "vragend": ["eerder of gelijk is aan", "eerder of gelijk zijn aan"],
+        "stellend": ["is eerder of gelijk aan", "zijn eerder of gelijk aan"]
+      },
+      "requires_second_operand": true,
+      "applicable_datatypes": ["Datumtijd"],
+      "notes": "Eén of beide leeg → onwaar."
+    },
+    {
+      "id": "isEmpty",
+      "category": "Lege waardes",
+      "forms": {
+        "vragend": ["leeg is", "leeg zijn"],
+        "stellend": ["is leeg", "zijn leeg"]
+      },
+      "requires_second_operand": false,
+      "applicable_datatypes": ["Numeriek","Percentage","Datumtijd","Tekst","Boolean","Enumeratie"]
+    },
+    {
+      "id": "isFilled",
+      "category": "Lege waardes",
+      "forms": {
+        "vragend": ["gevuld is", "gevuld zijn"],
+        "stellend": ["is gevuld", "zijn gevuld"]
+      },
+      "requires_second_operand": false,
+      "applicable_datatypes": ["Numeriek","Percentage","Datumtijd","Tekst","Boolean","Enumeratie"]
+    },
+    {
+      "id": "elfproefPasses",
+      "category": "Elfproef",
+      "forms": {
+        "vragend": ["aan de elfproef voldoen"],
+        "stellend": ["voldoet aan de elfproef"]
+      },
+      "requires_second_operand": false,
+      "applicable_datatypes": ["Numeriek","Tekst"],
+      "notes": "Tekst mag uitsluitend cijfers bevatten."
+    },
+    {
+      "id": "elfproefFails",
+      "category": "Elfproef",
+      "forms": {
+        "vragend": ["niet aan de elfproef voldoen"],
+        "stellend": ["voldoet niet aan de elfproef"]
+      },
+      "requires_second_operand": false,
+      "applicable_datatypes": ["Numeriek","Tekst"]
+    },
+    {
+      "id": "isNumericWithExactDigits",
+      "category": "Getalcontrole",
+      "parameter": "<geheelgetal>",
+      "forms": {
+        "vragend": ["numeriek met exact <geheelgetal> cijfers is"],
+        "stellend": ["is numeriek met exact <geheelgetal> cijfers"]
+      },
+      "requires_second_operand": false,
+      "applicable_datatypes": ["Tekst"]
+    },
+    {
+      "id": "isNotNumericWithExactDigits",
+      "category": "Getalcontrole",
+      "parameter": "<geheelgetal>",
+      "forms": {
+        "vragend": ["niet numeriek met exact <geheelgetal> cijfers is"],
+        "stellend": ["is niet numeriek met exact <geheelgetal> cijfers"]
+      },
+      "requires_second_operand": false,
+      "applicable_datatypes": ["Tekst"]
+    },
+    {
+      "id": "isDayType",
+      "category": "Dagsoortcontrole",
+      "parameter": "<dagsoort>",
+      "forms": {
+        "vragend": ["een <dagsoort> is"],
+        "stellend": ["is een <dagsoort>"]
+      },
+      "requires_second_operand": false,
+      "applicable_datatypes": ["Datumtijd"]
+    },
+    {
+      "id": "isNotDayType",
+      "category": "Dagsoortcontrole",
+      "parameter": "<dagsoort>",
+      "forms": {
+        "vragend": ["geen <dagsoort> is"],
+        "stellend": ["is geen <dagsoort>"]
+      },
+      "requires_second_operand": false,
+      "applicable_datatypes": ["Datumtijd"]
+    },
+    {
+      "id": "isUnique",
+      "category": "Uniciteit",
+      "forms": {
+        "stellend": ["uniek zijn"]
+      },
+      "requires_second_operand": false,
+      "applicable_datatypes": ["Numeriek","Percentage","Datumtijd","Tekst","Boolean","Enumeratie"],
+      "usage_constraints": "Alleen in consistentieregels en alleen als elementair criterium. Attributen/concatenaties/verenigingen moeten worden gespecificeerd."
+    },
+    {
+      "id": "roleHas",
+      "category": "Rolcheck",
+      "parameter": "<rolnaam>",
+      "forms": {
+        "vragend": ["<rolnaam> is/heeft", "<rolnaam> zijn/hebben"],
+        "stellend": ["Is/heeft <rolnaam>", "Zijn/hebben <rolnaam>"]
+      },
+      "requires_second_operand": false,
+      "applicable_datatypes": [],
+      "notes": "Controleert of instantie een rol invult (is/heeft). Datatype niet van belang."
+    },
+    {
+      "id": "roleHasNot",
+      "category": "Rolcheck",
+      "parameter": "<rolnaam>",
+      "forms": {
+        "vragend": ["geen <rolnaam> is/heeft", "geen <rolnaam> zijn/hebben"],
+        "stellend": ["is/heeft geen <rolnaam>", "zijn/hebben geen <rolnaam>"]
+      },
+      "requires_second_operand": false,
+      "applicable_datatypes": [],
+      "notes": "Negatieve rolcheck."
+    },
+    {
+      "id": "featureHas",
+      "category": "Kenmerkcheck",
+      "parameter": "<kenmerknaam>",
+      "variants": ["bijvoeglijk (is <kenmerknaam>)","bezittelijk (heeft <kenmerknaam>)","neutraal (is een <kenmerknaam>)"],
+      "forms": {
+        "vragend": ["is/heeft/is een <kenmerknaam>", "zijn/hebben/zijn een <kenmerknaam>"],
+        "stellend": ["is/heeft/is een <kenmerknaam>", "zijn/hebben/zijn een <kenmerknaam>"]
+      },
+      "requires_second_operand": false,
+      "applicable_datatypes": [],
+      "notes": "Onderwerp verwijst naar een objecttype (direct of via rol); datatypes hebben geen kenmerken."
+    },
+    {
+      "id": "featureHasNot",
+      "category": "Kenmerkcheck",
+      "parameter": "<kenmerknaam>",
+      "variants": ["bijvoeglijk (is niet <kenmerknaam>)","bezittelijk (heeft geen <kenmerknaam>)","neutraal (is geen <kenmerknaam>)"],
+      "forms": {
+        "vragend": ["geen <kenmerknaam> is/heeft/is", "geen <kenmerknaam> zijn/hebben/zijn"],
+        "stellend": ["is niet/heeft niet/is niet een <kenmerknaam>", "zijn geen/hebben geen/zijn geen <kenmerknaam>"]
+      },
+      "requires_second_operand": false,
+      "applicable_datatypes": []
+    },
+    {
+      "id": "ruleFired",
+      "category": "Resultaat regel",
+      "forms": {
+        "vragend": ["gevuurd is"],
+        "stellend": ["is gevuurd"]
+      },
+      "requires_second_operand": false,
+      "subject": "regelversie",
+      "applicable_datatypes": [],
+      "notes": "Controleert of een regel gevuurd heeft."
+    },
+    {
+      "id": "ruleInconsistent",
+      "category": "Resultaat regel",
+      "forms": {
+        "vragend": ["inconsistent is"],
+        "stellend": ["is inconsistent"]
+      },
+      "requires_second_operand": false,
+      "subject": "regelversie",
+      "applicable_datatypes": [],
+      "notes": "Gebruik voor resultaat van consistentieregel."
+    }
+  ]
+}
+```
 
 Tabel 16: de predicaten in RegelSpraak en de datatypes die erbij gebruikt moeten worden.
 N.B. Voor de voorbeelden in de navolgende subparagrafen zal de enkelvoudige, stellende vorm worden gebruikt, de tweede kolom in bovenstaande tabel. De voorbeelden zijn bedoeld om het te bespreken predicaat te illustreren, en zullen derhalve dan ook geen complete regels bevatten maar slechts condities waar het predicaat in wordt gebruikt.

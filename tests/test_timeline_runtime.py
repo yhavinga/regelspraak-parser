@@ -15,8 +15,8 @@ class TestTimelineRuntime(unittest.TestCase):
         """Set up test model and context."""
         # Create a simple domain model with timeline attributes
         model_text = """
-        Parameter de dagkoers : Numeriek (getal) met eenheid euro voor elke dag;
-        Parameter het maandbudget : Bedrag voor elke maand;
+        Parameter de dagkoers : Numeriek (getal) met eenheid euro voor elke dag
+        Parameter het maandbudget : Bedrag voor elke maand
         
         Objecttype de Werknemer
             het salaris Numeriek (getal) met eenheid euro voor elke maand;

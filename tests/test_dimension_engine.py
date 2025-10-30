@@ -87,7 +87,7 @@ class TestDimensionEngine(unittest.TestCase):
             het inkomen Numeriek (geheel getal) gedimensioneerd met jaardimensie en brutonettodimensie;
             de leeftijd Numeriek (geheel getal) met eenheid jr;
         
-        Parameter de belastingpercentage : Numeriek;
+        Parameter de belastingpercentage : Numeriek
         
         Regel bepaal verschil bruto netto
             geldig altijd

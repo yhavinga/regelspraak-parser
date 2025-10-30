@@ -16,7 +16,7 @@ class TestInitializationIntegration(unittest.TestCase):
           leeftijd Numeriek met eenheid jr;
           standaard_leeftijd Numeriek met eenheid jr;
         
-        Parameter de STANDAARD_LEEFTIJD : Numeriek met eenheid jr;
+        Parameter de STANDAARD_LEEFTIJD : Numeriek met eenheid jr
         
         Regel initialiseer_standaard_leeftijd
         geldig altijd
@@ -71,7 +71,7 @@ class TestInitializationIntegration(unittest.TestCase):
           leeftijd Numeriek met eenheid jr;
           standaard_leeftijd Numeriek met eenheid jr;
         
-        Parameter de STANDAARD_LEEFTIJD : Numeriek met eenheid jr;
+        Parameter de STANDAARD_LEEFTIJD : Numeriek met eenheid jr
         
         Regel initialiseer_standaard_leeftijd
         geldig altijd
@@ -106,8 +106,8 @@ class TestInitializationIntegration(unittest.TestCase):
           geboortejaar Numeriek met eenheid jr;
           pensioenleeftijd Numeriek met eenheid jr;
         
-        Parameter de PENSIOEN_BASIS : Numeriek met eenheid jr;
-        Parameter de EXTRA_JAREN : Numeriek met eenheid jr;
+        Parameter de PENSIOEN_BASIS : Numeriek met eenheid jr
+        Parameter de EXTRA_JAREN : Numeriek met eenheid jr
         
         Regel initialiseer_pensioenleeftijd
         geldig altijd
@@ -143,8 +143,8 @@ class TestInitializationIntegration(unittest.TestCase):
           leeftijd Numeriek met eenheid jr;
           kortingspercentage Numeriek met eenheid %;
         
-        Parameter de SENIOREN_KORTING : Numeriek met eenheid %;
-        Parameter de SENIOREN_LEEFTIJD : Numeriek met eenheid jr;
+        Parameter de SENIOREN_KORTING : Numeriek met eenheid %
+        Parameter de SENIOREN_LEEFTIJD : Numeriek met eenheid jr
         
         Regel initialiseer_seniorenkorting
         geldig altijd
@@ -192,7 +192,7 @@ class TestInitializationIntegration(unittest.TestCase):
           korting Numeriek met eenheid EUR;
           totaal_prijs Numeriek met eenheid EUR;
         
-        Parameter de STANDAARD_KORTING : Numeriek met eenheid EUR;
+        Parameter de STANDAARD_KORTING : Numeriek met eenheid EUR
         
         Regel initialiseer_korting
         geldig altijd
@@ -234,7 +234,7 @@ class TestInitializationIntegration(unittest.TestCase):
           naam Tekst;
           saldo Numeriek met eenheid EUR;
         
-        Parameter het START_SALDO : Numeriek met eenheid EUR;
+        Parameter het START_SALDO : Numeriek met eenheid EUR
         
         Regel initialiseer_saldo
         geldig altijd
