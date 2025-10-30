@@ -788,28 +788,58 @@ class RegelSpraakModelBuilder(RegelSpraakVisitor):
                         attribute_part = raw_attribute_text
                         break
         
-        # Only split on "van" if it's NOT a compound attribute
-        if not is_compound_attribute and raw_attribute_text and " van " in raw_attribute_text and raw_attribute_text != attribute_part:
-            # Extract the parts that were removed
-            parts = raw_attribute_text.split(" van ")
+        # Handle dimension extraction for attributes containing "van" pattern
+        # This applies to both cases: when attribute_part has been modified or when it hasn't
+        if not is_compound_attribute and attribute_part and " van " in attribute_part:
+            # Split the attribute_part itself to extract dimension labels
+            parts = attribute_part.split(" van ")
             if len(parts) > 1:
-                # Check if this is a dimension pattern or a nested path
+                # Check if parts after "van" contain dimension keywords
                 dimension_keywords = ["jaar", "maand", "dag", "kwartaal", "periode", "vorig", "huidig", "volgend"]
                 remaining_parts = parts[1:]
-                
-                # Collect non-dimension parts first
+
+                # Check first part after "van" for dimension pattern
+                first_part = remaining_parts[0].strip() if remaining_parts else ""
+                if any(keyword in first_part.lower() for keyword in dimension_keywords):
+                    # This is a dimension pattern like "inkomen van huidig jaar"
+                    prepositional_dimension = first_part
+                    # Update attribute_part to just the base attribute name
+                    attribute_part = parts[0].strip()
+
+                    # Process any remaining parts as navigation path
+                    if len(remaining_parts) > 1:
+                        nav_parts = []
+                        for part in remaining_parts[1:]:
+                            part = part.strip()
+                            if not any(keyword in part.lower() for keyword in dimension_keywords):
+                                nav_parts.append(part)
+                        # For Dutch navigation, reverse the order
+                        additional_path_elements = list(reversed(nav_parts))
+                else:
+                    # No dimension keywords found, might be navigation pattern
+                    nav_parts = [part.strip() for part in remaining_parts]
+                    additional_path_elements = list(reversed(nav_parts))
+
+        # Also handle case where raw_attribute_text differs from attribute_part
+        elif not is_compound_attribute and raw_attribute_text and " van " in raw_attribute_text and raw_attribute_text != attribute_part:
+            # This handles nested navigation patterns that were stripped from attribute_part
+            parts = raw_attribute_text.split(" van ")
+            if len(parts) > 1:
+                dimension_keywords = ["jaar", "maand", "dag", "kwartaal", "periode", "vorig", "huidig", "volgend"]
+                remaining_parts = parts[1:]
+
                 nav_parts = []
                 for part in remaining_parts:
                     part = part.strip()
                     if any(keyword in part.lower() for keyword in dimension_keywords):
                         # This is a dimension
-                        prepositional_dimension = part
+                        if not prepositional_dimension:  # Only set if not already found
+                            prepositional_dimension = part
                     else:
                         # This is part of the navigation path
                         nav_parts.append(part)
-                
-                # For Dutch navigation, reverse the order (right-to-left)
-                # "naam van werkgever van eigenaar" → ["eigenaar", "werkgever"]
+
+                # For Dutch navigation, reverse the order
                 additional_path_elements = list(reversed(nav_parts))
         
         # Recursively build the path from the nested onderwerpReferentie
@@ -4246,11 +4276,36 @@ class RegelSpraakModelBuilder(RegelSpraakVisitor):
                     attribute_inits.append((attr_name, value_expr))
                 
                 # Parse additional attributes using EN connector
-                for vervolg in init_ctx.attributeInitVervolg():
-                    attr = self.visitSimpleNaamwoord(vervolg.attribuut) if hasattr(vervolg, 'attribuut') and vervolg.attribuut else None
-                    val = self.visit(vervolg.waarde) if hasattr(vervolg, 'waarde') and vervolg.waarde else None
-                    if attr and val:
-                        attribute_inits.append((attr, val))
+                vervolg_list = init_ctx.attributeInitVervolg()
+                if vervolg_list:
+                    for vervolg in vervolg_list:
+                        # Handle case where vervolg might be a list (due to visitor default behavior)
+                        if isinstance(vervolg, list):
+                            logger.warning(f"attributeInitVervolg returned list instead of context: {vervolg}")
+                            continue
+
+                        # Process the attribute and value
+                        attr = None
+                        val = None
+
+                        if hasattr(vervolg, 'attribuut') and vervolg.attribuut:
+                            attr_ctx = vervolg.attribuut
+                            # Defensive check in case attribuut also returns a list
+                            if not isinstance(attr_ctx, list):
+                                attr = self.visitSimpleNaamwoord(attr_ctx)
+                            else:
+                                logger.warning(f"vervolg.attribuut returned list: {attr_ctx}")
+
+                        if hasattr(vervolg, 'waarde') and vervolg.waarde:
+                            val_ctx = vervolg.waarde
+                            # Defensive check in case waarde also returns a list
+                            if not isinstance(val_ctx, list):
+                                val = self.visit(val_ctx)
+                            else:
+                                logger.warning(f"vervolg.waarde returned list: {val_ctx}")
+
+                        if attr and val:
+                            attribute_inits.append((attr, val))
             
             return ObjectCreatie(
                 object_type=object_type,
@@ -4799,4 +4854,31 @@ class RegelSpraakModelBuilder(RegelSpraakVisitor):
             return result
         else:
             logger.error(f"Unknown date expression type: {safe_get_text(ctx)}")
-            return None 
+            return None
+
+    def visitConditieBijExpressie(self, ctx: AntlrParser.ConditieBijExpressieContext) -> Expression:
+        """Handle conditional expressions for aggregations and tijdsevenredig functions."""
+        logger.debug(f"visitConditieBijExpressie called with: {safe_get_text(ctx)}")
+
+        # Check if it's a "gedurende de tijd dat" condition
+        if ctx.GEDURENDE_DE_TIJD_DAT():
+            # Return the condition expression directly
+            condition = ctx.expressie()
+            if condition:
+                result = self.visitExpressie(condition)
+                logger.debug(f"  -> GEDURENDE_DE_TIJD_DAT result: {result}")
+                return result
+
+        # Check if it's a period comparison (VANAF, VAN...TOT, etc.)
+        elif ctx.periodevergelijkingEnkelvoudig():
+            period_ctx = ctx.periodevergelijkingEnkelvoudig()
+            # For now, we'll create a placeholder expression for period comparisons
+            # This may need more sophisticated handling depending on engine requirements
+            logger.warning(f"Period comparison in conditieBijExpressie not fully implemented: {safe_get_text(period_ctx)}")
+            # Return a placeholder literal to avoid the list issue
+            return Literal(value=safe_get_text(period_ctx), datatype="Tekst", span=self.get_span(ctx))
+
+        # Fallback - should not happen if grammar is correct
+        logger.error(f"Unknown conditieBijExpressie type: {safe_get_text(ctx)}")
+        # Return a placeholder to avoid list issues
+        return Literal(value="unknown_condition", datatype="Tekst", span=self.get_span(ctx)) 
