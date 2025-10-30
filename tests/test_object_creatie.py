@@ -20,7 +20,7 @@ class ObjectCreatieTests(RegelSpraakTestCase):
         """Test object creation with attribute initialization."""
         input_text = """Regel nieuwe persoon met leeftijd
             geldig altijd
-                Er wordt een nieuw Persoon aangemaakt met leeftijd 25.
+                Er wordt een nieuw Persoon aangemaakt met leeftijd gelijk aan 25.
         """
         tree = self.parse_text(input_text)
         self.assertNoParseErrors()
@@ -29,10 +29,10 @@ class ObjectCreatieTests(RegelSpraakTestCase):
         """Test object creation with multiple attribute initializations."""
         input_text = """Regel nieuwe persoon volledig
             geldig altijd
-                Er wordt een nieuw Persoon aangemaakt 
-                met naam "Jan Jansen" 
-                en leeftijd 30 
-                en woonplaats "Amsterdam".
+                Er wordt een nieuw Persoon aangemaakt
+                met naam gelijk aan "Jan Jansen"
+                en leeftijd gelijk aan 30
+                en woonplaats gelijk aan "Amsterdam".
         """
         tree = self.parse_text(input_text)
         self.assertNoParseErrors()
@@ -42,7 +42,7 @@ class ObjectCreatieTests(RegelSpraakTestCase):
         input_text = """Regel nieuwe werknemer
             geldig altijd
                 Er wordt een nieuw Werknemer aangemaakt
-                met salaris 3000
+                met salaris gelijk aan 3000
                 indien de leeftijd groter is dan 18.
         """
         tree = self.parse_text(input_text)
@@ -53,8 +53,8 @@ class ObjectCreatieTests(RegelSpraakTestCase):
         input_text = """Regel creëer klant
             geldig altijd
                 Creëer een nieuwe Klant
-                met klantnummer 12345
-                en status 'Actief'.
+                met klantnummer gelijk aan 12345
+                en status gelijk aan 'Actief'.
         """
         tree = self.parse_text(input_text)
         self.assertNoParseErrors()

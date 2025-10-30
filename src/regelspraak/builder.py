@@ -3610,12 +3610,19 @@ class RegelSpraakModelBuilder(RegelSpraakVisitor):
                 # All content words are the role name
                 rol_naam = " ".join(words)
                 object_type = " ".join(object_type_words)
-                
+
+                # Filter out cardinality indicators per specification §4.3
+                # The spec only defines "één" and "meerdere" as cardinality indicators
+                for indicator in ['één', 'meerdere']:
+                    if indicator in object_type.lower():
+                        object_type = object_type[:object_type.lower().index(indicator)].strip()
+                        break
+
                 # Extract plural form if present
                 meervoud = None
                 if ctx.meervoud:
                     meervoud = self.visitNaamwoord(ctx.meervoud)
-                
+
                 logger.debug(f"Parsed role with explicit object type: name='{rol_naam}', type='{object_type}'")
                 
                 return Rol(
@@ -4269,13 +4276,50 @@ class RegelSpraakModelBuilder(RegelSpraakVisitor):
             if object_ctx.objectAttributeInit():
                 # Parse initial attribute and its value
                 init_ctx = object_ctx.objectAttributeInit()
-                # Now using simpleNaamwoord to avoid ambiguity
-                attr_name = self.visitSimpleNaamwoord(init_ctx.attribuut) if hasattr(init_ctx, 'attribuut') and init_ctx.attribuut else None
-                value_expr = self.visit(init_ctx.waarde) if hasattr(init_ctx, 'waarde') and init_ctx.waarde else None
+                # Access attribuut and waarde as properties (they're already contexts, not methods)
+                # attribuut is a SimpleNaamwoordContext, waarde is an ExpressieContext
+                attr_name = self.visitSimpleNaamwoord(init_ctx.attribuut) if init_ctx.attribuut else None
+                value_expr = self.visitExpressie(init_ctx.waarde) if init_ctx.waarde else None
+
+                # Special handling: the parser may incorrectly parse multiple attribute initializations
+                # as a single logical expression with EN operators. We need to detect and split these.
                 if attr_name and value_expr:
-                    attribute_inits.append((attr_name, value_expr))
-                
-                # Parse additional attributes using EN connector
+                    # Check if value_expr is a BinaryExpression with EN that should be split
+                    if isinstance(value_expr, BinaryExpression) and value_expr.operator == Operator.EN:
+                        # This might be multiple attribute initializations parsed as one expression
+                        # Split them apart by walking the expression tree
+                        all_attrs = []
+                        all_attrs.append((attr_name, value_expr.left))  # First attr gets the left side
+
+                        # Process the right side which may contain more attributes
+                        current = value_expr.right
+                        while current:
+                            if isinstance(current, BinaryExpression):
+                                if current.operator == Operator.GELIJK_AAN:
+                                    # Pattern: attribute GELIJK_AAN value
+                                    if isinstance(current.left, VariableReference):
+                                        # The left side is the attribute name
+                                        all_attrs.append((current.left.variable_name, current.right))
+                                        break
+                                elif current.operator == Operator.EN:
+                                    # Another EN expression, continue splitting
+                                    # The left side should be an attribute assignment
+                                    if isinstance(current.left, BinaryExpression) and current.left.operator == Operator.GELIJK_AAN:
+                                        if isinstance(current.left.left, VariableReference):
+                                            all_attrs.append((current.left.left.variable_name, current.left.right))
+                                    # Continue with the right side
+                                    current = current.right
+                                else:
+                                    break
+                            else:
+                                break
+
+                        attribute_inits.extend(all_attrs)
+                    else:
+                        # Simple case: just one attribute initialization
+                        attribute_inits.append((attr_name, value_expr))
+
+                # Parse additional attributes using EN connector (though usually empty due to grammar issue)
                 vervolg_list = init_ctx.attributeInitVervolg()
                 if vervolg_list:
                     for vervolg in vervolg_list:

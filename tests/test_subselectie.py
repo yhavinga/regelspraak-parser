@@ -109,7 +109,7 @@ Objecttype de Groep
 
 Feittype groep met personen
     de groep Groep
-    de lid Natuurlijk persoon
+    de lid (mv: leden) Natuurlijk persoon
     Eén groep heeft meerdere leden
 
 Regel tel jongeren
@@ -184,7 +184,7 @@ Objecttype de Club
 
 Feittype club met leden
     de club Club
-    de lid Natuurlijk persoon
+    de lid (mv: leden) Natuurlijk persoon
     Eén club heeft meerdere leden
 
 Regel kenmerktoekenning senior
@@ -326,7 +326,7 @@ Objecttype de Groep
 
 Feittype groep met personen
     de groep Groep
-    de lid Natuurlijk persoon
+    de lid (mv: leden) Natuurlijk persoon
     Eén groep heeft meerdere leden
 
 Regel tel nederlanders
