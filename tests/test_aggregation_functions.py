@@ -87,10 +87,10 @@ class TestAggregationFunctions(unittest.TestCase):
         Objecttype de Planning
             de start datum Datum;
             de eind datum Datum;
-        
-        Parameter datum1 : Datum;
-        Parameter datum2 : Datum;
-        Parameter datum3 : Datum;
+
+        Parameter datum1 : Datum
+        Parameter datum2 : Datum
+        Parameter datum3 : Datum
         
         Regel bepaal start
             geldig altijd

@@ -16,8 +16,8 @@ class TestAantalDagenConditional(unittest.TestCase):
         regelspraak_code = """
         Objecttype de Berekening
             het resultaat Numeriek (geheel getal);
-        
-        Parameter de test waarde : Boolean;
+
+        Parameter de test waarde : Boolean
         
         Regel tel dagen
             geldig altijd
@@ -53,8 +53,8 @@ class TestAantalDagenConditional(unittest.TestCase):
         regelspraak_code = """
         Objecttype de Berekening
             het resultaat Numeriek (geheel getal);
-        
-        Parameter de test waarde : Boolean;
+
+        Parameter de test waarde : Boolean
         
         Regel tel dagen
             geldig altijd
@@ -90,9 +90,9 @@ class TestAantalDagenConditional(unittest.TestCase):
         regelspraak_code = """
         Objecttype de Berekening
             het resultaat Numeriek (geheel getal);
-        
-        Parameter de drempel waarde : Numeriek (geheel getal);
-        Parameter de test waarde : Numeriek (geheel getal);
+
+        Parameter de drempel waarde : Numeriek (geheel getal)
+        Parameter de test waarde : Numeriek (geheel getal)
         
         Regel dagen tellen met vergelijking
             geldig altijd
@@ -129,8 +129,8 @@ class TestAantalDagenConditional(unittest.TestCase):
         regelspraak_code = """
         Objecttype de Berekening
             het resultaat Numeriek (geheel getal);
-        
-        Parameter de test waarde : Boolean;
+
+        Parameter de test waarde : Boolean
         
         Regel tel dagen
             geldig altijd

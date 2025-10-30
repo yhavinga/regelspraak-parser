@@ -52,11 +52,11 @@ class TestBeslistabel(unittest.TestCase):
         Objecttype Passagier
             de reisduur per trein Numeriek (geheel getal) met eenheid minuten;
             de belasting op basis van reisduur Bedrag;
-        
-        Domein Bedrag is van het type Numeriek (getal met 2 decimalen) met eenheid EUR;
-        
-        Parameter de bovengrens reisduur eerste schijf : Numeriek (geheel getal) met eenheid minuten;
-        Parameter de bovengrens reisduur tweede schijf : Numeriek (geheel getal) met eenheid minuten;
+
+        Domein Bedrag is van het type Numeriek (getal met 2 decimalen) met eenheid EUR
+
+        Parameter de bovengrens reisduur eerste schijf : Numeriek (geheel getal) met eenheid minuten
+        Parameter de bovengrens reisduur tweede schijf : Numeriek (geheel getal) met eenheid minuten
         
         Beslistabel Belasting op basis van reisduur
             geldig altijd

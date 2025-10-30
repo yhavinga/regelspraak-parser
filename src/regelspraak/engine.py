@@ -5188,17 +5188,54 @@ class Evaluator:
 
     def _evaluate_variable_reference(self, expr: VariableReference, instance_id: Optional[str]) -> Value:
         """Evaluate a variable reference - shared logic for timeline and non-timeline paths."""
+        # Check for percentage calculation pattern in decision tables
+        # Pattern: "percentage X van zijn Y" where X is a parameter
+        if " van zijn " in expr.variable_name:
+            # Try to match the percentage pattern
+            parts = expr.variable_name.split(" van zijn ", 1)
+            if len(parts) == 2:
+                potential_param = parts[0].strip()
+                attr_name = parts[1].strip()
+
+                # Check if this is a known parameter
+                if potential_param in self.context.domain_model.parameters:
+                    logger.debug(f"ENGINE: Detected percentage pattern in VariableReference: param='{potential_param}', attr='{attr_name}'")
+
+                    # Get parameter value
+                    param_value = self.context.get_parameter(potential_param)
+                    if not param_value:
+                        raise RegelspraakError(f"Parameter '{potential_param}' not found", span=expr.span)
+
+                    # Navigate to the attribute
+                    # "zijn belasting op basis van afstand" means navigate from current instance to the attribute
+                    if self.context.current_instance:
+                        # Try to get the attribute directly from current instance
+                        attr_value = self.context.get_attribute(self.context.current_instance, attr_name)
+
+                        if attr_value is not None and attr_value.value is not None:
+                            # Calculate percentage: (param * attr) / 100
+                            from decimal import Decimal
+                            result_value = (Decimal(str(param_value.value)) * Decimal(str(attr_value.value))) / Decimal('100')
+
+                            # Preserve unit from attribute value
+                            result_unit = attr_value.unit if hasattr(attr_value, 'unit') else None
+                            result = Value(value=result_value, datatype=attr_value.datatype, unit=result_unit)
+
+                            logger.debug(f"ENGINE: Percentage calculation result: {result.value} {result.unit}")
+                            return result
+
+        # Default: try to get as variable
         value = self.context.get_variable(expr.variable_name)
-        
+
         # Trace variable read
         if self.context.trace_sink:
             self.context.trace_sink.variable_read(
-                expr.variable_name, 
-                value.value if isinstance(value, Value) else value, 
+                expr.variable_name,
+                value.value if isinstance(value, Value) else value,
                 expr=expr,
                 instance_id=instance_id
             )
-            
+
         return value
     
     def _evaluate_parameter_reference(self, expr: ParameterReference, instance_id: Optional[str]) -> Value:
@@ -8015,19 +8052,31 @@ class Evaluator:
         
         # Find all objects that have this attribute
         collection_objects = []
+        datatype = None
+        unit = None
+
         for obj_type_name in self.context.domain_model.objecttypes:
             obj_type = self.context.domain_model.objecttypes[obj_type_name]
             # Check if this object type has the attribute
             if singular_name in obj_type.attributen:
+                # Get attribute metadata for datatype/unit
+                attr_spec = obj_type.attributen[singular_name]
+                datatype = attr_spec.datatype
+                unit = attr_spec.eenheid if hasattr(attr_spec, 'eenheid') else None
+
                 # Get all instances of this type
                 instances = self.context.find_objects_by_type(obj_type_name)
                 collection_objects.extend(instances)
-        
-        # Create attribute reference for the singular attribute
-        attr_expr = AttributeReference(path=[singular_name], span=expr.span)
-        
-        # Perform the aggregation
-        return self._perform_aggregation(base_func_name, attr_expr, collection_objects, expr)
+
+        # Collect values from the objects
+        values = []
+        for obj in collection_objects:
+            value = self.context.get_attribute(obj, singular_name)
+            if value is not None:
+                values.append(value)
+
+        # Perform the aggregation with correct signature
+        return self._perform_aggregation(base_func_name, values, datatype or "Numeriek", unit, expr.span)
     
     
     
