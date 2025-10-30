@@ -743,9 +743,30 @@ comparisonExpression
     : subordinateClauseExpression # SubordinateClauseExpr // Try subordinate clauses first (most specific)
     | left=additiveExpression IS naamwoordWithNumbers # IsKenmerkExpr // Try IS kenmerk check - supports complex names with numbers
     | left=additiveExpression HEEFT naamwoordWithNumbers # HeeftKenmerkExpr // Try HEEFT kenmerk check - supports complex names with numbers
+    // Special case for "x gelijk is aan 'A', 'B' of 'C'" pattern per spec §5.6 - restricted to literal values only
+    | left=additiveExpression op=gelijkIsAanOperator firstValue=literalValue
+      (COMMA middleValues+=literalValue)* OF lastValue=literalValue # GelijkIsAanOfExpr
     | left=additiveExpression ( comparisonOperator right=additiveExpression )? # BinaryComparisonExpr
     | unaryCondition # UnaryConditionExpr // Try unary conditions after more specific patterns
     | regelStatusCondition # RegelStatusConditionExpr // Integrate rule status checks here
+    ;
+
+// Literal values that can be used in "gelijk is aan ... of ..." concatenation syntax
+literalValue
+    : ENUM_LITERAL
+    | STRING_LITERAL
+    | NUMBER unitIdentifier?
+    | PERCENTAGE_LITERAL
+    | datumLiteral
+    | identifier  // For simple parameter/constant references
+    ;
+
+// Operators that match "gelijk is aan" and its variants
+gelijkIsAanOperator
+    : GELIJK_IS_AAN
+    | IS_GELIJK_AAN
+    | GELIJK_AAN
+    | ZIJN_GELIJK_AAN  // For plural forms
     ;
 
 comparisonOperator // Expanded list

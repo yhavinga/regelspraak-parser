@@ -1729,6 +1729,45 @@ class RegelSpraakModelBuilder(RegelSpraakVisitor):
             logger.error(f"ExpressieContext has no logicalExpression child: {safe_get_text(ctx)}")
             return None
 
+    def visitLiteralValue(self, ctx: AntlrParser.LiteralValueContext) -> Optional[Expression]:
+        """Visit literalValue context to extract literal values for concatenation syntax."""
+        if ctx.ENUM_LITERAL():
+            text = ctx.ENUM_LITERAL().getText()
+            # Remove quotes from enum literals
+            value = text.strip("'\"") if text else text
+            return Literal(value=value, datatype="Enumeratie", span=self.get_span(ctx))
+        elif ctx.STRING_LITERAL():
+            text = ctx.STRING_LITERAL().getText()
+            # Remove quotes
+            value = text.strip("'\"") if text else text
+            return Literal(value=value, datatype="Tekst", span=self.get_span(ctx))
+        elif ctx.NUMBER():
+            value = float(ctx.NUMBER().getText())
+            unit = None
+            if ctx.unitIdentifier():
+                unit = safe_get_text(ctx.unitIdentifier())
+            return Literal(value=value, datatype="Numeriek", eenheid=unit, span=self.get_span(ctx))
+        elif ctx.PERCENTAGE_LITERAL():
+            text = ctx.PERCENTAGE_LITERAL().getText()
+            percent_value = text[:-1].replace(',', '.')  # Remove % and handle comma
+            decimal_value = Decimal(percent_value) / 100
+            return Literal(value=float(decimal_value), datatype="Percentage", eenheid="%", span=self.get_span(ctx))
+        elif ctx.datumLiteral():
+            date_text = safe_get_text(ctx.datumLiteral())
+            return Literal(value=date_text, datatype="Datum", span=self.get_span(ctx))
+        elif ctx.identifier():
+            # For simple identifier references (parameters, constants)
+            id_text = ctx.identifier().getText()
+            # Check if it's a parameter
+            if id_text in self.parameter_names:
+                return ParameterReference(parameter_name=id_text, span=self.get_span(ctx))
+            else:
+                # Treat as a variable reference
+                return VariableReference(variable_name=id_text, span=self.get_span(ctx))
+        else:
+            logger.warning(f"Unknown literalValue type: {safe_get_text(ctx)}")
+            return None
+
     def visitLogicalExpression(self, ctx: AntlrParser.LogicalExpressionContext) -> Optional[Expression]:
         """Visit logical expression. Handles LogicalExpr labeled alternative."""
         # Grammar: logicalExpression: left=comparisonExpression ( op=(EN | OF) right=logicalExpression )? # LogicalExpr
@@ -1810,6 +1849,63 @@ class RegelSpraakModelBuilder(RegelSpraakVisitor):
             # For now, just use HEEFT operator. Negation should be handled at a different level
             op = Operator.HEEFT
             return BinaryExpression(left=left_expr, operator=op, right=right_expr, span=self.get_span(ctx))
+        elif isinstance(ctx, AntlrParser.GelijkIsAanOfExprContext):
+            # Handle the special "x gelijk is aan 'A', 'B' of 'C'" pattern per spec §5.6
+            # This should expand to: (x gelijk is aan 'A') of (x gelijk is aan 'B') of (x gelijk is aan 'C')
+            left_expr = self.visitAdditiveExpression(ctx.left)
+            if left_expr is None:
+                return None
+
+            # Get the operator - all variants map to GELIJK_AAN
+            # The gelijkIsAanOperator rule only includes equality operators
+            op = Operator.GELIJK_AAN
+
+            # Collect all literal values
+            values = []
+            if ctx.firstValue:
+                first_val = self.visitLiteralValue(ctx.firstValue)
+                if first_val:
+                    values.append(first_val)
+
+            if ctx.middleValues:
+                for middle_val in ctx.middleValues:
+                    val = self.visitLiteralValue(middle_val)
+                    if val:
+                        values.append(val)
+
+            if ctx.lastValue:
+                last_val = self.visitLiteralValue(ctx.lastValue)
+                if last_val:
+                    values.append(last_val)
+
+            if not values:
+                logger.warning(f"No values found in GelijkIsAanOfExpr: {safe_get_text(ctx)}")
+                return None
+
+            # Create comparison expressions for each value
+            comparisons = []
+            for value in values:
+                comparisons.append(BinaryExpression(
+                    left=left_expr,
+                    operator=op,
+                    right=value,
+                    span=self.get_span(ctx)
+                ))
+
+            # Chain them with OR operators
+            if len(comparisons) == 1:
+                return comparisons[0]
+            else:
+                # Build a left-associative chain of OR operations
+                result = comparisons[0]
+                for comp in comparisons[1:]:
+                    result = BinaryExpression(
+                        left=result,
+                        operator=Operator.OF,
+                        right=comp,
+                        span=self.get_span(ctx)
+                    )
+                return result
         elif isinstance(ctx, AntlrParser.BinaryComparisonExprContext):
             # This label should NOT exist if the grammar is simply `expr op expr`.
             # If it DOES exist, it suggests the grammar might be `left=additiveExpr op=comparisonOperator right=additiveExpr`.
@@ -2667,7 +2763,10 @@ class RegelSpraakModelBuilder(RegelSpraakVisitor):
             decimal_value = Decimal(percent_value) / 100
             return Literal(value=float(decimal_value), datatype="Percentage", eenheid="%", span=self.get_span(ctx))
         elif isinstance(ctx, AntlrParser.EnumLiteralExprContext):
-             return Literal(value=ctx.ENUM_LITERAL().getText(), datatype="Enumeratie", span=self.get_span(ctx))
+             text = ctx.ENUM_LITERAL().getText()
+             # Remove quotes from enum literals
+             value = text.strip("'\"") if text else text
+             return Literal(value=value, datatype="Enumeratie", span=self.get_span(ctx))
         elif isinstance(ctx, AntlrParser.DatumLiteralExprContext):
              # Assuming datumLiteral itself holds the text directly or via DATE_TIME_LITERAL
              date_text = safe_get_text(ctx.datumLiteral().DATE_TIME_LITERAL()) if ctx.datumLiteral().DATE_TIME_LITERAL() else safe_get_text(ctx.datumLiteral())
