@@ -1,9 +1,9 @@
 """Integration tests for elfproef validation predicate."""
 import unittest
-from src.regelspraak.parsing import parse_text
-from src.regelspraak.runtime import RuntimeContext, RuntimeObject, Value
-from src.regelspraak.engine import Evaluator
-from src.regelspraak.units import UnitRegistry
+from regelspraak.parsing import parse_text
+from regelspraak.runtime import RuntimeContext, RuntimeObject, Value
+from regelspraak.engine import Evaluator
+from regelspraak.units import UnitRegistry
 
 
 class TestElfproefIntegration(unittest.TestCase):

@@ -1,10 +1,10 @@
 """Test cases for regel status conditions (is gevuurd/is inconsistent)."""
 
 import unittest
-from src.regelspraak.parsing import parse_text
-from src.regelspraak.engine import Evaluator
-from src.regelspraak.runtime import RuntimeContext, RuntimeObject, Value
-from src.regelspraak.units import UnitRegistry
+from regelspraak.parsing import parse_text
+from regelspraak.engine import Evaluator
+from regelspraak.runtime import RuntimeContext, RuntimeObject, Value
+from regelspraak.units import UnitRegistry
 
 
 class TestRegelStatus(unittest.TestCase):

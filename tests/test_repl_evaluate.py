@@ -3,9 +3,9 @@ import unittest
 from io import StringIO
 import sys
 
-from src.regelspraak.parsing import parse_text
-from src.regelspraak.runtime import RuntimeContext, RuntimeObject, Value
-from src.regelspraak.repl import ReplState, handle_evaluate
+from regelspraak.parsing import parse_text
+from regelspraak.runtime import RuntimeContext, RuntimeObject, Value
+from regelspraak.repl import ReplState, handle_evaluate
 
 
 class TestReplEvaluate(unittest.TestCase):

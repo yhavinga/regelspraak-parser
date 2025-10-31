@@ -2,10 +2,10 @@
 import unittest
 from decimal import Decimal
 from unittest.mock import MagicMock
-from src.regelspraak.engine import Evaluator, TraceSink, TraceEvent
-from src.regelspraak.runtime import RuntimeContext, RuntimeObject, Value
-from src.regelspraak.parsing import parse_text
-from src.regelspraak.units import UnitRegistry
+from regelspraak.engine import Evaluator, TraceSink, TraceEvent
+from regelspraak.runtime import RuntimeContext, RuntimeObject, Value
+from regelspraak.parsing import parse_text
+from regelspraak.units import UnitRegistry
 
 
 class TestConsistentieregelIntegration(unittest.TestCase):

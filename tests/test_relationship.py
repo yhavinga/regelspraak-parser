@@ -1,5 +1,5 @@
-from src.regelspraak.parsing import parse_text
-from src.regelspraak.runtime import RuntimeContext, RuntimeObject, Value
+from regelspraak.parsing import parse_text
+from regelspraak.runtime import RuntimeContext, RuntimeObject, Value
 from datetime import date
 
 code = """

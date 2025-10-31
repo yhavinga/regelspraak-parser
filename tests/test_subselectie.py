@@ -33,8 +33,8 @@ Regel kenmerktoekenning minderjarig
 
 Regel tel minderjarigen
     geldig altijd
-        De hoeveelheid minderjarige passagiers van een vlucht moet berekend worden als 
-        het aantal passagiers van de vlucht die minderjarig zijn.
+        De hoeveelheid minderjarige passagiers van een vlucht moet berekend worden als
+        het aantal passagiers van de reis die minderjarig zijn.
 """
         
         # Parse the RegelSpraak code
@@ -253,8 +253,8 @@ Regel kenmerktoekenning minderjarig
 
 Regel som belasting minderjarigen
     geldig altijd
-        De totale belasting minderjarigen van een vlucht moet berekend worden als 
-        de som van de belasting van alle passagiers van de vlucht die minderjarig zijn.
+        De totale belasting minderjarigen van een vlucht moet berekend worden als
+        de som van de belasting van alle passagiers van de reis die minderjarig zijn.
 """
         
         # Parse the RegelSpraak code
