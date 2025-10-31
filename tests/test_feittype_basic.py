@@ -21,8 +21,8 @@ class TestFeitTypeBasic(RegelSpraakTestCase):
             de bestemming Tekst;
         
         Feittype vlucht van passagiers
-            de vlucht Vlucht
-            de passagier Passagier
+            de vlucht	Vlucht
+            de passagier	Passagier
         Een vlucht vervoert passagiers
         
         Parameter de volwassenleeftijd : Numeriek (geheel getal) met eenheid jr
@@ -48,7 +48,7 @@ class TestFeitTypeBasic(RegelSpraakTestCase):
         Domein Bedrag is van het type Numeriek (getal met 2 decimalen)
         
         Objecttype Passagier
-            de naam Tekst
+            de naam Tekst;
             het ticket bedrag Bedrag;
         
         Objecttype Vlucht
@@ -56,8 +56,8 @@ class TestFeitTypeBasic(RegelSpraakTestCase):
             de totale omzet Bedrag;
         
         Feittype vlucht van passagiers
-            de vlucht Vlucht
-            de passagier Passagier
+            de vlucht	Vlucht
+            de passagier	Passagier
         Een vlucht vervoert passagiers
         """
         
@@ -85,8 +85,8 @@ class TestFeitTypeBasic(RegelSpraakTestCase):
             het vluchtnummer Tekst;
         
         Feittype vlucht van passagiers
-            de vlucht Vlucht
-            de passagier Natuurlijk persoon
+            de vlucht	Vlucht
+            de passagier	Natuurlijk persoon
             Een vlucht vervoert passagiers
         
         Parameter de volwassenleeftijd : Numeriek (geheel getal) met eenheid jr

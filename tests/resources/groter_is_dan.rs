@@ -1,4 +1,4 @@
-Parameter de maximum snelheid : Numeriek (geheel getal) met eenheid kmpu;
+Parameter de maximum snelheid : Numeriek (geheel getal) met eenheid kmpu
 
 Objecttype de Auto
     de gemeten snelheid Numeriek (geheel getal) met eenheid kmpu;

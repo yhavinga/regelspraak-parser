@@ -19,8 +19,8 @@ Objecttype de Natuurlijk persoon (bezield)
     de leeftijd Numeriek (geheel getal) met eenheid jr;
 
 Feittype vlucht van natuurlijke personen
-    de reis Vlucht
-    de passagier Natuurlijk persoon
+    de reis	Vlucht
+    de passagier	Natuurlijk persoon
     Eén reis betreft de verplaatsing van meerdere passagiers
 
 Objecttype de Vlucht
@@ -108,8 +108,8 @@ Objecttype de Groep
     de aantal jongeren Numeriek (geheel getal);
 
 Feittype groep met personen
-    de groep Groep
-    de lid (mv: leden) Natuurlijk persoon
+    de groep	Groep
+    de lid (mv: leden)	Natuurlijk persoon
     Eén groep heeft meerdere leden
 
 Regel tel jongeren
@@ -183,8 +183,8 @@ Objecttype de Club
     de aantal senioren Numeriek (geheel getal);
 
 Feittype club met leden
-    de club Club
-    de lid (mv: leden) Natuurlijk persoon
+    de club	Club
+    de lid (mv: leden)	Natuurlijk persoon
     Eén club heeft meerdere leden
 
 Regel kenmerktoekenning senior
@@ -239,8 +239,8 @@ Objecttype de Natuurlijk persoon (bezield)
     de belasting Bedrag;
 
 Feittype vlucht van natuurlijke personen
-    de reis Vlucht
-    de passagier Natuurlijk persoon
+    de reis	Vlucht
+    de passagier	Natuurlijk persoon
     Eén reis betreft de verplaatsing van meerdere passagiers
 
 Objecttype de Vlucht
@@ -325,8 +325,8 @@ Objecttype de Groep
     de aantal nederlanders Numeriek (geheel getal);
 
 Feittype groep met personen
-    de groep Groep
-    de lid (mv: leden) Natuurlijk persoon
+    de groep	Groep
+    de lid (mv: leden)	Natuurlijk persoon
     Eén groep heeft meerdere leden
 
 Regel tel nederlanders
@@ -403,8 +403,8 @@ Objecttype de Reis
     de aantal minderjarige reizigers Numeriek (geheel getal);
 
 Feittype reis met passagiers
-    de reis Reis
-    de passagier Natuurlijk persoon
+    de reis	Reis
+    de passagier	Natuurlijk persoon
     Eén reis heeft meerdere passagiers
 
 Regel kenmerktoekenning minderjarig

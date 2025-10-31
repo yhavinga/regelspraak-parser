@@ -25,8 +25,8 @@ Objecttype de Groep
     de aantal kandidaten Numeriek (geheel getal);
 
 Feittype groep met personen
-    de groep Groep
-    de lid Natuurlijk persoon
+    de groep	Groep
+    de lid	Natuurlijk persoon
     Eén groep heeft meerdere leden
 
 Regel bepaal kandidaat
@@ -122,8 +122,8 @@ Objecttype de Groep
     de aantal niet_actief Numeriek (geheel getal);
 
 Feittype groep met personen
-    de groep Groep
-    de lid Natuurlijk persoon
+    de groep	Groep
+    de lid	Natuurlijk persoon
     Eén groep heeft meerdere leden
 
 Regel bepaal niet_actief
@@ -215,8 +215,8 @@ Objecttype de Groep
     de aantal actief Numeriek (geheel getal);
 
 Feittype groep met personen
-    de groep Groep
-    de lid Natuurlijk persoon
+    de groep	Groep
+    de lid	Natuurlijk persoon
     Eén groep heeft meerdere leden
 
 Regel bepaal actief
@@ -313,8 +313,8 @@ Objecttype de Groep
     de aantal gezond Numeriek (geheel getal);
 
 Feittype groep met personen
-    de groep Groep
-    de lid Natuurlijk persoon
+    de groep	Groep
+    de lid	Natuurlijk persoon
     Eén groep heeft meerdere leden
 
 Regel bepaal gezond
@@ -411,8 +411,8 @@ Objecttype de Groep
     de aantal specifiek Numeriek (geheel getal);
 
 Feittype groep met personen
-    de groep Groep
-    de lid Natuurlijk persoon
+    de groep	Groep
+    de lid	Natuurlijk persoon
     Eén groep heeft meerdere leden
 
 Regel bepaal specifiek
@@ -504,8 +504,8 @@ Objecttype de Groep
     de aantal complex Numeriek (geheel getal);
 
 Feittype groep met personen
-    de groep Groep
-    de lid Natuurlijk persoon
+    de groep	Groep
+    de lid	Natuurlijk persoon
     Eén groep heeft meerdere leden
 
 Regel bepaal complex
@@ -601,8 +601,8 @@ Objecttype de Groep
     de aantal bijzonder Numeriek (geheel getal);
 
 Feittype groep met personen
-    de groep Groep
-    de lid Natuurlijk persoon
+    de groep	Groep
+    de lid	Natuurlijk persoon
     Eén groep heeft meerdere leden
 
 Regel bepaal bijzonder
@@ -680,8 +680,8 @@ Objecttype de Groep
     de aantal test Numeriek (geheel getal);
 
 Feittype groep met personen
-    de groep Groep
-    de lid Natuurlijk persoon
+    de groep	Groep
+    de lid	Natuurlijk persoon
     Eén groep heeft meerdere leden
 
 Regel invalid_ten_minste
@@ -705,8 +705,8 @@ Objecttype de Groep
     de aantal test Numeriek (geheel getal);
 
 Feittype groep met personen
-    de groep Groep
-    de lid Natuurlijk persoon
+    de groep	Groep
+    de lid	Natuurlijk persoon
     Eén groep heeft meerdere leden
 
 Regel invalid_aantal

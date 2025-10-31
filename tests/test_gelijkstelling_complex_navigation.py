@@ -14,8 +14,8 @@ class TestGelijkstellingComplexNavigation(unittest.TestCase):
         """Test setting an attribute through a single relationship navigation."""
         code = """
         Feittype eigendom relatie
-            de eigenaar Persoon
-            het gebouw Gebouw
+            de eigenaar	Persoon
+            het gebouw	Gebouw
             Eén eigenaar heeft één of meerdere gebouwen
         
         Objecttype de Persoon
@@ -64,13 +64,13 @@ class TestGelijkstellingComplexNavigation(unittest.TestCase):
         """Test setting an attribute through multiple relationship navigations."""
         code = """
         Feittype eigendom relatie
-            de eigenaar Persoon
-            het gebouw Gebouw
+            de eigenaar	Persoon
+            het gebouw	Gebouw
             Eén eigenaar heeft één of meerdere gebouwen
             
         Feittype werkrelatie
-            de werkgever Bedrijf
-            de werknemer Persoon
+            de werkgever	Bedrijf
+            de werknemer	Persoon
             Eén werkgever heeft meerdere werknemers
         
         Objecttype de Persoon
@@ -125,8 +125,8 @@ class TestGelijkstellingComplexNavigation(unittest.TestCase):
         """Test that Initialisatie also works with complex navigation."""
         code = """
         Feittype eigendom relatie
-            de eigenaar Persoon
-            het gebouw Gebouw
+            de eigenaar	Persoon
+            het gebouw	Gebouw
             Eén eigenaar heeft één of meerdere gebouwen
         
         Objecttype de Persoon
