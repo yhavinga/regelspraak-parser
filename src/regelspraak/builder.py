@@ -728,6 +728,59 @@ class RegelSpraakModelBuilder(RegelSpraakVisitor):
         # Normalize to ensure consistent reference
         return self._normalize_kenmerk_name(raw_name)
 
+    def _parse_naamwoord_to_navigation_path(self, ctx: AntlrParser.NaamwoordContext) -> List[str]:
+        """Parse a naamwoord context into a navigation path.
+
+        Handles patterns like "passagiers van de reis" and returns ["reis", "passagiers"]
+        for proper navigation through relationships.
+        """
+        if not ctx:
+            return []
+
+        # Collect all parts from the naamwoord structure
+        # Grammar: naamwoord : naamPhrase ( voorzetsel naamPhrase )*
+        parts = []
+
+        # Get all naamPhrase contexts
+        naam_phrases = ctx.naamPhrase()
+        if not isinstance(naam_phrases, list):
+            naam_phrases = [naam_phrases] if naam_phrases else []
+
+        # Extract text from each naamPhrase (without articles)
+        for naam_phrase in naam_phrases:
+            phrase_text = []
+            for child in naam_phrase.children:
+                if isinstance(child, TerminalNode):
+                    token_text = child.getText()
+                    # Skip articles
+                    if token_text.lower() not in ['de', 'het', 'een']:
+                        phrase_text.append(token_text)
+                elif hasattr(child, 'getText'):
+                    # Get text from non-terminal nodes
+                    text = child.getText()
+                    if text.lower() not in ['de', 'het', 'een']:
+                        phrase_text.append(text)
+
+            if phrase_text:
+                parts.append(' '.join(phrase_text))
+
+        # For navigation patterns with "van", we need to reverse the order
+        # "passagiers van de reis" -> ["reis", "passagiers"]
+        if len(parts) >= 2:
+            # Check if there's a "van" preposition indicating navigation
+            has_van = False
+            for i in range(ctx.getChildCount()):
+                child = ctx.getChild(i)
+                if isinstance(child, TerminalNode) and child.getText() == 'van':
+                    has_van = True
+                    break
+
+            if has_van:
+                # Reverse for Dutch navigation pattern
+                parts.reverse()
+
+        return parts if len(parts) > 1 else [' '.join(parts)] if parts else []
+
     def visitBasisOnderwerpToString(self, ctx: AntlrParser.BasisOnderwerpContext) -> str:
         """Extracts a string representation from basisOnderwerp."""
         # Handles pronoun (HIJ) or identifierOrKeyword
@@ -842,8 +895,12 @@ class RegelSpraakModelBuilder(RegelSpraakVisitor):
                 # For Dutch navigation, reverse the order
                 additional_path_elements = list(reversed(nav_parts))
         
+        # Check if the onderwerpReferentie has a predicaat that should filter the result
+        onderwerp_ctx = ctx.onderwerpReferentie()
+        has_predicaat = onderwerp_ctx and (onderwerp_ctx.DIE() or onderwerp_ctx.DAT()) and onderwerp_ctx.predicaat()
+
         # Recursively build the path from the nested onderwerpReferentie
-        base_path = self.visitOnderwerpReferentieToPath(ctx.onderwerpReferentie())
+        base_path = self.visitOnderwerpReferentieToPath(onderwerp_ctx)
         if not base_path:
              logger.error(f"Could not parse base path for attribute reference: {safe_get_text(ctx)}")
              return None
@@ -986,7 +1043,21 @@ class RegelSpraakModelBuilder(RegelSpraakVisitor):
         
         # Create the base attribute reference
         base_attr_ref = AttributeReference(path=full_path, span=self.get_span(ctx))
-        
+
+        # If the onderwerpReferentie has a predicaat, create a Subselectie
+        # This handles cases like "passagiers van de reis die minderjarig zijn"
+        if has_predicaat:
+            predicaat = self.visitPredicaat(onderwerp_ctx.predicaat())
+            if predicaat:
+                # The predicaat should apply to the collection of passagiers, not just the reis
+                # So we create a Subselectie with the full attribute reference
+                logger.debug(f"Creating Subselectie for attribute with predicaat: {full_path}")
+                base_attr_ref = Subselectie(
+                    onderwerp=base_attr_ref,
+                    predicaat=predicaat,
+                    span=self.get_span(ctx)
+                )
+
         # If we have dimension labels, create a DimensionedAttributeReference
         if dimension_labels:
             logger.debug(f"visitAttribuutReferentie: Creating DimensionedAttributeReference with labels={[l.label for l in dimension_labels]}")
@@ -2549,19 +2620,21 @@ class RegelSpraakModelBuilder(RegelSpraakVisitor):
                     alle_dim_ctx = dim_select_ctx.aggregerenOverAlleDimensies()
                     if alle_dim_ctx.naamwoord():
                         # Build an AttributeReference for the collection
-                        # Parse the naamwoord to build a proper path
+                        # Parse the naamwoord to build a proper navigation path
                         naamwoord_ctx = alle_dim_ctx.naamwoord()
-                        
-                        # Extract the full collection reference as a single path element
-                        # Don't split on "van" - treat "passagiers van de reis" as one navigation expression
-                        naamwoord_text = self._extract_canonical_name(naamwoord_ctx)
-                        collection_path = [naamwoord_text]
-                        
+
+                        # Parse navigation pattern like "passagiers van de reis" -> ["reis", "passagiers"]
+                        collection_path = self._parse_naamwoord_to_navigation_path(naamwoord_ctx)
+                        if not collection_path:
+                            # Fallback to extracting as single text if parsing fails
+                            naamwoord_text = self._extract_canonical_name(naamwoord_ctx)
+                            collection_path = [naamwoord_text] if naamwoord_text else []
+
                         collection_ref = AttributeReference(
                             path=collection_path,
                             span=self.get_span(alle_dim_ctx)
                         )
-                        
+
                         # Check if there's a filtering predicate
                         if alle_dim_ctx.predicaat():
                             # Create a Subselectie to filter the collection

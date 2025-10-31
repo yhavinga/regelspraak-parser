@@ -20,7 +20,7 @@ Objecttype de Natuurlijk persoon (bezield)
 
 Feittype vlucht van natuurlijke personen
     de reis	Vlucht
-    de passagier	Natuurlijk persoon
+    de passagier (mv: passagiers)	Natuurlijk persoon
     Eén reis betreft de verplaatsing van meerdere passagiers
 
 Objecttype de Vlucht
@@ -240,7 +240,7 @@ Objecttype de Natuurlijk persoon (bezield)
 
 Feittype vlucht van natuurlijke personen
     de reis	Vlucht
-    de passagier	Natuurlijk persoon
+    de passagier (mv: passagiers)	Natuurlijk persoon
     Eén reis betreft de verplaatsing van meerdere passagiers
 
 Objecttype de Vlucht
@@ -404,7 +404,7 @@ Objecttype de Reis
 
 Feittype reis met passagiers
     de reis	Reis
-    de passagier	Natuurlijk persoon
+    de passagier (mv: passagiers)	Natuurlijk persoon
     Eén reis heeft meerdere passagiers
 
 Regel kenmerktoekenning minderjarig

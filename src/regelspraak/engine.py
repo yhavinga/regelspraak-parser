@@ -8415,30 +8415,35 @@ class Evaluator:
     
     def _match_with_plural(self, singular: str, text: str, plural: Optional[str] = None) -> bool:
         """Check if text matches singular form or its defined plural.
-        
+
         Args:
             singular: The singular form to match
             text: The text to match against
             plural: The defined plural form (meervoud) from AST, if available
-        
+
         Returns:
             True if text matches singular or plural form
         """
         # Clean inputs
         singular_clean = self._strip_articles(singular).lower()
         text_clean = self._strip_articles(text).lower()
-        
+
         # Check exact match with singular
         if singular_clean == text_clean:
             return True
-        
+
         # Check match with defined plural if available
         if plural:
             plural_clean = self._strip_articles(plural).lower()
             if plural_clean == text_clean:
                 return True
-        
-        # No match found
+
+        # No hardcoded pluralization - the specification requires explicit (mv: ...) declarations
+        # If a plural form is needed but not defined, it should be added to the DSL definition
+        if not plural and text_clean != singular_clean:
+            logger.debug(f"No plural form defined for '{singular}' to match '{text}'. "
+                       f"Consider adding (mv: {text}) to the DSL definition.")
+
         return False
     
     def _find_object_type_match(self, text: str) -> Optional[str]:
