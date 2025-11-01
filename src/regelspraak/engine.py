@@ -720,7 +720,21 @@ class Evaluator:
                     for obj_type_name, obj_type_def in self.context.domain_model.objecttypes.items():
                         if name in obj_type_def.attributen:
                             return obj_type_name
-                
+
+                # Fallback: If domain model is incomplete, try runtime instances
+                # This allows type deduction even when running rules without full definitions
+                if hasattr(self.context, 'instances') and self.context.instances:
+                    logger.debug(f"Domain model incomplete, checking runtime instances for attribute ownership")
+                    for i in [0, 1]:
+                        attr_name = target_ref.path[i]
+                        # Scan all runtime instances to find which type owns this attribute
+                        for instance in self.context.instances.values():
+                            if hasattr(instance, 'attributen') and attr_name in instance.attributen:
+                                # Found an instance with this attribute
+                                obj_type = instance.object_type_naam
+                                logger.debug(f"Found attribute '{attr_name}' on runtime instance of type '{obj_type}'")
+                                return obj_type
+
                 # If no match found, return None
                 return None
             # Special handling for single-element paths with "van"
@@ -1568,8 +1582,15 @@ class Evaluator:
             # The object_type might be a role name from a FeitType
             # Try to resolve it to the actual object type
             actual_object_type = res.object_type
-            
-            # Check if it's a direct object type
+
+            # First, try to resolve role aliases to actual object types
+            # This handles cases like "vastgestelde contingent treinmiles" -> actual object type
+            mapped = self._role_alias_to_object_type(actual_object_type)
+            if mapped:
+                logger.debug(f"ObjectCreatie: Resolved role alias '{actual_object_type}' -> '{mapped}'")
+                actual_object_type = mapped
+
+            # Now check if it's a direct object type
             obj_type_def = self.context.domain_model.objecttypes.get(actual_object_type)
             
             # If not found, check if it's a role name in a FeitType  
@@ -1603,18 +1624,10 @@ class Evaluator:
                     if obj_type_def:
                         break
             
-            
-            # Additional fallback: try to match role names from FeitTypes
+
+            # Additional fallback: manual scan of FeitTypes
+            # (We already tried _role_alias_to_object_type above, so skip that here)
             if not obj_type_def:
-                # Fast-path: map role phrase to its object type via FeitTypes
-                mapped = self._role_alias_to_object_type(actual_object_type)
-                if mapped:
-                    logger.debug(f"ObjectCreatie: Fast-path role alias '{actual_object_type}' -> '{mapped}'")
-                    actual_object_type = mapped
-                    obj_type_def = self.context.domain_model.objecttypes.get(actual_object_type)
-                
-                # Fallback to manual scan if fast-path didn't work
-                if not obj_type_def:
                     logger.debug(f"ObjectCreatie: Looking for role name '{actual_object_type}' in FeitTypes")
                     for feittype_name, feittype in self.context.domain_model.feittypen.items():
                         for rol in feittype.rollen:

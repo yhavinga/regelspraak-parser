@@ -783,24 +783,39 @@ class RegelSpraakModelBuilder(RegelSpraakVisitor):
 
     def visitBasisOnderwerpToString(self, ctx: AntlrParser.BasisOnderwerpContext) -> str:
         """Extracts a string representation from basisOnderwerp."""
-        # Handles pronoun (HIJ) or identifierOrKeyword
-        if ctx.HIJ():
+        # Check for possessive pronoun "zijn" - preserve it in the path
+        # This fixes navigation through relationships like "zijn reis"
+        # Note: Grammar only allows ZIJN as possessive, not HAAR or HUN
+        if ctx.ZIJN():
+            # Possessive "zijn" (his/its)
+            # Get the following identifier
+            if ctx.identifierOrKeyword():
+                identifiers = [id_token.getText() for id_token in ctx.identifierOrKeyword()]
+                text = " ".join(identifiers)
+                # Prepend the possessive to preserve it
+                result = f"zijn {text}"
+                logger.debug(f"visitBasisOnderwerpToString: possessive ZIJN with '{text}', returning '{result}'")
+                return result
+            else:
+                # Just the possessive alone
+                return "zijn"
+        elif ctx.HIJ():
             return "self" # Represent pronoun as 'self' or similar context key
         elif ctx.identifierOrKeyword():
             # Combine identifierOrKeyword tokens
             identifiers = [id_token.getText() for id_token in ctx.identifierOrKeyword()]
             text = " ".join(identifiers)
-            
+
             # DEBUG: Add temporary debug logging
             logger.debug(f"visitBasisOnderwerpToString: identifiers={identifiers}, text='{text}'")
-            
+
             # If contains "van", only return first part
             # This handles cases where grammar groups "de burgemeester van de hoofdstad" as one basisOnderwerp
             if " van " in text:
                 result = text.split(" van ")[0].strip()
                 logger.debug(f"visitBasisOnderwerpToString: split on 'van', returning '{result}'")
                 return result
-            
+
             logger.debug(f"visitBasisOnderwerpToString: returning '{text}'")
             return text
         return "<unknown_basis_onderwerp>"
