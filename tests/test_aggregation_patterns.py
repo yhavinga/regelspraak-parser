@@ -147,7 +147,7 @@ class TestAggregationPatterns(unittest.TestCase):
         
         # Second argument: the collection
         self.assertIsInstance(expr.arguments[1], AttributeReference)
-        self.assertEqual(expr.arguments[1].path, ["passagiers van de reis"])
+        self.assertEqual(expr.arguments[1].path, ["passagiers", "reis"])
         
         # Test execution
         context = RuntimeContext(model)

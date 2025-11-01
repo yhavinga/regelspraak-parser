@@ -115,7 +115,7 @@ Parameter de BooleanParam : Boolean
 Parameter de DatumParam : Datum in dagen
 Parameter de DatumTijdParam : Datum en tijd in millisecondes
 
-Domein Bedrag is van het type Numeriek (getal met 2 decimalen)
+Domein Bedrag is van het type Numeriek (getal met 2 decimalen);
 
 Domein TestStatusDomein is van het type Enumeratie
     'Actief'
@@ -143,16 +143,15 @@ Regel DeTestRegel
     geldig altijd
         het resultaat van een TestPersoon moet gesteld worden op {expression_snippet}.
     Daarbij geldt:
-        X is 10;
-        Y is 20;
-        S is "initiële tekst";
-        B is waar;
-        DatumParam1 is 01-01-2023;
-        DatumParam2 is 02-01-2023;
-        S1 is "eerste";
-        S2 is "tweede";
-        S3 is "derde";
-.
+        X is 10
+        Y is 20
+        S is "initiële tekst"
+        B is waar
+        DatumParam1 is 01-01-2023
+        DatumParam2 is 02-01-2023
+        S1 is "eerste"
+        S2 is "tweede"
+        S3 is "derde".
 """
         tree = self.parse_text(regel_text)
         # for i, line in enumerate(regel_text.split('\n')):

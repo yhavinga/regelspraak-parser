@@ -13,12 +13,14 @@ class TestAggregationFunctions(unittest.TestCase):
     def test_som_van_collection_pattern(self):
         """Test 'som van X van alle Y' pattern."""
         regelspraak_code = """
+        Domein Bedrag is van het type Numeriek (getal met 2 decimalen)
+
         Objecttype de Natuurlijk persoon (mv: Natuurlijke personen) (bezield)
             de te betalen belasting Bedrag;
-        
+
         Objecttype de Vlucht (mv: vluchten)
             de totaal te betalen belasting Bedrag;
-        
+
         Feittype vlucht van natuurlijke personen
             de reis Vlucht
             de passagier Natuurlijk persoon
@@ -124,12 +126,14 @@ class TestAggregationFunctions(unittest.TestCase):
     def test_som_van_empty_collection(self):
         """Test sum over empty collection returns 0."""
         regelspraak_code = """
+        Domein Bedrag is van het type Numeriek (getal met 2 decimalen)
+
         Objecttype de Natuurlijk persoon (mv: Natuurlijke personen) (bezield)
             de te betalen belasting Bedrag;
-        
+
         Objecttype de Vlucht (mv: vluchten)
             de totaal te betalen belasting Bedrag;
-        
+
         Feittype vlucht van natuurlijke personen
             de reis Vlucht
             de passagier Natuurlijk persoon

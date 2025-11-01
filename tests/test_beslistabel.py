@@ -44,7 +44,7 @@ class TestBeslistabel(unittest.TestCase):
         self.assertEqual(len(beslistabel.rows), 3)
         self.assertEqual(beslistabel.rows[0].row_number, 1)
         self.assertEqual(beslistabel.rows[0].result_expression.value, 1)
-        self.assertEqual(beslistabel.rows[0].condition_values[0].value, "'Friesland'")
+        self.assertEqual(beslistabel.rows[0].condition_values[0].value, "Friesland")
 
     def test_beslistabel_with_nvt(self):
         """Test decision table with n.v.t. conditions."""
@@ -153,10 +153,8 @@ class TestBeslistabel(unittest.TestCase):
         # Test attribute of object condition
         cond = parser.parse_condition_column("indien de reisduur per trein in minuten van zijn reis groter is dan")
         self.assertIsNotNone(cond)
-        # The parser returns the attribute and object as separate elements
-        self.assertEqual(len(cond.subject_path), 2)
-        self.assertEqual(cond.subject_path[0], "reisduur per trein in minuten")
-        self.assertEqual(cond.subject_path[1], "reis")
+        # The parser returns the possessive form and the attribute name
+        self.assertEqual(cond.subject_path, ["zijn reis", "reisduur per trein"])
         self.assertEqual(cond.operator.name, "GROTER_DAN")
         
         # Test kenmerk condition
