@@ -141,9 +141,9 @@ class TestInitializationIntegration(unittest.TestCase):
         Objecttype Persoon
           naam Tekst;
           leeftijd Numeriek met eenheid jr;
-          kortingspercentage Numeriek met eenheid %;
-        
-        Parameter de SENIOREN_KORTING : Numeriek met eenheid %
+          kortingspercentage Percentage;
+
+        Parameter de SENIOREN_KORTING : Percentage
         Parameter de SENIOREN_LEEFTIJD : Numeriek met eenheid jr
         
         Regel initialiseer_seniorenkorting
@@ -156,7 +156,7 @@ class TestInitializationIntegration(unittest.TestCase):
         context = RuntimeContext(model)
         
         # Set parameter values
-        context.set_parameter('SENIOREN_KORTING', Value(value=15, datatype="Numeriek", unit="%"))
+        context.set_parameter('SENIOREN_KORTING', Value(value=15, datatype="Percentage"))
         context.set_parameter('SENIOREN_LEEFTIJD', Value(value=65, datatype="Numeriek", unit="jr"))
         
         # Create senior person without kortingspercentage
@@ -178,7 +178,8 @@ class TestInitializationIntegration(unittest.TestCase):
         # Check that senior got korting initialized
         self.assertIsNotNone(senior.attributen.get("kortingspercentage"))
         self.assertEqual(senior.attributen["kortingspercentage"].value, 15)
-        self.assertEqual(senior.attributen["kortingspercentage"].unit, "%")
+        # Percentage datatype doesn't have a unit
+        self.assertEqual(senior.attributen["kortingspercentage"].datatype, "Percentage")
         
         # Check that young person did NOT get korting initialized
         self.assertIsNone(young.attributen.get("kortingspercentage"))
