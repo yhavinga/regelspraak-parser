@@ -143,7 +143,7 @@ class SemanticAnalysisTests(RegelSpraakTestCase):
         
         Regel totaalprijs berekenen
             geldig altijd
-                De totaalprijs van een Product moet berekend worden als zijn prijs maal de hoeveelheid maal factor.
+                De totaalprijs van een Product moet berekend worden als zijn prijs maal hoeveelheid maal factor.
                 Daarbij geldt:
                 de hoeveelheid is 5.
         """
@@ -180,13 +180,13 @@ class SemanticAnalysisTests(RegelSpraakTestCase):
         
         Regel regel1
             geldig altijd
-                De leeftijd van een Persoon moet berekend worden als de variabele1.
+                De leeftijd van een Persoon moet berekend worden als variabele1.
                 Daarbij geldt:
                 de variabele1 is 10.
         
         Regel regel2
             geldig altijd
-                De score van een Persoon moet berekend worden als de variabele1.
+                De score van een Persoon moet berekend worden als variabele1.
         """
         model = parse_text(input_text)
         errors = validate(model)

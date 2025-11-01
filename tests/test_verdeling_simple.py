@@ -59,6 +59,8 @@ class TestVerdelingSimple(unittest.TestCase):
         for i in range(3):
             passenger = RuntimeObject("Natuurlijk persoon")
             context.add_object(passenger)
+            # Initialize treinmiles to 0 for verdeling to operate on
+            context.set_attribute(passenger, "treinmiles", Value(Decimal(0), "Numeriek", None))
             passengers.append(passenger)
             
             # Create relationship using the feittype

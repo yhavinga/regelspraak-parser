@@ -64,7 +64,7 @@ class TestTokaEerstePaasdag(unittest.TestCase):
         
         Regel bereken paasdag
             geldig altijd
-                De paasdag van een Test moet berekend worden als de eerste paasdag van het jaar van de test.
+                De paasdag van een Test moet berekend worden als de eerste paasdag van (het jaar van de test).
         """
         
         # Parse the code
@@ -107,7 +107,7 @@ class TestTokaEerstePaasdag(unittest.TestCase):
         
         Regel bereken paasdag
             geldig altijd
-                De paasdag van een Test moet berekend worden als de eerste paasdag van het jaar van de test.
+                De paasdag van een Test moet berekend worden als de eerste paasdag van (het jaar van de test).
         """
         
         # Parse the code

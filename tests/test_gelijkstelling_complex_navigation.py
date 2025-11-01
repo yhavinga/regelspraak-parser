@@ -52,9 +52,9 @@ class TestGelijkstellingComplexNavigation(unittest.TestCase):
         # Execute rule with gebouw as current instance
         context.current_instance = gebouw
         
-        # Get the rule and apply it
+        # Get the rule and evaluate it properly
         rule = model.regels[0]
-        engine._apply_resultaat(rule.resultaat)
+        engine.evaluate_rule(rule)
         
         # Check that the eigenaar's name was updated
         naam_value = context.get_attribute(persoon, "naam")
@@ -113,9 +113,9 @@ class TestGelijkstellingComplexNavigation(unittest.TestCase):
         # Execute rule with gebouw as current instance
         context.current_instance = gebouw
         
-        # Get the rule and apply it
+        # Get the rule and evaluate it properly
         rule = model.regels[0]
-        engine._apply_resultaat(rule.resultaat)
+        engine.evaluate_rule(rule)
         
         # Check that the bedrijf's name was updated
         naam_value = context.get_attribute(bedrijf, "bedrijfsnaam")
@@ -162,9 +162,9 @@ class TestGelijkstellingComplexNavigation(unittest.TestCase):
         # Execute rule with gebouw as current instance
         context.current_instance = gebouw
         
-        # Get the rule and apply it
+        # Get the rule and evaluate it properly
         rule = model.regels[0]
-        engine._apply_resultaat(rule.resultaat)
+        engine.evaluate_rule(rule)
         
         # Check that the eigenaar's leeftijd was initialized
         leeftijd_value = context.get_attribute(persoon, "leeftijd")
@@ -172,7 +172,7 @@ class TestGelijkstellingComplexNavigation(unittest.TestCase):
         
         # Run again - should not overwrite (Initialisatie only sets if empty)
         context.set_attribute(persoon, "leeftijd", Value(30, "Numeriek"))
-        engine._apply_resultaat(rule.resultaat)
+        engine.evaluate_rule(rule)
         leeftijd_value = context.get_attribute(persoon, "leeftijd")
         self.assertEqual(leeftijd_value.value, 30)  # Should remain 30
 

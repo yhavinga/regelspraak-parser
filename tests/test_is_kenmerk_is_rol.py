@@ -10,7 +10,7 @@ class IsKenmerkIsRolTests(RegelSpraakTestCase):
 
     def test_is_kenmerk_singular(self):
         """Tests 'is kenmerk' predicate in singular form."""
-        input_text = """Regel check kenmerk
+        input_text = """Regel test_kenmerk_singular
             geldig altijd
                 Het resultaat is WAAR
                 indien de persoon is kenmerk Student.
@@ -24,7 +24,7 @@ class IsKenmerkIsRolTests(RegelSpraakTestCase):
 
     def test_is_kenmerk_plural(self):
         """Tests 'zijn kenmerk' predicate in plural form."""
-        input_text = """Regel check kenmerken meervoud
+        input_text = """Regel test_kenmerken_meervoud
             geldig altijd
                 Het resultaat is WAAR
                 indien de personen zijn kenmerk Student.
@@ -38,7 +38,7 @@ class IsKenmerkIsRolTests(RegelSpraakTestCase):
 
     def test_is_rol_singular(self):
         """Tests 'is rol' predicate in singular form."""
-        input_text = """Regel check rol
+        input_text = """Regel test_rol_singular
             geldig altijd
                 Het resultaat is WAAR
                 indien de persoon is rol Aanvrager.
@@ -52,7 +52,7 @@ class IsKenmerkIsRolTests(RegelSpraakTestCase):
 
     def test_is_rol_plural(self):
         """Tests 'zijn rol' predicate in plural form."""
-        input_text = """Regel check rollen meervoud
+        input_text = """Regel test_rollen_meervoud
             geldig altijd
                 Het resultaat is WAAR
                 indien de personen zijn rol Aanvrager.
@@ -66,7 +66,7 @@ class IsKenmerkIsRolTests(RegelSpraakTestCase):
 
     def test_is_not_kenmerk(self):
         """Tests 'is niet kenmerk' predicate with negation."""
-        input_text = """Regel check niet kenmerk
+        input_text = """Regel test_niet_kenmerk
             geldig altijd
                 Het resultaat is WAAR
                 indien de persoon is niet kenmerk Student.
@@ -80,7 +80,7 @@ class IsKenmerkIsRolTests(RegelSpraakTestCase):
 
     def test_is_not_rol(self):
         """Tests 'is niet rol' predicate with negation."""
-        input_text = """Regel check niet rol
+        input_text = """Regel test_niet_rol
             geldig altijd
                 Het resultaat is WAAR
                 indien de persoon is niet rol Aanvrager.
