@@ -426,9 +426,10 @@ class Evaluator:
             for arg in expr.arguments:
                 refs.extend(self._extract_attribute_references(arg))
         elif isinstance(expr, SamengesteldeVoorwaarde):
-            for conditie in expr.condities:
-                if hasattr(conditie, 'expressie'):
-                    refs.extend(self._extract_attribute_references(conditie.expressie))
+            # SamengesteldeVoorwaarde uses 'voorwaarden' not 'condities'
+            for voorwaarde in expr.voorwaarden:
+                # Each voorwaarde is an Expression
+                refs.extend(self._extract_attribute_references(voorwaarde))
         
         return refs
 
@@ -514,8 +515,13 @@ class Evaluator:
                             return defined_type
             elif rule.resultaat.criterium_type == "inconsistent":
                 # Spec 9.5: Extract target from condition's attribute references
-                if rule.resultaat.condition:
-                    refs = self._extract_attribute_references(rule.resultaat.condition)
+                # Check both rule.resultaat.condition and rule.voorwaarde.expressie
+                condition = rule.resultaat.condition
+                if not condition and hasattr(rule, 'voorwaarde') and rule.voorwaarde:
+                    condition = rule.voorwaarde.expressie
+
+                if condition:
+                    refs = self._extract_attribute_references(condition)
                     if refs:
                         # First try to find object type from the path
                         for ref in refs:

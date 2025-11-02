@@ -41,7 +41,7 @@ class TestTokaEerstePaasdag(unittest.TestCase):
         evaluator.execute_model(model)
         
         # Check that flight on Easter has the discount
-        has_discount = context.get_kenmerk(flight_easter, "is_reis_met_paaskorting")
+        has_discount = context.get_kenmerk(flight_easter, "reis met paaskorting")
         self.assertTrue(has_discount)
         
         # Create flight not on Easter
@@ -52,7 +52,7 @@ class TestTokaEerstePaasdag(unittest.TestCase):
         evaluator.execute_model(model)
         
         # Check that regular flight doesn't have discount
-        has_discount_regular = context.get_kenmerk(flight_regular, "is_reis_met_paaskorting")
+        has_discount_regular = context.get_kenmerk(flight_regular, "reis met paaskorting")
         self.assertFalse(has_discount_regular)
     
     def test_eerste_paasdag_calculation(self):
