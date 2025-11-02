@@ -119,17 +119,38 @@ class TestTimelineParsing(unittest.TestCase):
         self.assertEqual(contract.attributen["jaarlijkse bonus"].timeline, "jaar")
         self.assertEqual(contract.attributen["dagelijkse status"].timeline, "dag")
     
-    def test_timeline_with_dimensions(self):
-        """Test that timelines work together with dimensions."""
-        # Skip this test for now as dimension syntax needs verification
-        self.skipTest("Dimension syntax needs verification")
-        
+    def test_attribute_with_dimension(self):
+        """Test that attributes can have dimensions (but not with timelines).
+
+        Note: Dimensions and timelines cannot be combined on a single attribute
+        per RegelSpraak specification section 3.7. They are mutually exclusive.
+        """
+        input_text = """
+        Dimensie de TijdDimensie, bestaande uit de TijdDimensies (na het attribuut met voorzetsel van):
+            1. vorig jaar
+            2. huidig jaar
+            3. volgend jaar
+
+        Objecttype de Meting
+            de meetwaarde Numeriek (getal) gedimensioneerd met TijdDimensie;
+        """
+
+        result = parse_text(input_text)
+        self.assertIsInstance(result, DomainModel)
+
+        # Check dimension is defined
+        self.assertIn("TijdDimensie", result.dimensions)
+
+        # Check object type
+        self.assertIn("Meting", result.objecttypes)
         meting = result.objecttypes["Meting"]
+        self.assertIn("meetwaarde", meting.attributen)
+
         meetwaarde = meting.attributen["meetwaarde"]
-        
-        # Should have both dimension and timeline
+
+        # Should have dimension but NO timeline
         self.assertEqual(meetwaarde.dimensions, ["TijdDimensie"])
-        self.assertEqual(meetwaarde.timeline, "dag")
+        self.assertIsNone(meetwaarde.timeline)
 
 
 if __name__ == '__main__':
