@@ -22,11 +22,11 @@ Objecttype de Natuurlijk persoon (bezield)
     is kandidaat kenmerk (bijvoeglijk);
 
 Objecttype de Groep
-    de aantal kandidaten Numeriek (geheel getal);
+    het aantal kandidaten Numeriek (geheel getal);
 
 Feittype groep met personen
     de groep	Groep
-    de lid	Natuurlijk persoon
+    de lid (mv: leden)	Natuurlijk persoon
     Eén groep heeft meerdere leden
 
 Regel bepaal kandidaat
@@ -39,7 +39,7 @@ Regel bepaal kandidaat
 
 Regel tel kandidaten
     geldig altijd
-        De aantal kandidaten van een groep moet berekend worden als 
+        Het aantal kandidaten van een groep moet berekend worden als 
         het aantal leden van de groep die kandidaat zijn.
 """
         
@@ -119,11 +119,11 @@ Objecttype de Natuurlijk persoon (bezield)
     is niet_actief kenmerk (bijvoeglijk);
 
 Objecttype de Groep
-    de aantal niet_actief Numeriek (geheel getal);
+    het aantal niet_actief Numeriek (geheel getal);
 
 Feittype groep met personen
     de groep	Groep
-    de lid	Natuurlijk persoon
+    de lid (mv: leden)	Natuurlijk persoon
     Eén groep heeft meerdere leden
 
 Regel bepaal niet_actief
@@ -135,7 +135,7 @@ Regel bepaal niet_actief
 
 Regel tel niet_actief
     geldig altijd
-        De aantal niet_actief van een groep moet berekend worden als 
+        Het aantal niet_actief van een groep moet berekend worden als 
         het aantal leden van de groep die niet_actief zijn.
 """
         
@@ -212,11 +212,11 @@ Objecttype de Natuurlijk persoon (bezield)
     is actief kenmerk (bijvoeglijk);
 
 Objecttype de Groep
-    de aantal actief Numeriek (geheel getal);
+    het aantal actief Numeriek (geheel getal);
 
 Feittype groep met personen
     de groep	Groep
-    de lid	Natuurlijk persoon
+    de lid (mv: leden)	Natuurlijk persoon
     Eén groep heeft meerdere leden
 
 Regel bepaal actief
@@ -229,7 +229,7 @@ Regel bepaal actief
 
 Regel tel actief
     geldig altijd
-        De aantal actief van een groep moet berekend worden als 
+        Het aantal actief van een groep moet berekend worden als 
         het aantal leden van de groep die actief zijn.
 """
         
@@ -310,11 +310,11 @@ Objecttype de Natuurlijk persoon (bezield)
     is gezond kenmerk (bijvoeglijk);
 
 Objecttype de Groep
-    de aantal gezond Numeriek (geheel getal);
+    het aantal gezond Numeriek (geheel getal);
 
 Feittype groep met personen
     de groep	Groep
-    de lid	Natuurlijk persoon
+    de lid (mv: leden)	Natuurlijk persoon
     Eén groep heeft meerdere leden
 
 Regel bepaal gezond
@@ -327,7 +327,7 @@ Regel bepaal gezond
 
 Regel tel gezond
     geldig altijd
-        De aantal gezond van een groep moet berekend worden als 
+        Het aantal gezond van een groep moet berekend worden als 
         het aantal leden van de groep die gezond zijn.
 """
         
@@ -408,11 +408,11 @@ Objecttype de Natuurlijk persoon (bezield)
     is specifiek kenmerk (bijvoeglijk);
 
 Objecttype de Groep
-    de aantal specifiek Numeriek (geheel getal);
+    het aantal specifiek Numeriek (geheel getal);
 
 Feittype groep met personen
     de groep	Groep
-    de lid	Natuurlijk persoon
+    de lid (mv: leden)	Natuurlijk persoon
     Eén groep heeft meerdere leden
 
 Regel bepaal specifiek
@@ -425,7 +425,7 @@ Regel bepaal specifiek
 
 Regel tel specifiek
     geldig altijd
-        De aantal specifiek van een groep moet berekend worden als 
+        Het aantal specifiek van een groep moet berekend worden als 
         het aantal leden van de groep die specifiek zijn.
 """
         
@@ -501,11 +501,11 @@ Objecttype de Natuurlijk persoon (bezield)
     is complex kenmerk (bijvoeglijk);
 
 Objecttype de Groep
-    de aantal complex Numeriek (geheel getal);
+    het aantal complex Numeriek (geheel getal);
 
 Feittype groep met personen
     de groep	Groep
-    de lid	Natuurlijk persoon
+    de lid (mv: leden)	Natuurlijk persoon
     Eén groep heeft meerdere leden
 
 Regel bepaal complex
@@ -519,7 +519,7 @@ Regel bepaal complex
 
 Regel tel complex
     geldig altijd
-        De aantal complex van een groep moet berekend worden als 
+        Het aantal complex van een groep moet berekend worden als 
         het aantal leden van de groep die complex zijn.
 """
         
@@ -598,11 +598,11 @@ Objecttype de Natuurlijk persoon (bezield)
     is bijzonder kenmerk (bijvoeglijk);
 
 Objecttype de Groep
-    de aantal bijzonder Numeriek (geheel getal);
+    het aantal bijzonder Numeriek (geheel getal);
 
 Feittype groep met personen
     de groep	Groep
-    de lid	Natuurlijk persoon
+    de lid (mv: leden)	Natuurlijk persoon
     Eén groep heeft meerdere leden
 
 Regel bepaal bijzonder
@@ -614,7 +614,7 @@ Regel bepaal bijzonder
 
 Regel tel bijzonder
     geldig altijd
-        De aantal bijzonder van een groep moet berekend worden als 
+        Het aantal bijzonder van een groep moet berekend worden als 
         het aantal leden van de groep die bijzonder zijn.
 """
         
@@ -677,16 +677,16 @@ Objecttype de Natuurlijk persoon (bezield)
     de naam Tekst;
 
 Objecttype de Groep
-    de aantal test Numeriek (geheel getal);
+    het aantal test Numeriek (geheel getal);
 
 Feittype groep met personen
     de groep	Groep
-    de lid	Natuurlijk persoon
+    de lid (mv: leden)	Natuurlijk persoon
     Eén groep heeft meerdere leden
 
 Regel invalid_ten_minste
     geldig altijd
-        De aantal test van een groep moet berekend worden als 
+        Het aantal test van een groep moet berekend worden als 
         het aantal leden van de groep die aan ten minste van de volgende voorwaarden voldoen:
         • student zijn.
 """
@@ -702,11 +702,11 @@ Objecttype de Natuurlijk persoon (bezield)
     is invalid_test kenmerk (bijvoeglijk);
 
 Objecttype de Groep
-    de aantal test Numeriek (geheel getal);
+    het aantal test Numeriek (geheel getal);
 
 Feittype groep met personen
     de groep	Groep
-    de lid	Natuurlijk persoon
+    de lid (mv: leden)	Natuurlijk persoon
     Eén groep heeft meerdere leden
 
 Regel invalid_aantal
@@ -717,7 +717,7 @@ Regel invalid_aantal
 
 Regel tel test
     geldig altijd
-        De aantal test van een groep moet berekend worden als 
+        Het aantal test van een groep moet berekend worden als 
         het aantal leden van de groep die invalid_test zijn.
 """
         

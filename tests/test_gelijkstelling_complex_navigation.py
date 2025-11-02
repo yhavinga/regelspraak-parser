@@ -17,15 +17,15 @@ class TestGelijkstellingComplexNavigation(unittest.TestCase):
             de eigenaar	Persoon
             het gebouw	Gebouw
             Eén eigenaar heeft één of meerdere gebouwen
-        
+
         Objecttype de Persoon
             de naam Tekst;
             de leeftijd Numeriek;
-        
-        Objecttype het Gebouw  
+
+        Objecttype het Gebouw
             het adres Tekst;
             het bouwjaar Numeriek;
-        
+
         Regel stel_eigenaar_naam_in
             geldig altijd
                 De naam van de eigenaar van het gebouw moet berekend worden als "Jan de Vries".

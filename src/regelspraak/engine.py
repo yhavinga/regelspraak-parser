@@ -487,21 +487,27 @@ class Evaluator:
         elif isinstance(rule.resultaat, Consistentieregel):
             # For consistency rules, determine the target based on the criterium type
             if rule.resultaat.criterium_type == "uniek" and rule.resultaat.target:
-                # For uniqueness checks, the target has pattern: [attribute, "alle", object_type]
+                # For uniqueness checks, the target has pattern: ["alle", object_type, attribute]
+                # This follows Dutch right-to-left navigation order
                 if isinstance(rule.resultaat.target, AttributeReference) and len(rule.resultaat.target.path) >= 3:
-                    # The object type is the last element in the path
-                    obj_type = rule.resultaat.target.path[2]
-                    
+                    # The object type is the second element in the path (after "alle")
+                    obj_type = rule.resultaat.target.path[1]
+
                     # Try exact match first
                     if obj_type in self.context.domain_model.objecttypes:
                         return obj_type
-                    
+
+                    # Try to match plural form (e.g., "Natuurlijke personen" -> "Natuurlijk persoon")
+                    for defined_type, type_def in self.context.domain_model.objecttypes.items():
+                        if type_def.meervoud and type_def.meervoud == obj_type:
+                            return defined_type
+
                     # Try to find a matching object type (case-insensitive)
                     obj_type_lower = obj_type.lower()
                     for defined_type in self.context.domain_model.objecttypes:
                         if defined_type.lower() == obj_type_lower:
                             return defined_type
-                    
+
                     # Try partial match as last resort
                     for defined_type in self.context.domain_model.objecttypes:
                         if defined_type.lower() in obj_type_lower or obj_type_lower in defined_type.lower():
@@ -4289,21 +4295,22 @@ class Evaluator:
                 raise RegelspraakError("Uniqueness check requires a target expression", span=res.span)
             
             # Extract attribute name and object type from target
-            # Expected pattern: AttributeReference with path like ["burgerservicenummer", "alle", "Natuurlijke personen"]
+            # Expected pattern: AttributeReference with path like ["alle", "Natuurlijke personen", "burgerservicenummer"]
+            # This follows Dutch right-to-left navigation order
             if not isinstance(res.target, AttributeReference) or len(res.target.path) < 3:
                 raise RegelspraakError(
                     "Uniqueness check requires pattern 'de <attribute> van alle <object type>'",
                     span=res.target.span if res.target else res.span
                 )
-            
-            # Parse the path
-            attribute_name_plural = res.target.path[0]
-            if res.target.path[-2].lower() != "alle":
+
+            # Parse the path - Dutch right-to-left order
+            if res.target.path[0].lower() != "alle":
                 raise RegelspraakError(
-                    f"Expected 'alle' in uniqueness pattern, got '{res.target.path[-2]}'",
+                    f"Expected 'alle' in uniqueness pattern, got '{res.target.path[0]}'",
                     span=res.target.span
                 )
-            object_type_name_plural = res.target.path[-1]
+            object_type_name_plural = res.target.path[1]
+            attribute_name_plural = res.target.path[2]
             
             # Find the object type by matching plural form
             object_type_name = None

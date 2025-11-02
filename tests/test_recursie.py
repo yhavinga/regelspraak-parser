@@ -148,7 +148,6 @@ class TestRecursie(unittest.TestCase):
                 print(f"Semantic error: {err}")
         self.assertEqual(len(analyzer3.errors), 0)
 
-    @unittest.skip("Temporarily skipping - causes infinite loop in recursive execution")
     def test_recursive_calculation_simple(self):
         """Test a simple recursive calculation with iteration."""
         text = """
@@ -205,7 +204,6 @@ class TestRecursie(unittest.TestCase):
         
         self.assertEqual(total_som, 30)  # Termination condition
 
-    @unittest.skip("Temporarily skipping - causes infinite loop in recursive execution")
     def test_recursive_execution_termination(self):
         """Test that recursive execution properly terminates."""
         text = """
@@ -246,7 +244,6 @@ class TestRecursie(unittest.TestCase):
         self.assertFalse(any(r.get("status") == "max_iterations_reached" for r in results))
 
 
-    @unittest.skip("Temporarily skipping - causes infinite loop in recursive execution")
     def test_configurable_iteration_limit(self):
         """Test that configurable iteration limits work."""
         text = """
@@ -279,7 +276,6 @@ class TestRecursie(unittest.TestCase):
         created_count = sum(1 for r in results if r.get("status") == "object_created")
         self.assertLessEqual(created_count, 5)
     
-    @unittest.skip("Temporarily skipping - causes infinite loop in recursive execution")
     def test_cycle_detection(self):
         """Test that cycle detection prevents infinite recursion."""
         text = """

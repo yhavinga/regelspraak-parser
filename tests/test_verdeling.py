@@ -22,7 +22,7 @@ class TestVerdeling(unittest.TestCase):
         
         Feittype verdeling contingent treinmiles over passagiers
             het te verdelen contingent treinmiles Contingent treinmiles
-            de passagier met recht op treinmiles Natuurlijk persoon
+            de passagier met recht op treinmiles (mv: passagiers met recht op treinmiles) Natuurlijk persoon
             één te verdelen contingent treinmiles wordt verdeeld over meerdere passagiers met recht op treinmiles
         
         Regel verdelingGelijkeDelen
@@ -79,7 +79,7 @@ class TestVerdeling(unittest.TestCase):
         
         Feittype verdeling contingent treinmiles over passagiers
             het te verdelen contingent treinmiles Contingent treinmiles
-            de passagier met recht op treinmiles Natuurlijk persoon
+            de passagier met recht op treinmiles (mv: passagiers met recht op treinmiles) Natuurlijk persoon
             één te verdelen contingent treinmiles wordt verdeeld over meerdere passagiers met recht op treinmiles
         
         Regel verdelingNaarRato
@@ -149,7 +149,7 @@ class TestVerdeling(unittest.TestCase):
         
         Feittype verdeling contingent treinmiles over passagiers
             het te verdelen contingent treinmiles Contingent treinmiles
-            de passagier met recht op treinmiles Natuurlijk persoon
+            de passagier met recht op treinmiles (mv: passagiers met recht op treinmiles) Natuurlijk persoon
             één te verdelen contingent treinmiles wordt verdeeld over meerdere passagiers met recht op treinmiles
         
         Regel verdelingMetAfronding
@@ -210,7 +210,7 @@ class TestVerdeling(unittest.TestCase):
         
         Feittype verdeling contingent treinmiles over passagiers
             het te verdelen contingent treinmiles Contingent treinmiles
-            de passagier met recht op treinmiles Natuurlijk persoon
+            de passagier met recht op treinmiles (mv: passagiers met recht op treinmiles) Natuurlijk persoon
             één te verdelen contingent treinmiles wordt verdeeld over meerdere passagiers met recht op treinmiles
         
         Regel verdelingMetMaximum
@@ -275,7 +275,7 @@ class TestVerdeling(unittest.TestCase):
         
         Feittype verdeling contingent treinmiles over passagiers
             het te verdelen contingent treinmiles Contingent treinmiles
-            de passagier met recht op treinmiles Natuurlijk persoon
+            de passagier met recht op treinmiles (mv: passagiers met recht op treinmiles) Natuurlijk persoon
             één te verdelen contingent treinmiles wordt verdeeld over meerdere passagiers met recht op treinmiles
         
         Regel verdelingLeeg
@@ -319,7 +319,7 @@ class TestVerdeling(unittest.TestCase):
         
         Feittype verdeling contingent treinmiles over passagiers
             het te verdelen contingent treinmiles Contingent treinmiles
-            de passagier met recht op treinmiles Natuurlijk persoon
+            de passagier met recht op treinmiles (mv: passagiers met recht op treinmiles) Natuurlijk persoon
             één te verdelen contingent treinmiles wordt verdeeld over meerdere passagiers met recht op treinmiles
         
         Regel verdelingComplexMultiCriteria

@@ -633,21 +633,80 @@ class RegelSpraakModelBuilder(RegelSpraakVisitor):
     def visitNaamwoordNoIs(self, ctx: AntlrParser.NaamwoordNoIsContext) -> Optional[str]:
         """Visit a naamwoordNoIs context and extract the complete noun phrase including prepositions."""
         logger.debug(f"    Visiting NaamwoordNoIs: Text='{safe_get_text(ctx)}', Type={type(ctx).__name__}, ChildCount={ctx.getChildCount()}")
-        
+
+        # First, get the complete text without articles to check if it's a known attribute
+        complete_text_parts = []
+        for i in range(ctx.getChildCount()):
+            child = ctx.getChild(i)
+            if type(child).__name__ == 'NaamPhraseNoIsContext':
+                for subchild in child.children:
+                    if isinstance(subchild, TerminalNode):
+                        token_type = subchild.getSymbol().type
+                        token_text = safe_get_text(subchild)
+                        # Skip articles
+                        if token_type not in [AntlrParser.DE, AntlrParser.HET, AntlrParser.EEN]:
+                            complete_text_parts.append(token_text)
+                    elif type(subchild).__name__ == 'IdentifierOrKeywordNoIsContext':
+                        text = safe_get_text(subchild)
+                        if text.lower() not in ['de', 'het', 'een']:
+                            complete_text_parts.append(text)
+            elif type(child).__name__ == 'VoorzetselContext':
+                complete_text_parts.append(safe_get_text(child))
+
+        complete_text = " ".join(complete_text_parts)
+
+        # Check if the complete text is a known attribute in any object type
+        is_known_attribute = False
+        if hasattr(self, 'domain_model') and self.domain_model:
+            for obj_type in self.domain_model.objecttypes.values():
+                if complete_text in obj_type.attributen:
+                    is_known_attribute = True
+                    break
+
+        # If it's a known attribute, return the complete text
+        if is_known_attribute:
+            logger.debug(f"    visitNaamwoordNoIs: '{complete_text}' is a known attribute, returning complete")
+            return complete_text
+
+        # Otherwise, process with truncation logic for navigation
         # Process all parts of the naamwoordNoIs according to grammar:
         # naamwoordNoIs : naamPhraseNoIs ( voorzetsel naamPhraseNoIs )*
         all_parts = []
-        
+
         # Get all naamPhraseNoIs contexts
         naam_phrases = ctx.naamPhraseNoIs()
         if not isinstance(naam_phrases, list):
             naam_phrases = [naam_phrases] if naam_phrases else []
-        
+
+        # Navigation indicators that suggest "van" starts navigation, not part of attribute
+        navigation_indicators = ["de", "het", "alle", "een", "zijn", "haar", "hun"]
+        stop_at_navigation = False
+
         # Process the complete structure
         for i in range(ctx.getChildCount()):
             child = ctx.getChild(i)
-            
+
             if type(child).__name__ == 'NaamPhraseNoIsContext':
+                # Check if this phrase starts with a navigation indicator
+                has_nav_indicator = False
+                first_token = None
+
+                for subchild in child.children:
+                    if isinstance(subchild, TerminalNode):
+                        token_text = safe_get_text(subchild).lower()
+                        if first_token is None:
+                            first_token = token_text
+                        if token_text in navigation_indicators:
+                            has_nav_indicator = True
+                            break
+                    elif type(subchild).__name__ == 'IdentifierOrKeywordNoIsContext' and first_token is None:
+                        first_token = safe_get_text(subchild).lower()
+
+                # If we've seen a voorzetsel and this phrase starts with navigation indicator, stop
+                if i > 0 and has_nav_indicator:
+                    stop_at_navigation = True
+                    break
+
                 # Process naam phrase - extract text without articles
                 phrase_parts = []
                 for subchild in child.children:
@@ -662,17 +721,34 @@ class RegelSpraakModelBuilder(RegelSpraakVisitor):
                         # Skip capitalized articles that were parsed as identifiers
                         if text.lower() not in ['de', 'het', 'een']:
                             phrase_parts.append(text)
-                
+
                 if phrase_parts:
                     all_parts.append(" ".join(phrase_parts))
-                    
+
             elif type(child).__name__ == 'VoorzetselContext':
+                # Check if the next naamPhrase starts with navigation indicator
+                # If so, don't include this voorzetsel and what follows
+                if i + 1 < ctx.getChildCount():
+                    next_child = ctx.getChild(i + 1)
+                    if type(next_child).__name__ == 'NaamPhraseNoIsContext':
+                        # Check if it starts with navigation indicator
+                        for subchild in next_child.children:
+                            if isinstance(subchild, TerminalNode):
+                                token_text = safe_get_text(subchild).lower()
+                                if token_text in navigation_indicators:
+                                    stop_at_navigation = True
+                                    break
+                            break  # Only check first token
+
+                if stop_at_navigation:
+                    break
+
                 # Add the preposition
                 all_parts.append(safe_get_text(child))
-        
+
         # Join all parts with spaces
         final_noun = " ".join(all_parts) if all_parts else safe_get_text(ctx)
-        
+
         logger.debug(f"    visitNaamwoordNoIs returning: '{final_noun}'")
         return final_noun
     
@@ -823,20 +899,47 @@ class RegelSpraakModelBuilder(RegelSpraakVisitor):
     # 5. Reference Construction Methods
     def visitAttribuutReferentie(self, ctx: AntlrParser.AttribuutReferentieContext) -> Optional[Expression]:
         """Visit an attribute reference and build an AttributeReference or DimensionedAttributeReference object."""
-        # Get the attribute part
+        # Get the attribute part - this may be truncated if navigation was detected
         attribute_part = self.visitAttribuutMetLidwoord(ctx.attribuutMetLidwoord())
-        
+
         # Check if this is actually a known parameter
         # First try the full attribute_part
         if attribute_part and attribute_part in self.parameter_names:
             logger.debug(f"visitAttribuutReferentie: '{attribute_part}' is a known parameter, creating ParameterReference")
             return ParameterReference(parameter_name=attribute_part, span=self.get_span(ctx))
-        
-        
-        # Also get the raw naamwoord text to check for dimension patterns and nested paths
+
+        # Get the full raw text to check what was truncated
         raw_attribute_text = None
+        extracted_nav_parts = []
         if ctx.attribuutMetLidwoord() and ctx.attribuutMetLidwoord().naamwoordNoIs():
+            # Get the full context text WITH SPACES to see what was there originally
+            full_text = get_text_with_spaces(ctx.attribuutMetLidwoord().naamwoordNoIs())
             raw_attribute_text = self.visitNaamwoordNoIs(ctx.attribuutMetLidwoord().naamwoordNoIs())
+
+            # Check if something was truncated by comparing lengths and content
+            if raw_attribute_text and full_text and " van " in full_text:
+                logger.debug(f"Checking for truncated navigation: full_text='{full_text}', raw_attribute_text='{raw_attribute_text}'")
+
+                # If the raw_attribute_text is shorter or doesn't contain all the "van" parts, something was truncated
+                full_parts = full_text.split(" van ")
+
+                # Find where raw_attribute_text ends in the full text
+                # The attribute might be just the first part before "van"
+                if raw_attribute_text in full_parts[0]:
+                    # The attribute is just the first part, everything after first "van" is navigation
+                    for i in range(1, len(full_parts)):
+                        part = full_parts[i].strip()
+                        # Remove articles and extract the navigation element
+                        words = part.split()
+                        nav_words = []
+                        for word in words:
+                            if word.lower() not in ['de', 'het', 'een']:
+                                nav_words.append(word)
+                        if nav_words:
+                            extracted_nav_parts.append(' '.join(nav_words))
+                            logger.debug(f"  Extracted navigation part: '{' '.join(nav_words)}'")
+
+                logger.debug(f"  Final extracted_nav_parts={extracted_nav_parts}")
         
         # Check if the raw attribute contains nested path info that was split off
         # BUT first check if this is a known compound attribute name that should NOT be split
@@ -864,29 +967,55 @@ class RegelSpraakModelBuilder(RegelSpraakVisitor):
             if len(parts) > 1:
                 # Check if parts after "van" contain dimension keywords
                 dimension_keywords = ["jaar", "maand", "dag", "kwartaal", "periode", "vorig", "huidig", "volgend"]
-                remaining_parts = parts[1:]
+                # Navigation indicators - these suggest "van" starts a navigation path, not part of attribute
+                navigation_indicators = ["alle", "de", "het", "een", "zijn", "haar", "hun"]
 
-                # Check first part after "van" for dimension pattern
-                first_part = remaining_parts[0].strip() if remaining_parts else ""
-                if any(keyword in first_part.lower() for keyword in dimension_keywords):
-                    # This is a dimension pattern like "inkomen van huidig jaar"
-                    prepositional_dimension = first_part
-                    # Update attribute_part to just the base attribute name
-                    attribute_part = parts[0].strip()
+                # Find the rightmost "van" that starts a navigation pattern
+                nav_start_idx = -1
+                for i in range(len(parts) - 1, 0, -1):
+                    part_strip = parts[i].strip()
+                    if not part_strip:
+                        continue
+                    part_words = part_strip.split()
+                    if part_words:
+                        first_word = part_words[0].lower()
+                        # Check for dimension pattern
+                        if any(keyword in part_strip.lower() for keyword in dimension_keywords):
+                            # This is a dimension, not navigation
+                            if i == 1 and nav_start_idx == -1:
+                                # Only "van" after the attribute, this is a dimension
+                                prepositional_dimension = part_strip
+                                attribute_part = parts[0].strip()
+                                # Any remaining parts after dimension are navigation
+                                if len(parts) > 2:
+                                    nav_parts = parts[2:]
+                                    additional_path_elements = list(reversed([p.strip() for p in nav_parts]))
+                                break
+                        elif first_word in navigation_indicators:
+                            # Found navigation start
+                            nav_start_idx = i
+                            # Keep looking - we want the rightmost navigation indicator
 
-                    # Process any remaining parts as navigation path
-                    if len(remaining_parts) > 1:
-                        nav_parts = []
-                        for part in remaining_parts[1:]:
-                            part = part.strip()
-                            if not any(keyword in part.lower() for keyword in dimension_keywords):
-                                nav_parts.append(part)
-                        # For Dutch navigation, reverse the order
-                        additional_path_elements = list(reversed(nav_parts))
+                if nav_start_idx > 0:
+                    # Everything before this "van" is the attribute name
+                    attribute_part = " van ".join(parts[:nav_start_idx])
+                    nav_parts = parts[nav_start_idx:]
+                    additional_path_elements = list(reversed([p.strip() for p in nav_parts]))
+                elif prepositional_dimension:
+                    # Already handled in the dimension check above
+                    pass
                 else:
-                    # No dimension keywords found, might be navigation pattern
-                    nav_parts = [part.strip() for part in remaining_parts]
-                    additional_path_elements = list(reversed(nav_parts))
+                    # No clear navigation indicators found
+                    # Check if the first part after "van" looks like an object reference
+                    first_part = parts[1].strip() if len(parts) > 1 else ""
+                    # If it's a capitalized word (likely object type), treat as navigation
+                    if first_part and first_part[0].isupper():
+                        attribute_part = parts[0].strip()
+                        nav_parts = [part.strip() for part in parts[1:]]
+                        additional_path_elements = list(reversed(nav_parts))
+                    else:
+                        # Keep the whole thing as attribute name
+                        pass
 
         # Also handle case where raw_attribute_text differs from attribute_part
         elif not is_compound_attribute and raw_attribute_text and " van " in raw_attribute_text and raw_attribute_text != attribute_part:
@@ -919,6 +1048,13 @@ class RegelSpraakModelBuilder(RegelSpraakVisitor):
         if not base_path:
              logger.error(f"Could not parse base path for attribute reference: {safe_get_text(ctx)}")
              return None
+
+        # Add any navigation parts that were extracted from the truncated attribute
+        if extracted_nav_parts:
+            # The extracted parts are in left-to-right order from the text
+            # But Dutch navigation is right-to-left, so reverse them
+            reversed_extracted = list(reversed(extracted_nav_parts))
+            additional_path_elements = reversed_extracted + (additional_path_elements or [])
         
         # WORKAROUND for grammar bug in binary expressions:
         # When parsing the right operand of a binary expression, ANTLR sometimes

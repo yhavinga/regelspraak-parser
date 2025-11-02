@@ -87,9 +87,9 @@ class RegelTests(RegelSpraakTestCase):
             geldig altijd
                 Het complex netto bedrag van een factuur moet berekend worden als het bruto bedrag van de factuur verminderd met A.
                 Daarbij geldt:
-                B is 10 procent van het bruto bedrag van de factuur;
-                C is 5;
-                D is 2;
+                B is 10 procent van het bruto bedrag van de factuur
+                C is 5
+                D is 2
                 A is B plus C min D.
         """
         tree = self.parse_text(input_text)
