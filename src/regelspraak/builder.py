@@ -1179,8 +1179,9 @@ class RegelSpraakModelBuilder(RegelSpraakVisitor):
         elif is_object_type_spec:
             # Object type specification - include both attribute and object type
             # Example: "Het inkomen van een Natuurlijk persoon" → ['Natuurlijk persoon', 'inkomen']
+            # Example with nested navigation: "De postcode van het woonadres van een persoon" → ['persoon', 'woonadres', 'postcode']
             # This allows the engine to resolve role names via FeitType
-            full_path = final_base_path + [actual_attribute_name]
+            full_path = final_base_path + additional_path_elements + [actual_attribute_name]
         elif final_base_path or additional_path_elements:
             # Navigation case: use Dutch right-to-left order per specification
             # Example: "De naam van de eigenaar van het gebouw" → ['gebouw', 'eigenaar', 'naam']
@@ -4974,7 +4975,8 @@ class RegelSpraakModelBuilder(RegelSpraakVisitor):
         """Visit a variable part and build a dictionary of variable assignments."""
         variables = {}
         for toekenning_ctx in ctx.variabeleToekenning():
-            # Variable names are simple identifiers per spec
+            # Variable names can have optional articles per spec §11
+            # Extract just the variable name, ignoring the optional article (de/het)
             var_name = toekenning_ctx.varName.text if toekenning_ctx.varName else None
             expression = self.visitVariabeleExpressie(toekenning_ctx.varExpr) if toekenning_ctx.varExpr else None
             if var_name and expression:

@@ -717,7 +717,7 @@ variabeleDeel
     ;
 
 variabeleToekenning
-    : varName=IDENTIFIER IS varExpr=variabeleExpressie
+    : article=(DE | HET)? varName=IDENTIFIER IS varExpr=variabeleExpressie
     ;
 
 // Special expression rule for variable assignments that doesn't cross lines

@@ -47,7 +47,7 @@ def test_navigation_bug():
         passengers.append(passenger)
         
         # Create relationship between flight and passenger
-        gelijk aan context.add_relationship("vlucht van natuurlijke personen", flight, passenger)
+        context.add_relationship("vlucht van natuurlijke personen", flight, passenger)
     
     print(f"✓ Created {len(passengers)} passengers with relationships")
     

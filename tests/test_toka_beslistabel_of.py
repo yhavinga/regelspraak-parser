@@ -138,7 +138,7 @@ class TestTokaBeslistabelOf(unittest.TestCase):
         evaluator.execute_model(model)
         
         # Check that flight is marked as binnenlands
-        is_binnenlands = context.get_kenmerk(flight1, "is_binnenlands")
+        is_binnenlands = context.get_kenmerk(flight1, "binnenlands")
         self.assertTrue(is_binnenlands)
         
         # Test flight from Groningen
@@ -148,7 +148,7 @@ class TestTokaBeslistabelOf(unittest.TestCase):
                             Value("Groningen Eelde", "Tekst"))
         
         evaluator.execute_model(model)
-        is_binnenlands2 = context.get_kenmerk(flight2, "is_binnenlands")
+        is_binnenlands2 = context.get_kenmerk(flight2, "binnenlands")
         self.assertTrue(is_binnenlands2)
         
         # Test flight from Paris (should not be binnenlands)
@@ -158,7 +158,7 @@ class TestTokaBeslistabelOf(unittest.TestCase):
                             Value("Parijs Charles de Gaulle", "Tekst"))
         
         evaluator.execute_model(model)
-        is_binnenlands3 = context.get_kenmerk(flight3, "is_binnenlands")
+        is_binnenlands3 = context.get_kenmerk(flight3, "binnenlands")
         self.assertFalse(is_binnenlands3)
 
 

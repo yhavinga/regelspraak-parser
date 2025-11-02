@@ -107,7 +107,7 @@ class TestConsistentieregelIntegration(unittest.TestCase):
                 consistency_check_found = True
                 self.assertEqual(event.details["criterium_type"], "inconsistent")
                 break
-        
+
         self.assertTrue(consistency_check_found, "CONSISTENCY_CHECK event not found in trace")
     
     def test_consistency_rule_without_condition(self):

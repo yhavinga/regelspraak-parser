@@ -656,6 +656,36 @@ class Evaluator:
                         for obj_type_name, obj_type_def in self.context.domain_model.objecttypes.items():
                             if path_elem in obj_type_def.attributen:
                                 return obj_type_name
+            elif len(target_ref.path) >= 3:
+                # For paths with 3+ elements in nested navigation
+                # Example: ['persoon', 'woonadres', 'postcode']
+                # The first element (rightmost in Dutch) is typically the object type
+                potential_type = target_ref.path[0]
+
+                # Remove articles if present
+                for article in ['een ', 'de ', 'het ']:
+                    if potential_type.lower().startswith(article):
+                        potential_type = potential_type[len(article):].strip()
+                        break
+
+                # Check if it matches a known object type
+                if hasattr(self.context, 'domain_model') and self.context.domain_model:
+                    # Try exact match
+                    if potential_type in self.context.domain_model.objecttypes:
+                        logger.debug(f"Found object type in 3+ element path: '{potential_type}'")
+                        return potential_type
+
+                    # Try capitalized version
+                    potential_type_cap = potential_type.capitalize()
+                    if potential_type_cap in self.context.domain_model.objecttypes:
+                        logger.debug(f"Found capitalized object type in 3+ element path: '{potential_type_cap}'")
+                        return potential_type_cap
+
+                    # Try case-insensitive match
+                    for obj_type in self.context.domain_model.objecttypes:
+                        if obj_type.lower() == potential_type.lower():
+                            logger.debug(f"Found case-insensitive object type in 3+ element path: '{obj_type}'")
+                            return obj_type
             elif len(target_ref.path) == 2:
                 # Path could be in two orderings:
                 # 1. Dutch right-to-left for FeitType roles: ["reis", "totaal te betalen belasting"]
