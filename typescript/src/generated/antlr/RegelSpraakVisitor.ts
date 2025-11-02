@@ -137,13 +137,20 @@ import { ExprBegrenzingAfrondingContext } from "./RegelSpraakParser";
 import { ExprBegrenzingContext } from "./RegelSpraakParser";
 import { ExprAfrondingContext } from "./RegelSpraakParser";
 import { SimpleExprContext } from "./RegelSpraakParser";
+import { SimpleExprBegrenzingAfrondingContext } from "./RegelSpraakParser";
+import { SimpleExprBegrenzingContext } from "./RegelSpraakParser";
+import { SimpleExprAfrondingContext } from "./RegelSpraakParser";
+import { SimpleExprBaseContext } from "./RegelSpraakParser";
 import { LogicalExprContext } from "./RegelSpraakParser";
 import { SubordinateClauseExprContext } from "./RegelSpraakParser";
 import { IsKenmerkExprContext } from "./RegelSpraakParser";
 import { HeeftKenmerkExprContext } from "./RegelSpraakParser";
+import { GelijkIsAanOfExprContext } from "./RegelSpraakParser";
 import { BinaryComparisonExprContext } from "./RegelSpraakParser";
 import { UnaryConditionExprContext } from "./RegelSpraakParser";
 import { RegelStatusConditionExprContext } from "./RegelSpraakParser";
+import { LiteralValueContext } from "./RegelSpraakParser";
+import { GelijkIsAanOperatorContext } from "./RegelSpraakParser";
 import { ComparisonOperatorContext } from "./RegelSpraakParser";
 import { AdditiveExpressionContext } from "./RegelSpraakParser";
 import { AdditiveOperatorContext } from "./RegelSpraakParser";
@@ -1074,6 +1081,34 @@ export default class RegelSpraakVisitor<Result> extends ParseTreeVisitor<Result>
 	 */
 	visitSimpleExpr?: (ctx: SimpleExprContext) => Result;
 	/**
+	 * Visit a parse tree produced by the `SimpleExprBegrenzingAfronding`
+	 * labeled alternative in `RegelSpraakParser.simpleExpressie`.
+	 * @param ctx the parse tree
+	 * @return the visitor result
+	 */
+	visitSimpleExprBegrenzingAfronding?: (ctx: SimpleExprBegrenzingAfrondingContext) => Result;
+	/**
+	 * Visit a parse tree produced by the `SimpleExprBegrenzing`
+	 * labeled alternative in `RegelSpraakParser.simpleExpressie`.
+	 * @param ctx the parse tree
+	 * @return the visitor result
+	 */
+	visitSimpleExprBegrenzing?: (ctx: SimpleExprBegrenzingContext) => Result;
+	/**
+	 * Visit a parse tree produced by the `SimpleExprAfronding`
+	 * labeled alternative in `RegelSpraakParser.simpleExpressie`.
+	 * @param ctx the parse tree
+	 * @return the visitor result
+	 */
+	visitSimpleExprAfronding?: (ctx: SimpleExprAfrondingContext) => Result;
+	/**
+	 * Visit a parse tree produced by the `SimpleExprBase`
+	 * labeled alternative in `RegelSpraakParser.simpleExpressie`.
+	 * @param ctx the parse tree
+	 * @return the visitor result
+	 */
+	visitSimpleExprBase?: (ctx: SimpleExprBaseContext) => Result;
+	/**
 	 * Visit a parse tree produced by the `LogicalExpr`
 	 * labeled alternative in `RegelSpraakParser.logicalExpression`.
 	 * @param ctx the parse tree
@@ -1102,6 +1137,13 @@ export default class RegelSpraakVisitor<Result> extends ParseTreeVisitor<Result>
 	 */
 	visitHeeftKenmerkExpr?: (ctx: HeeftKenmerkExprContext) => Result;
 	/**
+	 * Visit a parse tree produced by the `GelijkIsAanOfExpr`
+	 * labeled alternative in `RegelSpraakParser.comparisonExpression`.
+	 * @param ctx the parse tree
+	 * @return the visitor result
+	 */
+	visitGelijkIsAanOfExpr?: (ctx: GelijkIsAanOfExprContext) => Result;
+	/**
 	 * Visit a parse tree produced by the `BinaryComparisonExpr`
 	 * labeled alternative in `RegelSpraakParser.comparisonExpression`.
 	 * @param ctx the parse tree
@@ -1122,6 +1164,18 @@ export default class RegelSpraakVisitor<Result> extends ParseTreeVisitor<Result>
 	 * @return the visitor result
 	 */
 	visitRegelStatusConditionExpr?: (ctx: RegelStatusConditionExprContext) => Result;
+	/**
+	 * Visit a parse tree produced by `RegelSpraakParser.literalValue`.
+	 * @param ctx the parse tree
+	 * @return the visitor result
+	 */
+	visitLiteralValue?: (ctx: LiteralValueContext) => Result;
+	/**
+	 * Visit a parse tree produced by `RegelSpraakParser.gelijkIsAanOperator`.
+	 * @param ctx the parse tree
+	 * @return the visitor result
+	 */
+	visitGelijkIsAanOperator?: (ctx: GelijkIsAanOperatorContext) => Result;
 	/**
 	 * Visit a parse tree produced by `RegelSpraakParser.comparisonOperator`.
 	 * @param ctx the parse tree

@@ -26,6 +26,7 @@ DE_MAXIMALE_WAARDE_VAN: 'de maximale waarde van';
 DE_MINIMALE_WAARDE_VAN: 'de minimale waarde van';
 HET_TOTAAL_VAN: 'het totaal van';
 HET_TIJDSEVENREDIG_DEEL_PER: 'het tijdsevenredig deel per';
+// HET_AANTAL: 'het aantal';  // Removed to allow "het aantal" in attribute names
 DE_DATUM_MET: 'de datum met jaar, maand en dag';
 DE_EERSTE_PAASDAG_VAN: 'de eerste paasdag van';
 ALS_ONVERDEELDE_REST_BLIJFT: 'Als onverdeelde rest blijft';

@@ -137,13 +137,20 @@ import { ExprBegrenzingAfrondingContext } from "./RegelSpraakParser";
 import { ExprBegrenzingContext } from "./RegelSpraakParser";
 import { ExprAfrondingContext } from "./RegelSpraakParser";
 import { SimpleExprContext } from "./RegelSpraakParser";
+import { SimpleExprBegrenzingAfrondingContext } from "./RegelSpraakParser";
+import { SimpleExprBegrenzingContext } from "./RegelSpraakParser";
+import { SimpleExprAfrondingContext } from "./RegelSpraakParser";
+import { SimpleExprBaseContext } from "./RegelSpraakParser";
 import { LogicalExprContext } from "./RegelSpraakParser";
 import { SubordinateClauseExprContext } from "./RegelSpraakParser";
 import { IsKenmerkExprContext } from "./RegelSpraakParser";
 import { HeeftKenmerkExprContext } from "./RegelSpraakParser";
+import { GelijkIsAanOfExprContext } from "./RegelSpraakParser";
 import { BinaryComparisonExprContext } from "./RegelSpraakParser";
 import { UnaryConditionExprContext } from "./RegelSpraakParser";
 import { RegelStatusConditionExprContext } from "./RegelSpraakParser";
+import { LiteralValueContext } from "./RegelSpraakParser";
+import { GelijkIsAanOperatorContext } from "./RegelSpraakParser";
 import { ComparisonOperatorContext } from "./RegelSpraakParser";
 import { AdditiveExpressionContext } from "./RegelSpraakParser";
 import { AdditiveOperatorContext } from "./RegelSpraakParser";
@@ -1619,6 +1626,54 @@ export default class RegelSpraakListener extends ParseTreeListener {
 	 */
 	exitSimpleExpr?: (ctx: SimpleExprContext) => void;
 	/**
+	 * Enter a parse tree produced by the `SimpleExprBegrenzingAfronding`
+	 * labeled alternative in `RegelSpraakParser.simpleExpressie`.
+	 * @param ctx the parse tree
+	 */
+	enterSimpleExprBegrenzingAfronding?: (ctx: SimpleExprBegrenzingAfrondingContext) => void;
+	/**
+	 * Exit a parse tree produced by the `SimpleExprBegrenzingAfronding`
+	 * labeled alternative in `RegelSpraakParser.simpleExpressie`.
+	 * @param ctx the parse tree
+	 */
+	exitSimpleExprBegrenzingAfronding?: (ctx: SimpleExprBegrenzingAfrondingContext) => void;
+	/**
+	 * Enter a parse tree produced by the `SimpleExprBegrenzing`
+	 * labeled alternative in `RegelSpraakParser.simpleExpressie`.
+	 * @param ctx the parse tree
+	 */
+	enterSimpleExprBegrenzing?: (ctx: SimpleExprBegrenzingContext) => void;
+	/**
+	 * Exit a parse tree produced by the `SimpleExprBegrenzing`
+	 * labeled alternative in `RegelSpraakParser.simpleExpressie`.
+	 * @param ctx the parse tree
+	 */
+	exitSimpleExprBegrenzing?: (ctx: SimpleExprBegrenzingContext) => void;
+	/**
+	 * Enter a parse tree produced by the `SimpleExprAfronding`
+	 * labeled alternative in `RegelSpraakParser.simpleExpressie`.
+	 * @param ctx the parse tree
+	 */
+	enterSimpleExprAfronding?: (ctx: SimpleExprAfrondingContext) => void;
+	/**
+	 * Exit a parse tree produced by the `SimpleExprAfronding`
+	 * labeled alternative in `RegelSpraakParser.simpleExpressie`.
+	 * @param ctx the parse tree
+	 */
+	exitSimpleExprAfronding?: (ctx: SimpleExprAfrondingContext) => void;
+	/**
+	 * Enter a parse tree produced by the `SimpleExprBase`
+	 * labeled alternative in `RegelSpraakParser.simpleExpressie`.
+	 * @param ctx the parse tree
+	 */
+	enterSimpleExprBase?: (ctx: SimpleExprBaseContext) => void;
+	/**
+	 * Exit a parse tree produced by the `SimpleExprBase`
+	 * labeled alternative in `RegelSpraakParser.simpleExpressie`.
+	 * @param ctx the parse tree
+	 */
+	exitSimpleExprBase?: (ctx: SimpleExprBaseContext) => void;
+	/**
 	 * Enter a parse tree produced by the `LogicalExpr`
 	 * labeled alternative in `RegelSpraakParser.logicalExpression`.
 	 * @param ctx the parse tree
@@ -1667,6 +1722,18 @@ export default class RegelSpraakListener extends ParseTreeListener {
 	 */
 	exitHeeftKenmerkExpr?: (ctx: HeeftKenmerkExprContext) => void;
 	/**
+	 * Enter a parse tree produced by the `GelijkIsAanOfExpr`
+	 * labeled alternative in `RegelSpraakParser.comparisonExpression`.
+	 * @param ctx the parse tree
+	 */
+	enterGelijkIsAanOfExpr?: (ctx: GelijkIsAanOfExprContext) => void;
+	/**
+	 * Exit a parse tree produced by the `GelijkIsAanOfExpr`
+	 * labeled alternative in `RegelSpraakParser.comparisonExpression`.
+	 * @param ctx the parse tree
+	 */
+	exitGelijkIsAanOfExpr?: (ctx: GelijkIsAanOfExprContext) => void;
+	/**
 	 * Enter a parse tree produced by the `BinaryComparisonExpr`
 	 * labeled alternative in `RegelSpraakParser.comparisonExpression`.
 	 * @param ctx the parse tree
@@ -1702,6 +1769,26 @@ export default class RegelSpraakListener extends ParseTreeListener {
 	 * @param ctx the parse tree
 	 */
 	exitRegelStatusConditionExpr?: (ctx: RegelStatusConditionExprContext) => void;
+	/**
+	 * Enter a parse tree produced by `RegelSpraakParser.literalValue`.
+	 * @param ctx the parse tree
+	 */
+	enterLiteralValue?: (ctx: LiteralValueContext) => void;
+	/**
+	 * Exit a parse tree produced by `RegelSpraakParser.literalValue`.
+	 * @param ctx the parse tree
+	 */
+	exitLiteralValue?: (ctx: LiteralValueContext) => void;
+	/**
+	 * Enter a parse tree produced by `RegelSpraakParser.gelijkIsAanOperator`.
+	 * @param ctx the parse tree
+	 */
+	enterGelijkIsAanOperator?: (ctx: GelijkIsAanOperatorContext) => void;
+	/**
+	 * Exit a parse tree produced by `RegelSpraakParser.gelijkIsAanOperator`.
+	 * @param ctx the parse tree
+	 */
+	exitGelijkIsAanOperator?: (ctx: GelijkIsAanOperatorContext) => void;
 	/**
 	 * Enter a parse tree produced by `RegelSpraakParser.comparisonOperator`.
 	 * @param ctx the parse tree

@@ -479,12 +479,13 @@ objectCreatie
 
 // Attribute initialization during object creation
 // Per specification: "met <attribuut> gelijk aan <expressie>"
+// Use simpleExpressie to avoid EN/OF ambiguity with attribute separators
 objectAttributeInit
-    : MET attribuut=simpleNaamwoord GELIJK_AAN waarde=expressie attributeInitVervolg*
+    : MET attribuut=simpleNaamwoord GELIJK_AAN waarde=simpleExpressie attributeInitVervolg*
     ;
 
 attributeInitVervolg
-    : EN attribuut=simpleNaamwoord GELIJK_AAN waarde=expressie
+    : EN attribuut=simpleNaamwoord GELIJK_AAN waarde=simpleExpressie
     ;
 
 // Simple naamwoord without prepositions for unambiguous attribute names
@@ -734,6 +735,15 @@ expressie
     | logicalExpression                                        # SimpleExpr
     ;
 
+// Simple expression without logical operators (EN, OF) for use in attribute initialization
+// This prevents ambiguity when EN is used as attribute separator
+simpleExpressie
+    : comparisonExpression COMMA begrenzing afronding          # SimpleExprBegrenzingAfronding
+    | comparisonExpression COMMA begrenzing                    # SimpleExprBegrenzing
+    | comparisonExpression afronding                           # SimpleExprAfronding
+    | comparisonExpression                                     # SimpleExprBase
+    ;
+
 // Logical operators (EN, OF) at expression level
 logicalExpression
     : left=comparisonExpression ( op=(EN | OF) right=logicalExpression )? # LogicalExpr
@@ -817,8 +827,12 @@ primaryExpression : // Corresponds roughly to terminals/functions/references in 
     | SOM_VAN primaryExpression (COMMA primaryExpression)* EN primaryExpression                    # SomFuncExpr // Simple aggregation of comma-separated values
     | SOM_VAN ALLE naamwoord                                                                       # SomAlleExpr // Aggregate all instances of something
     | SOM_VAN ALLE attribuutReferentie                                                            # SomAlleAttribuutExpr // Sum all attributes with filtering
-    | HET? AANTAL (ALLE? onderwerpReferentie)                                                         # AantalFuncExpr // Made HET optional
-    | HET? AANTAL attribuutReferentie                                                              # AantalAttribuutExpr // Count attributes with filtering
+    | HET AANTAL ALLE naamwoord                                                                    # AantalFuncExpr // "het aantal alle X" pattern
+    | HET AANTAL onderwerpReferentie                                                               # AantalFuncExpr // "het aantal de X" pattern
+    | AANTAL ALLE naamwoord                                                                        # AantalFuncExpr // "aantal alle X" pattern
+    | AANTAL onderwerpReferentie                                                                   # AantalFuncExpr // "aantal de X" pattern
+    | HET AANTAL attribuutReferentie                                                               # AantalAttribuutExpr // Count attributes with filtering
+    | AANTAL attribuutReferentie                                                                   # AantalAttribuutExpr // Support both forms
     | (NUMBER (PERCENT_SIGN | p=IDENTIFIER) | PERCENTAGE_LITERAL) VAN primaryExpression            # PercentageFuncExpr
     | PERCENTAGE_LITERAL VAN primaryExpression                                                     # PercentageOfExpr  // Support percentage-typed expressions
     | primaryExpression afronding                                                                   # AfrondingExpr  // EBNF 13.4.16.21
@@ -932,7 +946,8 @@ dateExpression
 
 // EBNF 13.4.16.42 Getal Aggregatie Functie
 getalAggregatieFunctie
-    : HET? AANTAL // Made HET optional
+    : HET AANTAL  // "het aantal" as sequence
+    | AANTAL      // "aantal" without "het"
     | DE_MAXIMALE_WAARDE_VAN
     | DE_MINIMALE_WAARDE_VAN
     | SOM_VAN

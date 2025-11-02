@@ -1845,6 +1845,118 @@ class RegelSpraakModelBuilder(RegelSpraakVisitor):
             logger.error(f"ExpressieContext has no logicalExpression child: {safe_get_text(ctx)}")
             return None
 
+    def visitSimpleExpressie(self, ctx: AntlrParser.SimpleExpressieContext) -> Optional[Expression]:
+        """Visit simpleExpressie rule (expression without logical operators).
+        Used in attribute initialization to avoid EN/OF ambiguity."""
+
+        # Handle different alternatives
+        if isinstance(ctx, AntlrParser.SimpleExprBaseContext):
+            # Simple expression without begrenzing/afronding
+            return self.visitComparisonExpression(ctx.comparisonExpression())
+
+        elif isinstance(ctx, AntlrParser.SimpleExprAfrondingContext):
+            # Expression with afronding
+            expr = self.visitComparisonExpression(ctx.comparisonExpression())
+            if expr is None:
+                return None
+
+            afronding_ctx = ctx.afronding()
+            if afronding_ctx:
+                # Extract rounding direction
+                direction = None
+                if afronding_ctx.NAAR_BENEDEN():
+                    direction = "naar_beneden"
+                elif afronding_ctx.NAAR_BOVEN():
+                    direction = "naar_boven"
+                elif afronding_ctx.REKENKUNDIG():
+                    direction = "rekenkundig"
+                elif afronding_ctx.RICHTING_NUL():
+                    direction = "richting_nul"
+                elif afronding_ctx.WEG_VAN_NUL():
+                    direction = "weg_van_nul"
+
+                # Extract decimals
+                decimals = int(afronding_ctx.NUMBER().getText()) if afronding_ctx.NUMBER() else 0
+
+                from regelspraak.ast import AfrondingExpression
+                return AfrondingExpression(
+                    expression=expr,
+                    direction=direction,
+                    decimals=decimals,
+                    span=self.get_span(ctx)
+                )
+            return expr
+
+        elif isinstance(ctx, AntlrParser.SimpleExprBegrenzingContext):
+            # Expression with begrenzing
+            expr = self.visitComparisonExpression(ctx.comparisonExpression())
+            if expr is None:
+                return None
+
+            begrenzing = self._extract_begrenzing(ctx.begrenzing())
+
+            from regelspraak.ast import BegrenzingExpression
+            return BegrenzingExpression(
+                expression=expr,
+                minimum=begrenzing.get('minimum'),
+                maximum=begrenzing.get('maximum'),
+                span=self.get_span(ctx)
+            )
+
+        elif isinstance(ctx, AntlrParser.SimpleExprBegrenzingAfrondingContext):
+            # Expression with both begrenzing and afronding
+            expr = self.visitComparisonExpression(ctx.comparisonExpression())
+            if expr is None:
+                return None
+
+            # Handle begrenzing
+            begrenzing = self._extract_begrenzing(ctx.begrenzing())
+
+            # Handle afronding
+            direction = None
+            decimals = 0
+            afronding_ctx = ctx.afronding()
+            if afronding_ctx:
+                # Extract rounding direction
+                if afronding_ctx.NAAR_BENEDEN():
+                    direction = "naar_beneden"
+                elif afronding_ctx.NAAR_BOVEN():
+                    direction = "naar_boven"
+                elif afronding_ctx.REKENKUNDIG():
+                    direction = "rekenkundig"
+                elif afronding_ctx.RICHTING_NUL():
+                    direction = "richting_nul"
+                elif afronding_ctx.WEG_VAN_NUL():
+                    direction = "weg_van_nul"
+
+                # Extract decimals
+                decimals = int(afronding_ctx.NUMBER().getText()) if afronding_ctx.NUMBER() else 0
+
+            # Create combined expression
+            from regelspraak.ast import BegrenzingExpression, AfrondingExpression
+            begr_expr = BegrenzingExpression(
+                expression=expr,
+                minimum=begrenzing.get('minimum'),
+                maximum=begrenzing.get('maximum'),
+                span=self.get_span(ctx)
+            )
+
+            if direction:
+                return AfrondingExpression(
+                    expression=begr_expr,
+                    direction=direction,
+                    decimals=decimals,
+                    span=self.get_span(ctx)
+                )
+            return begr_expr
+
+        # Fallback to default handling
+        if ctx.comparisonExpression():
+            return self.visitComparisonExpression(ctx.comparisonExpression())
+        else:
+            logger.error(f"SimpleExpressieContext has no comparisonExpression child: {safe_get_text(ctx)}")
+            return None
+
     def visitLiteralValue(self, ctx: AntlrParser.LiteralValueContext) -> Optional[Expression]:
         """Visit literalValue context to extract literal values for concatenation syntax."""
         if ctx.ENUM_LITERAL():
@@ -2265,25 +2377,41 @@ class RegelSpraakModelBuilder(RegelSpraakVisitor):
             return func_call
             
         elif isinstance(ctx, AntlrParser.AantalFuncExprContext):
-            # HET? AANTAL (ALLE? onderwerpReferentie)
+            # Handles multiple patterns:
+            # - HET_AANTAL ALLE naamwoord (e.g., "het aantal alle Iteratie")
+            # - HET_AANTAL onderwerpReferentie (e.g., "het aantal de passagiers")
+            # - AANTAL ALLE naamwoord
+            # - AANTAL onderwerpReferentie
+
             # First check if the entire expression is a parameter name
             # This handles cases like "het aantal treinmiles per passagier voor contingent"
             full_text = get_text_with_spaces(ctx)
             canonical_name = self._extract_canonical_name_from_text(full_text)
-            
+
             if canonical_name in self.parameter_names:
                 # This is actually a parameter reference, not a function call
                 return ParameterReference(parameter_name=canonical_name, span=self.get_span(ctx))
-            
+
             # Not a parameter - proceed with function call interpretation
             subject_ref = None
-            if ctx.onderwerpReferentie():
+
+            # Check which pattern we have
+            if ctx.naamwoord():
+                # Pattern: (HET_AANTAL | AANTAL) ALLE naamwoord
+                # Create an AttributeReference for the collection
+                collection_name = self._extract_canonical_name(ctx.naamwoord())
+                subject_ref = AttributeReference(
+                    path=[collection_name],
+                    span=self.get_span(ctx.naamwoord())
+                )
+            elif ctx.onderwerpReferentie():
+                # Pattern: (HET_AANTAL | AANTAL) onderwerpReferentie
                 subject_ref = self.visitOnderwerpReferentie(ctx.onderwerpReferentie())
-            
+
             if subject_ref is None:
                 logger.warning(f"No subject reference found in aantal function: {safe_get_text(ctx)}")
                 return None
-                
+
             return FunctionCall(
                 function_name="het_aantal",
                 arguments=[subject_ref],
@@ -4365,9 +4493,9 @@ class RegelSpraakModelBuilder(RegelSpraakVisitor):
                 # Parse initial attribute and its value
                 init_ctx = object_ctx.objectAttributeInit()
                 # Access attribuut and waarde as properties (they're already contexts, not methods)
-                # attribuut is a SimpleNaamwoordContext, waarde is an ExpressieContext
+                # attribuut is a SimpleNaamwoordContext, waarde is a SimpleExpressieContext
                 attr_name = self.visitSimpleNaamwoord(init_ctx.attribuut) if init_ctx.attribuut else None
-                value_expr = self.visitExpressie(init_ctx.waarde) if init_ctx.waarde else None
+                value_expr = self.visitSimpleExpressie(init_ctx.waarde) if init_ctx.waarde else None
 
                 # Special handling: the parser may incorrectly parse multiple attribute initializations
                 # as a single logical expression with EN operators. We need to detect and split these.
@@ -4388,6 +4516,9 @@ class RegelSpraakModelBuilder(RegelSpraakVisitor):
                                     if isinstance(current.left, VariableReference):
                                         # The left side is the attribute name
                                         all_attrs.append((current.left.variable_name, current.right))
+                                        break
+                                    else:
+                                        # Left side is not a variable reference, can't process further
                                         break
                                 elif current.operator == Operator.EN:
                                     # Another EN expression, continue splitting
@@ -4432,7 +4563,7 @@ class RegelSpraakModelBuilder(RegelSpraakVisitor):
                             val_ctx = vervolg.waarde
                             # Defensive check in case waarde also returns a list
                             if not isinstance(val_ctx, list):
-                                val = self.visit(val_ctx)
+                                val = self.visitSimpleExpressie(val_ctx)
                             else:
                                 logger.warning(f"vervolg.waarde returned list: {val_ctx}")
 
