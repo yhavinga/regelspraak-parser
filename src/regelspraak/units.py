@@ -19,9 +19,8 @@ class BaseUnit:
     plural: Optional[str] = None  # e.g., "meters"
     abbreviation: Optional[str] = None  # e.g., "m"
     symbol: Optional[str] = None  # e.g., "m" or "€"
-    # Conversion factor to another unit in same system
-    conversion_factor: Optional[Decimal] = None
-    conversion_to_unit: Optional[str] = None  # Target unit name for conversion
+    # Conversion factor to the system's base unit (multiply by this to get base unit value)
+    to_base_factor: Decimal = Decimal("1")  # Default 1 for base units themselves
 
 
 @dataclass
@@ -58,28 +57,30 @@ class UnitSystem:
         """Check if conversion is possible between two units."""
         if from_unit == to_unit:
             return True
-        # Simplified: check if there's a path through conversion factors
-        # Full implementation would build a conversion graph
+        # Both units must exist in this system
         from_base = self.find_unit(from_unit)
         to_base = self.find_unit(to_unit)
         return from_base is not None and to_base is not None
-    
+
     def convert(self, value: Decimal, from_unit: str, to_unit: str) -> Decimal:
-        """Convert a value from one unit to another within this system."""
+        """Convert a value from one unit to another within this system using hub-and-spoke pattern."""
         if from_unit == to_unit:
             return value
-        
-        # For now, simple implementation that assumes direct conversions
-        # Full implementation would handle transitive conversions
-        from_base = self.find_unit(from_unit)
-        to_base = self.find_unit(to_unit)
-        
-        if not from_base or not to_base:
+
+        from_unit_obj = self.find_unit(from_unit)
+        to_unit_obj = self.find_unit(to_unit)
+
+        if not from_unit_obj or not to_unit_obj:
             raise RuntimeError(f"Cannot convert between '{from_unit}' and '{to_unit}': units not found in system '{self.name}'")
-        
-        # TODO: Implement full conversion logic with conversion graph
-        # This is a placeholder that would need the full conversion path
-        raise RuntimeError(f"Conversion between '{from_unit}' and '{to_unit}' not yet implemented")
+
+        # Hub-and-spoke conversion:
+        # Step 1: Convert from source unit to base unit
+        base_value = value * from_unit_obj.to_base_factor
+
+        # Step 2: Convert from base unit to target unit
+        result = base_value / to_unit_obj.to_base_factor
+
+        return result
 
 
 @dataclass(frozen=True) 
@@ -180,27 +181,36 @@ class UnitRegistry:
     
     def _init_standard_systems(self):
         """Initialize standard unit systems from the specification."""
-        # Time system (Tijd)
+        # Time system (Tijd) - using seconds as base unit
         time_system = UnitSystem("Tijd")
-        time_system.add_unit(BaseUnit("milliseconde", "milliseconden", "ms", 
-                                     conversion_factor=Decimal("0.001"), conversion_to_unit="seconde"))
+
+        # Base unit: seconde (factor = 1)
         time_system.add_unit(BaseUnit("seconde", "seconden", "s",
-                                     conversion_factor=Decimal("1")/Decimal("60"), conversion_to_unit="minuut"))
+                                     to_base_factor=Decimal("1")))
+
+        # Other units with conversion factors TO seconds
+        time_system.add_unit(BaseUnit("milliseconde", "milliseconden", "ms",
+                                     to_base_factor=Decimal("0.001")))
         time_system.add_unit(BaseUnit("minuut", "minuten", "minuut",
-                                     conversion_factor=Decimal("1")/Decimal("60"), conversion_to_unit="uur"))
+                                     to_base_factor=Decimal("60")))
         time_system.add_unit(BaseUnit("uur", "uren", "u",
-                                     conversion_factor=Decimal("1")/Decimal("24"), conversion_to_unit="dag"))
-        time_system.add_unit(BaseUnit("dag", "dagen", "dg"))
+                                     to_base_factor=Decimal("3600")))
+        time_system.add_unit(BaseUnit("dag", "dagen", "dg",
+                                     to_base_factor=Decimal("86400")))
         time_system.add_unit(BaseUnit("week", "weken", "wk",
-                                     conversion_factor=Decimal("7"), conversion_to_unit="dag"))
-        time_system.add_unit(BaseUnit("maand", "maanden", "mnd"))  # No conversion to days
+                                     to_base_factor=Decimal("604800")))
+        # Average month (30.44 days)
+        time_system.add_unit(BaseUnit("maand", "maanden", "mnd",
+                                     to_base_factor=Decimal("2629746")))
+        # Quarter (3 months)
         time_system.add_unit(BaseUnit("kwartaal", "kwartalen", "kw",
-                                     conversion_factor=Decimal("3"), conversion_to_unit="maand"))
+                                     to_base_factor=Decimal("7889238")))
+        # Average year (365.25 days)
         time_system.add_unit(BaseUnit("jaar", "jaren", "jr",
-                                     conversion_factor=Decimal("12"), conversion_to_unit="maand"))
+                                     to_base_factor=Decimal("31556952")))
         self.systems["Tijd"] = time_system
-        
-        # Currency system (Valuta) - simplified, no conversions
+
+        # Currency system (Valuta) - no conversions between currencies
         currency_system = UnitSystem("Valuta")
         currency_system.add_unit(BaseUnit("euro", "euros", "EUR", "€"))
         currency_system.add_unit(BaseUnit("dollar", "dollars", "USD", "$"))
