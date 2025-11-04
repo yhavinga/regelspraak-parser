@@ -14,7 +14,7 @@ from .ast import (
     BinaryExpression, UnaryExpression, FunctionCall, Operator, DomainModel, Regel, SourceSpan,
     Gelijkstelling, KenmerkToekenning, ObjectCreatie, FeitCreatie, Consistentieregel, Initialisatie, Dagsoortdefinitie, # Added ResultaatDeel types
     Verdeling, VerdelingMethode, VerdelingGelijkeDelen, VerdelingNaarRato, VerdelingOpVolgorde,
-    VerdelingTieBreak, VerdelingMaximum, VerdelingAfronding, DisjunctionExpression,
+    VerdelingTieBreak, VerdelingMaximum, VerdelingAfronding, DisjunctionExpression, ConjunctionExpression,
     Beslistabel, BeslistabelRow,
     DimensionedAttributeReference, DimensionLabel,
     PeriodDefinition, Period, Timeline,
@@ -2589,8 +2589,15 @@ class Evaluator:
             elif isinstance(expr, DisjunctionExpression):
                 # Handle disjunction (OR of multiple values)
                 # This is used in comparisons like "x gelijk is aan 'A', 'B' of 'C'"
-                # The result is the DisjunctionExpression itself, 
+                # The result is the DisjunctionExpression itself,
                 # which will be handled specially in comparison operations
+                result = expr
+
+            elif isinstance(expr, ConjunctionExpression):
+                # Handle conjunction (AND operation / concatenation of collections)
+                # This merges multiple collections per spec section 5.7
+                # The result is the ConjunctionExpression itself,
+                # which will be handled specially in aggregation operations
                 result = expr
 
             else:
@@ -3347,8 +3354,15 @@ class Evaluator:
             elif isinstance(expr, DisjunctionExpression):
                 # Handle disjunction (OR of multiple values)
                 # This is used in comparisons like "x gelijk is aan 'A', 'B' of 'C'"
-                # The result is the DisjunctionExpression itself, 
+                # The result is the DisjunctionExpression itself,
                 # which will be handled specially in comparison operations
+                result = expr
+
+            elif isinstance(expr, ConjunctionExpression):
+                # Handle conjunction (AND operation / concatenation of collections)
+                # This merges multiple collections per spec section 5.7
+                # The result is the ConjunctionExpression itself,
+                # which will be handled specially in aggregation operations
                 result = expr
 
             else:

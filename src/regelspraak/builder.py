@@ -21,7 +21,7 @@ from .ast import (
     BinaryExpression, UnaryExpression, FunctionCall, Operator,
     ParameterReference, SourceSpan, Beslistabel, BeslistabelRow,
     BeslistabelCondition, BeslistabelResult, Dimension, DimensionLabel,
-    DimensionedAttributeReference, PeriodDefinition, DisjunctionExpression,
+    DimensionedAttributeReference, PeriodDefinition, DisjunctionExpression, ConjunctionExpression,
     Subselectie, RegelStatusExpression, Predicaat, ObjectPredicaat, VergelijkingsPredicaat,
     GetalPredicaat, TekstPredicaat, DatumPredicaat, SamengesteldPredicaat,
     Kwantificatie, KwantificatieType, GenesteVoorwaardeInPredicaat, VergelijkingInPredicaat,
@@ -2309,6 +2309,15 @@ class RegelSpraakModelBuilder(RegelSpraakVisitor):
 
     def visitPowerExpression(self, ctx: AntlrParser.PowerExpressionContext) -> Optional[Expression]:
         """Visit power expression (^, tot de macht)."""
+        # Check if this is actually a SimpleConcatenatieExpr or ConcatenatieExpr
+        # These can appear as children of PowerExpression per the grammar
+        if ctx.getChildCount() == 1:
+            child = ctx.getChild(0)
+            if isinstance(child, AntlrParser.SimpleConcatenatieExprContext):
+                return self.visitSimpleConcatenatieExpr(child)
+            elif isinstance(child, AntlrParser.ConcatenatieExprContext):
+                return self.visitConcatenatieExpr(child)
+
         # Use the generic binary expression builder helper, specifying the operator rule name
         return self._build_binary_expression(ctx, OPERATOR_MAP, self.visitPrimaryExpression, operator_rule_name='powerOperator')
 
@@ -3465,59 +3474,65 @@ class RegelSpraakModelBuilder(RegelSpraakVisitor):
     def visitConcatenatieExpr(self, ctx) -> Optional[Expression]:
         """Visit ConcatenatieExpr context specifically."""
         return self.visitConcatenatieExpressie(ctx)
-    
+
+    def visitIdentifierExpr(self, ctx) -> Optional[Expression]:
+        """Visit IdentifierExpr context (bare identifier as expression)."""
+        # This is a labeled alternative of primaryExpression, so delegate to it
+        return self.visitPrimaryExpression(ctx)
+
     def visitConcatenatieExpressie(self, ctx) -> Optional[Expression]:
         """Visit concatenation expression (e.g., "X, Y en Z" or "X, Y of Z")."""
-        
+
         # Check if this is a disjunction (uses "of")
         has_of = False
         has_en = False
-        
-        # For SimpleConcatenatieExprContext, we have primaryExpression nodes
-        # Pattern: primaryExpression (COMMA primaryExpression)+ (EN | OF) primaryExpression
-        if hasattr(ctx, 'primaryExpression'):
-            # Collect all primary expressions
-            args = []
-            # Call primaryExpression() to get all primary expression nodes
+        args = []
+
+        # Handle different concatenation context types properly
+        if isinstance(ctx, AntlrParser.SimpleConcatenatieExprContext):
+            # For SimpleConcatenatieExprContext
+            # Pattern: primaryExpression (COMMA primaryExpression)+ (EN | OF) primaryExpression
+            # Get all primary expressions
             primary_exprs = ctx.primaryExpression()
-            logger.debug(f"SimpleConcatenatieExpr - Found {len(primary_exprs) if hasattr(primary_exprs, '__len__') else 'unknown'} primary expressions")
-            logger.debug(f"SimpleConcatenatieExpr - Type of primary_exprs: {type(primary_exprs)}")
-            
-            # If it's a single expression, wrap it in a list
-            if not hasattr(primary_exprs, '__iter__'):
-                primary_exprs = [primary_exprs]
-                
-            for i, pe in enumerate(primary_exprs):
-                logger.debug(f"  Visiting primary expression {i}: {safe_get_text(pe)}")
-                logger.debug(f"    Type: {type(pe).__name__}")
+            if primary_exprs:
+                if not isinstance(primary_exprs, list):
+                    primary_exprs = [primary_exprs]
+            else:
+                primary_exprs = []
+
+            # Visit each primary expression
+            for pe in primary_exprs:
                 expr = self.visit(pe)
-                logger.debug(f"    Visited result: {expr}")
                 if expr:
                     args.append(expr)
-                    logger.debug(f"    Collected expression: {expr}")
-                else:
-                    logger.debug(f"    WARNING: visit returned None for {safe_get_text(pe)}")
-            
+
             # Check for OF or EN tokens
-            if hasattr(ctx, 'OF') and ctx.OF():
+            if ctx.OF():
                 has_of = True
-            elif hasattr(ctx, 'EN') and ctx.EN():
+            if ctx.EN():
                 has_en = True
-        else:
+
+        elif isinstance(ctx, AntlrParser.ConcatenatieExprContext):
             # For ConcatenatieExprContext with CONCATENATIE_VAN keyword
             # Pattern: CONCATENATIE_VAN primaryExpression (COMMA primaryExpression)* (EN | OF) primaryExpression
-            args = []
-            if hasattr(ctx, 'primaryExpression'):
-                for pe in ctx.primaryExpression():
-                    expr = self.visit(pe)
-                    if expr:
-                        args.append(expr)
-                        
-                # Check for OF or EN tokens
-                if ctx.OF():
-                    has_of = True
-                elif ctx.EN():
-                    has_en = True
+            # Get all primary expressions
+            primary_exprs = ctx.primaryExpression()
+
+            # Visit each primary expression
+            for pe in primary_exprs:
+                expr = self.visit(pe)
+                if expr:
+                    args.append(expr)
+
+            # Check for OF or EN tokens
+            if ctx.OF():
+                has_of = True
+            if ctx.EN():
+                has_en = True
+        else:
+            # This shouldn't happen if we're called from the right visitor methods
+            logger.warning(f"visitConcatenatieExpressie called with unexpected context type: {type(ctx).__name__}")
+            return None
         
         # If this is a disjunction with "of", create a DisjunctionExpression
         if has_of:
@@ -3554,16 +3569,18 @@ class RegelSpraakModelBuilder(RegelSpraakVisitor):
                 span=self.get_span(ctx)
             )
         
-        # If it's a conjunction with "en" and no function context, 
-        # it might be a list of values (treated as concatenation for now)
+        # If it's a conjunction with "en" and no function context,
+        # create a ConjunctionExpression to preserve all operands
         if has_en and args:
-            # For now, just return the first argument as a fallback
-            # In a proper implementation, we'd need a ConjunctionExpression
-            logger.warning(f"Concatenation expression with 'en' but no clear function context: {safe_get_text(ctx)}")
-            return args[0] if args else None
-        
+            # Return a ConjunctionExpression with all arguments
+            return ConjunctionExpression(
+                values=args,
+                span=self.get_span(ctx)
+            )
+
         # Otherwise, just return the first argument or None
         logger.warning(f"Concatenation expression without clear context: {safe_get_text(ctx)}")
+        logger.warning(f"  has_en={has_en}, has_of={has_of}, args={args}")
         return args[0] if args else None
 
     def visitSubordinateClauseExpression(self, ctx: AntlrParser.SubordinateClauseExpressionContext) -> Optional[Expression]:

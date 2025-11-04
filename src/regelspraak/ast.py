@@ -176,6 +176,14 @@ class DisjunctionExpression(Expression):
     values: List[Expression]  # The values to be ORed together
 
 @dataclass
+class ConjunctionExpression(Expression):
+    """Represents a conjunction of values (AND operation / concatenation).
+    Example: "passagiers_onder_18, passagiers_18_tot_24 en passagiers_boven_65"
+    Per spec section 5.7: Merges collections together.
+    """
+    values: List[Expression]  # The values to be concatenated/merged together
+
+@dataclass
 class Subselectie(Expression):
     """Filters a collection based on a predicate.
     Example: "passagiers van de reis die minderjarig zijn"
