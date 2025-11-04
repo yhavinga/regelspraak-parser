@@ -157,30 +157,66 @@ class BeslistabelParser:
         
         return None
     
+    def _parse_navigation_segments(self, text: str) -> List[str]:
+        """Parse multi-segment navigation like 'postcode van het adres' into ['adres', 'postcode'].
+
+        Handles patterns like:
+        - 'postcode' → ['postcode']
+        - 'postcode van het adres' → ['adres', 'postcode']
+        - 'nummer van de kamer van het gebouw' → ['gebouw', 'kamer', 'nummer']
+
+        Returns segments in Dutch navigation order (outermost to innermost).
+        """
+        # Split by "van" with optional articles/possessives
+        pattern = r'\s+van\s+(?:het|de|een|zijn|haar|hun|mijn|jouw|uw|onze|jullie|deze|die|dat|dit)?\s*'
+        parts = re.split(pattern, text, flags=re.IGNORECASE)
+
+        # Clean up parts and reverse to get Dutch order (rightmost is outermost)
+        segments = []
+        for part in reversed(parts):
+            part = part.strip()
+            if part:
+                segments.append(part)
+
+        return segments if segments else [text.strip()]
+
     def parse_result_column(self, header_text: str) -> Optional[ParsedResult]:
         """Parse a result column header to extract the target."""
         header_text = header_text.strip()
-        
+
         for pattern, pattern_type in self.RESULT_PATTERNS:
             match = re.match(pattern, header_text, re.IGNORECASE)
             if match:
                 if pattern_type == "attribute_assignment":
                     # e.g., "de woonregio factor van een Natuurlijk persoon moet gesteld worden op"
-                    attribute = match.group(1).strip()
+                    # or "de postcode van het adres van een Natuurlijk persoon moet gesteld worden op"
+                    attribute_text = match.group(1).strip()
                     object_type = match.group(2).strip()
+
+                    # Parse navigation segments from attribute text
+                    segments = self._parse_navigation_segments(attribute_text)
+
+                    # Build full path: [object_type, ...segments]
+                    full_path = [object_type] + segments[:-1] + [segments[-1]]
+
                     return ParsedResult(
                         target_type="attribute",
-                        attribute_path=[attribute],
+                        attribute_path=full_path,
                         kenmerk_name=None,
                         object_type=object_type
                     )
                     
                 elif pattern_type == "simple_attribute_assignment":
                     # e.g., "de belasting moet gesteld worden op"
-                    attribute = match.group(1).strip()
+                    # or "de postcode van het adres moet gesteld worden op"
+                    attribute_text = match.group(1).strip()
+
+                    # Parse navigation segments from attribute text
+                    segments = self._parse_navigation_segments(attribute_text)
+
                     return ParsedResult(
                         target_type="attribute",
-                        attribute_path=[attribute],
+                        attribute_path=segments,
                         kenmerk_name=None,
                         object_type=""  # Will be inferred from context
                     )

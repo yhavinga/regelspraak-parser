@@ -166,20 +166,46 @@ class TestBeslistabel(unittest.TestCase):
     def test_result_parser(self):
         """Test the result parser directly."""
         parser = BeslistabelParser()
-        
-        # Test attribute assignment
+
+        # Test simple attribute assignment (now with object type in path)
         result = parser.parse_result_column("de woonregio factor van een Natuurlijk persoon moet gesteld worden op")
         self.assertIsNotNone(result)
         self.assertEqual(result.target_type, "attribute")
-        self.assertEqual(result.attribute_path, ["woonregio factor"])
+        # Note: with the new parser, the path includes the object type
+        self.assertEqual(result.attribute_path, ["Natuurlijk persoon", "woonregio factor"])
         self.assertEqual(result.object_type, "Natuurlijk persoon")
-        
+
         # Test kenmerk assignment
         result = parser.parse_result_column("een passagier is minderjarig")
         self.assertIsNotNone(result)
         self.assertEqual(result.target_type, "kenmerk")
         self.assertEqual(result.kenmerk_name, "minderjarig")
         self.assertEqual(result.object_type, "passagier")
+
+    def test_multi_segment_result_parser(self):
+        """Test parsing of multi-segment navigation paths in result columns."""
+        parser = BeslistabelParser()
+
+        # Test two-level navigation: "de postcode van het adres van een Natuurlijk persoon"
+        result = parser.parse_result_column("de postcode van het adres van een Natuurlijk persoon moet gesteld worden op")
+        self.assertIsNotNone(result)
+        self.assertEqual(result.target_type, "attribute")
+        # Path should be: [object type, intermediate object, final attribute]
+        self.assertEqual(result.attribute_path, ["Natuurlijk persoon", "adres", "postcode"])
+        self.assertEqual(result.object_type, "Natuurlijk persoon")
+
+        # Test three-level navigation
+        result = parser.parse_result_column("de nummer van de kamer van het gebouw van een Organisatie moet gesteld worden op")
+        self.assertIsNotNone(result)
+        self.assertEqual(result.target_type, "attribute")
+        self.assertEqual(result.attribute_path, ["Organisatie", "gebouw", "kamer", "nummer"])
+
+        # Test simple path without object type (context-dependent)
+        result = parser.parse_result_column("de postcode van het adres moet gesteld worden op")
+        self.assertIsNotNone(result)
+        self.assertEqual(result.target_type, "attribute")
+        self.assertEqual(result.attribute_path, ["adres", "postcode"])
+        self.assertEqual(result.object_type, "")  # Will be inferred from context
 
     def test_full_beslistabel_with_conditions(self):
         """Test full decision table execution with proper condition parsing."""
@@ -204,7 +230,8 @@ class TestBeslistabel(unittest.TestCase):
         beslistabel = model.beslistabellen[0]
         self.assertIsNotNone(beslistabel.parsed_result)
         self.assertEqual(beslistabel.parsed_result.target_type, "attribute")
-        self.assertEqual(beslistabel.parsed_result.attribute_path, ["woonregio factor"])
+        # With updated parser, path now includes the object type
+        self.assertEqual(beslistabel.parsed_result.attribute_path, ["Natuurlijk persoon", "woonregio factor"])
         
         self.assertIsNotNone(beslistabel.parsed_conditions)
         self.assertEqual(len(beslistabel.parsed_conditions), 1)

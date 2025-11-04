@@ -8805,23 +8805,35 @@ class Evaluator:
             parsed_result = beslistabel.parsed_result
             
             if parsed_result.target_type == "attribute" and parsed_result.attribute_path:
-                # Apply to attribute
-                attribute_name = parsed_result.attribute_path[0]  # Simple case for now
-                
-                # Set the attribute
+                # Apply to attribute - handle both simple and complex navigation paths
+                if len(parsed_result.attribute_path) == 1:
+                    # Simple case: single attribute on current instance
+                    attribute_name = parsed_result.attribute_path[0]
+                    target_obj = self.context.current_instance
+                else:
+                    # Complex path: navigate through relationships
+                    # Use _navigate_to_target to handle multi-segment paths
+                    target_obj, attribute_name = self._navigate_to_target(
+                        parsed_result.attribute_path,
+                        self.context.current_instance
+                    )
+
+                # Set the attribute on the target object
                 self.context.set_attribute(
-                    self.context.current_instance,
+                    target_obj,
                     attribute_name,
                     result_value
                 )
-                
-                # Trace the assignment
+
+                # Trace the assignment with full path for debugging
                 if self.context.trace_sink:
+                    full_path = ".".join(parsed_result.attribute_path)
                     self.context.trace_sink.record(TraceEvent(
                         type="BESLISTABEL_RESULT_APPLIED",
                         details={
                             "row_number": row.row_number,
-                            "target": f"attribute:{attribute_name}",
+                            "target": f"attribute:{full_path}",
+                            "target_object_id": target_obj.instance_id,
                             "result_value": str(result_value)
                         },
                         span=row.span,
