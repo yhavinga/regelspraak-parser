@@ -329,9 +329,18 @@ class RuntimeContext:
          else:
              # Use the provided unit if given, otherwise fallback to definition's unit
              unit_to_use = unit if unit is not None else param_def.eenheid
-             
+
+             # Check if parameter is a list type
+             if param_def.is_lijst:
+                 # For list parameters, ensure value is a list
+                 if not isinstance(raw_value, (list, tuple)):
+                     raw_value = [raw_value] if raw_value is not None else []
+                 datatype = "Lijst"
+             else:
+                 datatype = param_def.datatype
+
              # TODO: Type check raw_value against param_def.datatype? Conversion?
-             value_obj = Value(value=raw_value, datatype=param_def.datatype, unit=unit_to_use)
+             value_obj = Value(value=raw_value, datatype=datatype, unit=unit_to_use)
          
          self.parameters[name] = value_obj
          # TODO: Trace assignment?
@@ -565,8 +574,15 @@ class RuntimeContext:
                 else:
                     raise RuntimeError(f"Attribute '{attr_name}' is an object reference but value is not a RuntimeObject")
             else:
-                # Regular attribute
-                datatype = attr_def.datatype
+                # Regular attribute - check if it's a list
+                if attr_def.is_lijst:
+                    # For list attributes, ensure value is a list
+                    if not isinstance(value, (list, tuple)):
+                        # Wrap single value in a list if needed
+                        value = [value] if value is not None else []
+                    datatype = "Lijst"
+                else:
+                    datatype = attr_def.datatype
                 value_obj = Value(value=value, datatype=datatype, unit=unit_to_use)
 
         old_value_obj = instance.attributen.get(attr_name)

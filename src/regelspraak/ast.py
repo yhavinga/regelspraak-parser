@@ -295,6 +295,7 @@ class Attribuut:
     span: SourceSpan
     eenheid: Optional[str] = None
     is_lijst: bool = False # Indicates if it's a list (e.g., 'lijst van ...')
+    element_datatype: Optional[str] = None # Element type for lists (e.g., 'Numeriek' for 'lijst van Numeriek')
     is_object_ref: bool = False # Indicates if this attribute references another object type
     dimensions: List[str] = field(default_factory=list)  # ["jaardimensie", "brutonettodimensie"]
     timeline: Optional[str] = None  # "dag", "maand", or "jaar" for time-dependent attributes
@@ -327,6 +328,8 @@ class Parameter:
     datatype: str
     span: SourceSpan
     eenheid: Optional[str] = None
+    is_lijst: bool = False # Indicates if it's a list (e.g., 'lijst van ...')
+    element_datatype: Optional[str] = None # Element type for lists (e.g., 'Numeriek' for 'lijst van Numeriek')
     waarde: Optional[Literal] = None # Parsed literal value
     timeline: Optional[str] = None  # "dag", "maand", or "jaar" for time-dependent parameters
     # description: Optional[str] = None

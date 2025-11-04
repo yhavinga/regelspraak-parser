@@ -204,7 +204,7 @@ datatype
     ;
 
 lijstDatatype
-    : LIJST VAN datatype
+    : LIJST VAN ( datatype | domeinRef | objectTypeRef )
     ;
 
 numeriekDatatype

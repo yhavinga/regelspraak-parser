@@ -1,5 +1,5 @@
 """RegelSpraak AST builder: Converts ANTLR parse trees to domain AST nodes."""
-from typing import Dict, List, Any, Optional
+from typing import Dict, List, Any, Optional, Tuple
 import logging
 from decimal import Decimal
 
@@ -367,8 +367,104 @@ class RegelSpraakModelBuilder(RegelSpraakVisitor):
         if words[0] in articles:
             # Remove the article and rejoin
             return ' '.join(words[1:])
-        
+
         return text
+
+    def _parse_datatype(self, ctx) -> Tuple[bool, str, Optional[str]]:
+        """Parse a datatype context and return structured information.
+
+        Returns:
+            Tuple of (is_lijst, datatype, element_datatype)
+            - is_lijst: True if this is a list type
+            - datatype: The main datatype (e.g., 'Lijst' for lists, 'Numeriek' for simple types)
+            - element_datatype: The element type for lists (e.g., 'Numeriek' for 'lijst van Numeriek')
+        """
+        if ctx is None:
+            return False, None, None
+
+        # Get the context type name
+        context_type = type(ctx).__name__
+
+        # Check if this is a DatatypeContext with a lijstDatatype child
+        if context_type == 'DatatypeContext' and hasattr(ctx, 'lijstDatatype') and ctx.lijstDatatype():
+            # This is a list type - drill down to the lijstDatatype
+            return self._parse_datatype(ctx.lijstDatatype())
+
+        # Check if this is directly a lijstDatatype context
+        elif context_type == 'LijstDatatypeContext':
+            # This is a list type - check what type of element it has
+            element_ctx = ctx.datatype() if hasattr(ctx, 'datatype') and callable(ctx.datatype) else None
+            domain_ref_ctx = ctx.domeinRef() if hasattr(ctx, 'domeinRef') and callable(ctx.domeinRef) else None
+            object_ref_ctx = ctx.objectTypeRef() if hasattr(ctx, 'objectTypeRef') and callable(ctx.objectTypeRef) else None
+
+            if element_ctx:
+                # Recursively handle nested lists or datatypes
+                is_nested_lijst, element_type, nested_element = self._parse_datatype(element_ctx)
+                if is_nested_lijst:
+                    # This is a list of lists
+                    return True, "Lijst", "Lijst"
+                else:
+                    # This is a simple list of a datatype
+                    return True, "Lijst", element_type
+            elif domain_ref_ctx:
+                # List of domain type (e.g., Lijst van MyDomain)
+                if hasattr(domain_ref_ctx, 'name'):
+                    domain_name = domain_ref_ctx.name.text if hasattr(domain_ref_ctx.name, 'text') else str(domain_ref_ctx.name)
+                else:
+                    domain_name = safe_get_text(domain_ref_ctx)
+                return True, "Lijst", domain_name
+            elif object_ref_ctx:
+                # List of object type (e.g., Lijst van Persoon)
+                if hasattr(object_ref_ctx, 'IDENTIFIER') and callable(object_ref_ctx.IDENTIFIER):
+                    id_token = object_ref_ctx.IDENTIFIER()
+                    object_type_name = id_token.getText() if hasattr(id_token, 'getText') else id_token.text
+                else:
+                    object_type_name = safe_get_text(object_ref_ctx)
+                return True, "Lijst", object_type_name
+            else:
+                # Shouldn't happen with valid grammar
+                return True, "Lijst", None
+
+        # Check if this is a DatatypeContext with other child types
+        if context_type == 'DatatypeContext':
+            # Check for each possible child type
+            if hasattr(ctx, 'numeriekDatatype') and ctx.numeriekDatatype():
+                return self._parse_datatype(ctx.numeriekDatatype())
+            elif hasattr(ctx, 'tekstDatatype') and ctx.tekstDatatype():
+                return self._parse_datatype(ctx.tekstDatatype())
+            elif hasattr(ctx, 'datumTijdDatatype') and ctx.datumTijdDatatype():
+                return self._parse_datatype(ctx.datumTijdDatatype())
+            elif hasattr(ctx, 'booleanDatatype') and ctx.booleanDatatype():
+                return self._parse_datatype(ctx.booleanDatatype())
+            elif hasattr(ctx, 'percentageDatatype') and ctx.percentageDatatype():
+                return self._parse_datatype(ctx.percentageDatatype())
+
+        # Check for simple datatypes
+        datatype_text = safe_get_text(ctx)
+
+        # Handle simple datatypes
+        if context_type == 'NumeriekDatatypeContext':
+            return False, datatype_text, None
+        elif context_type == 'TekstDatatypeContext':
+            return False, datatype_text, None
+        elif context_type == 'DatumTijdDatatypeContext':
+            # Need to get the actual datatype text (e.g., "Datum in dagen")
+            return False, datatype_text, None
+        elif context_type == 'BooleanDatatypeContext':
+            return False, datatype_text, None
+        elif context_type == 'PercentageDatatypeContext':
+            return False, datatype_text, None
+        else:
+            # Default: return the text as is (could be domain reference)
+            return False, datatype_text, None
+
+    def visitDatatype(self, ctx) -> Tuple[bool, str, Optional[str]]:
+        """Visit a datatype node and return structured datatype information."""
+        return self._parse_datatype(ctx)
+
+    def visitLijstDatatype(self, ctx: AntlrParser.LijstDatatypeContext) -> Tuple[bool, str, Optional[str]]:
+        """Visit a list datatype node and extract element type."""
+        return self._parse_datatype(ctx)
 
     def _build_binary_expression(self, ctx, operator_map, sub_visitor_func, operator_rule_name: Optional[str] = None) -> Optional[Expression]:
         """Generic helper to build BinaryExpression nodes for left-associative rules.
@@ -3697,8 +3793,12 @@ class RegelSpraakModelBuilder(RegelSpraakVisitor):
         """Visit an attribute specification and build an Attribuut object."""
         naam = self.visitNaamwoordWithNumbers(ctx.naamwoordWithNumbers())
         datatype_str = None
+        is_lijst = False
+        element_datatype = None
+
         if ctx.datatype():
-            datatype_str = safe_get_text(ctx.datatype()) # Further parsing might be needed
+            # Use structured datatype parsing
+            is_lijst, datatype_str, element_datatype = self._parse_datatype(ctx.datatype())
         elif ctx.domeinRef():
             # Visit the domain reference to get the domain name
             datatype_str = self.visitDomeinRef(ctx.domeinRef())
@@ -3720,7 +3820,7 @@ class RegelSpraakModelBuilder(RegelSpraakVisitor):
             for dim_ref_ctx in ctx.dimensieRef():
                 if dim_ref_ctx.name:
                     dimensions.append(dim_ref_ctx.name.text)
-        
+
         # Handle timeline specification
         timeline = None
         if ctx.tijdlijn():
@@ -3731,8 +3831,17 @@ class RegelSpraakModelBuilder(RegelSpraakVisitor):
                 timeline = "maand"
             elif tijdlijn_ctx.VOOR_ELK_JAAR():
                 timeline = "jaar"
-        
-        return Attribuut(naam=naam, datatype=datatype_str, eenheid=eenheid, dimensions=dimensions, timeline=timeline, span=self.get_span(ctx))
+
+        return Attribuut(
+            naam=naam,
+            datatype=datatype_str,
+            eenheid=eenheid,
+            is_lijst=is_lijst,
+            element_datatype=element_datatype,
+            dimensions=dimensions,
+            timeline=timeline,
+            span=self.get_span(ctx)
+        )
 
     def visitKenmerkSpecificatie(self, ctx: AntlrParser.KenmerkSpecificatieContext) -> Optional[Kenmerk]:
         """Visit a kenmerk specification and build a Kenmerk object."""
@@ -4204,8 +4313,12 @@ class RegelSpraakModelBuilder(RegelSpraakVisitor):
             return None
         naam = self._extract_canonical_name(name_phrase_ctx)
         datatype_str = None
+        is_lijst = False
+        element_datatype = None
+
         if ctx.datatype():
-            datatype_str = safe_get_text(ctx.datatype()) # Needs detail parsing
+            # Use structured datatype parsing
+            is_lijst, datatype_str, element_datatype = self._parse_datatype(ctx.datatype())
         elif ctx.domeinRef():
             datatype_str = self.visitDomeinRef(ctx.domeinRef())
 
@@ -4227,7 +4340,7 @@ class RegelSpraakModelBuilder(RegelSpraakVisitor):
             self.parameter_names.add(naam)
             logger.debug(f"Added parameter to tracking: {naam}")
             logger.debug(f"Added parameter name to tracking: '{naam}'")
-        
+
         # Handle timeline specification
         timeline = None
         if ctx.tijdlijn():
@@ -4248,14 +4361,16 @@ class RegelSpraakModelBuilder(RegelSpraakVisitor):
             naam=naam,
             datatype=datatype_str,
             eenheid=eenheid,
+            is_lijst=is_lijst,
+            element_datatype=element_datatype,
             timeline=timeline,
             span=self.get_span(ctx)
         )
-        
+
         # Add initial value if present
         if initial_value:
             param.initial_value = initial_value
-        
+
         return param
 
     # 8. Rule Structure Visitors

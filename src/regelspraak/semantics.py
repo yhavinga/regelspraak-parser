@@ -203,11 +203,19 @@ class SemanticAnalyzer:
         # when their datatype matches another object type
         for obj_name, obj_type in model.objecttypes.items():
             for attr_name, attribuut in obj_type.attributen.items():
-                # Check if the attribute's datatype is an object type
-                if attribuut.datatype in model.objecttypes:
-                    # Mark this attribute as an object reference
-                    attribuut.is_object_ref = True
-                    logger.debug(f"Marked attribute '{attr_name}' of type '{obj_name}' as object reference to '{attribuut.datatype}'")
+                # Skip list attributes - check element type instead
+                if attribuut.is_lijst:
+                    # For lists, check if the element type is an object reference
+                    if attribuut.element_datatype and attribuut.element_datatype in model.objecttypes:
+                        # Mark as object reference list (element is an object type)
+                        attribuut.is_object_ref = True
+                        logger.debug(f"Marked list attribute '{attr_name}' of type '{obj_name}' as object reference list to '{attribuut.element_datatype}'")
+                else:
+                    # Check if the attribute's datatype is an object type
+                    if attribuut.datatype in model.objecttypes:
+                        # Mark this attribute as an object reference
+                        attribuut.is_object_ref = True
+                        logger.debug(f"Marked attribute '{attr_name}' of type '{obj_name}' as object reference to '{attribuut.datatype}'")
         
         # Third pass on object types: validate dimension references
         for obj_name, obj_type in model.objecttypes.items():
