@@ -1284,7 +1284,10 @@ class Evaluator:
                 working_path = working_path[1:]  # Skip the incomplete object type reference
             # Check if first element is a role alias for the current object type
             else:
-                role_obj_type = self._role_alias_to_object_type(working_path[0])
+                # Strip possessive pronouns first, then check role alias
+                first_segment = working_path[0]
+                first_clean = self._strip_possessive_pronoun(first_segment)
+                role_obj_type = self._role_alias_to_object_type(first_clean)
                 if role_obj_type and role_obj_type.lower() == current_type_clean:
                     logger.debug(f"_navigate_to_target: First element '{working_path[0]}' is role alias for current type {current_type_clean}, removing it")
                     working_path = working_path[1:]  # Skip the role alias
@@ -1310,14 +1313,16 @@ class Evaluator:
             logger.debug(f"_navigate_to_target: Processing segment '{segment}' from {current_obj.object_type_naam}")
             
             # Check if segment refers to current object type (self-reference)
-            segment_obj_type = self._role_alias_to_object_type(segment)
+            # Strip possessive pronouns first before checking role alias
+            segment_no_possessive = self._strip_possessive_pronoun(segment)
+            segment_obj_type = self._role_alias_to_object_type(segment_no_possessive)
             logger.debug(f"_navigate_to_target: Checking role alias for '{segment}' -> '{segment_obj_type}', current type: '{current_obj.object_type_naam}'")
             if segment_obj_type and segment_obj_type.lower() == current_obj.object_type_naam.lower():
                 logger.debug(f"Segment '{segment}' refers to current object type; skipping navigation")
                 continue
-            
+
             # Also check direct object type match
-            segment_clean = self._strip_articles(segment).lower()
+            segment_clean = self._strip_articles(segment_no_possessive).lower()
             if segment_clean == current_obj.object_type_naam.lower():
                 logger.debug(f"Segment '{segment}' matches current object type; skipping navigation")
                 continue
@@ -1331,12 +1336,14 @@ class Evaluator:
                 for rol_idx, rol in enumerate(feittype.rollen):
                     # Clean role name for matching using proper article stripping
                     role_naam_clean = self._strip_articles(rol.naam).lower() if rol.naam else ""
-                    segment_clean = self._strip_articles(segment).lower()
-                    
+                    # Strip possessive pronouns first, then articles
+                    segment_no_possessive = self._strip_possessive_pronoun(segment)
+                    segment_clean = self._strip_articles(segment_no_possessive).lower()
+
                     # Debug: show what we're comparing
                     if segment_clean == "te verdelen contingent treinmiles":
                         logger.debug(f"  Comparing: role '{rol.naam}' (cleaned: '{role_naam_clean}') vs segment '{segment}' (cleaned: '{segment_clean}')")
-                    
+
                     # Check if segment matches this role
                     if role_naam_clean == segment_clean:
                         logger.debug(f"_navigate_to_target: Found matching role '{rol.naam}' in feittype '{feittype_name}'")
@@ -2378,25 +2385,40 @@ class Evaluator:
                         current_obj = self.context.current_instance
                         # Path is already in correct order, don't reverse
                         nav_path = expr.path
-                        
+
                         # Navigate through all but the last element
                         for i, segment in enumerate(nav_path[:-1]):
                             # First, check if segment is a role name in a feittype
                             role_found = False
+                            # Strip possessive pronouns from segment for matching
+                            segment_no_possessive = self._strip_possessive_pronoun(segment)
                             for feittype_name, feittype in self.context.domain_model.feittypen.items():
                                 # Check if segment matches a role name in this feittype
                                 for rol in feittype.rollen:
                                     # Match against role name or plural form
                                     # Check if segment matches role name (using defined plurals)
-                                    matches = self._match_with_plural(rol.naam, segment, rol.meervoud)
-                                    
+                                    # Use segment_no_possessive for matching
+                                    matches = self._match_with_plural(rol.naam, segment_no_possessive, rol.meervoud)
+
                                     if matches:
                                         # Find related objects through this feittype
-                                        # Determine which role index this is (0 or 1)
-                                        role_index = feittype.rollen.index(rol)
-                                        # If we matched role 0, we want objects fulfilling role 1, and vice versa
-                                        as_subject = (role_index == 1)  # If we matched the second role, look for subjects
-                                        
+                                        # We need to determine which role the CURRENT object plays, not which role we matched
+                                        # Check if current object's type matches any role in this feittype
+                                        current_obj_role_index = None
+                                        for idx, check_rol in enumerate(feittype.rollen):
+                                            if self._strip_articles(check_rol.object_type).lower() == self._strip_articles(current_obj.object_type_naam).lower():
+                                                current_obj_role_index = idx
+                                                break
+
+                                        if current_obj_role_index is not None:
+                                            # If current object is role 0 (subject), we want as_subject=False to get objects
+                                            # If current object is role 1 (object), we want as_subject=True to get subjects
+                                            as_subject = (current_obj_role_index == 1)
+                                        else:
+                                            # Fallback to old logic if we can't determine the current object's role
+                                            role_index = feittype.rollen.index(rol)
+                                            as_subject = (role_index == 1)
+
                                         related_objects = self.context.get_related_objects(
                                             current_obj, feittype_name, as_subject=as_subject
                                         )
@@ -5259,10 +5281,18 @@ class Evaluator:
     def _evaluate_variable_reference(self, expr: VariableReference, instance_id: Optional[str]) -> Value:
         """Evaluate a variable reference - shared logic for timeline and non-timeline paths."""
         # Check for percentage calculation pattern in decision tables
-        # Pattern: "percentage X van zijn Y" where X is a parameter
-        if " van zijn " in expr.variable_name:
+        # Pattern: "percentage X van zijn/haar/hun Y" where X is a parameter
+        # Check for any possessive pattern
+        possessive_patterns = [" van zijn ", " van haar ", " van hun "]
+        matched_pattern = None
+        for pattern in possessive_patterns:
+            if pattern in expr.variable_name:
+                matched_pattern = pattern
+                break
+
+        if matched_pattern:
             # Try to match the percentage pattern
-            parts = expr.variable_name.split(" van zijn ", 1)
+            parts = expr.variable_name.split(matched_pattern, 1)
             if len(parts) == 2:
                 potential_param = parts[0].strip()
                 attr_name = parts[1].strip()
@@ -8532,21 +8562,24 @@ class Evaluator:
     
     def _role_alias_to_object_type(self, name: str) -> Optional[str]:
         """Map a role alias to its object type via FeitType definitions.
-        
+
         Returns the object type name if the given name is a role alias,
         None otherwise.
         """
         if not name or not hasattr(self.context, 'domain_model') or not self.context.domain_model:
             return None
-            
-        name_clean = self._strip_articles(name).lower()
+
+        # Strip possessive pronouns first, then articles
+        name_no_possessive = self._strip_possessive_pronoun(name)
+        name_clean = self._strip_articles(name_no_possessive).lower()
         
         # Check all feittypen for matching role names (both singular and plural)
         for feittype_name, feittype in self.context.domain_model.feittypen.items():
             for rol in feittype.rollen:
                 if rol.naam:
                     # Check if name matches the role using _match_with_plural
-                    if self._match_with_plural(rol.naam, name, rol.meervoud):
+                    # Use name_no_possessive for matching so "zijn reis" matches "reis"
+                    if self._match_with_plural(rol.naam, name_no_possessive, rol.meervoud):
                         return rol.object_type
         
         return None
@@ -8813,10 +8846,24 @@ class Evaluator:
                 else:
                     # Complex path: navigate through relationships
                     # Use _navigate_to_target to handle multi-segment paths
-                    target_obj, attribute_name = self._navigate_to_target(
-                        parsed_result.attribute_path,
-                        self.context.current_instance
-                    )
+                    try:
+                        target_obj, attribute_name = self._navigate_to_target(
+                            parsed_result.attribute_path,
+                            self.context.current_instance
+                        )
+                    except ValueError as e:
+                        # If navigation fails and path has multiple segments that might be a compound attribute name
+                        # Try treating the entire path (except object type) as a single attribute name
+                        if len(parsed_result.attribute_path) > 2:
+                            # Likely a mis-parsed compound attribute like "belasting op basis van reisduur"
+                            # The first element is the object type, combine the rest as attribute name
+                            logger.debug(f"Navigation failed, trying fallback: treating multi-segment as compound attribute")
+                            target_obj = self.context.current_instance
+                            # Join all segments except the first (object type) as the attribute name
+                            attribute_name = " ".join(parsed_result.attribute_path[1:])
+                        else:
+                            # Re-raise if it's not a case we can handle
+                            raise
 
                 # Set the attribute on the target object
                 self.context.set_attribute(

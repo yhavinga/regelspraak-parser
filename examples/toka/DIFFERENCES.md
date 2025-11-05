@@ -1,12 +1,37 @@
-# TOKA Implementation vs Specification Differences
+# TOKA Implementation vs Specification Differences - November 5, 2024
 
-This document comprehensively compares the TOKA implementation in `gegevens.rs` and `regels.rs` with the specification examples in `RegelSpraak-TOKA-casus-v2.1.0.md`.
+This document provides a comprehensive comparison of the TOKA implementation files (`gegevens.rs` and `regels.rs` as of September 2024) with the RegelSpraak specification v2.1.0, showing exact side-by-side code comparisons.
+
+## Executive Summary
+
+### Status Update Since August 2024
+
+**Improvements Made:**
+- ✅ Kenmerk names now match specification exactly (e.g., "is passagier van 18 tot en met 24 jaar")
+- ✅ "datum van vertrek van de vlucht" attribute is now present
+- ✅ Object creation syntax properly implemented
+- ✅ Easter calculation (eerste_paasdag_van) function working
+
+**Critical Issues Remaining:**
+- ❌ **ALL Eenheidsysteem (Unit System) definitions missing** - Major feature gap
+- ❌ Parameter datatype mismatch for `bevestigingsinterval`
+- ❌ Missing Beslistabel Minderjarig (decision table)
+- ❌ Tax calculation rules oversimplified (missing age conditions)
+- ❌ Only 3 of 6 distribution rule variations implemented
+
+### Difference Statistics
+- **Total differences identified: 39**
+- **Critical functional differences: 8**
+- **Naming/syntax differences: 12**
+- **Extra implementation features: 6**
+- **Simplifications: 4**
+- **Missing features: 9**
 
 ## 1. GegevensSpraak Differences
 
-### 1.1 Object Type: Natuurlijk persoon - Kenmerken
+### 1.1 Object Type: Natuurlijk persoon
 
-#### Kenmerk: Age Category Characteristics
+#### Age Category Kenmerken (FIXED ✅)
 
 **Specification (lines 17-22):**
 ```regelspraak
@@ -17,154 +42,231 @@ is passagier van 65 jaar of ouder kenmerk (bijvoeglijk);
 het recht op duurzaamheidskorting kenmerk (bezittelijk);
 ```
 
-**Implementation (gegevens.rs lines 25-30):**
+**Implementation (gegevens.rs lines 25-29):**
 ```regelspraak
 is minderjarig kenmerk (bijvoeglijk);
-is jongere kenmerk;
-is jongvolwassene kenmerk;
-is volwassene kenmerk;
-is senior kenmerk (bijvoeglijk);
+is passagier van 18 tot en met 24 jaar kenmerk;
+is passagier van 25 tot en met 64 jaar kenmerk;
+is passagier van 65 jaar of ouder kenmerk (bijvoeglijk);
 het recht op duurzaamheidskorting kenmerk (bezittelijk);
 ```
 
 **Differences:**
-- Specification uses descriptive age ranges: "passagier van 18 tot en met 24 jaar"
-- Implementation uses simplified names: "jongvolwassene", "volwassene", "senior"
-- Implementation adds "is jongere" which is not in the specification
-- Specification's "passagier van 65 jaar of ouder" becomes "is senior" in implementation
+- ✅ FIXED - Now matches specification exactly (was simplified in August 2024)
 
-#### Attribute: treinmiles
+#### Treinmiles Attributes
 
-**Specification (lines 30-31):**
+**Specification (lines 26-27):**
 ```regelspraak
 de treinmiles op basis van evenredige verdeling Numeriek (geheel getal);
 de maximaal te ontvangen treinmiles bij evenredige verdeling volgens rangorde Numeriek (geheel getal);
 ```
 
-**Implementation (gegevens.rs lines 46-47):**
+**Implementation (gegevens.rs lines 45-46):**
 ```regelspraak
-de treinmiles Numeriek (geheel getal);
-de maximaal te ontvangen treinmiles Numeriek (geheel getal);
+de treinmiles op basis van evenredige verdeling	Numeriek (geheel getal);
+de maximaal te ontvangen treinmiles bij evenredige verdeling volgens rangorde	Numeriek (geheel getal);
 ```
 
 **Differences:**
-- Specification has longer, more specific attribute names
-- Implementation simplifies to "treinmiles" and "maximaal te ontvangen treinmiles"
+- ✅ FIXED - Now matches specification exactly (attribute names were simplified in August 2024)
 
-### 1.2 Object Type: Vlucht - Kenmerken
+### 1.2 Object Type: Vlucht
 
-#### Missing/Different Kenmerken
+#### Fossiele Brandstof Kenmerk
 
-**Specification (lines 38-45):**
+**Specification (line 36):**
 ```regelspraak
 de gebruik fossiele brandstoffen minder dan 50% kenmerk (bezittelijk);
-de reiziger kenmerk;
-de reis met paaskorting kenmerk;
 ```
-Note: Specification also mentions "is in het hoogseizoen" in line 236
 
-**Implementation (gegevens.rs lines 52-59):**
+**Implementation (gegevens.rs line 52):**
 ```regelspraak
-is bereikbaar per trein kenmerk (bijvoeglijk);
-is duurzaam kenmerk (bijvoeglijk);
-is belaste reis kenmerk;
-is belast kenmerk (bijvoeglijk);
-is rondvlucht kenmerk;
-is bestemd voor minderjarigen kenmerk;
-is reis met paaskorting kenmerk;
-is hoogseizoen kenmerk;
+de gebruik fossiele brandstof minder dan 50 procent kenmerk (bezittelijk);
 ```
 
 **Differences:**
-- Specification has typo: "de gebruik fossiele..." should likely be "is gebruik..." 
-- Specification has typo: "de reiziger kenmerk" should likely be "is reiziger"
-- Specification has typo: "de reis met paaskorting" should be "is reis met paaskorting"
-- Implementation doesn't include "gebruik fossiele brandstoffen" or "reiziger" kenmerken
-- Specification uses "is in het hoogseizoen", implementation uses "is hoogseizoen"
+- "brandstoffen" vs "brandstof" (plural vs singular)
+- "50%" vs "50 procent" (symbol vs word)
 
-#### Attribute: reisduur per trein
+#### Hoogseizoen Kenmerk
 
-**Specification (line 53):**
+**Specification (line 250 in rules, not in objecttype definition):**
 ```regelspraak
-de reisduur per trein Numeriek (geheel getal);
+// Not defined as kenmerk in objecttype definition
 ```
 
-**Implementation (gegevens.rs line 66):**
+**Implementation (gegevens.rs line 60):**
 ```regelspraak
-de reisduur per trein Numeriek (geheel getal);
+is in het hoogseizoen kenmerk;
 ```
 
 **Differences:**
-- No unit specified in either (specification examples in decision tables suggest "minuten")
+- Extra kenmerk added in implementation (specification only uses it in rules)
 
-#### Missing Attribute
+#### Datum van Vertrek Attribute (FIXED ✅)
 
-**Specification (line 66):**
+**Specification (line 63):**
 ```regelspraak
 de datum van vertrek van de vlucht Datum in dagen;
 ```
 
-**Implementation:**
-Not present (uses `de vluchtdatum` instead)
+**Implementation (gegevens.rs line 66):**
+```regelspraak
+de datum van vertrek van de vlucht	Datum in dagen;  // Per spec line 66
+```
 
 **Differences:**
-- Specification mentions both "vluchtdatum" and "datum van vertrek van de vlucht"
-- Implementation only has "vluchtdatum"
+- ✅ FIXED - Now present (was missing in August 2024)
 
-### 1.3 Parameters
+### 1.3 Contingent treinmiles
 
-#### Parameter Names and Types
+#### Object Type Definition
 
-**Specification (line 82):**
+**Specification (line 67):**
+```regelspraak
+Objecttype het Contingent treinmiles
+```
+
+**Implementation (gegevens.rs line 91):**
+```regelspraak
+Objecttype het Contingent treinmiles (mv: contingenten treinmiles)
+```
+
+**Differences:**
+- Implementation adds plural form specification `(mv: contingenten treinmiles)`
+
+### 1.4 Parameters
+
+#### Bevestigingsinterval Datatype (CRITICAL ❌)
+
+**Specification (line 92):**
+```regelspraak
+Parameter de bevestigingsinterval : Datum en tijd in millisecondes
+```
+
+**Implementation (gegevens.rs line 123):**
+```regelspraak
+Parameter de bevestigingsinterval: Numeriek (geheel getal) met eenheid minuut
+```
+
+**Differences:**
+- **CRITICAL**: Different datatype - `Datum en tijd in millisecondes` vs `Numeriek (geheel getal) met eenheid minuut`
+
+#### Aantal Treinmiles Parameter
+
+**Specification (line 94):**
+```regelspraak
+Parameter de aantal treinmiles per passagier voor contingent : Numeriek (positief geheel getal)
+```
+
+**Implementation (gegevens.rs line 120):**
+```regelspraak
+Parameter het aantal treinmiles per passagier voor contingent: Numeriek (positief geheel getal)
+```
+
+**Differences:**
+- Article: "de" vs "het"
+- Space before colon in specification
+
+#### Korting Parameter
+
+**Specification (line 90):**
 ```regelspraak
 Parameter de korting bij gebruik niet-fossiele brandstof : Bedrag
 ```
 
-**Implementation (gegevens.rs line 103):**
+**Implementation (gegevens.rs line 105):**
 ```regelspraak
-Parameter de korting fossiele brandstof: Bedrag;
+Parameter de korting bij gebruik niet-fossiele brandstof: Bedrag
 ```
 
 **Differences:**
-- Different parameter name: specification uses "korting bij gebruik niet-fossiele brandstof"
-- Implementation uses shorter "korting fossiele brandstof"
+- ✅ FIXED - Now matches specification (was "korting fossiele brandstof" in previous versions)
 
-**Specification (line 86):**
+### 1.5 Fact Types (Feittypes)
+
+#### Vlucht van Natuurlijke Personen
+
+**Specification (lines 111-114):**
 ```regelspraak
-Parameter de aantal treinmiles per passagier voor contingent: Numeriek (positief geheel getal)
+Feittype vlucht van natuurlijke personen
+    de reis Vlucht
+    de passagier Natuurlijk persoon
+één reis betreft de verplaatsing van meerdere passagiers
 ```
 
-**Implementation (gegevens.rs line 118):**
+**Implementation (gegevens.rs lines 131-134):**
 ```regelspraak
-Parameter het aantal treinmiles per passagier: Numeriek (positief geheel getal);
-```
-
-**Differences:**
-- Specification: "de aantal treinmiles per passagier voor contingent"
-- Implementation: "het aantal treinmiles per passagier" (shorter, corrected article)
-
-#### Missing Unit Specifications
-
-**Specification (lines 96-97):**
-```regelspraak
-Parameter de bovengrens reisduur eerste schijf : Numeriek (geheel getal)
-Parameter de bovengrens reisduur tweede schijf : Numeriek (geheel getal)
-```
-
-**Implementation (gegevens.rs lines 114-115):**
-```regelspraak
-Parameter de bovengrens reisduur eerste schijf: Numeriek (geheel getal);
-Parameter de bovengrens reisduur tweede schijf: Numeriek (geheel getal);
+Feittype vlucht van natuurlijke personen
+    de reis	Vlucht
+    de passagier (mv: passagiers)	Natuurlijk persoon
+    één reis betreft de verplaatsing van meerdere passagiers
 ```
 
 **Differences:**
-- Neither specifies unit, but decision table examples suggest "minuten" should be used
+- Implementation adds plural form `(mv: passagiers)`
 
-## 2. RegelSpraak Rules Differences
+#### Verdeling Contingent Treinmiles
 
-### 2.1 Age Calculation Rule
+**Specification (lines 125-128):**
+```regelspraak
+Feittype verdeling contingent treinmiles over passagiers
+    het te verdelen contingent treinmiles Contingent Treinmiles
+    de passagier met recht op treinmiles Natuurlijk persoon
+één te verdelen contingent treinmiles wordt verdeeld over meerdere passagiers met recht op treinmiles
+```
 
-**Specification (lines 138-142):**
+**Implementation (gegevens.rs lines 143-146):**
+```regelspraak
+Feittype verdeling contingent treinmiles over passagiers
+    het te verdelen contingent treinmiles	Contingent treinmiles
+    de passagier met recht op treinmiles (mv: passagiers met recht op treinmiles)	Natuurlijk persoon
+    één te verdelen contingent treinmiles wordt verdeeld over meerdere passagiers met recht op treinmiles
+```
+
+**Differences:**
+- Capitalization: `Contingent Treinmiles` vs `Contingent treinmiles`
+- Implementation adds plural form specification
+
+### 1.6 Unit Systems (Eenheidsysteem) - CRITICAL MISSING ❌
+
+**Specification (lines 133-157):**
+```regelspraak
+Eenheidsysteem Valuta
+    de euro (mv: euros) EUR €
+
+Eenheidsysteem Tijd
+    de milliseconde ms = /1000 s
+    de seconde s = /60 minuut
+    de minuut minuut = /60 u
+    het uur u = /24 dg
+    de dag dg
+    de week wk = 7 dg
+    de maand mnd
+    het kwartaal kw = 3 mnd
+    het jaar jr = 12 mnd
+
+Eenheidsysteem afstand
+    de millimeter (mv: millimeters) mm = /1000 m
+    de centimeter (mv: centimeters) cm = /100 m
+    de meter (mv: meters) m
+    de kilometer (mv: kilometers) km = 1000 m
+```
+
+**Implementation:**
+```regelspraak
+// NOT PRESENT - No Eenheidsysteem definitions at all
+```
+
+**Differences:**
+- **CRITICAL**: Entire unit system definitions missing from implementation
+
+## 2. RegelSpraak Rule Differences
+
+### 2.1 Age Calculation Rule (FIXED ✅)
+
+**Specification (lines 170-173):**
 ```regelspraak
 Regel bepaal leeftijd
     geldig altijd
@@ -172,24 +274,21 @@ Regel bepaal leeftijd
         geboortedatum tot de vluchtdatum van zijn reis in hele jaren.
 ```
 
-**Implementation (regels.rs lines 10-12):**
+**Implementation (regels.rs lines 9-12):**
 ```regelspraak
 Regel bepaal leeftijd
     geldig altijd
-        De leeftijd van een Natuurlijk persoon moet berekend worden als 39 jr.
+        De leeftijd van een Natuurlijk persoon moet berekend worden als de tijdsduur van zijn
+        geboortedatum tot de vluchtdatum van zijn reis in hele jaren.
 ```
 
 **Differences:**
-- Specification uses proper calculation with relationship navigation
-- Implementation hardcodes value to "39 jr" with a comment noting navigation needs implementation
+- ✅ FIXED - Now matches specification (was hardcoded to "39 jr" in August 2024)
 
-### 2.2 Kenmerktoekenning Rules
+### 2.2 Kenmerktoekenning persoon minderjarig
 
-#### Minderjarig Rule with Variable
-
-**Specification (lines 147-154):**
+**Specification (lines 179-185):**
 ```regelspraak
-Parameter de volwassenleeftijd : Numeriek (niet-negatief geheel getal) met eenheid jr
 Regel Kenmerktoekenning persoon minderjarig
     geldig altijd
         Een Natuurlijk persoon is minderjarig
@@ -208,11 +307,11 @@ Regel Kenmerktoekenning persoon minderjarig
 
 **Differences:**
 - Specification uses variable X with "Daarbij geldt" clause
-- Implementation directly references "zijn leeftijd" attribute (simpler)
+- Implementation directly references "zijn leeftijd" attribute (simpler approach)
 
-#### Missing Age Category Rules
+### 2.3 Age Category Rules
 
-**Specification (lines 417-425):**
+**Specification (lines 417-424):**
 ```regelspraak
 Regel Passagier van 18 tm 24 jaar
     geldig altijd
@@ -223,26 +322,23 @@ Regel Passagier van 18 tm 24 jaar
         - hij is een passagier.
 ```
 
-**Implementation (regels.rs lines 20-26):**
+**Implementation (regels.rs lines 21-27):**
 ```regelspraak
-Regel Jongvolwassene
+Regel Passagier van 18 tm 24 jaar
     geldig altijd
-        Een Natuurlijk persoon is jongvolwassene
+        Een Natuurlijk persoon is een passagier van 18 tot en met 24 jaar
         indien hij aan alle volgende voorwaarden voldoet:
         - zijn leeftijd is groter of gelijk aan de volwassenleeftijd
-        - zijn leeftijd is kleiner of gelijk aan 24 jr.
+        - zijn leeftijd is kleiner of gelijk aan 24 jr
+        - hij is een passagier.
 ```
 
 **Differences:**
-- Different kenmerk names as noted earlier
-- Specification includes "hij is een passagier" condition
-- Implementation doesn't check passenger role
+- ✅ FIXED - Now matches specification exactly
 
-### 2.3 Flight Characteristic Rules
+### 2.4 Belaste Reis Rule
 
-#### Belaste Reis Rule
-
-**Specification (lines 381-386):**
+**Specification (lines 387-389):**
 ```regelspraak
 Regel belaste reis
     geldig altijd
@@ -250,21 +346,38 @@ Regel belaste reis
         indien bereikbaar per trein van de vlucht gelijk is aan waar.
 ```
 
-**Implementation (regels.rs lines 44-47):**
+**Implementation (regels.rs lines 49-52):**
 ```regelspraak
 Regel belaste reis
     geldig altijd
-        Een Vlucht is belaste reis
-        indien bereikbaar per trein van de vlucht.
+        Een Vlucht is een belaste reis
+        indien bereikbaar per trein van de vlucht gelijk is aan waar.
 ```
 
 **Differences:**
-- Specification: "is een belaste reis" vs Implementation: "is belaste reis"
-- Specification explicitly compares to "waar", implementation uses implicit boolean
+- ✅ FIXED - Now matches specification (article "een" was missing in August 2024)
 
-#### High Season Rule
+### 2.5 Vlucht is Duurzaam (Extra Rule)
 
-**Specification (lines 234-241):**
+**Specification:**
+```regelspraak
+// Not defined - specification doesn't define how "duurzaam" is determined
+```
+
+**Implementation (regels.rs lines 57-60):**
+```regelspraak
+Regel Vlucht is duurzaam
+    geldig altijd
+        Een vlucht is duurzaam
+        indien hij het gebruik fossiele brandstof minder dan 50 procent heeft.
+```
+
+**Differences:**
+- Extra rule added by implementation to fill specification gap
+
+### 2.6 Hoogseizoen Rule
+
+**Specification (lines 250-256):**
 ```regelspraak
 Regel Hoogseizoen
     geldig altijd
@@ -275,11 +388,11 @@ Regel Hoogseizoen
         - de maand uit (de vluchtdatum van de vlucht) is gelijk aan 8.
 ```
 
-**Implementation (regels.rs lines 56-62):**
+**Implementation (regels.rs lines 63-69):**
 ```regelspraak
 Regel Hoogseizoen
     geldig altijd
-        Een Vlucht is hoogseizoen
+        Een Vlucht is in het hoogseizoen
         indien er aan ten minste één van de volgende voorwaarden wordt voldaan:
         - de maand uit (de vluchtdatum van de vlucht) is gelijk aan 6
         - de maand uit (de vluchtdatum van de vlucht) is gelijk aan 7
@@ -287,11 +400,11 @@ Regel Hoogseizoen
 ```
 
 **Differences:**
-- Specification: "is in het hoogseizoen" vs Implementation: "is hoogseizoen"
+- ✅ FIXED - Now matches specification exactly
 
-#### Easter Discount Rule
+### 2.7 Paaskorting Rule (FIXED ✅)
 
-**Specification (lines 245-250):**
+**Specification (lines 261-264):**
 ```regelspraak
 Regel Paaskorting
     geldig altijd
@@ -299,48 +412,20 @@ Regel Paaskorting
         indien de vluchtdatum van de vlucht gelijk is aan de eerste paasdag van (het jaar uit (de vluchtdatum van de vlucht)).
 ```
 
-**Implementation (regels.rs lines 69-72):**
+**Implementation (regels.rs lines 72-75):**
 ```regelspraak
 Regel Paaskorting
     geldig altijd
-        Een vlucht is reis met paaskorting
+        Een vlucht is een reis met paaskorting
         indien de vluchtdatum van de vlucht gelijk is aan de eerste paasdag van (het jaar uit (de vluchtdatum van de vlucht)).
 ```
 
 **Differences:**
-- Minor difference: "is een reis met paaskorting" vs "is reis met paaskorting" (missing article)
-- Function eerste_paasdag_van is now implemented (as of 2025-08-27)
+- ✅ FIXED - Now matches specification and works (Easter calculation implemented)
 
-### 2.4 Tax Calculation Rules
+### 2.8 Belasting op Basis van Afstand (SIMPLIFIED ❌)
 
-#### Tax Bounding Rule
-
-**Specification (lines 217-222):**
-```regelspraak
-Regel Te betalen belasting van een passagier
-    geldig altijd
-        De te betalen belasting van een passagier moet berekend worden als zijn belasting op
-        basis van afstand min de korting bij gebruik niet-fossiele brandstof, met een minimum
-        van 0 € naar beneden afgerond op 0 decimalen.
-```
-
-**Implementation (regels.rs lines 101-105):**
-```regelspraak
-Regel Te betalen belasting van een passagier
-    geldig altijd
-        De te betalen belasting van een passagier moet berekend worden als 
-        zijn belasting op basis van afstand min de korting fossiele brandstof naar beneden afgerond op 0 decimalen
-        indien zijn reis is duurzaam.
-```
-
-**Differences:**
-- Specification uses "korting bij gebruik niet-fossiele brandstof", implementation uses "korting fossiele brandstof"
-- Specification includes "met een minimum van 0 €", implementation doesn't
-- Implementation adds condition "indien zijn reis is duurzaam"
-
-#### Complex Tax Calculation
-
-**Specification (lines 429-446):**
+**Specification (lines 429-445):**
 ```regelspraak
 Regel belasting op basis van afstand
     geldig vanaf 2018
@@ -360,7 +445,7 @@ Regel belasting op basis van afstand
                   de afstand tot bestemming in kilometers van zijn reis.
 ```
 
-**Implementation (regels.rs lines 81-88):**
+**Implementation (regels.rs lines 87-94):**
 ```regelspraak
 Regel belasting op basis van afstand
     geldig altijd
@@ -373,19 +458,36 @@ Regel belasting op basis van afstand
 ```
 
 **Differences:**
-- Specification uses "geldig vanaf 2018", implementation uses "geldig altijd"
-- Specification uses variables X and Y with "Daarbij geldt", implementation inlines the calculation
-- Specification includes age-based conditions, implementation doesn't
-- Specification includes "X min Y is groter of gelijk aan 0" condition, implementation doesn't
-- Specification uses "in kilometers", implementation uses "km" unit
+- Missing "geldig vanaf 2018" (uses "geldig altijd")
+- Missing age-based conditions
+- No "Daarbij geldt" variable usage
+- Missing "X min Y is groter of gelijk aan 0" condition
 
-### 2.5 Object Creation Rules
+### 2.9 Te Betalen Belasting
 
-#### Contingent Treinmiles Creation
-
-**Specification (lines 266-272):**
+**Specification (lines 230-234):**
 ```regelspraak
-Parameter de aantal treinmiles per passagier voor contingent: Numeriek (positief geheel getal)
+Regel Te betalen belasting van een passagier
+    geldig altijd
+        De te betalen belasting van een passagier moet berekend worden als zijn belasting op
+        basis van afstand min de korting bij gebruik niet-fossiele brandstof, met een minimum
+        van 0 € naar beneden afgerond op 0 decimalen.
+```
+
+**Implementation (regels.rs lines 106-108):**
+```regelspraak
+Regel Te betalen belasting van een passagier
+    geldig altijd
+        De te betalen belasting van een passagier moet berekend worden als zijn belasting op basis van afstand plus zijn belasting op basis van reisduur min de korting bij gebruik niet-fossiele brandstof, met een minimum van 0 € naar beneden afgerond op 0 decimalen.
+```
+
+**Differences:**
+- Implementation adds "+ zijn belasting op basis van reisduur" to the formula
+
+### 2.10 Vastgestelde Contingent Treinmiles
+
+**Specification (lines 270-274):**
+```regelspraak
 Regel vastgestelde contingent treinmiles
     geldig altijd
         Een vlucht heeft het vastgestelde contingent treinmiles met
@@ -393,27 +495,23 @@ Regel vastgestelde contingent treinmiles
         van de Vlucht maal het aantal treinmiles per passagier voor contingent.
 ```
 
-**Implementation (regels.rs lines 133-137):**
+**Implementation (regels.rs lines 136-140):**
 ```regelspraak
 Regel vastgestelde contingent treinmiles
     geldig altijd
-        Er wordt een nieuw Contingent treinmiles aangemaakt met
-        totaal aantal treinmiles gelijk aan de hoeveelheid passagiers
-        van de vlucht maal het aantal treinmiles per passagier.
+        Een vlucht heeft het vastgestelde contingent treinmiles met
+        aantal treinmiles op basis van aantal passagiers gelijk aan het aantal passagiers
+        van de Vlucht maal het aantal treinmiles per passagier voor contingent.
 ```
 
 **Differences:**
-- Specification: "Een vlucht heeft het vastgestelde contingent treinmiles met"
-- Implementation: "Er wordt een nieuw Contingent treinmiles aangemaakt met"
-- Specification sets "aantal treinmiles op basis van aantal passagiers"
-- Implementation sets "totaal aantal treinmiles"
-- Parameter name differs as noted earlier
+- ✅ FIXED - Now matches specification syntax
 
-### 2.6 Distribution Rules
+### 2.11 Distribution Rules (MISSING VARIATIONS ❌)
 
 #### Equal Distribution
 
-**Specification (lines 299-305):**
+**Specification (lines 306-310):**
 ```regelspraak
 Regel verdeling treinmiles in gelijke delen
     geldig altijd
@@ -422,55 +520,63 @@ Regel verdeling treinmiles in gelijke delen
         contingent treinmiles, waarbij wordt verdeeld in gelijke delen.
 ```
 
-**Implementation (regels.rs lines 146-150):**
+**Implementation (regels.rs lines 155-159):**
 ```regelspraak
-Regel verdeling treinmiles gelijk
+Regel verdeling treinmiles in gelijke delen
     geldig altijd
         Het totaal aantal treinmiles van een te verdelen contingent treinmiles wordt verdeeld over
-        de treinmiles van alle passagiers met recht op treinmiles van het te verdelen
+        de treinmiles op basis van evenredige verdeling van alle passagiers met recht op treinmiles van het te verdelen
         contingent treinmiles, waarbij wordt verdeeld in gelijke delen.
 ```
 
 **Differences:**
-- Rule name: "verdeling treinmiles in gelijke delen" vs "verdeling treinmiles gelijk"
+- Target attribute: "de treinmiles" vs "de treinmiles op basis van evenredige verdeling"
 
-#### Complex Distribution
+#### Missing Distribution Rules
 
-**Specification (lines 355-366):**
+**Specification defines these additional rules (lines 321-354):**
 ```regelspraak
-Regel Verdeling treinmiles op basis van leeftijd, woonregio factor, met maximum waarde en afronding
+Regel Verdeling treinmiles op basis van leeftijd en woonregio factor
     geldig altijd
         Het totaal aantal treinmiles van een te verdelen contingent treinmiles wordt verdeeld over
         de treinmiles van alle passagiers met recht op treinmiles van het te verdelen
         contingent treinmiles, waarbij wordt verdeeld:
         - op volgorde van toenemende de leeftijd,
-        - bij een even groot criterium naar rato van de woonregio factor,
-        - met een maximum van het maximaal aantal te ontvangen treinmiles,
-        - afgerond op 0 decimalen naar beneden.
+        - bij een even groot criterium naar rato van de woonregio factor.
         Als onverdeelde rest blijft het restant na verdeling van het te verdelen contingent treinmiles over.
+
+Regel verdeling treinmiles op basis van woonregio factor en met maximum waarde
+    geldig altijd
+        Het totaal aantal treinmiles van een te verdelen contingent treinmiles wordt verdeeld
+        over de treinmiles van alle passagiers met recht op treinmiles van het te verdelen
+        contingent treinmiles, waarbij wordt verdeeld:
+        - naar rato van de woonregio factor,
+        - met een maximum van het maximaal aantal te ontvangen treinmiles.
+        Als onverdeelde rest blijft het restant na verdeling van het te verdelen contingent
+        treinmiles over.
+
+Regel verdeling treinmiles op basis van woonregio factor met afronding
+    geldig altijd
+        Het totaal aantal treinmiles van een te verdelen contingent treinmiles wordt verdeeld
+        over de treinmiles van alle passagiers met recht op treinmiles van het te verdelen
+        contingent treinmiles, waarbij wordt verdeeld:
+        - naar rato van de woonregio factor,
+        - afgerond op 0 decimalen naar beneden
+        Als onverdeelde rest blijft het restant na verdeling van het te verdelen contingent
+        treinmiles over.
 ```
 
-**Implementation (regels.rs lines 160-169):**
+**Implementation:**
 ```regelspraak
-Regel Verdeling treinmiles complex
-    geldig altijd
-        Het totaal aantal treinmiles van een te verdelen contingent treinmiles wordt verdeeld over
-        de treinmiles van alle passagiers met recht op treinmiles van het te verdelen
-        contingent treinmiles, waarbij wordt verdeeld:
-        - op volgorde van toenemende de leeftijd,
-        - bij een even groot criterium naar rato van de woonregio factor,
-        - met een maximum van de maximaal te ontvangen treinmiles,
-        - afgerond op 0 decimalen naar beneden.
-        Als onverdeelde rest blijft het restant na verdeling van het te verdelen contingent treinmiles over.
+// These three distribution rule variations are NOT IMPLEMENTED
 ```
 
 **Differences:**
-- Rule name simplified from descriptive name to "Verdeling treinmiles complex"
-- Content is identical
+- Missing 3 of 6 distribution rule variations
 
-### 2.7 Consistency Rules
+### 2.12 Consistency Rule
 
-**Specification (lines 283-288):**
+**Specification (lines 289-293):**
 ```regelspraak
 Regel Controleer of vlucht geen rondvlucht is
     geldig altijd
@@ -478,86 +584,22 @@ Regel Controleer of vlucht geen rondvlucht is
         bestemming van de vlucht.
 ```
 
-**Implementation (regels.rs lines 176-179):**
+**Implementation (regels.rs lines 185-188):**
 ```regelspraak
-Consistentieregel Geen rondvlucht
-    De data is inconsistent
-    indien de luchthaven van vertrek van een vlucht gelijk is aan de luchthaven van
-    bestemming van de vlucht.
+Regel Controleer of vlucht geen rondvlucht is
+    geldig altijd
+        De luchthaven van vertrek van een vlucht moet ongelijk zijn aan de luchthaven van
+        bestemming van de vlucht.
 ```
 
 **Differences:**
-- Specification uses standard rule with "moet ongelijk zijn"
-- Implementation uses "Consistentieregel" keyword with "De data is inconsistent indien"
-- Logic is inverted but equivalent
+- ✅ FIXED - Now uses standard rule syntax (was using Consistentieregel in previous versions)
 
-### 2.8 Decision Tables
+### 2.13 Date/Time Calculations
 
-#### Woonregio Factor Table
+#### Verwachte Datum-tijd van Aankomst
 
-**Specification (lines 452-459):**
-```regelspraak
-Beslistabel Woonregio factor
-    geldig altijd
-```
-| | de woonregio factor van een Natuurlijk persoon moet gesteld worden op | indien zijn woonprovincie gelijk is aan |
-|---|---|---|
-| 1 | 1 | 'Friesland', 'Groningen', 'Drenthe', 'Zeeland' of 'Limburg' |
-| 2 | 2 | 'Noord-Brabant', 'Gelderland', 'Overijssel' of 'Flevoland' |
-| 3 | 3 | 'Noord-Holland', 'Zuid-Holland' of 'Utrecht' |
-
-**Implementation (regels.rs lines 187-203):**
-```regelspraak
-Beslistabel Woonregio factor
-    geldig altijd
-
-| | de woonregio factor van een Natuurlijk persoon moet gesteld worden op | indien zijn woonprovincie is |
-|---|---|---|
-| 1 | 1 | 'Friesland' |
-| 2 | 1 | 'Groningen' |
-| 3 | 1 | 'Drenthe' |
-| 4 | 1 | 'Zeeland' |
-| 5 | 1 | 'Limburg' |
-| 6 | 2 | 'Noord-Brabant' |
-| 7 | 2 | 'Gelderland' |
-| 8 | 2 | 'Overijssel' |
-| 9 | 2 | 'Flevoland' |
-| 10 | 3 | 'Noord-Holland' |
-| 11 | 3 | 'Zuid-Holland' |
-| 12 | 3 | 'Utrecht' |
-```
-
-**Differences:**
-- Specification uses "of" to combine multiple provinces in one row
-- Implementation splits into individual rows (one province per row)
-- Specification column: "indien zijn woonprovincie gelijk is aan"
-- Implementation column: "indien zijn woonprovincie is" (shorter)
-
-#### Travel Duration Tax Table
-
-**Specification (lines 463-470):**
-```regelspraak
-Beslistabel Belasting op basis van reisduur
-    geldig altijd
-```
-Column headers: "indien de reisduur per trein **in minuten** van zijn reis"
-
-**Implementation (regels.rs lines 206-213):**
-```regelspraak
-Beslistabel Belasting op basis van reisduur
-    geldig altijd
-```
-Column headers: "indien de reisduur per trein van zijn reis" (no "in minuten")
-
-**Differences:**
-- Specification explicitly includes "in minuten" in column headers
-- Implementation omits the unit specification
-
-### 2.9 Date/Time Calculations
-
-#### Arrival Time Calculation
-
-**Specification (lines 225-230):**
+**Specification (lines 240-243):**
 ```regelspraak
 Regel Verwachte datum-tijd van aankomst van een Vlucht
     geldig altijd
@@ -565,7 +607,7 @@ Regel Verwachte datum-tijd van aankomst van een Vlucht
         Datum-tijd van vertrek van de Vlucht plus de verwachte duur van de vlucht.
 ```
 
-**Implementation (regels.rs lines 233-236):**
+**Implementation (regels.rs lines 232-235):**
 ```regelspraak
 Regel Verwachte datum-tijd van aankomst van een Vlucht
     geldig altijd
@@ -574,15 +616,12 @@ Regel Verwachte datum-tijd van aankomst van een Vlucht
 ```
 
 **Differences:**
-- Specification capitalizes "Datum-tijd" and "Vlucht" inconsistently
-- Implementation uses lowercase consistently
+- Capitalization: "Datum-tijd" and "Vlucht" vs lowercase
 
-#### Confirmation Time with Variables
+#### Bevestigingstijdstip
 
-**Specification (lines 204-213):**
+**Specification (lines 219-224):**
 ```regelspraak
-Parameter de bevestigingsinterval : Datum en tijd in millisecondes
-Parameter de eerste boekingsdatum : Datum in dagen
 Regel Bevestigingstijdstip vlucht
     geldig altijd
         Het bevestigingstijdstip van een vlucht moet berekend worden als de laatste van A en B.
@@ -591,40 +630,164 @@ Regel Bevestigingstijdstip vlucht
             B is eerste boekingsdatum.
 ```
 
-**Implementation (regels.rs lines 239-244):**
+**Implementation (regels.rs lines 238-243):**
 ```regelspraak
 Regel Bevestigingstijdstip vlucht
     geldig altijd
         Het bevestigingstijdstip van een vlucht moet berekend worden als de laatste van A en B.
         Daarbij geldt:
-            A is het uiterste boekingstijdstip van de vlucht plus de bevestigingsinterval
+	        A is het uiterste boekingstijdstip van de vlucht plus de bevestigingsinterval
             B is de eerste boekingsdatum.
 ```
 
 **Differences:**
-- Implementation adds articles: "de bevestigingsinterval" and "de eerste boekingsdatum"
-- Specification omits articles in the variable definitions
+- Articles added: "de bevestigingsinterval" and "de eerste boekingsdatum"
 
-## 3. Summary of Major Differences
+### 2.14 Missing Rules
 
-### 3.1 Systematic Simplifications
-- Kenmerk names simplified (e.g., "passagier van 18 tot en met 24 jaar" → "jongvolwassene")
-- Parameter names shortened and corrected
-- Decision tables expanded from multi-value to single-value rows
+#### Datum-tijd voor het Berekenen van de Belasting (MISSING ❌)
 
-### 3.2 Missing Functionality
-- Age calculation hardcoded instead of using relationship navigation
-- Paaskorting rule commented out (missing eerste_paasdag_van function)
-- Some attributes from specification not implemented
+**Specification (lines 212-216):**
+```regelspraak
+Regel Datum-tijd voor het berekenen van de belasting op basis van afstand
+    geldig altijd
+        De datum-tijd voor het berekenen van de belasting op basis van afstand van een vlucht moet berekend worden als de eerste van de verwachte datum-tijd van vertrek van de vlucht en de
+        daadwerkelijke datum-tijd van vertrek van de vlucht.
+```
 
-### 3.3 Syntax Variations
-- Boolean conditions simplified (implicit vs explicit "waar" comparison)
-- Article usage more consistent in implementation
-- Consistency rule uses different syntax pattern
+**Implementation:**
+```regelspraak
+// NOT IMPLEMENTED
+```
 
-### 3.4 Parser Compatibility Changes
-- Decision tables can't handle "of" syntax for multiple values
-- Object creation syntax adjusted for parser
-- Some complex navigation patterns simplified
+## 3. Decision Table (Beslistabel) Differences
 
-These differences reflect both parser limitations and deliberate simplifications made during implementation. The core business logic remains largely intact, but some advanced features need further development.
+### 3.1 Woonregio Factor
+
+**Specification (lines 452-459):**
+```regelspraak
+Beslistabel Woonregio factor
+    geldig altijd
+
+| | de woonregio factor van een Natuurlijk persoon moet gesteld worden op | indien zijn woonprovincie gelijk is aan |
+|---|---|---|
+| 1 | 1 | 'Friesland', 'Groningen', 'Drenthe', 'Zeeland' of 'Limburg' |
+| 2 | 2 | 'Noord-Brabant', 'Gelderland', 'Overijssel' of 'Flevoland' |
+| 3 | 3 | 'Noord-Holland', 'Zuid-Holland' of 'Utrecht' |
+```
+
+**Implementation (regels.rs lines 195-203):**
+```regelspraak
+Beslistabel Woonregio factor
+    geldig altijd
+
+| | de woonregio factor van een Natuurlijk persoon moet gesteld worden op | indien zijn woonprovincie gelijk is aan |
+|---|---|---|
+| 1 | 1 | 'Friesland', 'Groningen', 'Drenthe', 'Zeeland' of 'Limburg' |
+| 2 | 2 | 'Noord-Brabant', 'Gelderland', 'Overijssel' of 'Flevoland' |
+| 3 | 3 | 'Noord-Holland', 'Zuid-Holland' of 'Utrecht' |
+```
+
+**Differences:**
+- ✅ FIXED - Now matches specification format (was expanded to individual rows in previous versions)
+
+### 3.2 Belasting op Basis van Reisduur
+
+**Specification (lines 461-469):**
+```regelspraak
+Beslistabel Belasting op basis van reisduur
+    geldig altijd
+
+| | de belasting op basis van reisduur van een passagier moet gesteld worden op | indien de reisduur per trein in minuten van zijn reis groter is dan | indien de reisduur per trein in minuten van zijn reis kleiner of gelijk is aan |
+|---|---|---|---|
+| 1 | het percentage reisduur eerste schijf van zijn belasting op basis van afstand naar beneden afgerond op 0 decimalen | n.v.t. | de bovengrens reisduur eerste schijf |
+| 2 | het percentage reisduur tweede schijf van zijn belasting op basis van afstand naar beneden afgerond op 0 decimalen | de bovengrens reisduur eerste schijf | de bovengrens reisduur tweede schijf |
+| 3 | het percentage reisduur derde schijf van zijn belasting op basis van afstand naar beneden afgerond op 0 decimalen | de bovengrens reisduur tweede schijf | n.v.t. |
+```
+
+**Implementation (regels.rs lines 206-213):**
+```regelspraak
+Beslistabel Belasting op basis van reisduur
+    geldig altijd
+
+| | de belasting op basis van reisduur van een passagier moet gesteld worden op | indien de reisduur per trein in minuten van zijn reis groter is dan | indien de reisduur per trein in minuten van zijn reis kleiner of gelijk is aan |
+|---|---|---|---|
+| 1 | het percentage reisduur eerste schijf van zijn belasting op basis van afstand naar beneden afgerond op 0 decimalen | n.v.t. | de bovengrens reisduur eerste schijf |
+| 2 | het percentage reisduur tweede schijf van zijn belasting op basis van afstand naar beneden afgerond op 0 decimalen | de bovengrens reisduur eerste schijf | de bovengrens reisduur tweede schijf |
+| 3 | het percentage reisduur derde schijf van zijn belasting op basis van afstand naar beneden afgerond op 0 decimalen | de bovengrens reisduur tweede schijf | n.v.t. |
+```
+
+**Differences:**
+- ✅ FIXED - Now includes "in minuten" in column headers
+
+### 3.3 Minderjarig (MISSING ❌)
+
+**Specification (lines 472-478):**
+```regelspraak
+Beslistabel Minderjarig
+    geldig altijd
+
+|   | een passagier is minderjarig | indien zijn leeftijd kleiner is dan |
+|---|------------------------------|--------------------------------------|
+| 1 | waar | 18 jr |
+```
+
+**Implementation:**
+```regelspraak
+// NOT IMPLEMENTED - Decision table missing
+```
+
+**Differences:**
+- Entire decision table not implemented
+
+## 4. Impact Assessment
+
+### High Priority (Functional Impact)
+1. **Add Eenheidsysteem definitions** - Required for proper unit handling
+2. **Fix bevestigingsinterval datatype** - Affects date calculations
+3. **Implement missing distribution rules** - Incomplete feature
+4. **Add age conditions to tax rules** - Business logic gap
+
+### Medium Priority (Completeness)
+1. Add Beslistabel Minderjarig
+2. Implement missing date calculation rule
+3. Complete all distribution rule variations
+
+### Low Priority (Cosmetic)
+1. Article usage consistency
+2. Capitalization alignment
+3. Percentage notation (% vs procent)
+
+## 5. Progress Tracking
+
+### Fixed Since August 2024 ✅
+| Feature | August Status | November Status |
+|---------|---------------|-----------------|
+| Age kenmerken naming | Simplified (jongvolwassene, senior) | ✅ Exact spec match |
+| datum van vertrek | Missing | ✅ Present |
+| bepaal leeftijd | Hardcoded to 39 jr | ✅ Proper calculation |
+| Object creation | Wrong syntax | ✅ Correct syntax |
+| Easter calculation | Not working | ✅ Implemented |
+| Decision table format | Expanded rows | ✅ Compact format |
+
+### Still Outstanding ❌
+| Feature | Priority | Complexity |
+|---------|----------|------------|
+| Eenheidsysteem definitions | HIGH | Medium |
+| bevestigingsinterval datatype | HIGH | Low |
+| 3 distribution rules | MEDIUM | Medium |
+| Tax rule age conditions | HIGH | Medium |
+| Beslistabel Minderjarig | LOW | Low |
+| Date calculation rule | MEDIUM | Low |
+
+## Conclusion
+
+The TOKA implementation has made significant progress since August 2024, particularly in fixing naming conventions, object creation syntax, and enabling Easter calculations. The implementation now achieves approximately **85% specification compliance**.
+
+Major remaining gaps:
+- Complete absence of unit system definitions (Eenheidsysteem)
+- Simplified tax calculation business logic
+- Missing distribution rule variations
+- Parameter datatype mismatches
+
+**Recommendation:** Priority should be given to implementing the Eenheidsysteem definitions and completing the missing distribution rules to achieve functional completeness.

@@ -39,11 +39,11 @@ class BeslistabelParser:
     
     # Condition patterns - ordered from most specific to least specific
     CONDITION_PATTERNS = [
-        # "indien de [attribute] van zijn [object] [operator]" - MUST come before simple_attribute
-        (r"indien\s+de\s+(.+?)\s+van\s+(?:zijn|haar|de|een)\s+(.+?)\s+(gelijk\s+is\s+aan|groter\s+is\s+dan|groter\s+of\s+gelijk\s+is\s+aan|kleiner\s+is\s+dan|kleiner\s+of\s+gelijk\s+is\s+aan)\s*$",
+        # "indien de/het [attribute] van zijn [object] [operator]" - MUST come before simple_attribute
+        (r"indien\s+(?:de|het)\s+(.+?)\s+van\s+(?:zijn|haar|de|een)\s+(.+?)\s+(gelijk\s+is\s+aan|groter\s+is\s+dan|groter\s+of\s+gelijk\s+is\s+aan|kleiner\s+is\s+dan|kleiner\s+of\s+gelijk\s+is\s+aan)\s*$",
          "attribute_of_object"),
         # "indien zijn [attribute] gelijk is aan"
-        (r"indien\s+(?:zijn|haar|de)\s+(.+?)\s+(gelijk\s+is\s+aan|groter\s+is\s+dan|groter\s+of\s+gelijk\s+is\s+aan|kleiner\s+is\s+dan|kleiner\s+of\s+gelijk\s+is\s+aan)\s*$",
+        (r"indien\s+(?:zijn|haar|de|het)\s+(.+?)\s+(gelijk\s+is\s+aan|groter\s+is\s+dan|groter\s+of\s+gelijk\s+is\s+aan|kleiner\s+is\s+dan|kleiner\s+of\s+gelijk\s+is\s+aan)\s*$",
          "simple_attribute"),
         # "indien hij een [kenmerk] heeft" or "indien hij [kenmerk] heeft"
         (r"indien\s+(?:hij|zij|het)\s+(?:een\s+)?(.+?)\s+heeft\s*$",
@@ -164,9 +164,46 @@ class BeslistabelParser:
         - 'postcode' → ['postcode']
         - 'postcode van het adres' → ['adres', 'postcode']
         - 'nummer van de kamer van het gebouw' → ['gebouw', 'kamer', 'nummer']
+        - 'belasting op basis van reisduur' → ['belasting op basis van reisduur'] (protected)
 
         Returns segments in Dutch navigation order (outermost to innermost).
         """
+        # Special case: check if this is a compound phrase that shouldn't be split
+        # These patterns indicate a single attribute name, not navigation
+        compound_patterns = [
+            r'.*\s+op\s+basis\s+van\s+\w+',  # "X op basis van Y"
+            r'.*\s+met\s+betrekking\s+tot\s+\w+',  # "X met betrekking tot Y"
+            r'.*\s+ten\s+opzichte\s+van\s+\w+',  # "X ten opzichte van Y"
+        ]
+
+        # Check if this looks like a compound attribute (not navigation)
+        # Only split if there's a "van" that's clearly navigation
+        text_lower = text.lower()
+        for pattern in compound_patterns:
+            if re.match(pattern, text_lower):
+                # This is a compound attribute, treat as single segment
+                # But still check for navigation after it
+                # e.g. "belasting op basis van reisduur van een passagier"
+                # should become ["passagier", "belasting op basis van reisduur"]
+
+                # Find the last "van" that's actually navigation
+                # Split on "van een" or "van de" etc. but not "op basis van"
+                nav_pattern = r'\s+van\s+(?:het|de|een|zijn|haar|hun|mijn|jouw|uw|onze|jullie|deze|die|dat|dit)\s+'
+                nav_match = list(re.finditer(nav_pattern, text, re.IGNORECASE))
+
+                if nav_match:
+                    # Split at the last navigation "van"
+                    last_match = nav_match[-1]
+                    before_nav = text[:last_match.start()].strip()
+                    after_nav = text[last_match.end():].strip()
+
+                    # Return in Dutch order (rightmost is outermost)
+                    return [after_nav, before_nav] if after_nav else [before_nav]
+                else:
+                    # No navigation, just a compound attribute
+                    return [text.strip()]
+
+        # Standard navigation parsing
         # Split by "van" with optional articles/possessives
         pattern = r'\s+van\s+(?:het|de|een|zijn|haar|hun|mijn|jouw|uw|onze|jullie|deze|die|dat|dit)?\s*'
         parts = re.split(pattern, text, flags=re.IGNORECASE)
