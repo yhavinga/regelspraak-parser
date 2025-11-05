@@ -231,6 +231,8 @@ class RuntimeContext:
     timeline_parameters: Dict[str, TimelineValue] = field(default_factory=dict)
     # Current evaluation date for timeline lookups
     evaluation_date: Optional[datetime] = None
+    # Calculation date for rule versioning (spec §4.2, §5.3)
+    rekendatum: Optional[datetime] = None
     # Stores object instances, keyed by object type name for easier lookup
     instances: Dict[str, List[RuntimeObject]] = field(default_factory=lambda: defaultdict(list))
     # Stores variables within the current rule execution scope  
@@ -244,6 +246,23 @@ class RuntimeContext:
     inconsistent_rules: Set[str] = field(default_factory=set)  # Consistency rules that found inconsistencies
     # Configurable maximum iterations for recursive rule groups (spec §9.9)
     max_recursion_iterations: int = 100
+
+    # --- Rekendatum Methods ---
+
+    def set_rekendatum(self, date: datetime):
+        """Set the calculation date for rule versioning.
+
+        Per spec §4.2 and §5.3, this date determines which version
+        of a rule is used when multiple versions exist.
+        """
+        self.rekendatum = date
+        # Also set evaluation_date if not already set (often they're the same)
+        if self.evaluation_date is None:
+            self.evaluation_date = date
+
+    def get_rekendatum(self) -> Optional[datetime]:
+        """Get the current calculation date."""
+        return self.rekendatum
 
     # --- Rule Status Methods ---
     

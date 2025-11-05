@@ -512,12 +512,24 @@ class Dagsoortdefinitie(ResultaatDeel):
     dagsoort_naam: str  # The name of the day type (e.g., "kerstdag")
 
 @dataclass
+class RegelVersie:
+    """Represents version/validity information for a rule (spec §4.2).
+
+    A rule can have multiple versions, each with its own validity period.
+    The rekendatum determines which version is used at runtime.
+    """
+    geldigheid_type: str  # "altijd", "vanaf", "tot_en_met", "vanaf_tot"
+    vanaf_datum: Optional[datetime] = None  # Start date if specified
+    tot_datum: Optional[datetime] = None    # End date if specified
+    span: Optional[SourceSpan] = None
+
+@dataclass
 class Regel:
     """Represents a RegelSpraak rule definition."""
     naam: str
-    # versie_info: Any # TODO: Define structure for version/validity
     span: SourceSpan
     resultaat: ResultaatDeel
+    versie_info: Optional[RegelVersie] = None  # Version/validity information
     voorwaarde: Optional[Voorwaarde] = None
     # Map variable name to its definition expression
     variabelen: Dict[str, Expression] = field(default_factory=dict)

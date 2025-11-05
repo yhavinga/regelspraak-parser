@@ -19,9 +19,9 @@ Objecttype de Natuurlijk persoon (bezield)
     de leeftijd Numeriek (geheel getal) met eenheid jr;
 
 Feittype vlucht van natuurlijke personen
-    de reis	Vlucht
+    de vlucht	Vlucht
     de passagier (mv: passagiers)	Natuurlijk persoon
-    Eén reis betreft de verplaatsing van meerdere passagiers
+    Eén vlucht betreft de verplaatsing van meerdere passagiers
 
 Objecttype de Vlucht
     de hoeveelheid minderjarige passagiers Numeriek (geheel getal);
@@ -34,7 +34,7 @@ Regel kenmerktoekenning minderjarig
 Regel tel minderjarigen
     geldig altijd
         De hoeveelheid minderjarige passagiers van een vlucht moet berekend worden als
-        het aantal passagiers van de reis die minderjarig zijn.
+        het aantal passagiers van de vlucht die minderjarig zijn.
 """
         
         # Parse the RegelSpraak code
@@ -239,9 +239,9 @@ Objecttype de Natuurlijk persoon (bezield)
     de belasting Bedrag;
 
 Feittype vlucht van natuurlijke personen
-    de reis	Vlucht
+    de vlucht	Vlucht
     de passagier (mv: passagiers)	Natuurlijk persoon
-    Eén reis betreft de verplaatsing van meerdere passagiers
+    Eén vlucht betreft de verplaatsing van meerdere passagiers
 
 Objecttype de Vlucht
     de totale belasting minderjarigen Bedrag;
@@ -254,7 +254,7 @@ Regel kenmerktoekenning minderjarig
 Regel som belasting minderjarigen
     geldig altijd
         De totale belasting minderjarigen van een vlucht moet berekend worden als
-        de som van de belasting van alle passagiers van de reis die minderjarig zijn.
+        de som van de belasting van alle passagiers van de vlucht die minderjarig zijn.
 """
         
         # Parse the RegelSpraak code
@@ -414,7 +414,7 @@ Regel kenmerktoekenning minderjarig
 
 Regel tel minderjarigen op reis
     geldig altijd
-        De aantal minderjarige reizigers van een reis moet berekend worden als 
+        De aantal minderjarige reizigers van een reis moet berekend worden als
         het aantal passagiers van de reis die minderjarig zijn.
 """
         

@@ -12,7 +12,7 @@ from antlr4.tree.Tree import TerminalNode
 
 # Import AST nodes
 from .ast import (
-    DomainModel, ObjectType, Attribuut, Kenmerk, Regel, RegelGroep, Parameter, Domein,
+    DomainModel, ObjectType, Attribuut, Kenmerk, Regel, RegelVersie, RegelGroep, Parameter, Domein,
     FeitType, Rol, Voorwaarde, ResultaatDeel, Gelijkstelling, KenmerkToekenning,
     ObjectCreatie, FeitCreatie, Consistentieregel, Initialisatie, Dagsoortdefinitie, Dagsoort, Verdeling,
     VerdelingMethode, VerdelingGelijkeDelen, VerdelingNaarRato, VerdelingOpVolgorde,
@@ -4398,15 +4398,78 @@ class RegelSpraakModelBuilder(RegelSpraakVisitor):
              logger.error(f"Could not parse resultaatDeel for rule '{naam}'. Skipping rule.")
              return None
 
-        # TODO: Parse version/validity info from ctx.regelVersie()
+        # Parse version/validity info
+        versie_info = self.visitRegelVersie(ctx.regelVersie()) if ctx.regelVersie() else None
 
         return Regel(
             naam=naam,
+            span=self.get_span(ctx),
             resultaat=resultaat,
+            versie_info=versie_info,
             voorwaarde=voorwaarde,
-            variabelen=variabelen,
-            span=self.get_span(ctx)
+            variabelen=variabelen
         )
+
+    def visitRegelVersie(self, ctx: AntlrParser.RegelVersieContext) -> Optional[RegelVersie]:
+        """Visit a rule version specification and build a RegelVersie object."""
+        if not ctx or not ctx.versieGeldigheid():
+            return None
+
+        versie_ctx = ctx.versieGeldigheid()
+
+        # Determine geldigheid type and dates
+        if versie_ctx.ALTIJD():
+            return RegelVersie(
+                geldigheid_type="altijd",
+                span=self.get_span(ctx)
+            )
+        elif versie_ctx.VANAF():
+            # "vanaf <date>" pattern
+            vanaf_datum = None
+            if versie_ctx.datumLiteral(0):
+                # Parse the date literal
+                date_ctx = versie_ctx.datumLiteral(0)
+                if date_ctx.DATE_TIME_LITERAL():
+                    date_text = date_ctx.DATE_TIME_LITERAL().getText()
+                else:
+                    date_text = safe_get_text(date_ctx)
+
+                # Parse date string to datetime
+                from dateutil import parser as date_parser
+                try:
+                    vanaf_datum = date_parser.parse(date_text)
+                except (ValueError, TypeError):
+                    logger.error(f"Could not parse date: {date_text}")
+
+            # Check if there's also a "t/m" or "tot en met" clause
+            tot_datum = None
+            if (versie_ctx.TM() or versie_ctx.TOT_EN_MET()) and versie_ctx.datumLiteral(1):
+                date_ctx = versie_ctx.datumLiteral(1)
+                if date_ctx.DATE_TIME_LITERAL():
+                    date_text = date_ctx.DATE_TIME_LITERAL().getText()
+                else:
+                    date_text = safe_get_text(date_ctx)
+
+                # Parse date string to datetime
+                from dateutil import parser as date_parser
+                try:
+                    tot_datum = date_parser.parse(date_text)
+                except (ValueError, TypeError):
+                    logger.error(f"Could not parse date: {date_text}")
+
+                geldigheid_type = "vanaf_tot"
+            else:
+                geldigheid_type = "vanaf"
+
+            return RegelVersie(
+                geldigheid_type=geldigheid_type,
+                vanaf_datum=vanaf_datum,
+                tot_datum=tot_datum,
+                span=self.get_span(ctx)
+            )
+        else:
+            logger.warning(f"Unexpected versieGeldigheid format: {safe_get_text(versie_ctx)}")
+            return None
 
     def visitConsistentieregel(self, ctx: AntlrParser.ConsistentieregelContext) -> Optional[Regel]:
         """Visit a consistency rule and build a Regel object with Consistentieregel result."""
@@ -4434,10 +4497,11 @@ class RegelSpraakModelBuilder(RegelSpraakVisitor):
         # Return as a Regel with Consistentieregel as the result
         return Regel(
             naam=naam,
+            span=self.get_span(ctx),
             resultaat=resultaat,
+            versie_info=None,  # Consistency rules can have versions too, but not implemented yet
             voorwaarde=voorwaarde,
-            variabelen={},  # Consistency rules don't have variables
-            span=self.get_span(ctx)
+            variabelen={}  # Consistency rules don't have variables
         )
     
     def visitRegelGroep(self, ctx: AntlrParser.RegelGroepContext) -> Optional[RegelGroep]:

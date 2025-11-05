@@ -95,6 +95,59 @@ class Evaluator:
             "tijdsevenredig_deel_per_jaar": self._func_tijdsevenredig_deel_per_jaar,
         }
 
+    def _select_rule_version(self, rules: List[Regel]) -> Optional[Regel]:
+        """Select the appropriate rule version based on rekendatum.
+
+        Per spec §4.2, the rekendatum determines which version of a rule
+        should be used when multiple versions exist.
+
+        Args:
+            rules: List of rule versions with the same name
+
+        Returns:
+            The rule version valid at rekendatum, or None if no valid version exists
+        """
+        rekendatum = self.context.get_rekendatum()
+
+        # If no rekendatum is set, use the first rule with "altijd" validity or log warning
+        if not rekendatum:
+            for rule in rules:
+                if rule.versie_info and rule.versie_info.geldigheid_type == "altijd":
+                    return rule
+            # No "altijd" rule found and no rekendatum - use first rule with warning
+            if rules:
+                logger.warning(f"No rekendatum set and no 'altijd' version for rule '{rules[0].naam}'. Using first version.")
+                return rules[0]
+            return None
+
+        # Select the rule version valid at rekendatum
+        for rule in rules:
+            if not rule.versie_info:
+                # Rule without version info is treated as "altijd"
+                return rule
+
+            versie = rule.versie_info
+            if versie.geldigheid_type == "altijd":
+                # This version is always valid
+                return rule
+            elif versie.geldigheid_type == "vanaf":
+                # Valid from vanaf_datum onwards
+                if versie.vanaf_datum and rekendatum >= versie.vanaf_datum:
+                    return rule
+            elif versie.geldigheid_type == "tot_en_met":
+                # Valid until tot_datum (inclusive)
+                if versie.tot_datum and rekendatum <= versie.tot_datum:
+                    return rule
+            elif versie.geldigheid_type == "vanaf_tot":
+                # Valid from vanaf_datum to tot_datum (inclusive)
+                if versie.vanaf_datum and versie.tot_datum:
+                    if rekendatum >= versie.vanaf_datum and rekendatum <= versie.tot_datum:
+                        return rule
+
+        # No valid version found at rekendatum
+        logger.warning(f"No valid version found for rule '{rules[0].naam if rules else 'unknown'}' at rekendatum {rekendatum}")
+        return None
+
     def execute_model(self, domain_model: DomainModel, evaluation_date: Optional[datetime] = None):
         """Executes all rules in the domain model against the context.
         
@@ -145,7 +198,19 @@ class Evaluator:
                     self.context.set_current_instance(original_instance)
 
         # Phase 2: Execute regular rules
+        # Group rules by name to handle versioning
+        rules_by_name = {}
         for rule in domain_model.regels:
+            if rule.naam not in rules_by_name:
+                rules_by_name[rule.naam] = []
+            rules_by_name[rule.naam].append(rule)
+
+        # Select appropriate version for each rule name and execute
+        for rule_name, rule_versions in rules_by_name.items():
+            rule = self._select_rule_version(rule_versions)
+            if not rule:
+                logger.warning(f"No valid version selected for rule '{rule_name}'. Skipping.")
+                continue
             # Special handling for ObjectCreatie rules
             if isinstance(rule.resultaat, ObjectCreatie):
                 # Check if rule has a condition that requires iteration
@@ -289,7 +354,11 @@ class Evaluator:
 
         # Phase 4: Re-run regular rules that depend on decision table outputs
         # (like "Te betalen belasting" which needs "belasting op basis van reisduur" from phase 3)
-        for rule in domain_model.regels:
+        # Re-use the same version selection from Phase 2
+        for rule_name, rule_versions in rules_by_name.items():
+            rule = self._select_rule_version(rule_versions)
+            if not rule:
+                continue
             # Skip ObjectCreatie rules - they were already handled
             if isinstance(rule.resultaat, ObjectCreatie):
                 continue
