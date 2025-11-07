@@ -101,26 +101,52 @@ class TestDomeinSupport(RegelSpraakTestCase):
         errors = analyzer.analyze(model)
         
         # Should have error about undefined domain
-        # Note: Current implementation may not validate this yet
-        # This test documents expected future behavior
-        # self.assertGreater(len(errors), 0)
-        # self.assertTrue(any("OngedefinierdBedrag" in str(e) for e in errors))
+        self.assertGreater(len(errors), 0)
+        self.assertTrue(any("OngedefinierdBedrag" in str(e) for e in errors))
     
     def test_domain_in_parameter(self):
         """Test using domain in parameter definition."""
         regelspraak_code = """
         Domein Korting is van het type Numeriek (niet-negatief getal met 1 decimalen) met eenheid %
-        
+
         Parameter de standaard korting : Korting
         """
-        
+
         model = parse_text(regelspraak_code)
         self.assertIsInstance(model, DomainModel)
         self.assertIn("Korting", model.domeinen)
         self.assertIn("standaard korting", model.parameters)
-        
+
         param = model.parameters["standaard korting"]
         self.assertEqual(param.datatype, "Korting")
+
+    def test_semantic_error_undefined_domain_in_parameter(self):
+        """Test error when parameter uses undefined domain."""
+        regelspraak_code = """
+        Parameter de belasting : OnbekendDomein
+        """
+
+        model = parse_text(regelspraak_code)
+        analyzer = SemanticAnalyzer()
+        errors = analyzer.analyze(model)
+
+        # Should have error about undefined domain
+        self.assertGreater(len(errors), 0)
+        self.assertTrue(any("OnbekendDomein" in str(e) for e in errors))
+
+    def test_semantic_error_undefined_domain_in_list(self):
+        """Test error when list parameter uses undefined domain for element type."""
+        regelspraak_code = """
+        Parameter de lijst : Lijst van OnbekendDomein
+        """
+
+        model = parse_text(regelspraak_code)
+        analyzer = SemanticAnalyzer()
+        errors = analyzer.analyze(model)
+
+        # Should have error about undefined domain
+        self.assertGreater(len(errors), 0)
+        self.assertTrue(any("OnbekendDomein" in str(e) for e in errors))
 
 
 class DomeinTests(RegelSpraakTestCase):

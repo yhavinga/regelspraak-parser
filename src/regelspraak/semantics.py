@@ -150,6 +150,61 @@ class SemanticAnalyzer:
         
         return self.errors
     
+    def _is_known_primitive(self, datatype: str) -> bool:
+        """Check if a datatype is a known primitive type.
+
+        Handles variants like "Numeriek(getalmet2decimalen)" or "Datum in dagen".
+        """
+        if not datatype:
+            return False
+
+        # Handle "Lijst" as special case - not a primitive
+        if datatype == "Lijst":
+            return False
+
+        # Extract base type from strings with modifiers
+        base_type = datatype
+
+        # Handle Numeriek variants: "Numeriek", "Numeriek(getal)", etc.
+        if datatype.startswith("Numeriek"):
+            return True
+
+        # Handle Datum variants: "Datum", "Datum in dagen", "Datum in maanden"
+        if datatype.startswith("Datum"):
+            return True
+
+        # Handle other primitives that should be exact matches
+        return base_type in ["Tekst", "Boolean", "Percentage"]
+
+    def _validate_datatype(self, datatype: str, element_name: str, element_kind: str,
+                          model: DomainModel, span: Optional[SourceSpan] = None) -> None:
+        """Validate that a datatype references a valid type (primitive, domain, or object)."""
+        if not datatype:
+            return  # No datatype to validate
+
+        # Special handling for "Lijst" - validate element_datatype instead
+        if datatype == "Lijst":
+            return  # List validation handled separately
+
+        # Check if it's a known primitive
+        if self._is_known_primitive(datatype):
+            return  # Valid primitive type
+
+        # Check if it's a known object type
+        if datatype in model.objecttypes:
+            return  # Valid object type reference
+
+        # Check if it's a known domain
+        if datatype in model.domeinen:
+            return  # Valid domain reference
+
+        # Not found in any category - report error
+        self.errors.append(SemanticError(
+            f"{element_kind} '{element_name}' uses undefined datatype '{datatype}'. "
+            f"Must be a primitive type, domain, or object type.",
+            span
+        ))
+
     def _collect_definitions(self, model: DomainModel) -> None:
         """First pass: collect all top-level definitions."""
         # Collect parameters
@@ -161,6 +216,15 @@ class SemanticAnalyzer:
                     datatype=param.datatype,
                     definition=param
                 )
+
+                # Validate parameter datatype
+                if param.is_lijst and param.element_datatype:
+                    # For list parameters, validate the element type
+                    self._validate_datatype(param.element_datatype, param_name, "Parameter", model, param.span)
+                else:
+                    # For regular parameters, validate the datatype
+                    self._validate_datatype(param.datatype, param_name, "Parameter", model, param.span)
+
             except SemanticError as e:
                 self.errors.append(e)
         
@@ -210,12 +274,19 @@ class SemanticAnalyzer:
                         # Mark as object reference list (element is an object type)
                         attribuut.is_object_ref = True
                         logger.debug(f"Marked list attribute '{attr_name}' of type '{obj_name}' as object reference list to '{attribuut.element_datatype}'")
+
+                    # Validate the element datatype
+                    if attribuut.element_datatype:
+                        self._validate_datatype(attribuut.element_datatype, attr_name, "Attribute", model, attribuut.span)
                 else:
                     # Check if the attribute's datatype is an object type
                     if attribuut.datatype in model.objecttypes:
                         # Mark this attribute as an object reference
                         attribuut.is_object_ref = True
                         logger.debug(f"Marked attribute '{attr_name}' of type '{obj_name}' as object reference to '{attribuut.datatype}'")
+
+                    # Validate the datatype
+                    self._validate_datatype(attribuut.datatype, attr_name, "Attribute", model, attribuut.span)
         
         # Third pass on object types: validate dimension references
         for obj_name, obj_type in model.objecttypes.items():
