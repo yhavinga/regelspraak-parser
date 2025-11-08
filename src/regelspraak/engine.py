@@ -74,6 +74,7 @@ class Evaluator:
             "dag_uit": self._func_dag_uit,
             "jaar_uit": self._func_jaar_uit,
             "eerste_paasdag_van": self._func_eerste_paasdag_van,
+            "datum_met": self._func_datum_met,  # de datum met jaar, maand en dag(y, m, d)
             
             # Aggregation functions
             "aantal": self._func_het_aantal,
@@ -89,7 +90,10 @@ class Evaluator:
             "totaal": self._func_totaal_van,
             "totaal_van": self._func_totaal_van,
             "aantal_dagen_in": self._func_aantal_dagen_in,
-            
+
+            # Unit application
+            "with_unit": self._func_with_unit,
+
             # Time-proportional functions
             "tijdsevenredig_deel_per_maand": self._func_tijdsevenredig_deel_per_maand,
             "tijdsevenredig_deel_per_jaar": self._func_tijdsevenredig_deel_per_jaar,
@@ -3744,7 +3748,7 @@ class Evaluator:
         right_val = self._evaluate_expression_non_timeline(expr.right)
 
         # Handle date arithmetic per spec 6.11 (date +/- time-unit)
-        date_types = ["Datum in dagen", "Datum en tijd in millisecondes"]
+        date_types = ["Datum", "Datum in dagen", "Datum en tijd in millisecondes"]
         time_units = ["jaar", "maand", "week", "dag", "uur", "minuut", "seconde", "milliseconde"]
         
         if op in [Operator.PLUS, Operator.MIN]:
@@ -3758,6 +3762,8 @@ class Evaluator:
             
             elif is_left_date and right_val.datatype.startswith("Numeriek") and right_val.unit in time_units:
                 # Date + time-unit: add time delta to date
+                logger.debug(f"Date arithmetic: {left_val.value} {op.value} {right_val.value} {right_val.unit}")
+                logger.debug(f"Operator is MIN: {op == Operator.MIN}, passing subtract={op == Operator.MIN}")
                 return self._add_time_to_date(left_val, right_val, op == Operator.MIN)
             
             elif is_right_date and left_val.datatype.startswith("Numeriek") and left_val.unit in time_units and op == Operator.PLUS:
@@ -5245,7 +5251,7 @@ class Evaluator:
         right_val = self.evaluate_expression(expr.right)
 
         # Handle date arithmetic per spec 6.11 (date +/- time-unit)
-        date_types = ["Datum in dagen", "Datum en tijd in millisecondes"]
+        date_types = ["Datum", "Datum in dagen", "Datum en tijd in millisecondes"]
         time_units = ["jaar", "maand", "week", "dag", "uur", "minuut", "seconde", "milliseconde"]
         
         if op in [Operator.PLUS, Operator.MIN]:
@@ -5256,19 +5262,13 @@ class Evaluator:
             # Date + time-unit or Date - time-unit
             if is_left_date and not is_right_date and right_val.unit in time_units:
                 if op == Operator.PLUS:
-                    return self._add_time_to_date(left_val, right_val, expr.span)
+                    return self._add_time_to_date(left_val, right_val, False)
                 else:  # MIN
-                    # For subtraction, negate the time value
-                    negated_time = Value(
-                        value=-right_val.value if right_val.value is not None else None,
-                        datatype=right_val.datatype,
-                        unit=right_val.unit
-                    )
-                    return self._add_time_to_date(left_val, negated_time, expr.span)
-            
+                    return self._add_time_to_date(left_val, right_val, True)
+
             # time-unit + Date (commutative)
             elif not is_left_date and is_right_date and left_val.unit in time_units and op == Operator.PLUS:
-                return self._add_time_to_date(right_val, left_val, expr.span)
+                return self._add_time_to_date(right_val, left_val, False)
             
             # Date - Date -> time duration
             elif is_left_date and is_right_date and op == Operator.MIN:
@@ -8065,11 +8065,82 @@ class Evaluator:
         
         return Value(value=easter_date, datatype="Datum", unit=None)
 
+    def _func_datum_met(self, expr: FunctionCall, args: Optional[List[Value]]) -> Value:
+        """Construct date from year, month, day components per spec §13.4.16.31.
+        Syntax: de datum met jaar, maand en dag(year, month, day)
+        """
+        if args is None:
+            if self._in_timeline_evaluation:
+                raise RegelspraakError("datum_met cannot be evaluated in timeline context", span=expr.span)
+            args = [self.evaluate_expression(arg) for arg in expr.arguments]
+
+        if len(args) != 3:
+            raise RegelspraakError(
+                f"de datum met jaar, maand en dag expects 3 arguments, got {len(args)}",
+                span=expr.span
+            )
+
+        # Extract numeric components
+        components = []
+        for label, arg in zip(("jaar", "maand", "dag"), args):
+            if arg is None or arg.value is None:
+                # Return None if any component is None (propagate nulls)
+                return Value(value=None, datatype="Datum", unit=None)
+            if arg.datatype != "Numeriek":
+                raise RegelspraakError(
+                    f"{label} argument for de datum met moet Numeriek zijn, kreeg {arg.datatype}",
+                    span=expr.span
+                )
+            components.append(int(arg.value))
+
+        year, month, day = components
+
+        # Construct date with validation
+        try:
+            constructed = date(year, month, day)
+        except ValueError as exc:
+            raise RegelspraakError(
+                f"Ongeldige datum in de datum met jaar, maand en dag: {exc}",
+                span=expr.span
+            )
+
+        return Value(value=constructed, datatype="Datum", unit=None)
+
+    def _func_with_unit(self, expr: FunctionCall, args: Optional[List[Value]]) -> Value:
+        """Apply a unit to a numeric value for date arithmetic.
+
+        This helper function is used when the builder needs to attach a time unit
+        to a non-literal expression for date arithmetic operations.
+        """
+        if args is None:
+            if self._in_timeline_evaluation:
+                raise RegelspraakError("with_unit cannot be evaluated in timeline context", span=expr.span)
+            args = [self.evaluate_expression(arg) for arg in expr.arguments]
+
+        if len(args) != 1:
+            raise RegelspraakError(
+                f"with_unit expects 1 argument, got {len(args)}",
+                span=expr.span
+            )
+
+        value = args[0]
+        if value is None:
+            return Value(value=None, datatype="Numeriek", unit=expr.unit_conversion)
+
+        # Apply the unit from unit_conversion field
+        return Value(
+            value=value.value,
+            datatype=value.datatype,
+            unit=expr.unit_conversion
+        )
+
     def _add_time_to_date(self, date_val: Value, time_val: Value, subtract: bool = False) -> Value:
         """Add or subtract a time duration to/from a date per spec 6.11."""
         from datetime import datetime, timedelta
         from dateutil.relativedelta import relativedelta
-        
+
+        logger.debug(f"_add_time_to_date: date={date_val.value}, time={time_val.value}, unit={time_val.unit}, subtract={subtract}")
+
         # Handle None values gracefully
         if date_val is None or date_val.value is None:
             raise RegelspraakError("Cannot perform date arithmetic: date value is None")
@@ -8086,6 +8157,9 @@ class Evaluator:
                 date_obj = datetime.strptime(date_value, '%Y-%m-%d')
         elif isinstance(date_value, datetime):
             date_obj = date_value
+        elif isinstance(date_value, date):
+            # Convert date to datetime for calculations
+            date_obj = datetime.combine(date_value, datetime.min.time())
         elif isinstance(date_value, Decimal):
             # This shouldn't happen with our fixes, but handle legacy data
             if date_val.datatype == "Datum en tijd in millisecondes":
@@ -8123,13 +8197,16 @@ class Evaluator:
             raise RegelspraakError(f"Invalid time unit for date arithmetic: {unit}")
         
         # Return with same datatype as input
-        if date_val.datatype == "Datum in dagen":
+        if date_val.datatype == "Datum":
+            # Return as date object
+            result_value = new_date.date()
+        elif date_val.datatype == "Datum in dagen":
             # Return as date string
             result_value = new_date.strftime('%Y-%m-%d')
         else:  # "Datum en tijd in millisecondes"
             # Return as ISO datetime string
             result_value = new_date.isoformat()
-        
+
         return Value(value=result_value, datatype=date_val.datatype, unit=None)
     
     def _compare_values(self, val1: Value, val2: Value) -> int:

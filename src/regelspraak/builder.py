@@ -891,7 +891,34 @@ class RegelSpraakModelBuilder(RegelSpraakVisitor):
                 normalized = normalized[len(prefix):]
                 break
         return normalized
-    
+
+    def _normalize_time_unit(self, unit_text: str) -> str:
+        """Normalize plural time units to singular form.
+
+        Maps plural Dutch time units to their singular forms as expected
+        by the engine's _add_time_to_date method.
+        """
+        unit_map = {
+            "dagen": "dag",
+            "maanden": "maand",
+            "jaren": "jaar",
+            "weken": "week",
+            "uren": "uur",
+            "minuten": "minuut",
+            "seconden": "seconde",
+            "milliseconden": "milliseconde",
+            # Also handle singular forms (no-op)
+            "dag": "dag",
+            "maand": "maand",
+            "jaar": "jaar",
+            "week": "week",
+            "uur": "uur",
+            "minuut": "minuut",
+            "seconde": "seconde",
+            "milliseconde": "milliseconde"
+        }
+        return unit_map.get(unit_text.lower(), unit_text.lower())
+
     def visitKenmerkNaam(self, ctx: AntlrParser.KenmerkNaamContext) -> str:
         """Extract the name string from a kenmerkNaam context."""
         # Can be identifier or naamwoord
@@ -2753,24 +2780,39 @@ class RegelSpraakModelBuilder(RegelSpraakVisitor):
             # Handle specific date function contexts
             elif isinstance(ctx, AntlrParser.DateCalcExprContext):
                 # This is a date calculation pattern like "date + 5 days"
-                # But sometimes the grammar incorrectly matches complex expressions
-                # If this doesn't look like a date calculation, return None to handle elsewhere
-                identifier_text = ctx.identifier().getText() if ctx.identifier() else ""
-                time_units = ["dagen", "maanden", "jaren", "weken", "uren", "minuten", "seconden"]
-                
-                if not any(unit in identifier_text.lower() for unit in time_units):
-                    # This is not a date calculation, don't handle it here
-                    return None
-                
-                # This is a date calculation
-                left_expr = self.visit(ctx.primaryExpression(0))
-                right_expr = self.visit(ctx.primaryExpression(1))
+                # Grammar: primaryExpression (PLUS | MIN) primaryExpression timeUnit
+
+                left_expr = self.visitPrimaryExpression(ctx.primaryExpression(0))
+                right_expr = self.visitPrimaryExpression(ctx.primaryExpression(1))
                 operator = Operator.PLUS if ctx.PLUS() else Operator.MIN
-                
-                return FunctionCall(
-                    function_name="datum_calc",
-                    arguments=[left_expr, right_expr],
-                    unit_conversion=identifier_text,
+
+                # Get and normalize the time unit
+                time_unit_text = ctx.timeUnit().getText() if ctx.timeUnit() else ""
+                normalized_unit = self._normalize_time_unit(time_unit_text)
+
+                # Attach the unit to the right expression
+                # If it's a literal, create a new literal with unit
+                if isinstance(right_expr, Literal):
+                    right_expr = Literal(
+                        value=right_expr.value,
+                        datatype=right_expr.datatype,
+                        eenheid=normalized_unit,  # Attach the time unit
+                        span=right_expr.span
+                    )
+                else:
+                    # For non-literal expressions, wrap in a function to apply unit
+                    # This ensures the Value at runtime has the correct unit
+                    right_expr = FunctionCall(
+                        function_name="with_unit",
+                        arguments=[right_expr],
+                        unit_conversion=normalized_unit,
+                        span=right_expr.span
+                    )
+
+                return BinaryExpression(
+                    left=left_expr,
+                    operator=operator,
+                    right=right_expr,
                     span=self.get_span(ctx)
                 )
             elif isinstance(ctx, AntlrParser.EersteDatumFuncExprContext):
@@ -2919,7 +2961,22 @@ class RegelSpraakModelBuilder(RegelSpraakVisitor):
                     arguments=args,
                     span=self.get_span(ctx)
                 )
-            
+
+            elif isinstance(ctx, AntlrParser.DatumMetFuncExprContext):
+                # Grammar: DE_DATUM_MET LPAREN primaryExpression COMMA primaryExpression COMMA primaryExpression RPAREN
+                # Per spec §13.4.16.31: "de datum met jaar, maand en dag(year, month, day)"
+                args = []
+                for i in range(3):  # Expect exactly 3 arguments
+                    expr = self.visitPrimaryExpression(ctx.primaryExpression(i))
+                    if expr is None:
+                        return None
+                    args.append(expr)
+                return FunctionCall(
+                    function_name="datum_met",
+                    arguments=args,
+                    span=self.get_span(ctx)
+                )
+
             # Handle DimensieAggExpr which covers "som van", "gemiddelde van", etc.
             elif isinstance(ctx, AntlrParser.DimensieAggExprContext):
                 # Get the aggregation function type
@@ -3185,35 +3242,41 @@ class RegelSpraakModelBuilder(RegelSpraakVisitor):
             logger.debug(f"Detected concatenation expression: {safe_get_text(ctx)}, type: {type(ctx).__name__}")
             return self.visitConcatenatieExpressie(ctx)
         elif isinstance(ctx, AntlrParser.DateCalcExprContext):
-            # This is actually a date calculation pattern like "date + 5 days"
-            # But sometimes the grammar incorrectly matches complex expressions
-            # If this doesn't look like a date calculation, handle as binary expression
-            left_expr = self.visit(ctx.primaryExpression(0))
-            right_expr = self.visit(ctx.primaryExpression(1))
-            
-            # Check if the identifier looks like a time unit (dagen, maanden, jaren)
-            identifier_text = ctx.identifier().getText() if ctx.identifier() else ""
-            time_units = ["dagen", "maanden", "jaren", "weken", "uren", "minuten", "seconden"]
-            
-            if any(unit in identifier_text.lower() for unit in time_units):
-                # This is a date calculation
-                operator = Operator.PLUS if ctx.PLUS() else Operator.MIN
-                # Create a function call for date arithmetic
-                return FunctionCall(
-                    function_name="datum_calc",
-                    arguments=[left_expr, right_expr],
-                    unit_conversion=identifier_text,
-                    span=self.get_span(ctx)
+            # This is a date calculation pattern like "date + 5 days"
+            # Grammar: primaryExpression (PLUS | MIN) primaryExpression timeUnit
+            left_expr = self.visitPrimaryExpression(ctx.primaryExpression(0))
+            right_expr = self.visitPrimaryExpression(ctx.primaryExpression(1))
+            operator = Operator.PLUS if ctx.PLUS() else Operator.MIN
+
+            # Get and normalize the time unit
+            time_unit_text = ctx.timeUnit().getText() if ctx.timeUnit() else ""
+            normalized_unit = self._normalize_time_unit(time_unit_text)
+
+            # Attach the unit to the right expression
+            # If it's a literal, create a new literal with unit
+            if isinstance(right_expr, Literal):
+                right_expr = Literal(
+                    value=right_expr.value,
+                    datatype=right_expr.datatype,
+                    eenheid=normalized_unit,  # Attach the time unit
+                    span=right_expr.span
                 )
             else:
-                # This is not a date calculation, handle as regular binary expression
-                operator = Operator.PLUS if ctx.PLUS() else Operator.MIN
-                return BinaryExpression(
-                    left=left_expr,
-                    operator=operator,
-                    right=right_expr,
-                    span=self.get_span(ctx)
+                # For non-literal expressions, wrap in a function to apply unit
+                # This ensures the Value at runtime has the correct unit
+                right_expr = FunctionCall(
+                    function_name="with_unit",
+                    arguments=[right_expr],
+                    unit_conversion=normalized_unit,
+                    span=right_expr.span
                 )
+
+            return BinaryExpression(
+                left=left_expr,
+                operator=operator,
+                right=right_expr,
+                span=self.get_span(ctx)
+            )
         
         # No function call matched
         return None
