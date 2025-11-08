@@ -23,6 +23,7 @@ from .ast import (
     Kwantificatie, KwantificatieType, GenesteVoorwaardeInPredicaat, VergelijkingInPredicaat,
     SamengesteldeVoorwaarde, Voorwaarde,
     BegrenzingExpression, AfrondingExpression, BegrenzingAfrondingExpression,
+    TekstreeksExpression, TekstreeksText, TekstreeksInterpolation,
 )
 # Import Runtime components
 from .runtime import RuntimeContext, RuntimeObject, Value, DimensionCoordinate, TimelineValue # Import Value directly
@@ -2695,6 +2696,10 @@ class Evaluator:
                 # which will be handled specially in aggregation operations
                 result = expr
 
+            elif isinstance(expr, TekstreeksExpression):
+                # Handle text with embedded expressions (spec §5.4)
+                result = self._evaluate_tekstreeks(expr, instance_id)
+
             else:
                 raise RegelspraakError(f"Unknown expression type: {type(expr)}", span=expr.span)
                 
@@ -3459,6 +3464,10 @@ class Evaluator:
                 # The result is the ConjunctionExpression itself,
                 # which will be handled specially in aggregation operations
                 result = expr
+
+            elif isinstance(expr, TekstreeksExpression):
+                # Handle text with embedded expressions (spec §5.4)
+                result = self._evaluate_tekstreeks(expr, instance_id)
 
             else:
                 raise RegelspraakError(f"Unknown expression type: {type(expr)}", span=expr.span)
@@ -5460,6 +5469,63 @@ class Evaluator:
         # Note: Literal AST node uses 'eenheid', Value uses 'unit'
         unit = getattr(expr, 'eenheid', None)
         return Value(value=value, datatype=datatype, unit=unit)
+
+    def _evaluate_tekstreeks(self, expr: TekstreeksExpression, instance_id: Optional[str]) -> Value:
+        """Evaluate a text sequence with embedded expressions (spec §5.4).
+
+        Concatenates literal text parts with evaluated expressions converted to strings.
+        Null values are converted to empty strings.
+        """
+        result_parts = []
+
+        for part in expr.parts:
+            if isinstance(part, TekstreeksText):
+                # Literal text part - add directly
+                result_parts.append(part.text)
+            elif isinstance(part, TekstreeksInterpolation):
+                # Embedded expression - evaluate and convert to string
+                value = self.evaluate_expression(part.expression)
+
+                # Convert value to string representation
+                if value is None or value.value is None:
+                    # Null becomes empty string
+                    result_parts.append("")
+                elif value.datatype == "Tekst":
+                    # Already text
+                    result_parts.append(str(value.value))
+                elif value.datatype == "Numeriek":
+                    # Format numbers appropriately
+                    if isinstance(value.value, (int, float, Decimal)):
+                        # Format with Dutch decimal separator if needed
+                        text = str(value.value).replace('.', ',')
+                        if value.unit:
+                            text = f"{text} {value.unit}"
+                        result_parts.append(text)
+                    else:
+                        result_parts.append(str(value.value))
+                elif value.datatype == "Datum":
+                    # Format dates as dd-mm-yyyy
+                    if hasattr(value.value, 'strftime'):
+                        result_parts.append(value.value.strftime("%d-%m-%Y"))
+                    else:
+                        result_parts.append(str(value.value))
+                elif value.datatype == "Boolean":
+                    # Boolean to Dutch text
+                    result_parts.append("waar" if value.value else "onwaar")
+                elif value.datatype == "Percentage":
+                    # Format percentage
+                    if isinstance(value.value, (int, float, Decimal)):
+                        percentage = value.value * 100
+                        result_parts.append(f"{percentage}%")
+                    else:
+                        result_parts.append(str(value.value))
+                else:
+                    # Default: convert to string
+                    result_parts.append(str(value.value))
+
+        # Join all parts into final text
+        result_text = "".join(result_parts)
+        return Value(value=result_text, datatype="Tekst", unit=None)
 
     def _handle_unary(self, expr: UnaryExpression) -> Value:
         """Handle unary operations, returning Value objects."""

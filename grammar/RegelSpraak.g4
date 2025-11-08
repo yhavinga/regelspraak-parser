@@ -881,7 +881,7 @@ primaryExpression : // Corresponds roughly to terminals/functions/references in 
     | naamwoord                                                     # NaamwoordExpr // Simple noun phrase as expression?
     | parameterMetLidwoord                                          # ParamRefExpr // Added based on spec §13.4.16.1 - check original G4
     | PERCENTAGE_LITERAL                                            # PercentageLiteralExpr
-    | STRING_LITERAL                                                # StringLiteralExpr
+    | STRING_LITERAL                                                # StringLiteralExpr  // Back to STRING_LITERAL
     | ENUM_LITERAL                                                  # EnumLiteralExpr // Add explicit support for enum literals
     | datumLiteral                                                  # DatumLiteralExpr // Added DATE_TIME_LITERAL via datumLiteral rule
     | WAAR                                                          # BooleanTrueLiteralExpr
@@ -1007,6 +1007,13 @@ subordinateClauseExpression
 // §13.3.10 Dagsoort Definition (Added based on spec)
 dagsoortDefinition
     : DAGSOORT naamwoord ( MV_START plural+=IDENTIFIER+ RPAREN )? SEMICOLON?
+    ;
+
+// --- Tekstreeks (Text Sequences) Rule for String Interpolation ---
+// Handles both plain strings and strings with «expression» interpolation
+// This is just a STRING_LITERAL that will be parsed for angle quotes in the builder
+tekstreeksExpr
+    : STRING_LITERAL
     ;
 
 // --- Verdeling Rules (§13.4.10) ---

@@ -199,6 +199,31 @@ class RegelStatusExpression(Expression):
     regel_naam: str  # Name of the rule to check
     check: str  # "gevuurd" or "inconsistent"
 
+# --- Tekstreeks (Text Sequences) Support ---
+
+@dataclass
+class TekstreeksPart:
+    """Base class for parts within a Tekstreeks expression."""
+    span: SourceSpan
+
+@dataclass
+class TekstreeksText(TekstreeksPart):
+    """Literal text segment within a Tekstreeks."""
+    text: str
+
+@dataclass
+class TekstreeksInterpolation(TekstreeksPart):
+    """Embedded expression within a Tekstreeks."""
+    expression: Expression
+
+@dataclass
+class TekstreeksExpression(Expression):
+    """Text with embedded expressions using « » markers (spec §5.4).
+    Example: "Het nummer is «het identificatienummer»"
+    This allows dynamic text construction with type conversion.
+    """
+    parts: List[TekstreeksPart]  # Alternating text and interpolated expressions
+
 
 # --- Predicaat Model ---
 

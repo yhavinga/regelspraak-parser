@@ -25,7 +25,7 @@ from .ast import (
     Subselectie, RegelStatusExpression, Predicaat, ObjectPredicaat, VergelijkingsPredicaat,
     GetalPredicaat, TekstPredicaat, DatumPredicaat, SamengesteldPredicaat,
     Kwantificatie, KwantificatieType, GenesteVoorwaardeInPredicaat, VergelijkingInPredicaat,
-    SamengesteldeVoorwaarde
+    SamengesteldeVoorwaarde, TekstreeksExpression, TekstreeksPart, TekstreeksText, TekstreeksInterpolation
 )
 from .beslistabel_parser import BeslistabelParser
 
@@ -3300,13 +3300,19 @@ class RegelSpraakModelBuilder(RegelSpraakVisitor):
                  logger.error(f"Invalid numeric literal: {ctx.NUMBER().getText()} in {safe_get_text(ctx)}")
                  return None
         elif isinstance(ctx, AntlrParser.StringLiteralExprContext):
-            # Strip both single and double quotes
+            # Handle text with potential interpolation
             text = ctx.STRING_LITERAL().getText()
-            if text.startswith('"') and text.endswith('"'):
-                text = text[1:-1]
-            elif text.startswith("'") and text.endswith("'"):
-                text = text[1:-1]
-            return Literal(value=text, datatype="Tekst", span=self.get_span(ctx))
+            # Check if it contains angle quotes for interpolation
+            if '«' in text or '»' in text:
+                # Use Tekstreeks handling
+                return self._handle_tekstreeks_string(text, ctx)
+            else:
+                # Plain string without interpolation
+                if text.startswith('"') and text.endswith('"'):
+                    text = text[1:-1]
+                elif text.startswith("'") and text.endswith("'"):
+                    text = text[1:-1]
+                return Literal(value=text, datatype="Tekst", span=self.get_span(ctx))
         elif isinstance(ctx, AntlrParser.PercentageLiteralExprContext):
             # Convert percentage to decimal: 21% -> 0.21
             text = ctx.PERCENTAGE_LITERAL().getText()
@@ -5541,4 +5547,176 @@ class RegelSpraakModelBuilder(RegelSpraakVisitor):
         # Fallback - should not happen if grammar is correct
         logger.error(f"Unknown conditieBijExpressie type: {safe_get_text(ctx)}")
         # Return a placeholder to avoid list issues
-        return Literal(value="unknown_condition", datatype="Tekst", span=self.get_span(ctx)) 
+        return Literal(value="unknown_condition", datatype="Tekst", span=self.get_span(ctx))
+
+    # --- Tekstreeks (Text Sequences) Support ---
+
+    def _handle_tekstreeks_string(self, string_text: str, ctx) -> Expression:
+        """Handle a string literal that may contain «expression» interpolation."""
+        # Remove surrounding quotes
+        if string_text.startswith('"') and string_text.endswith('"'):
+            string_text = string_text[1:-1]
+
+        # Parse the string for interpolation
+        parts = []
+        current_text = []
+        i = 0
+        while i < len(string_text):
+            if i < len(string_text) - 1 and string_text[i:i+1] == '«':
+                # Start of interpolation
+                # Save any accumulated text
+                if current_text:
+                    text = ''.join(current_text)
+                    # Unescape the text
+                    text = text.replace('\\n', '\n')
+                    text = text.replace('\\t', '\t')
+                    text = text.replace('\\r', '\r')
+                    text = text.replace('\\\\', '\\')
+                    text = text.replace('\\"', '"')
+                    parts.append(TekstreeksText(text=text, span=self.get_span(ctx)))
+                    current_text = []
+
+                # Find the matching closing angle quote
+                j = i + 1
+                while j < len(string_text) and string_text[j:j+1] != '»':
+                    j += 1
+
+                if j < len(string_text):
+                    # Found closing angle quote
+                    expr_text = string_text[i+1:j]
+                    # Parse the expression
+                    from antlr4 import InputStream, CommonTokenStream
+                    from ._antlr.RegelSpraakLexer import RegelSpraakLexer as AntlrLexer
+
+                    input_stream = InputStream(expr_text)
+                    lexer = AntlrLexer(input_stream)
+                    token_stream = CommonTokenStream(lexer)
+                    parser = AntlrParser(token_stream)
+
+                    # Parse as expression
+                    expr_ctx = parser.expressie()
+                    expr = self.visitExpressie(expr_ctx)
+                    if expr:
+                        parts.append(TekstreeksInterpolation(expression=expr, span=self.get_span(ctx)))
+
+                    i = j + 1
+                else:
+                    # No closing angle quote found - treat as literal
+                    current_text.append(string_text[i])
+                    i += 1
+            else:
+                # Regular character
+                current_text.append(string_text[i])
+                i += 1
+
+        # Add any remaining text
+        if current_text:
+            text = ''.join(current_text)
+            # Unescape the text
+            text = text.replace('\\n', '\n')
+            text = text.replace('\\t', '\t')
+            text = text.replace('\\r', '\r')
+            text = text.replace('\\\\', '\\')
+            text = text.replace('\\"', '"')
+            parts.append(TekstreeksText(text=text, span=self.get_span(ctx)))
+
+        # If no interpolation parts found, return a simple literal
+        if len(parts) == 1 and isinstance(parts[0], TekstreeksText):
+            return Literal(value=parts[0].text, datatype="Tekst", span=self.get_span(ctx))
+
+        # Return a TekstreeksExpression for strings with interpolation
+        return TekstreeksExpression(parts=parts, span=self.get_span(ctx))
+
+    def visitTekstreeksExpr(self, ctx: AntlrParser.TekstreeksExprContext) -> Optional[Expression]:
+        """Visit a text sequence expression with potential interpolation."""
+        logger.debug(f"Visiting TekstreeksExpr: {safe_get_text(ctx)}")
+
+        # Get the string literal text
+        string_text = ctx.STRING_LITERAL().getText()
+
+        # Remove surrounding quotes
+        if string_text.startswith('"') and string_text.endswith('"'):
+            string_text = string_text[1:-1]
+
+        # Check if it contains angle quotes for interpolation
+        if '«' not in string_text and '»' not in string_text:
+            # Plain string without interpolation
+            # Unescape standard escape sequences
+            string_text = string_text.replace('\\n', '\n')
+            string_text = string_text.replace('\\t', '\t')
+            string_text = string_text.replace('\\r', '\r')
+            string_text = string_text.replace('\\\\', '\\')
+            string_text = string_text.replace('\\"', '"')
+            return Literal(value=string_text, datatype="Tekst", span=self.get_span(ctx))
+
+        # Parse the string for interpolation
+        parts = []
+        current_text = []
+        i = 0
+        while i < len(string_text):
+            if i < len(string_text) - 1 and string_text[i:i+1] == '«':
+                # Start of interpolation
+                # Save any accumulated text
+                if current_text:
+                    text = ''.join(current_text)
+                    # Unescape the text
+                    text = text.replace('\\n', '\n')
+                    text = text.replace('\\t', '\t')
+                    text = text.replace('\\r', '\r')
+                    text = text.replace('\\\\', '\\')
+                    text = text.replace('\\"', '"')
+                    parts.append(TekstreeksText(text=text, span=self.get_span(ctx)))
+                    current_text = []
+
+                # Find the matching closing angle quote
+                j = i + 1
+                while j < len(string_text) and string_text[j:j+1] != '»':
+                    j += 1
+
+                if j < len(string_text):
+                    # Found closing angle quote
+                    expr_text = string_text[i+1:j]
+                    # Parse the expression
+                    from antlr4 import InputStream, CommonTokenStream
+                    from ._antlr.RegelSpraakLexer import RegelSpraakLexer as AntlrLexer
+
+                    input_stream = InputStream(expr_text)
+                    lexer = AntlrLexer(input_stream)
+                    token_stream = CommonTokenStream(lexer)
+                    parser = AntlrParser(token_stream)
+
+                    # Parse as expression
+                    expr_ctx = parser.expressie()
+                    expr = self.visitExpressie(expr_ctx)
+                    if expr:
+                        parts.append(TekstreeksInterpolation(expression=expr, span=self.get_span(ctx)))
+
+                    i = j + 1
+                else:
+                    # No closing angle quote found - treat as literal
+                    current_text.append(string_text[i])
+                    i += 1
+            else:
+                # Regular character
+                current_text.append(string_text[i])
+                i += 1
+
+        # Add any remaining text
+        if current_text:
+            text = ''.join(current_text)
+            # Unescape the text
+            text = text.replace('\\n', '\n')
+            text = text.replace('\\t', '\t')
+            text = text.replace('\\r', '\r')
+            text = text.replace('\\\\', '\\')
+            text = text.replace('\\"', '"')
+            parts.append(TekstreeksText(text=text, span=self.get_span(ctx)))
+
+        # If no interpolation parts found, return a simple literal
+        if len(parts) == 1 and isinstance(parts[0], TekstreeksText):
+            return Literal(value=parts[0].text, datatype="Tekst", span=self.get_span(ctx))
+
+        # Return a TekstreeksExpression for strings with interpolation
+        return TekstreeksExpression(parts=parts, span=self.get_span(ctx))
+
+ 

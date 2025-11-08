@@ -321,6 +321,7 @@ fragment MILLI_PART  : DIGIT DIGIT DIGIT ;
 fragment TIME_PART : HOUR_PART ':' MINUTE_PART ':' SECOND_PART '.' MILLI_PART ;
 DATE_TIME_LITERAL: (DD_PUNT WS)? DAY_PART '-' MONTH_PART '-' YEAR_PART ( WS TIME_PART )? ;
 PERCENTAGE_LITERAL: NUMBER PERCENT_SIGN;
+// String literal - now accepts angle quotes for interpolation
 STRING_LITERAL: '"' ( '\\' . | ~["\\] )*? '"' ;
 ENUM_LITERAL: '\'' ( '\\' . | ~['\\] )*? '\'' ;
 LPAREN: '(';
@@ -346,7 +347,5 @@ PIPE: '|';
 NVT: 'n.v.t.';
 fragment LETTER: [a-zA-ZáàâäãåçéèêëíìîïñóòôöõúùûüýÿÁÀÂÄÃÅÇÉÈÊËÍÌÎÏÑÓÒÔÖÕÚÙÛÜÝŸ];
 fragment DIGIT : [0-9] ;
-
-// NO modes
 
 // New keywords
