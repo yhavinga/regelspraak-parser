@@ -333,10 +333,10 @@ class UnitArithmetic:
         
         base_dec = self._ensure_decimal(base)
         exp_dec = self._ensure_decimal(exponent)
-        
-        # Convert to float for power operation (Decimal doesn't support non-integer powers directly)
-        result_float = float(base_dec) ** float(exp_dec)
-        result_dec = Decimal(str(result_float))
+
+        # Use Decimal-native power handling for financial precision
+        from .decimal_utils import decimal_power
+        result_dec = decimal_power(base_dec, exp_dec)
         
         # Handle units - power affects the unit
         if base.unit:

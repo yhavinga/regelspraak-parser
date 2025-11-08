@@ -27,6 +27,8 @@ from .ast import (
 )
 # Import Runtime components
 from .runtime import RuntimeContext, RuntimeObject, Value, DimensionCoordinate, TimelineValue # Import Value directly
+# Import Decimal utilities for precise financial calculations
+from .decimal_utils import quantize_decimal, decimal_floor, decimal_ceil, decimal_round, ensure_decimal
 # Import arithmetic operations
 from .arithmetic import UnitArithmetic
 # Import custom error
@@ -2599,69 +2601,41 @@ class Evaluator:
             elif isinstance(expr, AfrondingExpression):
                 # First evaluate the base expression
                 base_value = self.evaluate_expression(expr.expression)
-                
-                # Apply rounding based on direction
-                import math
-                value_num = float(base_value.value) if base_value.value is not None else 0.0
-                multiplier = 10 ** expr.decimals
-                
-                if expr.direction == "naar_beneden":
-                    rounded = math.floor(value_num * multiplier) / multiplier
-                elif expr.direction == "naar_boven":
-                    rounded = math.ceil(value_num * multiplier) / multiplier
-                elif expr.direction == "rekenkundig":
-                    rounded = round(value_num, expr.decimals)
-                elif expr.direction == "richting_nul":
-                    rounded = math.trunc(value_num * multiplier) / multiplier
-                elif expr.direction == "weg_van_nul":
-                    if value_num >= 0:
-                        rounded = math.ceil(value_num * multiplier) / multiplier
-                    else:
-                        rounded = math.floor(value_num * multiplier) / multiplier
+
+                # Apply rounding based on direction using Decimal for precision
+                if base_value.value is None:
+                    result = base_value
                 else:
-                    rounded = value_num
-                
-                result = Value(value=rounded, datatype=base_value.datatype, unit=base_value.unit)
+                    # Use Decimal rounding for financial precision
+                    rounded = quantize_decimal(base_value, expr.decimals, expr.direction)
+                    result = Value(value=rounded, datatype=base_value.datatype, unit=base_value.unit)
                 
             elif isinstance(expr, BegrenzingAfrondingExpression):
                 # First evaluate the base expression
                 base_value = self.evaluate_expression(expr.expression)
-                
+
                 # Apply minimum bound if specified
                 working_value = base_value
                 if expr.minimum is not None:
                     min_value = self.evaluate_expression(expr.minimum)
-                    if base_value.value < min_value.value:
-                        working_value = min_value
-                
-                # Apply maximum bound if specified  
+                    if base_value.value is not None and min_value.value is not None:
+                        if base_value.value < min_value.value:
+                            working_value = min_value
+
+                # Apply maximum bound if specified
                 if expr.maximum is not None:
                     max_value = self.evaluate_expression(expr.maximum)
-                    if working_value.value > max_value.value:
-                        working_value = max_value
-                
-                # Apply rounding
-                import math
-                value_num = float(working_value.value) if working_value.value is not None else 0.0
-                multiplier = 10 ** expr.decimals
-                
-                if expr.direction == "naar_beneden":
-                    rounded = math.floor(value_num * multiplier) / multiplier
-                elif expr.direction == "naar_boven":
-                    rounded = math.ceil(value_num * multiplier) / multiplier
-                elif expr.direction == "rekenkundig":
-                    rounded = round(value_num, expr.decimals)
-                elif expr.direction == "richting_nul":
-                    rounded = math.trunc(value_num * multiplier) / multiplier
-                elif expr.direction == "weg_van_nul":
-                    if value_num >= 0:
-                        rounded = math.ceil(value_num * multiplier) / multiplier
-                    else:
-                        rounded = math.floor(value_num * multiplier) / multiplier
+                    if working_value.value is not None and max_value.value is not None:
+                        if working_value.value > max_value.value:
+                            working_value = max_value
+
+                # Apply rounding using Decimal for precision
+                if working_value.value is None:
+                    result = working_value
                 else:
-                    rounded = value_num
-                
-                result = Value(value=rounded, datatype=working_value.datatype, unit=working_value.unit)
+                    # Use Decimal rounding for financial precision
+                    rounded = quantize_decimal(working_value, expr.decimals, expr.direction)
+                    result = Value(value=rounded, datatype=working_value.datatype, unit=working_value.unit)
                 
             elif isinstance(expr, Subselectie):
                 result = self._evaluate_subselectie(expr)
@@ -3368,69 +3342,41 @@ class Evaluator:
             elif isinstance(expr, AfrondingExpression):
                 # First evaluate the base expression
                 base_value = self._evaluate_expression_non_timeline(expr.expression)
-                
-                # Apply rounding based on direction
-                import math
-                value_num = float(base_value.value) if base_value.value is not None else 0.0
-                multiplier = 10 ** expr.decimals
-                
-                if expr.direction == "naar_beneden":
-                    rounded = math.floor(value_num * multiplier) / multiplier
-                elif expr.direction == "naar_boven":
-                    rounded = math.ceil(value_num * multiplier) / multiplier
-                elif expr.direction == "rekenkundig":
-                    rounded = round(value_num, expr.decimals)
-                elif expr.direction == "richting_nul":
-                    rounded = math.trunc(value_num * multiplier) / multiplier
-                elif expr.direction == "weg_van_nul":
-                    if value_num >= 0:
-                        rounded = math.ceil(value_num * multiplier) / multiplier
-                    else:
-                        rounded = math.floor(value_num * multiplier) / multiplier
+
+                # Apply rounding based on direction using Decimal for precision
+                if base_value.value is None:
+                    result = base_value
                 else:
-                    rounded = value_num
-                
-                result = Value(value=rounded, datatype=base_value.datatype, unit=base_value.unit)
+                    # Use Decimal rounding for financial precision
+                    rounded = quantize_decimal(base_value, expr.decimals, expr.direction)
+                    result = Value(value=rounded, datatype=base_value.datatype, unit=base_value.unit)
                 
             elif isinstance(expr, BegrenzingAfrondingExpression):
                 # First evaluate the base expression
                 base_value = self._evaluate_expression_non_timeline(expr.expression)
-                
+
                 # Apply minimum bound if specified
                 working_value = base_value
                 if expr.minimum is not None:
                     min_value = self._evaluate_expression_non_timeline(expr.minimum)
-                    if base_value.value < min_value.value:
-                        working_value = min_value
-                
-                # Apply maximum bound if specified  
+                    if base_value.value is not None and min_value.value is not None:
+                        if base_value.value < min_value.value:
+                            working_value = min_value
+
+                # Apply maximum bound if specified
                 if expr.maximum is not None:
                     max_value = self._evaluate_expression_non_timeline(expr.maximum)
-                    if working_value.value > max_value.value:
-                        working_value = max_value
-                
-                # Apply rounding
-                import math
-                value_num = float(working_value.value) if working_value.value is not None else 0.0
-                multiplier = 10 ** expr.decimals
-                
-                if expr.direction == "naar_beneden":
-                    rounded = math.floor(value_num * multiplier) / multiplier
-                elif expr.direction == "naar_boven":
-                    rounded = math.ceil(value_num * multiplier) / multiplier
-                elif expr.direction == "rekenkundig":
-                    rounded = round(value_num, expr.decimals)
-                elif expr.direction == "richting_nul":
-                    rounded = math.trunc(value_num * multiplier) / multiplier
-                elif expr.direction == "weg_van_nul":
-                    if value_num >= 0:
-                        rounded = math.ceil(value_num * multiplier) / multiplier
-                    else:
-                        rounded = math.floor(value_num * multiplier) / multiplier
+                    if working_value.value is not None and max_value.value is not None:
+                        if working_value.value > max_value.value:
+                            working_value = max_value
+
+                # Apply rounding using Decimal for precision
+                if working_value.value is None:
+                    result = working_value
                 else:
-                    rounded = value_num
-                
-                result = Value(value=rounded, datatype=working_value.datatype, unit=working_value.unit)
+                    # Use Decimal rounding for financial precision
+                    rounded = quantize_decimal(working_value, expr.decimals, expr.direction)
+                    result = Value(value=rounded, datatype=working_value.datatype, unit=working_value.unit)
                 
             elif isinstance(expr, Subselectie):
                 result = self._evaluate_subselectie(expr)
@@ -3739,7 +3685,7 @@ class Evaluator:
                     Operator.ZIJN_NUMERIEK_MET_EXACT, Operator.ZIJN_NIET_NUMERIEK_MET_EXACT]:
             # Right side should be the digit count
             right_val = self._evaluate_expression_non_timeline(expr.right)
-            if not isinstance(right_val.value, (int, float)):
+            if not isinstance(right_val.value, (int, float, Decimal)):
                 raise RegelspraakError(f"Right side of numeric exact check must be a number, got {type(right_val.value)}", span=expr.right.span)
             
             digit_count = int(right_val.value)
@@ -3795,7 +3741,7 @@ class Evaluator:
         elif op == Operator.GEDEELD_DOOR:
             # Debug percentage calculations
             if hasattr(expr, 'right') and isinstance(expr.right, Literal) and expr.right.value == 100:
-                logger.debug(f"Percentage division: {left_val.value} / 100 = {float(left_val.value) / 100}")
+                logger.debug(f"Percentage division: {left_val.value} / 100 = {left_val.to_decimal() / Decimal('100')}")
             return self.arithmetic.divide(left_val, right_val, use_abs_style=False)
         elif op == Operator.GEDEELD_DOOR_ABS:
             return self.arithmetic.divide(left_val, right_val, use_abs_style=True)
@@ -5242,7 +5188,7 @@ class Evaluator:
                     Operator.ZIJN_NUMERIEK_MET_EXACT, Operator.ZIJN_NIET_NUMERIEK_MET_EXACT]:
             # Right side should be the digit count
             right_val = self.evaluate_expression(expr.right)
-            if not isinstance(right_val.value, (int, float)):
+            if not isinstance(right_val.value, (int, float, Decimal)):
                 raise RegelspraakError(f"Right side of numeric exact check must be a number, got {type(right_val.value)}", span=expr.right.span)
             
             digit_count = int(right_val.value)
@@ -5297,7 +5243,7 @@ class Evaluator:
         elif op == Operator.GEDEELD_DOOR:
             # Debug percentage calculations
             if hasattr(expr, 'right') and isinstance(expr.right, Literal) and expr.right.value == 100:
-                logger.debug(f"Percentage division: {left_val.value} / 100 = {float(left_val.value) / 100}")
+                logger.debug(f"Percentage division: {left_val.value} / 100 = {left_val.to_decimal() / Decimal('100')}")
             return self.arithmetic.divide(left_val, right_val, use_abs_style=False)
         elif op == Operator.GEDEELD_DOOR_ABS:
             return self.arithmetic.divide(left_val, right_val, use_abs_style=True)
