@@ -25,7 +25,8 @@ from .ast import (
     Subselectie, RegelStatusExpression, Predicaat, ObjectPredicaat, VergelijkingsPredicaat,
     GetalPredicaat, TekstPredicaat, DatumPredicaat, SamengesteldPredicaat,
     Kwantificatie, KwantificatieType, GenesteVoorwaardeInPredicaat, VergelijkingInPredicaat,
-    SamengesteldeVoorwaarde, TekstreeksExpression, TekstreeksPart, TekstreeksText, TekstreeksInterpolation
+    SamengesteldeVoorwaarde, TekstreeksExpression, TekstreeksPart, TekstreeksText, TekstreeksInterpolation,
+    EenheidsysteemDefinition, UnitEntry
 )
 from .beslistabel_parser import BeslistabelParser
 
@@ -609,6 +610,10 @@ class RegelSpraakModelBuilder(RegelSpraakVisitor):
                 beslistabel = self.visitBeslistabel(child)
                 if beslistabel:
                     domain_model.beslistabellen.append(beslistabel)
+            elif isinstance(child, AntlrParser.EenheidsysteemDefinitionContext):
+                eenheidsysteem = self.visitEenheidsysteemDefinition(child)
+                if eenheidsysteem:
+                    domain_model.eenheidsystemen[eenheidsysteem.name] = eenheidsysteem
         return domain_model
 
     def visitChildren(self, node):
@@ -4438,7 +4443,89 @@ class RegelSpraakModelBuilder(RegelSpraakVisitor):
             meervoud=meervoud,
             span=self.get_span(ctx)
         )
-    
+
+    def visitEenheidsysteemDefinition(self, ctx: AntlrParser.EenheidsysteemDefinitionContext) -> Optional[EenheidsysteemDefinition]:
+        """Visit an eenheidsysteem (unit system) definition and build an EenheidsysteemDefinition object."""
+        # Extract system name from identifier
+        name_ctx = ctx.identifier()
+        if not name_ctx:
+            logger.error(f"No unit system name found in {safe_get_text(ctx)}")
+            return None
+
+        name = safe_get_text(name_ctx)
+
+        # Process all unit entries
+        units = []
+        for entry_ctx in ctx.eenheidEntry():
+            unit_entry = self.visitEenheidEntry(entry_ctx)
+            if unit_entry:
+                units.append(unit_entry)
+
+        return EenheidsysteemDefinition(
+            name=name,
+            units=units,
+            span=self.get_span(ctx)
+        )
+
+    def visitEenheidEntry(self, ctx: AntlrParser.EenheidEntryContext) -> Optional[UnitEntry]:
+        """Visit a single unit entry within an eenheidsysteem."""
+        # Extract article (de/het)
+        article = "de" if ctx.DE() else "het"
+
+        # Extract unit name
+        unit_identifiers = ctx.unitIdentifier()
+        if not unit_identifiers or len(unit_identifiers) < 2:
+            logger.error(f"Insufficient unit identifiers in {safe_get_text(ctx)}")
+            return None
+
+        unit_name = safe_get_text(unit_identifiers[0])
+        abbreviation = safe_get_text(unit_identifiers[1])
+
+        # Extract optional plural name
+        plural_name = None
+        if ctx.MV_START():
+            # Look for plural name between parentheses
+            for i, child in enumerate(ctx.children):
+                if safe_get_text(child) == "mv:":
+                    # Next identifier should be the plural
+                    if i + 1 < len(ctx.children):
+                        next_token = ctx.children[i + 1]
+                        if hasattr(next_token, 'getText'):
+                            plural_name = next_token.getText()
+                    break
+
+        # Extract optional symbol (3rd unitIdentifier if present and no conversion)
+        symbol = None
+        if len(unit_identifiers) >= 3 and not ctx.EQUALS():
+            symbol = safe_get_text(unit_identifiers[2])
+
+        # Extract conversion specification if present
+        conversion_factor = None
+        conversion_fraction = False
+        conversion_target = None
+
+        if ctx.EQUALS():
+            conversion_fraction = bool(ctx.SLASH())
+            if ctx.value:
+                try:
+                    conversion_factor = float(ctx.value.text)
+                except (ValueError, TypeError):
+                    logger.error(f"Invalid conversion factor: {ctx.value.text}")
+            if ctx.targetUnit:
+                conversion_target = safe_get_text(ctx.targetUnit)
+
+        return UnitEntry(
+            article=article,
+            unit_name=unit_name,
+            plural_name=plural_name,
+            abbreviation=abbreviation,
+            symbol=symbol,
+            conversion_factor=conversion_factor,
+            conversion_fraction=conversion_fraction,
+            conversion_target=conversion_target,
+            span=self.get_span(ctx)
+        )
+
     def visitParameterDefinition(self, ctx: AntlrParser.ParameterDefinitionContext) -> Optional[Parameter]:
         """Visit a parameter definition and build a Parameter object."""
         # Access the name via parameterNamePhrase rule

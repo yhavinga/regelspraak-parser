@@ -2,6 +2,30 @@
 // This file contains all object types, domains, parameters, and fact types for the TOKA case study
 
 // ============================================================================
+// UNIT SYSTEMS (EENHEIDSYSTEMEN) - Per TOKA spec lines 133-157
+// ============================================================================
+
+Eenheidsysteem Valuta
+    de euro (mv: euros) EUR €
+
+Eenheidsysteem Tijd
+    de milliseconde ms = /1000 s
+    de seconde s = /60 minuut
+    de minuut minuut = /60 u
+    het uur u = /24 dg
+    de dag dg
+    de week wk = 7 dg
+    de maand mnd
+    het kwartaal kw = 3 mnd
+    het jaar jr = 12 mnd
+
+Eenheidsysteem afstand
+    de millimeter (mv: millimeters) mm = /1000 m
+    de centimeter (mv: centimeters) cm = /100 m
+    de meter (mv: meters) m
+    de kilometer (mv: kilometers) km = 1000 m
+
+// ============================================================================
 // DOMAINS
 // ============================================================================
 

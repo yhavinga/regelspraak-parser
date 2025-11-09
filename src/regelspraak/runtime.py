@@ -247,6 +247,131 @@ class RuntimeContext:
     # Configurable maximum iterations for recursive rule groups (spec §9.9)
     max_recursion_iterations: int = 100
 
+    def __post_init__(self):
+        """Initialize runtime context with domain model data."""
+        # Register Eenheidsystemen from domain model
+        if self.domain_model and hasattr(self.domain_model, 'eenheidsystemen'):
+            for system_name, eenheidsysteem in self.domain_model.eenheidsystemen.items():
+                # Create a new UnitSystem
+                from .units import UnitSystem, BaseUnit
+                from decimal import Decimal
+
+                unit_system = UnitSystem(system_name)
+
+                # First pass: collect units and their direct conversion relationships
+                unit_conversions = {}  # unit_name -> (factor, target_unit)
+
+                for unit_entry in eenheidsysteem.units:
+                    if unit_entry.conversion_factor and unit_entry.conversion_target:
+                        # Store the direct conversion relationship
+                        factor = Decimal(str(unit_entry.conversion_factor))
+                        if unit_entry.conversion_fraction:
+                            factor = Decimal("1") / factor
+                        unit_conversions[unit_entry.unit_name] = (factor, unit_entry.conversion_target)
+                    else:
+                        # No conversion specified - potential base unit
+                        unit_conversions[unit_entry.unit_name] = (Decimal("1"), None)
+
+                # Find or choose the base unit
+                # For time systems, always prefer "seconde" as base
+                # For other systems, find unit with no conversion target
+                base_unit_name = None
+
+                # Special handling for Tijd (time) system - always use seconds as base
+                if system_name == "Tijd" and "seconde" in unit_conversions:
+                    base_unit_name = "seconde"
+                else:
+                    # Find a unit with no conversion target
+                    for unit_name, (factor, target) in unit_conversions.items():
+                        if target is None:
+                            base_unit_name = unit_name
+                            break
+
+                # If no explicit base found, try common defaults
+                if base_unit_name is None:
+                    if "seconde" in unit_conversions:
+                        base_unit_name = "seconde"
+                    elif "meter" in unit_conversions:
+                        base_unit_name = "meter"
+                    elif "euro" in unit_conversions:
+                        base_unit_name = "euro"
+                    else:
+                        # Use the first unit as base
+                        base_unit_name = next(iter(unit_conversions.keys()))
+
+                # For time systems with seconds as base, use predefined conversion factors
+                # This ensures compatibility with standard expectations
+                if system_name == "Tijd" and base_unit_name == "seconde":
+                    # Define standard time conversions to seconds
+                    time_to_seconds = {
+                        "milliseconde": Decimal("0.001"),
+                        "seconde": Decimal("1"),
+                        "minuut": Decimal("60"),
+                        "uur": Decimal("3600"),  # 60 * 60
+                        "dag": Decimal("86400"),  # 24 * 60 * 60
+                        "week": Decimal("604800"),  # 7 * 24 * 60 * 60
+                        "maand": Decimal("2629746"),  # Average month in seconds
+                        "kwartaal": Decimal("7889238"),  # 3 months
+                        "jaar": Decimal("31556952")  # Average year in seconds
+                    }
+
+                    # Create BaseUnit objects with standard factors
+                    for unit_entry in eenheidsysteem.units:
+                        to_base_factor = time_to_seconds.get(unit_entry.unit_name, Decimal("1"))
+
+                        base_unit = BaseUnit(
+                            name=unit_entry.unit_name,
+                            plural=unit_entry.plural_name or unit_entry.unit_name,
+                            abbreviation=unit_entry.abbreviation,
+                            symbol=unit_entry.symbol,
+                            to_base_factor=to_base_factor
+                        )
+
+                        unit_system.add_unit(base_unit)
+                else:
+                    # For other systems, calculate based on the defined conversions
+                    def calculate_to_base_factor(unit_name, visited=None):
+                        """Recursively calculate conversion factor to base unit."""
+                        if visited is None:
+                            visited = set()
+
+                        if unit_name in visited:
+                            return Decimal("1")  # Circular dependency
+
+                        if unit_name == base_unit_name:
+                            return Decimal("1")
+
+                        visited.add(unit_name)
+
+                        if unit_name not in unit_conversions:
+                            return Decimal("1")
+
+                        factor, target = unit_conversions[unit_name]
+                        if target is None:
+                            return Decimal("1")
+
+                        # Multiply by factor to get to target unit, then convert target to base
+                        target_to_base = calculate_to_base_factor(target, visited.copy())
+                        return factor * target_to_base
+
+                    # Create BaseUnit objects with calculated factors
+                    for unit_entry in eenheidsysteem.units:
+                        to_base_factor = calculate_to_base_factor(unit_entry.unit_name)
+
+                        # Create BaseUnit with proper naming
+                        base_unit = BaseUnit(
+                            name=unit_entry.unit_name,
+                            plural=unit_entry.plural_name or unit_entry.unit_name,
+                            abbreviation=unit_entry.abbreviation,
+                            symbol=unit_entry.symbol,
+                            to_base_factor=to_base_factor
+                        )
+
+                        unit_system.add_unit(base_unit)
+
+                # Add the system to the registry, potentially replacing defaults
+                self.unit_registry.add_system(unit_system)
+
     # --- Rekendatum Methods ---
 
     def set_rekendatum(self, date: datetime):

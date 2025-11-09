@@ -378,6 +378,26 @@ class Dagsoort:
     meervoud: Optional[str] = None  # Plural form (e.g., "kerstdagen")
     span: SourceSpan = field(default_factory=SourceSpan.unknown)
 
+@dataclass
+class UnitEntry:
+    """Represents a single unit definition within an Eenheidsysteem (spec §3.7)."""
+    article: str  # "de" or "het"
+    unit_name: str  # e.g., "uur", "meter"
+    plural_name: Optional[str]  # e.g., "uren", "meters"
+    abbreviation: str  # e.g., "u", "m"
+    symbol: Optional[str]  # e.g., "€", "°C"
+    conversion_factor: Optional[float]  # e.g., 1000 or 0.001
+    conversion_fraction: bool  # True if factor starts with "/"
+    conversion_target: Optional[str]  # Target unit for conversion
+    span: SourceSpan
+
+@dataclass
+class EenheidsysteemDefinition:
+    """Represents an Eenheidsysteem (Unit System) definition (spec §3.7)."""
+    name: str  # System name, e.g., "Valuta", "Tijd", "afstand"
+    units: List[UnitEntry]  # All units in this system
+    span: SourceSpan
+
 # --- Timeline Support ---
 
 @dataclass
@@ -656,6 +676,7 @@ class DomainModel:
     feittypen: Dict[str, FeitType] = field(default_factory=dict)
     dimensions: Dict[str, Dimension] = field(default_factory=dict)
     dagsoorten: Dict[str, Dagsoort] = field(default_factory=dict)
+    eenheidsystemen: Dict[str, EenheidsysteemDefinition] = field(default_factory=dict)
     regels: List[Regel] = field(default_factory=list)
     regelgroepen: List[RegelGroep] = field(default_factory=list)
     beslistabellen: List[Beslistabel] = field(default_factory=list)
