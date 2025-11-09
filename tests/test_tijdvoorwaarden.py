@@ -246,7 +246,6 @@ class TestTijdvoorwaarden(unittest.TestCase):
         test_value = context.get_attribute(test_instance, "test waarde")
         self.assertTrue(test_value.value)
 
-    @unittest.skip("Timeline initialization syntax 'van...tot' not yet implemented")
     def test_het_is_de_periode_with_timeline_aggregation(self):
         """Test period condition used with timeline aggregation (gedurende de tijd dat)."""
         script = """

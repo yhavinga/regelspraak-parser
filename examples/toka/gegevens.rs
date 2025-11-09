@@ -60,10 +60,10 @@ Objecttype de Natuurlijk persoon (mv: Natuurlijke personen) (bezield)
     de woonprovincie	Tekst;
     de woonregio factor	Numeriek (geheel getal);
     
-    // Tax calculation attributes
-    de belasting op basis van afstand	Bedrag;
-    de belasting op basis van reisduur	Bedrag; 
-    de te betalen belasting	Bedrag;
+    // Tax calculation attributes - per spec §5.1/§7.1, timeline "voor elke dag"
+    de belasting op basis van afstand	Bedrag voor elke dag;
+    de belasting op basis van reisduur	Bedrag voor elke dag;
+    de te betalen belasting	Bedrag voor elke dag;
     
     // Treinmiles attributes - per TOKA spec lines 30-31
     de treinmiles op basis van evenredige verdeling	Numeriek (geheel getal);
