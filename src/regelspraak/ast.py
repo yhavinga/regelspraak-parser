@@ -402,6 +402,15 @@ class PeriodDefinition(Expression):
     start_date: Optional[Expression] = None  # For vanaf, van...tot patterns
     end_date: Optional[Expression] = None    # For tot, van...tot patterns
 
+@dataclass
+class PeriodConditionExpression(Expression):
+    """Represents a period condition check (het is de periode...).
+    Tests if the current evaluation date falls within the specified period."""
+    period_start: Optional[Expression] = None  # Start boundary (for vanaf, van...tot)
+    period_end: Optional[Expression] = None    # End boundary (for tot, van...tot)
+    start_inclusive: bool = True  # Whether start is inclusive
+    end_inclusive: bool = False  # Whether end is inclusive (tot en met = True)
+
 # --- Rule Structure ---
 
 @dataclass

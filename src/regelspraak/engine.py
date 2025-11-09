@@ -17,7 +17,7 @@ from .ast import (
     VerdelingTieBreak, VerdelingMaximum, VerdelingAfronding, DisjunctionExpression, ConjunctionExpression,
     Beslistabel, BeslistabelRow,
     DimensionedAttributeReference, DimensionLabel,
-    PeriodDefinition, Period, Timeline,
+    PeriodDefinition, PeriodConditionExpression, Period, Timeline,
     Subselectie, RegelStatusExpression, Predicaat, ObjectPredicaat, VergelijkingsPredicaat,
     GetalPredicaat, TekstPredicaat, DatumPredicaat, SamengesteldPredicaat,
     Kwantificatie, KwantificatieType, GenesteVoorwaardeInPredicaat, VergelijkingInPredicaat,
@@ -167,9 +167,9 @@ class Evaluator:
         if evaluation_date:
             self.context.evaluation_date = evaluation_date
         elif self.context.evaluation_date is None:
-            # Default to current date if not set
-            from datetime import date, datetime
-            self.context.evaluation_date = datetime.now()
+            # Don't default to current date - period conditions require explicit rekendatum
+            # This ensures tests for missing rekendatum work correctly
+            self.context.evaluation_date = None
         
         # Simple execution: iterate through all rules and apply them to
         # all relevant object instances found in the context.
@@ -2041,7 +2041,10 @@ class Evaluator:
             # This happens when evaluating expressions in rules that expect single values
             # Use the current evaluation date from context
             if self.context.evaluation_date is None:
-                raise RegelspraakError("Timeline expression requires evaluation_date to be set", span=expr.span)
+                # Use current date as fallback for timeline expressions
+                # Note: Period conditions still require explicit rekendatum
+                from datetime import datetime
+                self.context.evaluation_date = datetime.now()
             
             # For expressions involving timelines, we need to check if the current evaluation date
             # falls within any of the timeline periods. If not, we still need to evaluate the
@@ -2650,7 +2653,67 @@ class Evaluator:
                     result = Value(value=is_inconsistent, datatype="Boolean")
                 else:
                     raise RegelspraakError(f"Unknown regel status check: {expr.check}", span=expr.span)
-                
+
+            elif isinstance(expr, PeriodConditionExpression):
+                # Evaluate "het is de periode ..." condition
+                # Get reference date: prefer evaluation_date (for timeline iterations), then rekendatum
+                reference_date = self.context.evaluation_date or self.context.get_rekendatum()
+                if reference_date is None:
+                    raise RegelspraakError("Period condition requires either evaluation_date or rekendatum to be set", span=expr.span)
+
+                # Normalize dates for comparison - convert everything to date objects
+                from datetime import datetime, date as date_type
+                if isinstance(reference_date, datetime):
+                    reference_date = reference_date.date()
+                elif not isinstance(reference_date, date_type):
+                    # If it's neither datetime nor date, try to extract date
+                    reference_date = self._to_date(Value(reference_date, datatype="Datum"))
+
+                # Evaluate boundaries if present
+                start_date = None
+                end_date = None
+
+                if expr.period_start:
+                    start_val = self.evaluate_expression(expr.period_start)
+                    start_date = self._to_date(start_val)
+                    if start_date is None:
+                        raise RegelspraakError(f"Period start expression did not evaluate to a date", span=expr.period_start.span)
+                    # Normalize to date object for comparison
+                    if isinstance(start_date, datetime):
+                        start_date = start_date.date()
+
+                if expr.period_end:
+                    end_val = self.evaluate_expression(expr.period_end)
+                    end_date = self._to_date(end_val)
+                    if end_date is None:
+                        raise RegelspraakError(f"Period end expression did not evaluate to a date", span=expr.period_end.span)
+                    # Normalize to date object for comparison
+                    if isinstance(end_date, datetime):
+                        end_date = end_date.date()
+
+                # Check if reference date is within the period
+                is_within = True
+
+                # Check start boundary
+                if start_date:
+                    if expr.start_inclusive:
+                        is_within = is_within and (reference_date >= start_date)
+                    else:
+                        is_within = is_within and (reference_date > start_date)
+
+                # Check end boundary
+                if end_date:
+                    if expr.end_inclusive:
+                        is_within = is_within and (reference_date <= end_date)
+                    else:
+                        is_within = is_within and (reference_date < end_date)
+
+                # Validate that start is not after end
+                if start_date and end_date and start_date > end_date:
+                    raise RegelspraakError(f"Period start date {start_date} is after end date {end_date}", span=expr.span)
+
+                result = Value(value=is_within, datatype="Boolean")
+
             elif isinstance(expr, SamengesteldeVoorwaarde):
                 # Handle compound condition as expression
                 result_bool = self._evaluate_samengestelde_voorwaarde(expr, self.context.current_instance)
@@ -2779,7 +2842,18 @@ class Evaluator:
         elif isinstance(expr, AfrondingExpression):
             # Check if the inner expression involves timelines
             return self._is_timeline_expression(expr.expression)
-        
+
+        elif isinstance(expr, PeriodConditionExpression):
+            # Check if the boundary expressions involve timelines
+            # The condition itself returns a boolean, but if boundaries reference timelines,
+            # we should recurse into them
+            if expr.period_start and self._is_timeline_expression(expr.period_start):
+                return True
+            if expr.period_end and self._is_timeline_expression(expr.period_end):
+                return True
+            # The period condition itself is not a timeline (it returns boolean)
+            return False
+
         # Literals and other expressions are not timelines
         return False
 
@@ -3391,7 +3465,67 @@ class Evaluator:
                     result = Value(value=is_inconsistent, datatype="Boolean")
                 else:
                     raise RegelspraakError(f"Unknown regel status check: {expr.check}", span=expr.span)
-                
+
+            elif isinstance(expr, PeriodConditionExpression):
+                # Evaluate "het is de periode ..." condition
+                # Get reference date: prefer evaluation_date (for timeline iterations), then rekendatum
+                reference_date = self.context.evaluation_date or self.context.get_rekendatum()
+                if reference_date is None:
+                    raise RegelspraakError("Period condition requires either evaluation_date or rekendatum to be set", span=expr.span)
+
+                # Normalize dates for comparison - convert everything to date objects
+                from datetime import datetime, date as date_type
+                if isinstance(reference_date, datetime):
+                    reference_date = reference_date.date()
+                elif not isinstance(reference_date, date_type):
+                    # If it's neither datetime nor date, try to extract date
+                    reference_date = self._to_date(Value(reference_date, datatype="Datum"))
+
+                # Evaluate boundaries if present
+                start_date = None
+                end_date = None
+
+                if expr.period_start:
+                    start_val = self.evaluate_expression(expr.period_start)
+                    start_date = self._to_date(start_val)
+                    if start_date is None:
+                        raise RegelspraakError(f"Period start expression did not evaluate to a date", span=expr.period_start.span)
+                    # Normalize to date object for comparison
+                    if isinstance(start_date, datetime):
+                        start_date = start_date.date()
+
+                if expr.period_end:
+                    end_val = self.evaluate_expression(expr.period_end)
+                    end_date = self._to_date(end_val)
+                    if end_date is None:
+                        raise RegelspraakError(f"Period end expression did not evaluate to a date", span=expr.period_end.span)
+                    # Normalize to date object for comparison
+                    if isinstance(end_date, datetime):
+                        end_date = end_date.date()
+
+                # Check if reference date is within the period
+                is_within = True
+
+                # Check start boundary
+                if start_date:
+                    if expr.start_inclusive:
+                        is_within = is_within and (reference_date >= start_date)
+                    else:
+                        is_within = is_within and (reference_date > start_date)
+
+                # Check end boundary
+                if end_date:
+                    if expr.end_inclusive:
+                        is_within = is_within and (reference_date <= end_date)
+                    else:
+                        is_within = is_within and (reference_date < end_date)
+
+                # Validate that start is not after end
+                if start_date and end_date and start_date > end_date:
+                    raise RegelspraakError(f"Period start date {start_date} is after end date {end_date}", span=expr.span)
+
+                result = Value(value=is_within, datatype="Boolean")
+
             elif isinstance(expr, SamengesteldeVoorwaarde):
                 # Handle compound condition as expression
                 result_bool = self._evaluate_samengestelde_voorwaarde(expr, self.context.current_instance)
@@ -5389,10 +5523,14 @@ class Evaluator:
             if datatype == "Datum" and isinstance(value, str):
                 # Parse date string to datetime
                 from datetime import datetime
+                # Remove "dd. " prefix if present (RegelSpraak date literal format)
+                date_str = value
+                if date_str.startswith("dd. "):
+                    date_str = date_str[4:]
                 # Handle various date formats: dd-mm-yyyy, dd.mm.yyyy, yyyy-mm-dd
                 for fmt in ["%d-%m-%Y", "%d.%m.%Y", "%Y-%m-%d", "%d-%m-%Y %H:%M:%S.%f"]:
                     try:
-                        value = datetime.strptime(value, fmt)
+                        value = datetime.strptime(date_str, fmt)
                         break
                     except ValueError:
                         continue

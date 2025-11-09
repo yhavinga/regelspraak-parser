@@ -751,6 +751,7 @@ logicalExpression
 
 comparisonExpression
     : subordinateClauseExpression # SubordinateClauseExpr // Try subordinate clauses first (most specific)
+    | periodevergelijkingElementair # PeriodeCheckExpr // Period condition check
     | left=additiveExpression IS naamwoordWithNumbers # IsKenmerkExpr // Try IS kenmerk check - supports complex names with numbers
     | left=additiveExpression HEEFT naamwoordWithNumbers # HeeftKenmerkExpr // Try HEEFT kenmerk check - supports complex names with numbers
     // Special case for "x gelijk is aan 'A', 'B' of 'C'" pattern per spec §5.6 - restricted to literal values only
@@ -918,13 +919,18 @@ conditieBijExpressie // Keep this rule name for clarity? Or inline GEDURENDE_DE_
     | periodevergelijkingEnkelvoudig // Reuse existing definition if suitable
     ;
 
+// Period condition for checking if current date is within period
+periodevergelijkingElementair
+    : HET_IS_DE_PERIODE periodevergelijkingEnkelvoudig
+    ;
+
 // EBNF 13.4.16.67-68 Periode Vergelijking (Non-Toplevel)
 periodevergelijkingEnkelvoudig // Reusing/defining for conditieBijExpressie and potential other uses
-    : VANAF datumLiteral
-    | VAN datumLiteral TOT datumLiteral
-    | VAN datumLiteral TOT_EN_MET datumLiteral
-    | TOT datumLiteral
-    | TOT_EN_MET datumLiteral
+    : VANAF datumExpressie
+    | VAN datumExpressie TOT datumExpressie
+    | VAN datumExpressie TOT_EN_MET datumExpressie
+    | TOT datumExpressie
+    | TOT_EN_MET datumExpressie
     ;
 
 // Timeline period definition for rule results

@@ -21,7 +21,7 @@ from .ast import (
     BinaryExpression, UnaryExpression, FunctionCall, Operator,
     ParameterReference, SourceSpan, Beslistabel, BeslistabelRow,
     BeslistabelCondition, BeslistabelResult, Dimension, DimensionLabel,
-    DimensionedAttributeReference, PeriodDefinition, DisjunctionExpression, ConjunctionExpression,
+    DimensionedAttributeReference, PeriodDefinition, PeriodConditionExpression, DisjunctionExpression, ConjunctionExpression,
     Subselectie, RegelStatusExpression, Predicaat, ObjectPredicaat, VergelijkingsPredicaat,
     GetalPredicaat, TekstPredicaat, DatumPredicaat, SamengesteldPredicaat,
     Kwantificatie, KwantificatieType, GenesteVoorwaardeInPredicaat, VergelijkingInPredicaat,
@@ -979,6 +979,65 @@ class RegelSpraakModelBuilder(RegelSpraakVisitor):
                 parts.reverse()
 
         return parts if len(parts) > 1 else [' '.join(parts)] if parts else []
+
+    def _parse_period_condition(self, ctx: AntlrParser.PeriodevergelijkingEnkelvoudigContext) -> Optional[PeriodConditionExpression]:
+        """Parse a period comparison into a PeriodConditionExpression.
+
+        Handles patterns like:
+        - vanaf <datum>
+        - tot <datum>
+        - tot en met <datum>
+        - van <datum> tot <datum>
+        - van <datum> tot en met <datum>
+        """
+        if not ctx:
+            return None
+
+        period_start = None
+        period_end = None
+        start_inclusive = True  # Default to inclusive start
+        end_inclusive = False   # Default to exclusive end
+
+        # Vanaf pattern
+        if ctx.VANAF():
+            # vanaf <datum> - inclusive start, open end
+            period_start = self.visitDatumExpressie(ctx.datumExpressie(0))
+            start_inclusive = True
+        # Tot pattern (exclusive)
+        elif ctx.TOT() and not ctx.VAN():
+            # tot <datum> - open start, exclusive end
+            period_end = self.visitDatumExpressie(ctx.datumExpressie(0))
+            end_inclusive = False
+        # Tot en met pattern (inclusive)
+        elif ctx.TOT_EN_MET() and not ctx.VAN():
+            # tot en met <datum> - open start, inclusive end
+            period_end = self.visitDatumExpressie(ctx.datumExpressie(0))
+            end_inclusive = True
+        # Van...tot pattern (exclusive end)
+        elif ctx.VAN() and ctx.TOT():
+            # van <datum> tot <datum> - inclusive start, exclusive end
+            period_start = self.visitDatumExpressie(ctx.datumExpressie(0))
+            period_end = self.visitDatumExpressie(ctx.datumExpressie(1))
+            start_inclusive = True
+            end_inclusive = False
+        # Van...tot en met pattern (inclusive end)
+        elif ctx.VAN() and ctx.TOT_EN_MET():
+            # van <datum> tot en met <datum> - inclusive start, inclusive end
+            period_start = self.visitDatumExpressie(ctx.datumExpressie(0))
+            period_end = self.visitDatumExpressie(ctx.datumExpressie(1))
+            start_inclusive = True
+            end_inclusive = True
+        else:
+            logger.warning(f"Unknown period comparison pattern: {safe_get_text(ctx)}")
+            return None
+
+        return PeriodConditionExpression(
+            period_start=period_start,
+            period_end=period_end,
+            start_inclusive=start_inclusive,
+            end_inclusive=end_inclusive,
+            span=self.get_span(ctx)
+        )
 
     def visitBasisOnderwerpToString(self, ctx: AntlrParser.BasisOnderwerpContext) -> str:
         """Extracts a string representation from basisOnderwerp."""
@@ -2305,6 +2364,13 @@ class RegelSpraakModelBuilder(RegelSpraakVisitor):
 
         if isinstance(ctx, AntlrParser.SubordinateClauseExprContext):
             return self.visitSubordinateClauseExpression(ctx.subordinateClauseExpression())
+        elif isinstance(ctx, AntlrParser.PeriodeCheckExprContext):
+            # Handle "het is de periode ..." condition
+            period_ctx = ctx.periodevergelijkingElementair()
+            if period_ctx and period_ctx.HET_IS_DE_PERIODE() and period_ctx.periodevergelijkingEnkelvoudig():
+                return self._parse_period_condition(period_ctx.periodevergelijkingEnkelvoudig())
+            logger.warning(f"Invalid PeriodeCheckExpr context: {safe_get_text(ctx)}")
+            return None
         elif isinstance(ctx, AntlrParser.IsKenmerkExprContext):
             left_expr = self.visitAdditiveExpression(ctx.left)
             # Check for naamwoordWithNumbers first, then fall back to naamwoord
@@ -5538,11 +5604,14 @@ class RegelSpraakModelBuilder(RegelSpraakVisitor):
         # Check if it's a period comparison (VANAF, VAN...TOT, etc.)
         elif ctx.periodevergelijkingEnkelvoudig():
             period_ctx = ctx.periodevergelijkingEnkelvoudig()
-            # For now, we'll create a placeholder expression for period comparisons
-            # This may need more sophisticated handling depending on engine requirements
-            logger.warning(f"Period comparison in conditieBijExpressie not fully implemented: {safe_get_text(period_ctx)}")
-            # Return a placeholder literal to avoid the list issue
-            return Literal(value=safe_get_text(period_ctx), datatype="Tekst", span=self.get_span(ctx))
+            # Use the shared helper to parse the period condition
+            period_condition = self._parse_period_condition(period_ctx)
+            if period_condition:
+                return period_condition
+            else:
+                logger.warning(f"Failed to parse period comparison in conditieBijExpressie: {safe_get_text(period_ctx)}")
+                # Return a placeholder literal to avoid the list issue
+                return Literal(value=safe_get_text(period_ctx), datatype="Tekst", span=self.get_span(ctx))
 
         # Fallback - should not happen if grammar is correct
         logger.error(f"Unknown conditieBijExpressie type: {safe_get_text(ctx)}")

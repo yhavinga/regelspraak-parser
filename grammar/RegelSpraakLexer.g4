@@ -17,6 +17,7 @@ DATUM_TIJD_MILLIS: 'Datum en tijd in millisecondes';
 GEDURENDE_DE_TIJD_DAT: 'gedurende de tijd dat';
 GEDURENDE_HET_GEHELE: 'gedurende het gehele';
 GEDURENDE_DE_GEHELE: 'gedurende de gehele';
+HET_IS_DE_PERIODE: [Hh]'et is de periode';
 WORDT_BEREKEND_ALS: 'moet berekend worden als';
 WORDT_GESTELD_OP: 'moet gesteld worden op';
 WORDT_GEINITIALISEERD_OP: 'moet geïnitialiseerd worden op';
@@ -53,12 +54,12 @@ KLEINER_IS_DAN: 'kleiner is dan';
 WORDT_VOLDAAN: 'wordt voldaan';
 
 // Object creation tokens
-ER_WORDT_EEN_NIEUW: [Ee] 'r wordt een nieuw';
+ER_WORDT_EEN_NIEUW: [Ee]'r wordt een nieuw';
 WORDT_EEN_NIEUW: 'wordt een nieuw';
 AANGEMAAKT: 'aangemaakt';
 CREEER: 'Creëer';
 NIEUWE: 'nieuwe';
-ER_AAN: [Ee] 'r aan';
+ER_AAN: [Ee]'r aan';
 
 // --- Comparison Phrase Tokens ---
 GELIJK_IS_AAN: 'gelijk is aan';
@@ -242,12 +243,12 @@ BIJ: 'bij';
 DAG: 'dag';
 DAGEN: 'dagen';
 DAT: 'dat';
-DE: [Dd] 'e';
+DE: [Dd]'e';
 DD_PUNT: 'dd.';
 DIE: 'die';
-EEN: [Ee] 'en';
+EEN: [Ee]'en';
 EN: 'en';
-HET: [Hh] 'et';
+HET: [Hh]'et';
 MEERDERE: 'meerdere';
 HIJ: 'hij';
 IN: 'in';
