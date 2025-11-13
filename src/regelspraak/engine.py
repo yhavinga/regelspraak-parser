@@ -1349,9 +1349,13 @@ class Evaluator:
         if len(working_path) > 1:
             first_elem_clean = self._strip_articles(working_path[0]).lower()
             current_type_clean = start_instance.object_type_naam.lower()
-            
+
+            # Handle 'self' reference (refers to current instance)
+            if working_path[0] == 'self':
+                logger.debug(f"_navigate_to_target: First element is 'self', removing it")
+                working_path = working_path[1:]  # Skip 'self'
             # Check if first element is the object type itself
-            if first_elem_clean == current_type_clean:
+            elif first_elem_clean == current_type_clean:
                 logger.debug(f"_navigate_to_target: First element '{working_path[0]}' matches current instance type, removing it")
                 working_path = working_path[1:]  # Skip the first element
             # WORKAROUND for grammar bug: "Natuurlijk" should be "Natuurlijk persoon"
@@ -1576,26 +1580,57 @@ class Evaluator:
 
         if isinstance(res, Gelijkstelling):
             instance = self.context.current_instance  # Already checked above
-            
+
             logger.debug(f"Gelijkstelling: target path = {res.target.path}, instance = {instance.object_type_naam if instance else 'None'}")
             logger.debug(f"Gelijkstelling: expression = {res.expressie}")
-            
+
             # Navigate to the target object if we have a complex path
             target_obj, attr_name = self._navigate_to_target(res.target.path, instance)
-            
-            # Check if the target is a timeline attribute or if the expression contains timeline operands
+
+            # Check if the target is a timeline attribute
             target_is_timeline = False
             if hasattr(res.target, 'path') and res.target.path:
                 obj_type_def = self.context.domain_model.objecttypes.get(target_obj.object_type_naam)
                 if obj_type_def:
-                    attr_def = obj_type_def.attributen.get(attr_name)
-                    if attr_def and attr_def.timeline:
-                        target_is_timeline = True
-            
-            # Always evaluate the expression first to check if it returns a TimelineValue
-            # This handles cases like totaal_van that can return TimelineValue
+                    # Use canonical name resolution to handle articles
+                    canonical_attr_name = self._resolve_attribute_name(obj_type_def, attr_name)
+                    if canonical_attr_name:
+                        attr_def = obj_type_def.attributen.get(canonical_attr_name)
+                        if attr_def and attr_def.timeline:
+                            target_is_timeline = True
+
+            # Check if expression involves timelines BEFORE evaluating
+            expr_is_timeline = self._is_timeline_expression(res.expressie)
+
+            # If target is timeline or expression contains timeline operands, handle as timeline
+            if target_is_timeline or expr_is_timeline:
+                logger.debug(f"Gelijkstelling: Timeline detected (target={target_is_timeline}, expr={expr_is_timeline}), handling as timeline")
+
+                # Get the target attribute
+                target_ref = res.target
+                if isinstance(target_ref, DimensionedAttributeReference):
+                    raise RegelspraakError("Timeline expressions with dimensioned attributes not yet supported", span=res.span)
+                elif not target_ref.path:
+                    raise RegelspraakError("Gelijkstelling target path is empty.", span=target_ref.span)
+
+                # Check if there's a period definition
+                if res.period_definition:
+                    # For period assignment, we need to evaluate the expression normally
+                    # This is OK because period assignment provides temporal context
+                    value = self.evaluate_expression(res.expressie)
+                    self._apply_period_assignment(target_obj, attr_name, value, res.period_definition,
+                                                 is_kenmerk=False, span=res.span)
+                else:
+                    # Evaluate as timeline expression directly (skip scalar evaluation)
+                    timeline_value = self._evaluate_timeline_expression(res.expressie)
+
+                    # Set the timeline value on the target object
+                    self.context.set_timeline_attribute(target_obj, attr_name, timeline_value, span=res.span)
+                return
+
+            # Non-timeline case: evaluate expression normally
             try:
-                logger.debug(f"Gelijkstelling: About to evaluate expression: {res.expressie}")
+                logger.debug(f"Gelijkstelling: Non-timeline, evaluating expression: {res.expressie}")
                 expr_result = self.evaluate_expression(res.expressie)
                 logger.debug(f"Gelijkstelling: Evaluated expression result type: {type(expr_result)}, value: {expr_result}")
             except AttributeError as e:
@@ -1603,8 +1638,8 @@ class Evaluator:
                 import traceback
                 logger.error(traceback.format_exc())
                 raise
-            
-            # Check if the result is a TimelineValue (from timeline-aware aggregation)
+
+            # Check if the result is a TimelineValue (from timeline-aware aggregation functions)
             if isinstance(expr_result, TimelineValue):
                 logger.debug(f"Gelijkstelling: Result is TimelineValue, setting as timeline attribute")
                 # Get the target attribute
@@ -1613,38 +1648,13 @@ class Evaluator:
                     raise RegelspraakError("Timeline expressions with dimensioned attributes not yet supported", span=res.span)
                 elif not target_ref.path:
                     raise RegelspraakError("Gelijkstelling target path is empty.", span=target_ref.span)
-                
+
                 # Set the timeline value directly on the target object
                 self.context.set_timeline_attribute(target_obj, attr_name, expr_result, span=res.span)
                 return
-            
-            # If target is timeline or expression contains timeline operands, evaluate as timeline
-            # BUT only if we didn't already get a TimelineValue from the expression
-            if (target_is_timeline or self._is_timeline_expression(res.expressie)) and not isinstance(expr_result, TimelineValue):
-                logger.debug(f"Gelijkstelling: Evaluating as timeline expression (target_is_timeline={target_is_timeline})")
-                # Get the target attribute
-                target_ref = res.target
-                if isinstance(target_ref, DimensionedAttributeReference):
-                    raise RegelspraakError("Timeline expressions with dimensioned attributes not yet supported", span=res.span)
-                elif not target_ref.path:
-                    raise RegelspraakError("Gelijkstelling target path is empty.", span=target_ref.span)
-                
-                # Check if there's a period definition
-                if res.period_definition:
-                    # Use the helper method which includes validation
-                    value = expr_result
-                    self._apply_period_assignment(target_obj, attr_name, value, res.period_definition,
-                                                 is_kenmerk=False, span=res.span)
-                else:
-                    # Evaluate as timeline expression (existing behavior)
-                    timeline_value = self._evaluate_timeline_expression(res.expressie)
-                    
-                    # Set the timeline value on the target object
-                    self.context.set_timeline_attribute(target_obj, attr_name, timeline_value, span=res.span)
-                return
-            
+
             # Regular non-timeline expression evaluation
-            # Use the pre-evaluated result
+            # Use the evaluated result
             value = expr_result
             # Handle both AttributeReference and DimensionedAttributeReference
             target_ref = res.target
@@ -2086,12 +2096,13 @@ class Evaluator:
         if self._is_timeline_expression(expr):
             # This expression involves timelines, but we're being called for a single value
             # This happens when evaluating expressions in rules that expect single values
-            # Use the current evaluation date from context
+            # Evaluation date is required for timeline expressions per spec §10.3
             if self.context.evaluation_date is None:
-                # Use current date as fallback for timeline expressions
-                # Note: Period conditions still require explicit rekendatum
-                from datetime import datetime
-                self.context.evaluation_date = datetime.now()
+                raise RegelspraakError(
+                    f"Timeline expression requires evaluation_date to be set (rekendatum). "
+                    f"Per specification §10.3, temporal context must be explicit.",
+                    span=getattr(expr, 'span', None)
+                )
             
             # For expressions involving timelines, we need to check if the current evaluation date
             # falls within any of the timeline periods. If not, we still need to evaluate the
@@ -2800,6 +2811,36 @@ class Evaluator:
                 
         return result
 
+    def _resolve_attribute_name(self, obj_type_def, attr_name: str) -> Optional[str]:
+        """Resolve attribute name with article-insensitive matching.
+
+        Returns the canonical attribute name from the object type definition,
+        handling optional articles (de/het/een) per spec §13.4.2.
+        """
+        if not obj_type_def or not obj_type_def.attributen:
+            return None
+
+        # Try exact match first
+        if attr_name in obj_type_def.attributen:
+            return attr_name
+
+        # Strip leading articles for comparison
+        def strip_article(s: str) -> str:
+            """Remove leading articles (de/het/een) from string."""
+            lower = s.lower()
+            for article in ['de ', 'het ', 'een ']:
+                if lower.startswith(article):
+                    return s[len(article):]
+            return s
+
+        # Try article-insensitive match
+        query_stripped = strip_article(attr_name).lower()
+        for canonical_name in obj_type_def.attributen.keys():
+            if strip_article(canonical_name).lower() == query_stripped:
+                return canonical_name
+
+        return None
+
     def _is_timeline_expression(self, expr: Expression) -> bool:
         """Check if an expression involves timeline values."""
         # Check for timeline parameters or attributes
@@ -2809,7 +2850,7 @@ class Evaluator:
                 # Return True if the parameter is defined as a timeline parameter
                 # regardless of whether there's a value stored
                 return True
-        
+
         elif isinstance(expr, AttributeReference):
             if self.context.current_instance and expr.path:
                 logger.debug(f"_is_timeline_expression: Checking AttributeReference with path {expr.path}")
@@ -2823,12 +2864,17 @@ class Evaluator:
                         # Check if attribute definition has timeline
                         obj_type_def = self.context.domain_model.objecttypes.get(target_obj.object_type_naam)
                         if obj_type_def:
-                            attr_def = obj_type_def.attributen.get(attr_name)
-                            if attr_def and attr_def.timeline:
-                                logger.debug(f"_is_timeline_expression: {attr_name} has timeline={attr_def.timeline}")
-                                return True
+                            # Use canonical name resolution to handle articles
+                            canonical_attr_name = self._resolve_attribute_name(obj_type_def, attr_name)
+                            if canonical_attr_name:
+                                attr_def = obj_type_def.attributen.get(canonical_attr_name)
+                                if attr_def and attr_def.timeline:
+                                    logger.debug(f"_is_timeline_expression: {canonical_attr_name} has timeline={attr_def.timeline}")
+                                    return True
+                                else:
+                                    logger.debug(f"_is_timeline_expression: {canonical_attr_name} has no timeline")
                             else:
-                                logger.debug(f"_is_timeline_expression: {attr_name} has no timeline")
+                                logger.debug(f"_is_timeline_expression: Could not resolve {attr_name}")
                         else:
                             logger.debug(f"_is_timeline_expression: No object type def for {target_obj.object_type_naam}")
                 except (RegelspraakError, RuntimeError):
@@ -2840,11 +2886,14 @@ class Evaluator:
                             self.context.current_instance.object_type_naam
                         )
                         if obj_type_def:
-                            attr_def = obj_type_def.attributen.get(attr_name)
-                            if attr_def and attr_def.timeline:
-                                # Return True if the attribute is defined as a timeline attribute
-                                # regardless of whether there's a value stored
-                                return True
+                            # Use canonical name resolution
+                            canonical_attr_name = self._resolve_attribute_name(obj_type_def, attr_name)
+                            if canonical_attr_name:
+                                attr_def = obj_type_def.attributen.get(canonical_attr_name)
+                                if attr_def and attr_def.timeline:
+                                    # Return True if the attribute is defined as a timeline attribute
+                                    # regardless of whether there's a value stored
+                                    return True
         
         elif isinstance(expr, BinaryExpression):
             # Check for kenmerk operators (HEEFT, HEEFT_NIET, IS kenmerk)
@@ -2974,10 +3023,23 @@ class Evaluator:
         """Evaluate an expression that involves timeline values."""
         from .timeline_utils import merge_knips, get_evaluation_periods, remove_redundant_knips
         from .runtime import TimelineValue
-        
+
+        # First, try evaluating the expression directly
+        # Some functions (like aantal_dagen_in) return complete TimelineValues
+        # with their own period boundaries that should be preserved
+        try:
+            result = self._evaluate_expression_non_timeline(expr)
+            if isinstance(result, TimelineValue):
+                # Expression already returns a complete timeline - use it directly
+                # This preserves function-generated period boundaries
+                return result
+        except:
+            # Fall back to period-by-period evaluation
+            pass
+
         # Collect all timeline operands to determine knips
         timelines = self._collect_timeline_operands(expr)
-        
+
         if not timelines:
             # No actual timeline values found, evaluate as regular expression
             result = self.evaluate_expression(expr)
@@ -3034,7 +3096,18 @@ class Evaluator:
         This evaluates the expression without timeline checking, since
         we're already inside timeline evaluation with a specific date."""
         # Direct evaluation without timeline check - we're already in a period
-        return self._evaluate_expression_non_timeline(expr)
+        result = self._evaluate_expression_non_timeline(expr)
+
+        # If we get a TimelineValue back (e.g., from tijdsevenredig functions),
+        # extract the value for the current evaluation date
+        if isinstance(result, TimelineValue):
+            period_value = result.get_value_at(self.context.evaluation_date)
+            if period_value is None:
+                # No value for this date, return a null value
+                return Value(value=None, datatype="Numeriek", unit=None)
+            return period_value
+
+        return result
 
     def _evaluate_expression_non_timeline(self, expr: Expression) -> Value:
         """Evaluate an expression without timeline checking.
@@ -3680,10 +3753,12 @@ class Evaluator:
                     val = timeline_val.get_value_at(self.context.evaluation_date)
                     bool_result = val.value if val else False
                 else:
-                    # No evaluation date set, use current date
-                    from datetime import datetime
-                    val = timeline_val.get_value_at(datetime.now())
-                    bool_result = val.value if val else False
+                    # Timeline kenmerk requires evaluation date
+                    raise RegelspraakError(
+                        f"Timeline kenmerk '{kenmerk_name}' requires evaluation_date to be set. "
+                        f"Per specification §10.3, temporal context must be explicit.",
+                        span=expr.span
+                    )
             else:
                 # Regular kenmerk or type check
                 bool_result = self.context.check_is(instance, right_val.value)
@@ -3717,10 +3792,12 @@ class Evaluator:
                     val = timeline_val.get_value_at(self.context.evaluation_date)
                     bool_result = not (val.value if val else False)
                 else:
-                    # No evaluation date set, use current date
-                    from datetime import datetime
-                    val = timeline_val.get_value_at(datetime.now())
-                    bool_result = not (val.value if val else False)
+                    # Timeline kenmerk requires evaluation date
+                    raise RegelspraakError(
+                        f"Timeline kenmerk '{kenmerk_name}' requires evaluation_date to be set. "
+                        f"Per specification §10.3, temporal context must be explicit.",
+                        span=expr.span
+                    )
             else:
                 # Regular kenmerk or type check
                 bool_result = not self.context.check_is(instance, right_val.value)
@@ -3744,10 +3821,12 @@ class Evaluator:
                     val = timeline_val.get_value_at(self.context.evaluation_date)
                     kenmerk_value = val.value if val else False
                 else:
-                    # No evaluation date set, use current date
-                    from datetime import datetime
-                    val = timeline_val.get_value_at(datetime.now())
-                    kenmerk_value = val.value if val else False
+                    # Timeline kenmerk requires evaluation date
+                    raise RegelspraakError(
+                        f"Timeline kenmerk requires evaluation_date to be set. "
+                        f"Per specification §10.3, temporal context must be explicit.",
+                        span=getattr(expr, 'span', None)
+                    )
             else:
                 # Regular kenmerk (not timeline)
                 # First try with "heeft " prefix
@@ -3808,10 +3887,12 @@ class Evaluator:
                     val = timeline_val.get_value_at(self.context.evaluation_date)
                     kenmerk_value = val.value if val else False
                 else:
-                    # No evaluation date set, use current date
-                    from datetime import datetime
-                    val = timeline_val.get_value_at(datetime.now())
-                    kenmerk_value = val.value if val else False
+                    # Timeline kenmerk requires evaluation date
+                    raise RegelspraakError(
+                        f"Timeline kenmerk requires evaluation_date to be set. "
+                        f"Per specification §10.3, temporal context must be explicit.",
+                        span=getattr(expr, 'span', None)
+                    )
             else:
                 # Regular kenmerk (not timeline)
                 # First try with "heeft " prefix
@@ -4428,15 +4509,33 @@ class Evaluator:
 
                     # Check if the target object has this as a timeline attribute
                     if target_obj and attr_name:
-                        timeline_val = target_obj.timeline_attributen.get(attr_name)
-                        logger.debug(f"_collect_timeline_operands: Checking {target_obj.object_type_naam}.{attr_name}, found timeline: {timeline_val is not None}")
+                        # Resolve canonical name for timeline storage lookup
+                        obj_type_def = self.context.domain_model.objecttypes.get(target_obj.object_type_naam)
+                        canonical_attr_name = attr_name
+                        if obj_type_def:
+                            resolved_name = self._resolve_attribute_name(obj_type_def, attr_name)
+                            if resolved_name:
+                                canonical_attr_name = resolved_name
+
+                        timeline_val = target_obj.timeline_attributen.get(canonical_attr_name)
+                        logger.debug(f"_collect_timeline_operands: Checking {target_obj.object_type_naam}.{canonical_attr_name}, found timeline: {timeline_val is not None}")
                         if timeline_val:
                             timelines.append(timeline_val.timeline)
                 except (RegelspraakError, RuntimeError):
                     # If navigation fails, fall back to the old logic for simple cases
                     if len(expr.path) == 1:
                         attr_name = expr.path[0]
-                        timeline_val = self.context.current_instance.timeline_attributen.get(attr_name)
+                        # Resolve canonical name for timeline storage lookup
+                        obj_type_def = self.context.domain_model.objecttypes.get(
+                            self.context.current_instance.object_type_naam
+                        )
+                        canonical_attr_name = attr_name
+                        if obj_type_def:
+                            resolved_name = self._resolve_attribute_name(obj_type_def, attr_name)
+                            if resolved_name:
+                                canonical_attr_name = resolved_name
+
+                        timeline_val = self.context.current_instance.timeline_attributen.get(canonical_attr_name)
                         if timeline_val:
                             timelines.append(timeline_val.timeline)
         
@@ -5038,9 +5137,18 @@ class Evaluator:
                     target_objects, method.order_expression,
                     method.order_direction == "afnemende"
                 )
-                # Reorder amounts to match
-                # This is simplified - full implementation would handle progressive distribution
-                pass
+
+                # Ordered distribution affects tie-breaking and sequential distribution
+                # The sorting is applied for determining distribution priority
+                # For now, maintain the distribution but note that objects have been sorted
+                # This will affect tie-breaking when combined with other methods like maximum
+
+                # Note: Full implementation would handle progressive distribution where
+                # objects receive their share in order until the total is exhausted
+                # For now, just ensure the sorting has been done for subsequent methods
+
+                # target_objects list remains unchanged, but sorting info could be used
+                # by subsequent methods if needed (e.g., for tie-breaking)
             
             elif isinstance(method, VerdelingMaximum):
                 # Apply maximum constraint per target object
@@ -7274,12 +7382,16 @@ class Evaluator:
 
         logger.debug(f"_evaluate_totaal_van_with_condition: main_expr={main_expr}, condition_expr={condition_expr}")
 
-        # Collect timeline operands from main expression
-        timelines = self._collect_timeline_operands(main_expr)
+        # Collect timeline operands from BOTH main expression and condition
+        main_timelines = self._collect_timeline_operands(main_expr)
+        condition_timelines = self._collect_timeline_operands(condition_expr)
 
-        logger.debug(f"_evaluate_totaal_van_with_condition: Found {len(timelines)} timelines")
+        # Combine timelines from both expressions
+        all_timelines = main_timelines + condition_timelines
 
-        if not timelines:
+        logger.debug(f"_evaluate_totaal_van_with_condition: Found {len(main_timelines)} main timelines, {len(condition_timelines)} condition timelines")
+
+        if not all_timelines:
             # No timeline values - evaluate normally with condition check
             saved_date = self.context.evaluation_date
             try:
@@ -7295,15 +7407,15 @@ class Evaluator:
             finally:
                 self.context.evaluation_date = saved_date
 
-        # Merge all knips from timeline operands
-        all_knips = merge_knips(*timelines)
+        # Merge all knips from BOTH main and condition timeline operands
+        all_knips = merge_knips(*all_timelines)
 
         # Get evaluation periods between knips
         periods = get_evaluation_periods(all_knips)
 
         # If timeline has granularity, expand periods to match it
         # This ensures monthly timelines are evaluated month by month
-        if timelines and timelines[0].granularity == "maand":
+        if all_timelines and all_timelines[0].granularity == "maand":
             expanded_periods = []
             for start_date, end_date in periods:
                 # Generate monthly periods within this range
@@ -7322,7 +7434,7 @@ class Evaluator:
         total = Decimal(0)
         datatype = None
         unit = None
-        
+
         # First, get the datatype and unit by evaluating the expression once
         if periods:
             saved_date = self.context.evaluation_date
@@ -7353,9 +7465,9 @@ class Evaluator:
                     logger.debug(f"  Period value: {period_value.value}")
 
                     if period_value.value is not None:
-                        # Add to total
+                        # Add to total (simple sum without duration weighting)
                         total += period_value.to_decimal()
-                
+
             finally:
                 # Restore evaluation date
                 self.context.evaluation_date = saved_date
@@ -7396,24 +7508,24 @@ class Evaluator:
         total = Decimal(0)
         datatype = None
         unit = None
-        
+
         for start_date, end_date in periods:
             # Set evaluation date to start of period
             saved_date = self.context.evaluation_date
             self.context.evaluation_date = start_date
-            
+
             try:
                 # Evaluate expression for this period
                 period_value = self._evaluate_expression_non_timeline(expr)
-                
+
                 if datatype is None:
                     datatype = period_value.datatype
                     unit = period_value.unit
-                
+
                 if period_value.value is not None:
-                    # Add to total sum (not running total)
+                    # Add to total sum (simple sum without duration weighting)
                     total += period_value.to_decimal()
-                
+
             finally:
                 # Restore evaluation date
                 self.context.evaluation_date = saved_date
@@ -7423,7 +7535,7 @@ class Evaluator:
     
     def _sum_timeline_values(self, timeline_values: List[TimelineValue], span) -> Value:
         """Sum multiple timeline values into a single scalar result.
-        
+
         Per specification section 7.1:
         - Sums ALL values across ALL periods of ALL timelines
         - Returns a single scalar Value (NOT a TimelineValue)
@@ -7431,7 +7543,7 @@ class Evaluator:
         total = Decimal(0)
         datatype = None
         unit = None
-        
+
         for tv in timeline_values:
             # Sum all periods in this timeline
             for period in tv.timeline.periods:
@@ -7439,27 +7551,29 @@ class Evaluator:
                     if datatype is None:
                         datatype = period.value.datatype
                         unit = period.value.unit
+                    # Simple sum without duration weighting
                     total += period.value.to_decimal()
-        
+
         # Return scalar sum
         return Value(value=total, datatype=datatype or "Numeriek", unit=unit)
     
     def _sum_single_timeline(self, timeline_value: TimelineValue) -> Value:
         """Sum all values in a single timeline to a scalar.
-        
+
         Helper method to sum all periods in a timeline.
         """
         total = Decimal(0)
         datatype = None
         unit = None
-        
+
         for period in timeline_value.timeline.periods:
             if period.value and period.value.value is not None:
                 if datatype is None:
                     datatype = period.value.datatype
                     unit = period.value.unit
+                # Simple sum without duration weighting
                 total += period.value.to_decimal()
-        
+
         return Value(value=total, datatype=datatype or "Numeriek", unit=unit)
     
     # Note: _aggregate_timeline_values method removed as it's no longer needed
@@ -7517,8 +7631,11 @@ class Evaluator:
                 # Original scalar implementation for backward compatibility
                 eval_date = self.context.evaluation_date
                 if not eval_date:
-                    from datetime import datetime, date
-                    eval_date = datetime.now().date()
+                    raise RegelspraakError(
+                        f"Function 'aantal_dagen_in' requires evaluation_date (rekendatum) to be set. "
+                        f"Per specification §10.3, temporal context must be explicit.",
+                        span=expr.span
+                    )
                 else:
                     from datetime import date
                 
@@ -7859,11 +7976,16 @@ class Evaluator:
         if all_timelines:
             all_knips = merge_knips(*all_timelines)
         else:
-            # No timeline values - create default period
+            # No timeline values - require evaluation date
             if self.context.evaluation_date:
                 eval_date = self.context.evaluation_date
             else:
-                eval_date = datetime.now()
+                # Tijdsevenredig without timeline context requires explicit rekendatum
+                raise RegelspraakError(
+                    f"Tijdsevenredig function requires evaluation_date (rekendatum) when no timeline operands present. "
+                    f"Per specification §7.3.2, temporal context must be explicit.",
+                    span=None
+                )
             
             # Create knips for the evaluation period
             if period_type == "maand":
@@ -9248,12 +9370,31 @@ class Evaluator:
                             # Re-raise if it's not a case we can handle
                             raise
 
-                # Set the attribute on the target object
-                self.context.set_attribute(
-                    target_obj,
-                    attribute_name,
-                    result_value
-                )
+                # Check if the target is a timeline attribute
+                target_is_timeline = False
+                obj_type_def = self.context.domain_model.objecttypes.get(target_obj.object_type_naam)
+                if obj_type_def:
+                    attr_def = obj_type_def.attributen.get(attribute_name)
+                    if attr_def and attr_def.timeline:
+                        target_is_timeline = True
+
+                # Set the attribute appropriately based on timeline status
+                if target_is_timeline:
+                    # For timeline attributes, evaluate the result expression as a timeline expression
+                    # and use set_timeline_attribute
+                    timeline_value = self._evaluate_timeline_expression(row.result_expression)
+                    self.context.set_timeline_attribute(
+                        target_obj,
+                        attribute_name,
+                        timeline_value
+                    )
+                else:
+                    # Regular scalar attribute
+                    self.context.set_attribute(
+                        target_obj,
+                        attribute_name,
+                        result_value
+                    )
 
                 # Trace the assignment with full path for debugging
                 if self.context.trace_sink:

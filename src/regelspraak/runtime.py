@@ -897,13 +897,49 @@ class RuntimeContext:
         
         return value
 
+    def _resolve_kenmerk_name(self, obj_type_def, kenmerk_name: str) -> Optional[str]:
+        """Resolve kenmerk name with article-insensitive matching.
+
+        Returns the canonical kenmerk name from the object type definition,
+        handling optional articles (de/het/een) similar to attributes.
+        """
+        if not obj_type_def or not obj_type_def.kenmerken:
+            return None
+
+        # Try exact match first
+        if kenmerk_name in obj_type_def.kenmerken:
+            return kenmerk_name
+
+        # Strip leading articles for comparison
+        def strip_article(s: str) -> str:
+            """Remove leading articles (de/het/een) from string."""
+            lower = s.lower()
+            for article in ['de ', 'het ', 'een ']:
+                if lower.startswith(article):
+                    return s[len(article):]
+            return s
+
+        # Try article-insensitive match
+        query_stripped = strip_article(kenmerk_name).lower()
+        for canonical_name in obj_type_def.kenmerken.keys():
+            if strip_article(canonical_name).lower() == query_stripped:
+                return canonical_name
+
+        return None
+
     def set_kenmerk(self, instance: RuntimeObject, kenmerk_name: str, value: bool, span: Optional[ast.SourceSpan] = None):
         """Sets a kenmerk's boolean state on an instance."""
         # Check if kenmerk is defined for the type
         obj_type_def = self.domain_model.objecttypes.get(instance.object_type_naam)
-        if not obj_type_def or kenmerk_name not in obj_type_def.kenmerken:
-             raise RuntimeError(f"Cannot set Kenmerk '{kenmerk_name}': Not defined for ObjectType '{instance.object_type_naam}'.")
+        if not obj_type_def:
+            raise RuntimeError(f"ObjectType '{instance.object_type_naam}' definition not found.")
 
+        # Resolve kenmerk name with article-insensitive matching
+        canonical_kenmerk_name = self._resolve_kenmerk_name(obj_type_def, kenmerk_name)
+        if not canonical_kenmerk_name:
+            raise RuntimeError(f"Cannot set Kenmerk '{kenmerk_name}': Not defined for ObjectType '{instance.object_type_naam}'.")
+
+        kenmerk_name = canonical_kenmerk_name  # Use canonical name for storage
         old_value = instance.kenmerken.get(kenmerk_name, False)
         instance.kenmerken[kenmerk_name] = value
         

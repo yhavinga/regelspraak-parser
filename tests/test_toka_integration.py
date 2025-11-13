@@ -55,11 +55,12 @@ class TestTokaIntegration(unittest.TestCase):
         self.assertIn("Te betalen belasting van een passagier", rule_names)
         self.assertIn("verdeling treinmiles in gelijke delen", rule_names)
         
-        # Decision tables
-        self.assertEqual(len(model.beslistabellen), 2)
+        # Decision tables (now includes Beslistabel Minderjarig)
+        self.assertEqual(len(model.beslistabellen), 3)
         beslistabel_names = {b.naam for b in model.beslistabellen}
         self.assertIn("Woonregio factor", beslistabel_names)
         self.assertIn("Belasting op basis van reisduur", beslistabel_names)
+        self.assertIn("Minderjarig", beslistabel_names)
         
     def test_complex_parameter_reference_in_calculation(self):
         """Test parameter reference: 'de korting bij gebruik niet-fossiele brandstof'."""

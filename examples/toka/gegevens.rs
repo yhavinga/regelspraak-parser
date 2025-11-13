@@ -47,6 +47,7 @@ Domein Luchthavens is van het type Enumeratie
 Objecttype de Natuurlijk persoon (mv: Natuurlijke personen) (bezield)
     // Characteristics (kenmerken) for age categories - per TOKA spec lines 18-22
     is minderjarig kenmerk (bijvoeglijk);
+    is passagier jonger dan 18 jaar kenmerk;
     is passagier van 18 tot en met 24 jaar kenmerk;
     is passagier van 25 tot en met 64 jaar kenmerk;
     is passagier van 65 jaar of ouder kenmerk (bijvoeglijk);
@@ -68,6 +69,7 @@ Objecttype de Natuurlijk persoon (mv: Natuurlijke personen) (bezield)
     // Treinmiles attributes - per TOKA spec lines 30-31
     de treinmiles op basis van evenredige verdeling	Numeriek (geheel getal);
     de maximaal te ontvangen treinmiles bij evenredige verdeling volgens rangorde	Numeriek (geheel getal);
+    het maximaal aantal te ontvangen treinmiles	Numeriek (geheel getal);
 
 // Flight object with all flight-related attributes and characteristics  
 Objecttype de Vlucht (mv: vluchten)
@@ -106,6 +108,7 @@ Objecttype de Vlucht (mv: vluchten)
     // Timing attributes
     de verwachte datum-tijd van aankomst	Datum en tijd in millisecondes;
     de verwachte datum-tijd van vertrek	Datum en tijd in millisecondes;
+    de daadwerkelijke datum-tijd van vertrek	Datum en tijd in millisecondes;
     de verwachte duur	Numeriek (geheel getal) met eenheid minuut;
     de datum-tijd voor het berekenen van de belasting op basis van afstand	Datum en tijd in millisecondes;
     het bevestigingstijdstip	Datum en tijd in millisecondes;
@@ -144,7 +147,7 @@ Parameter de bovengrens reisduur tweede schijf: Numeriek (geheel getal) met eenh
 Parameter het aantal treinmiles per passagier voor contingent: Numeriek (positief geheel getal)
 
 // Date calculation parameters
-Parameter de bevestigingsinterval: Numeriek (geheel getal) met eenheid minuut
+Parameter de bevestigingsinterval: Numeriek (geheel getal) met eenheid milliseconde
 Parameter de eerste boekingsdatum: Datum in dagen
 
 // ============================================================================

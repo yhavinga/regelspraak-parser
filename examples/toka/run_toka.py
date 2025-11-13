@@ -62,7 +62,14 @@ class TOKARunner:
             # Create runtime context
             trace_sink = PrintTraceSink() if self.verbose else None
             self.context = RuntimeContext(self.model, trace_sink=trace_sink)
-            
+
+            # Set rekendatum (evaluation date) for timeline expressions
+            # Use a default date if not specified in scenario
+            rekendatum = scenario.get('rekendatum', '2024-07-15')  # Middle of summer season
+            if isinstance(rekendatum, str):
+                rekendatum = datetime.strptime(rekendatum, '%Y-%m-%d')
+            self.context.set_rekendatum(rekendatum)
+
             # Add parameters
             self._add_parameters(scenario['parameters'])
             
@@ -173,12 +180,22 @@ class TOKARunner:
                 self.context.set_attribute(passenger, 'identificatienummer', 
                                           Value(passenger_data['identificatienummer'], "Numeriek"))
             
-            # Handle both old (short) and new (full) attribute names for backward compatibility
+            # Handle maximum treinmiles attributes
+            # Set the attribute used by distribution rules (required by spec)
+            if 'maximaal aantal te ontvangen treinmiles' in passenger_data:
+                self.context.set_attribute(passenger, 'het maximaal aantal te ontvangen treinmiles',
+                                          Value(passenger_data['maximaal aantal te ontvangen treinmiles'], "Numeriek"))
+            elif 'maximaal te ontvangen treinmiles' in passenger_data:
+                # Also set the shorter attribute name that distribution rules actually use
+                self.context.set_attribute(passenger, 'het maximaal aantal te ontvangen treinmiles',
+                                          Value(passenger_data['maximaal te ontvangen treinmiles'], "Numeriek"))
+
+            # Also set the longer attribute for ordered distribution if provided
             if 'maximaal te ontvangen treinmiles bij evenredige verdeling volgens rangorde' in passenger_data:
                 self.context.set_attribute(passenger, 'maximaal te ontvangen treinmiles bij evenredige verdeling volgens rangorde',
                                           Value(passenger_data['maximaal te ontvangen treinmiles bij evenredige verdeling volgens rangorde'], "Numeriek"))
             elif 'maximaal te ontvangen treinmiles' in passenger_data:
-                # Fallback for legacy test data
+                # Set both attributes from the same value for backward compatibility
                 self.context.set_attribute(passenger, 'maximaal te ontvangen treinmiles bij evenredige verdeling volgens rangorde',
                                           Value(passenger_data['maximaal te ontvangen treinmiles'], "Numeriek"))
             

@@ -83,15 +83,20 @@ Regel Initialiseer te betalen belasting op initiele belasting
     geldig altijd
         De te betalen belasting van een passagier moet geïnitialiseerd worden op de initiele belasting.
 
-// Distance-based tax calculation (simplified for first bracket)
+// Distance-based tax calculation per spec §4238-4251
 Regel belasting op basis van afstand
     geldig altijd
-        De belasting op basis van afstand van een passagier moet gesteld worden op het lage basistarief eerste schijf min
-        het lage tarief vermindering eerste schijf maal de afstand tot bestemming van zijn reis
+        De belasting op basis van afstand van een passagier moet gesteld worden op X min Y
         indien hij aan alle volgende voorwaarden voldoet:
         - zijn reis is een belaste reis
+        - hij voldoet aan ten minste één van de volgende voorwaarden:
+          .. hij is een passagier jonger dan 18 jaar
+          .. hij is een passagier van 25 tot en met 64 jaar
         - de afstand tot bestemming van zijn reis is groter dan 0 km
         - de afstand tot bestemming van zijn reis is kleiner of gelijk aan de bovengrens afstand eerste schijf.
+        Daarbij geldt:
+            X is het lage basistarief eerste schijf
+            Y is het lage tarief vermindering eerste schijf maal de afstand tot bestemming van zijn reis.
 
 // Sustainability discount eligibility - per spec lines 212-219
 Regel recht op duurzaamheidskorting
@@ -158,12 +163,42 @@ Regel verdeling treinmiles in gelijke delen
         de treinmiles op basis van evenredige verdeling van alle passagiers met recht op treinmiles van het te verdelen
         contingent treinmiles, waarbij wordt verdeeld in gelijke delen.
 
-// Distribution by residence factor - per spec lines 308-314
+// Distribution by residence factor - per spec lines 308-314 (§3804-3806)
 Regel verdeling treinmiles op basis van woonregio factor
     geldig altijd
         Het totaal aantal treinmiles van een te verdelen contingent treinmiles wordt verdeeld over
         de treinmiles op basis van evenredige verdeling van alle passagiers met recht op treinmiles van het te verdelen
         contingent treinmiles, waarbij wordt verdeeld naar rato van de woonregio factor.
+
+// Distribution by age and residence factor - per spec §3820-3825
+Regel Verdeling treinmiles op basis van leeftijd en woonregio factor
+    geldig altijd
+        Het totaal aantal treinmiles van een te verdelen contingent treinmiles wordt verdeeld over
+        de treinmiles op basis van evenredige verdeling van alle passagiers met recht op treinmiles van het te verdelen
+        contingent treinmiles, waarbij wordt verdeeld:
+        - op volgorde van toenemende de leeftijd,
+        - bij een even groot criterium naar rato van de woonregio factor.
+        Als onverdeelde rest blijft het restant na verdeling van het te verdelen contingent treinmiles over.
+
+// Distribution with maximum value - per spec §3854-3859
+Regel verdeling treinmiles met maximum waarde
+    geldig altijd
+        Het totaal aantal treinmiles van een te verdelen contingent treinmiles wordt verdeeld over
+        de treinmiles op basis van evenredige verdeling van alle passagiers met recht op treinmiles van het te verdelen
+        contingent treinmiles, waarbij wordt verdeeld:
+        - naar rato van de woonregio factor,
+        - met een maximum van het maximaal aantal te ontvangen treinmiles.
+        Als onverdeelde rest blijft het restant na verdeling van het te verdelen contingent treinmiles over.
+
+// Distribution with rounding - per spec §3872-3875
+Regel verdeling treinmiles met afronding
+    geldig altijd
+        Het totaal aantal treinmiles van een te verdelen contingent treinmiles wordt verdeeld over
+        de treinmiles op basis van evenredige verdeling van alle passagiers met recht op treinmiles van het te verdelen
+        contingent treinmiles, waarbij wordt verdeeld:
+        - naar rato van de woonregio factor,
+        - afgerond op 0 decimalen naar beneden.
+        Als onverdeelde rest blijft het restant na verdeling van het te verdelen contingent treinmiles over.
 
 // Complex distribution by age and residence with maximum and rounding - per spec lines 355-366
 Regel Verdeling treinmiles op basis van leeftijd, woonregio factor, met maximum waarde en afronding
@@ -211,6 +246,14 @@ Beslistabel Belasting op basis van reisduur
 | 2 | het percentage reisduur tweede schijf van zijn belasting op basis van afstand naar beneden afgerond op 0 decimalen | de bovengrens reisduur eerste schijf | de bovengrens reisduur tweede schijf |
 | 3 | het percentage reisduur derde schijf van zijn belasting op basis van afstand naar beneden afgerond op 0 decimalen | de bovengrens reisduur tweede schijf | n.v.t. |
 
+// Minderjarig kenmerk assignment - per spec lines 4437-4446
+Beslistabel Minderjarig
+    geldig altijd
+
+| | een passagier is minderjarig | indien zijn leeftijd kleiner is dan |
+|---|---|---|
+| 1 | waar | 18 jr |
+
 // ============================================================================
 // CHRISTMAS DAY DEFINITION
 // ============================================================================
@@ -234,7 +277,12 @@ Regel Verwachte datum-tijd van aankomst van een Vlucht
         De verwachte datum-tijd van aankomst van een vlucht moet berekend worden als de verwachte
         datum-tijd van vertrek van de vlucht plus de verwachte duur van de vlucht.
 
-// Calculate confirmation time  
+// Calculate timestamp for tax calculation - per spec §1818-1821
+Regel Datum-tijd voor het berekenen van de belasting op basis van afstand
+    geldig altijd
+        De datum-tijd voor het berekenen van de belasting op basis van afstand van een vlucht moet berekend worden als de eerste van de verwachte datum-tijd van vertrek van de vlucht en de daadwerkelijke datum-tijd van vertrek van de vlucht.
+
+// Calculate confirmation time
 Regel Bevestigingstijdstip vlucht
     geldig altijd
         Het bevestigingstijdstip van een vlucht moet berekend worden als de laatste van A en B.

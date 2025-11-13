@@ -5422,22 +5422,23 @@ class RegelSpraakModelBuilder(RegelSpraakVisitor):
                     operator = Operator.PLUS
                 elif op_ctx.MIN():
                     operator = Operator.MIN
-                elif op_ctx.VERENIGD_MET():
-                    operator = Operator.UNION
                 elif op_ctx.VERMINDERD_MET():
-                    operator = Operator.DIFFERENCE
+                    operator = Operator.VERMINDERD_MET
+                elif op_ctx.VERENIGD_MET():
+                    # VERENIGD_MET not supported in variabele expressions, skip it
+                    pass
                 op_index += 1
             
-            # Check if we have a multiplicative operator at this position  
+            # Check if we have a multiplicative operator at this position
             if operator is None and op_index - len(ctx.additiveOperator()) < len(ctx.multiplicativeOperator()):
                 mult_index = op_index - len(ctx.additiveOperator())
                 op_ctx = ctx.multiplicativeOperator(mult_index)
                 if op_ctx.MAAL():
-                    operator = Operator.MULTIPLY
+                    operator = Operator.MAAL
                 elif op_ctx.GEDEELD_DOOR():
-                    operator = Operator.DIVIDE
+                    operator = Operator.GEDEELD_DOOR
                 elif op_ctx.GEDEELD_DOOR_ABS():
-                    operator = Operator.DIVIDE_ABS
+                    operator = Operator.GEDEELD_DOOR_ABS
                 op_index += 1
                 
             if operator is None:
