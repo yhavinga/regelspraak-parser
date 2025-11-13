@@ -26,6 +26,7 @@
         "geboortedatum": "2010-05-20",
         "woonprovincie": "Friesland",
         "identificatienummer": 10001,
+        "maximaal aantal te ontvangen treinmiles": 300,
         "maximaal te ontvangen treinmiles bij evenredige verdeling volgens rangorde": 300
       },
       {
@@ -33,6 +34,7 @@
         "geboortedatum": "2003-08-15",
         "woonprovincie": "Utrecht",
         "identificatienummer": 10002,
+        "maximaal aantal te ontvangen treinmiles": 300,
         "maximaal te ontvangen treinmiles bij evenredige verdeling volgens rangorde": 300
       },
       {
@@ -40,6 +42,7 @@
         "geboortedatum": "1975-11-30",
         "woonprovincie": "Noord-Brabant",
         "identificatienummer": 10003,
+        "maximaal aantal te ontvangen treinmiles": 300,
         "maximaal te ontvangen treinmiles bij evenredige verdeling volgens rangorde": 300
       },
       {
@@ -47,6 +50,7 @@
         "geboortedatum": "1955-02-10",
         "woonprovincie": "Limburg",
         "identificatienummer": 10004,
+        "maximaal aantal te ontvangen treinmiles": 300,
         "maximaal te ontvangen treinmiles bij evenredige verdeling volgens rangorde": 300
       }
     ],

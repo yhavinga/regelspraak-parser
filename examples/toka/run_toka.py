@@ -189,6 +189,11 @@ class TOKARunner:
                 # Also set the shorter attribute name that distribution rules actually use
                 self.context.set_attribute(passenger, 'het maximaal aantal te ontvangen treinmiles',
                                           Value(passenger_data['maximaal te ontvangen treinmiles'], "Numeriek"))
+            elif 'maximaal te ontvangen treinmiles bij evenredige verdeling volgens rangorde' in passenger_data:
+                # Auto-fallback: when only the rangorde attribute is provided,
+                # also set the regular maximum to prevent spec violations
+                self.context.set_attribute(passenger, 'het maximaal aantal te ontvangen treinmiles',
+                                          Value(passenger_data['maximaal te ontvangen treinmiles bij evenredige verdeling volgens rangorde'], "Numeriek"))
 
             # Also set the longer attribute for ordered distribution if provided
             if 'maximaal te ontvangen treinmiles bij evenredige verdeling volgens rangorde' in passenger_data:

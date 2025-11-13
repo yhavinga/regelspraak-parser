@@ -7834,53 +7834,92 @@ class Evaluator:
     
     def _create_full_day_counts_timeline(self, period_type: str) -> TimelineValue:
         """Create a timeline with full day counts for each period."""
-        from datetime import date
+        from datetime import date, datetime
         import calendar
-        
-        # Create a simple timeline for demonstration
-        # In practice, this would need proper period boundaries
+
+        # Get evaluation date from context
+        reference_date = self.context.evaluation_date or self.context.get_rekendatum()
+        if reference_date is None:
+            raise RegelspraakError("Function 'aantal_dagen_in' requires evaluation_date or rekendatum for timeline output")
+
+        # Normalize to date if datetime
+        if isinstance(reference_date, datetime):
+            reference_date = reference_date.date()
+
         periods = []
         if period_type == "maand":
-            # Just return current month for now
-            today = date.today()
-            days_in_month = calendar.monthrange(today.year, today.month)[1]
+            # Use evaluation context month
+            period_start = date(reference_date.year, reference_date.month, 1)
+            # Calculate end as first day of next month
+            if reference_date.month == 12:
+                period_end = date(reference_date.year + 1, 1, 1)
+            else:
+                period_end = date(reference_date.year, reference_date.month + 1, 1)
+
+            # Get days in this month
+            days_in_month = calendar.monthrange(reference_date.year, reference_date.month)[1]
+
             periods.append(Period(
-                start_date=date(today.year, today.month, 1),
-                end_date=date(today.year, today.month + 1, 1) if today.month < 12 else date(today.year + 1, 1, 1),
+                start_date=period_start,
+                end_date=period_end,
                 value=Value(value=Decimal(days_in_month), datatype="Numeriek", unit=f"dagen per {period_type}")
             ))
         else:  # jaar
-            today = date.today()
-            days_in_year = 366 if calendar.isleap(today.year) else 365
+            # Use evaluation context year
+            period_start = date(reference_date.year, 1, 1)
+            period_end = date(reference_date.year + 1, 1, 1)
+
+            # Calculate days in year
+            days_in_year = 366 if calendar.isleap(reference_date.year) else 365
+
             periods.append(Period(
-                start_date=date(today.year, 1, 1),
-                end_date=date(today.year + 1, 1, 1),
+                start_date=period_start,
+                end_date=period_end,
                 value=Value(value=Decimal(days_in_year), datatype="Numeriek", unit=f"dagen per {period_type}")
             ))
-        
+
         timeline = Timeline(periods=periods, granularity=period_type)
         return TimelineValue(timeline=timeline)
     
     def _create_zero_counts_timeline(self, period_type: str) -> TimelineValue:
         """Create a timeline with zero counts for each period."""
-        from datetime import date
-        
-        # Create a simple timeline with zero values
+        from datetime import date, datetime
+
+        # Get evaluation date from context - must match _create_full_day_counts_timeline
+        reference_date = self.context.evaluation_date or self.context.get_rekendatum()
+        if reference_date is None:
+            raise RegelspraakError("Function 'aantal_dagen_in' requires evaluation_date or rekendatum for timeline output")
+
+        # Normalize to date if datetime
+        if isinstance(reference_date, datetime):
+            reference_date = reference_date.date()
+
         periods = []
-        today = date.today()
         if period_type == "maand":
+            # Use evaluation context month - same boundaries as full counts timeline
+            period_start = date(reference_date.year, reference_date.month, 1)
+            # Calculate end as first day of next month
+            if reference_date.month == 12:
+                period_end = date(reference_date.year + 1, 1, 1)
+            else:
+                period_end = date(reference_date.year, reference_date.month + 1, 1)
+
             periods.append(Period(
-                start_date=date(today.year, today.month, 1),
-                end_date=date(today.year, today.month + 1, 1) if today.month < 12 else date(today.year + 1, 1, 1),
+                start_date=period_start,
+                end_date=period_end,
                 value=Value(value=Decimal(0), datatype="Numeriek", unit=f"dagen per {period_type}")
             ))
         else:  # jaar
+            # Use evaluation context year - same boundaries as full counts timeline
+            period_start = date(reference_date.year, 1, 1)
+            period_end = date(reference_date.year + 1, 1, 1)
+
             periods.append(Period(
-                start_date=date(today.year, 1, 1),
-                end_date=date(today.year + 1, 1, 1),
+                start_date=period_start,
+                end_date=period_end,
                 value=Value(value=Decimal(0), datatype="Numeriek", unit=f"dagen per {period_type}")
             ))
-        
+
         timeline = Timeline(periods=periods, granularity=period_type)
         return TimelineValue(timeline=timeline)
     
