@@ -5865,17 +5865,23 @@ class Evaluator:
         if not isinstance(date_val, (date, datetime)):
             return False
             
-        # Find all rules that define this dagsoort
-        dagsoort_rules = []
-        for regel in self.context.domain_model.regels:
-            if isinstance(regel.resultaat, Dagsoortdefinitie) and \
-               regel.resultaat.dagsoort_naam.lower() == dagsoort_name.lower():
-                dagsoort_rules.append(regel)
-        
+        # Get pre-indexed dagsoort rules from RuntimeContext (O(1) lookup)
+        dagsoort_rules = self.context.get_dagsoort_rules(dagsoort_name)
+
         if not dagsoort_rules:
-            # No definition found for this dagsoort
-            logger.warning(f"No dagsoort definition found for '{dagsoort_name}'")
-            return False
+            # No definition found for this dagsoort - check for backward compatibility
+            # by scanning all rules (this should be rare in normal usage)
+            normalized_name = self.context.normalize_dagsoort_name(dagsoort_name)
+            dagsoort_rules = []
+            for regel in self.context.domain_model.regels:
+                if isinstance(regel.resultaat, Dagsoortdefinitie):
+                    regel_normalized = self.context.normalize_dagsoort_name(regel.resultaat.dagsoort_naam)
+                    if regel_normalized == normalized_name:
+                        dagsoort_rules.append(regel)
+
+            if not dagsoort_rules:
+                logger.warning(f"No dagsoort definition found for '{dagsoort_name}'")
+                return False
         
         # Store original context state
         original_instance = self.context.current_instance

@@ -218,6 +218,14 @@ class Relationship:
     preposition: str  # "MET" or "TOT"
     # Additional metadata could be added here
 
+
+@dataclass
+class DagsoortDefinitionRuntime:
+    """Runtime representation of a dagsoort definition with its associated rules."""
+    naam: str  # Canonical name (normalized, without articles)
+    original_naam: str  # Original name as defined in the source
+    regels: List[ast.Regel]  # Rules that define this dagsoort
+
 @dataclass
 class RuntimeContext:
     """Container for the runtime state during execution."""
@@ -246,6 +254,8 @@ class RuntimeContext:
     inconsistent_rules: Set[str] = field(default_factory=set)  # Consistency rules that found inconsistencies
     # Configurable maximum iterations for recursive rule groups (spec §9.9)
     max_recursion_iterations: int = 100
+    # Dagsoort persistence - pre-indexed rules for O(1) lookup
+    dagsoort_definitions: Dict[str, DagsoortDefinitionRuntime] = field(default_factory=dict)
 
     def __post_init__(self):
         """Initialize runtime context with domain model data."""
@@ -371,6 +381,46 @@ class RuntimeContext:
 
                 # Add the system to the registry, potentially replacing defaults
                 self.unit_registry.add_system(unit_system)
+
+        # Initialize dagsoort pre-indexed rules from domain model
+        if self.domain_model and hasattr(self.domain_model, 'regels'):
+            # Helper to normalize dagsoort names (strip articles, lowercase)
+            def normalize_dagsoort_name(name: str) -> str:
+                """Normalize dagsoort name by removing articles and lowercasing."""
+                name_lower = name.lower()
+                for article in ['de ', 'het ', 'een ']:
+                    if name_lower.startswith(article):
+                        name = name[len(article):]
+                        break
+                return name.lower()
+
+            # Group rules by dagsoort name
+            dagsoort_rules: Dict[str, List[ast.Regel]] = {}
+            for regel in self.domain_model.regels:
+                # Check if this rule defines a dagsoort
+                if regel.resultaat and hasattr(regel.resultaat, '__class__'):
+                    if regel.resultaat.__class__.__name__ == 'Dagsoortdefinitie':
+                        # This rule defines a dagsoort
+                        if hasattr(regel.resultaat, 'dagsoort_naam'):
+                            original_name = regel.resultaat.dagsoort_naam
+                            normalized_name = normalize_dagsoort_name(original_name)
+
+                            if normalized_name not in dagsoort_rules:
+                                dagsoort_rules[normalized_name] = []
+                            dagsoort_rules[normalized_name].append(regel)
+
+            # Create DagsoortDefinitionRuntime objects
+            for normalized_name, regels in dagsoort_rules.items():
+                # Use the original name from the first regel for the original_naam field
+                original_name = regels[0].resultaat.dagsoort_naam if regels else normalized_name
+
+                definition = DagsoortDefinitionRuntime(
+                    naam=normalized_name,
+                    original_naam=original_name,
+                    regels=regels
+                )
+
+                self.dagsoort_definitions[normalized_name] = definition
 
     # --- Rekendatum Methods ---
 
@@ -516,6 +566,23 @@ class RuntimeContext:
     def is_rule_inconsistent(self, regel_naam: str) -> bool:
         """Check if a consistency rule found an inconsistency."""
         return regel_naam in self.inconsistent_rules
+
+    # --- Dagsoort Helper Methods ---
+
+    def normalize_dagsoort_name(self, name: str) -> str:
+        """Normalize dagsoort name by removing articles and lowercasing."""
+        name_lower = name.lower()
+        for article in ['de ', 'het ', 'een ']:
+            if name_lower.startswith(article):
+                name = name[len(article):]
+                break
+        return name.lower()
+
+    def get_dagsoort_rules(self, name: str) -> Optional[List[ast.Regel]]:
+        """Get pre-indexed rules for a dagsoort by normalized name."""
+        normalized_name = self.normalize_dagsoort_name(name)
+        definition = self.dagsoort_definitions.get(normalized_name)
+        return definition.regels if definition else None
 
     # --- Variable Handling (Rule Scope) ---
 
