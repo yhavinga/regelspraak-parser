@@ -2081,10 +2081,8 @@ class Evaluator:
                     instance_id=self.context.current_instance.instance_id if self.context.current_instance else None
                 ))
             
-            # TODO: Implement actual day type storage mechanism
-            # For now, we'll just mark this day instance as being of this type
-            # This would typically involve storing the day type as a kenmerk or attribute
-            
+            # Dagsoort definitions are evaluated on-demand via _dagsoort_check()
+            # No storage needed - the regel defines the condition that's checked dynamically
         else:
             # Use RegelspraakError instead of NotImplementedError with keyword args
             raise RegelspraakError(f"Applying result for type {type(res)} not implemented", span=res.span)
