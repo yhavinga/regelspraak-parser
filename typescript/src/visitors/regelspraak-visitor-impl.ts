@@ -170,7 +170,13 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
 
   visitExpressie(ctx: ExpressieContext): Expression {
     // The expressie rule just delegates to logicalExpression
-    return this.visit(ctx.logicalExpression());
+    // TypeScript might not have the method typed correctly
+    const logicalExpr = (ctx as any).logicalExpression ? (ctx as any).logicalExpression() : null;
+    if (logicalExpr) {
+      return this.visit(logicalExpr);
+    }
+    // Fallback to visiting children
+    return this.visitChildren(ctx);
   }
 
   visitLogicalExpr(ctx: LogicalExprContext): Expression {
@@ -3320,6 +3326,291 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
     return node;
   }
 
+  // ========== Noun Visitor Methods ==========
+  // Critical for TOKA support - handles compound nouns with articles and prepositions
+
+  visitNaamwoord(ctx: any): string {
+    // Process all parts of the naamwoord according to grammar:
+    // naamwoord : naamPhrase ( voorzetsel naamPhrase )*
+    const allParts: string[] = [];
+
+    // Process the complete structure
+    const childCount = ctx.getChildCount ? ctx.getChildCount() : 0;
+    for (let i = 0; i < childCount; i++) {
+      const child = ctx.getChild(i);
+
+      if (child.constructor.name === 'NaamPhraseContext') {
+        // Process naam phrase - extract text without articles
+        const phraseParts: string[] = [];
+        const phraseChildCount = child.getChildCount ? child.getChildCount() : 0;
+
+        for (let j = 0; j < phraseChildCount; j++) {
+          const subchild = child.getChild(j);
+          if (subchild.getText) {
+            const text = subchild.getText();
+            // Skip articles (both lowercase and capitalized)
+            if (!['de', 'het', 'een', 'De', 'Het', 'Een'].includes(text)) {
+              phraseParts.push(text);
+            }
+          } else if (subchild.constructor.name === 'IdentifierOrKeywordContext') {
+            const text = this.extractText(subchild);
+            // Skip capitalized articles that were parsed as identifiers
+            if (!['de', 'het', 'een'].includes(text.toLowerCase())) {
+              phraseParts.push(text);
+            }
+          }
+        }
+
+        if (phraseParts.length > 0) {
+          allParts.push(phraseParts.join(' '));
+        }
+      } else if (child.constructor.name === 'VoorzetselContext') {
+        // Add the preposition
+        allParts.push(this.extractText(child));
+      }
+    }
+
+    // Join all parts with spaces
+    return allParts.length > 0 ? allParts.join(' ') : this.extractTextWithSpaces(ctx);
+  }
+
+  visitNaamwoordWithNumbers(ctx: any): string {
+    // Process all parts of the naamwoordWithNumbers according to grammar:
+    // naamwoordWithNumbers : naamPhraseWithNumbers ( voorzetsel naamPhraseWithNumbers )*
+    const allParts: string[] = [];
+
+    // Process the complete structure
+    const childCount = ctx.getChildCount ? ctx.getChildCount() : 0;
+    for (let i = 0; i < childCount; i++) {
+      const child = ctx.getChild(i);
+
+      if (child.constructor.name === 'NaamPhraseWithNumbersContext') {
+        // Process naam phrase - extract text without articles
+        const phraseParts: string[] = [];
+        const phraseChildCount = child.getChildCount ? child.getChildCount() : 0;
+
+        for (let j = 0; j < phraseChildCount; j++) {
+          const subchild = child.getChild(j);
+          if (subchild.getText) {
+            const text = subchild.getText();
+            // Skip articles (both lowercase and capitalized)
+            if (!['de', 'het', 'een', 'De', 'Het', 'Een'].includes(text)) {
+              phraseParts.push(text);
+            }
+          } else if (subchild.constructor.name === 'IdentifierOrKeywordWithNumbersContext' ||
+                     subchild.constructor.name === 'IdentifierOrKeywordContext') {
+            const text = this.extractText(subchild);
+            // Skip capitalized articles that were parsed as identifiers
+            if (!['de', 'het', 'een'].includes(text.toLowerCase())) {
+              phraseParts.push(text);
+            }
+          }
+        }
+
+        if (phraseParts.length > 0) {
+          allParts.push(phraseParts.join(' '));
+        }
+      } else if (child.constructor.name === 'VoorzetselContext') {
+        // Add the preposition
+        allParts.push(this.extractText(child));
+      }
+    }
+
+    // Join all parts with spaces
+    return allParts.length > 0 ? allParts.join(' ') : this.extractTextWithSpaces(ctx);
+  }
+
+  visitNaamwoordNoIs(ctx: any): string {
+    // First, get the complete text without articles to check if it's a known attribute
+    const completeTextParts: string[] = [];
+    const childCount = ctx.getChildCount ? ctx.getChildCount() : 0;
+
+    for (let i = 0; i < childCount; i++) {
+      const child = ctx.getChild(i);
+      if (child.constructor.name === 'NaamPhraseNoIsContext') {
+        const phraseChildCount = child.getChildCount ? child.getChildCount() : 0;
+        for (let j = 0; j < phraseChildCount; j++) {
+          const subchild = child.getChild(j);
+          if (subchild.getText) {
+            const text = subchild.getText();
+            // Skip articles
+            if (!['de', 'het', 'een', 'De', 'Het', 'Een'].includes(text)) {
+              completeTextParts.push(text);
+            }
+          } else if (subchild.constructor.name === 'IdentifierOrKeywordNoIsContext') {
+            const text = this.extractText(subchild);
+            if (!['de', 'het', 'een'].includes(text.toLowerCase())) {
+              completeTextParts.push(text);
+            }
+          }
+        }
+      } else if (child.constructor.name === 'VoorzetselContext') {
+        completeTextParts.push(this.extractText(child));
+      }
+    }
+
+    const completeText = completeTextParts.join(' ');
+
+    // For now, skip the domain model check and proceed with truncation logic
+    // This can be enhanced later when domain model is properly integrated
+
+    // Process with truncation logic for navigation
+    const allParts: string[] = [];
+    const navigationIndicators = ['de', 'het', 'alle', 'een', 'zijn', 'haar', 'hun'];
+    let stopAtNavigation = false;
+
+    // Process the complete structure
+    for (let i = 0; i < childCount; i++) {
+      const child = ctx.getChild(i);
+
+      if (child.constructor.name === 'NaamPhraseNoIsContext') {
+        // Check if this phrase starts with a navigation indicator
+        let hasNavIndicator = false;
+        let firstToken: string | null = null;
+
+        const phraseChildCount = child.getChildCount ? child.getChildCount() : 0;
+        for (let j = 0; j < phraseChildCount; j++) {
+          const subchild = child.getChild(j);
+          if (subchild.getText) {
+            const tokenText = subchild.getText().toLowerCase();
+            if (firstToken === null) {
+              firstToken = tokenText;
+            }
+            if (navigationIndicators.includes(tokenText)) {
+              hasNavIndicator = true;
+              break;
+            }
+          } else if (subchild.constructor.name === 'IdentifierOrKeywordNoIsContext' && firstToken === null) {
+            firstToken = this.extractText(subchild).toLowerCase();
+          }
+        }
+
+        // If we've seen a voorzetsel and this phrase starts with navigation indicator, stop
+        if (i > 0 && hasNavIndicator) {
+          stopAtNavigation = true;
+          break;
+        }
+
+        // Process naam phrase - extract text without articles
+        const phraseParts: string[] = [];
+        for (let j = 0; j < phraseChildCount; j++) {
+          const subchild = child.getChild(j);
+          if (subchild.getText) {
+            const text = subchild.getText();
+            // Skip articles
+            if (!['de', 'het', 'een', 'De', 'Het', 'Een'].includes(text)) {
+              phraseParts.push(text);
+            }
+          } else if (subchild.constructor.name === 'IdentifierOrKeywordNoIsContext') {
+            const text = this.extractText(subchild);
+            // Skip capitalized articles that were parsed as identifiers
+            if (!['de', 'het', 'een'].includes(text.toLowerCase())) {
+              phraseParts.push(text);
+            }
+          }
+        }
+
+        if (phraseParts.length > 0) {
+          allParts.push(phraseParts.join(' '));
+        }
+      } else if (child.constructor.name === 'VoorzetselContext') {
+        // Check if the next naamPhrase starts with navigation indicator
+        if (i + 1 < childCount) {
+          const nextChild = ctx.getChild(i + 1);
+          if (nextChild.constructor.name === 'NaamPhraseNoIsContext') {
+            // Check if it starts with navigation indicator
+            const nextChildCount = nextChild.getChildCount ? nextChild.getChildCount() : 0;
+            for (let j = 0; j < nextChildCount; j++) {
+              const subchild = nextChild.getChild(j);
+              if (subchild.getText) {
+                const tokenText = subchild.getText().toLowerCase();
+                if (navigationIndicators.includes(tokenText)) {
+                  stopAtNavigation = true;
+                  break;
+                }
+              }
+              break; // Only check first token
+            }
+          }
+        }
+
+        if (stopAtNavigation) {
+          break;
+        }
+
+        // Add the preposition
+        allParts.push(this.extractText(child));
+      }
+    }
+
+    // Join all parts with spaces
+    return allParts.length > 0 ? allParts.join(' ') : this.extractTextWithSpaces(ctx);
+  }
+
+  visitSimpleNaamwoord(ctx: any): string {
+    // simpleNaamwoord : naamPhrase
+    const naamPhraseCtx = ctx.naamPhrase ? ctx.naamPhrase() : null;
+    if (naamPhraseCtx) {
+      // Process naam phrase - extract text without articles
+      const phraseParts: string[] = [];
+      const childCount = naamPhraseCtx.getChildCount ? naamPhraseCtx.getChildCount() : 0;
+
+      for (let i = 0; i < childCount; i++) {
+        const child = naamPhraseCtx.getChild(i);
+        if (child.getText) {
+          const tokenText = child.getText();
+          // Skip articles at the beginning of phrases
+          if (!['de', 'het', 'een', 'De', 'Het', 'Een', 'zijn', 'Zijn'].includes(tokenText)) {
+            phraseParts.push(tokenText);
+          }
+        } else {
+          // Non-terminal nodes (like identifierOrKeyword)
+          phraseParts.push(this.extractText(child));
+        }
+      }
+
+      return phraseParts.length > 0 ? phraseParts.join(' ') : this.extractTextWithSpaces(ctx);
+    }
+
+    return this.extractTextWithSpaces(ctx);
+  }
+
+  // ========== Expression Wrapper Methods ==========
+
+  visitNaamwoordExpr(ctx: any): any {
+    const naamwoordCtx = ctx.naamwoord ? ctx.naamwoord() : null;
+    if (naamwoordCtx) {
+      const text = this.visitNaamwoord(naamwoordCtx);
+      return { type: 'StringLiteral', value: text };
+    }
+    // Fallback to text extraction
+    return { type: 'StringLiteral', value: this.extractTextWithSpaces(ctx) };
+  }
+
+  visitParamRefExpr(ctx: any): any {
+    const paramCtx = ctx.parameterMetLidwoord ? ctx.parameterMetLidwoord() : null;
+    if (!paramCtx) {
+      throw new Error('Expected parameterMetLidwoord in ParamRefExpr');
+    }
+
+    let paramName: string;
+
+    if (paramCtx.naamwoord && paramCtx.naamwoord()) {
+      // Simple case: just a naamwoord
+      paramName = this.visitNaamwoord(paramCtx.naamwoord());
+    } else {
+      // Complex case: parameter with prepositions
+      const fullText = this.extractTextWithSpaces(paramCtx);
+      // Remove leading articles
+      paramName = this._stripArticle(fullText);
+    }
+
+    return {
+      type: 'VariableReference',  // TypeScript uses VariableReference for parameters
+      variableName: paramName
+    };
+  }
+
   // Default visitor - fall back to visitChildren
   visitChildren(node: any): any {
     if (!node.children || node.children.length === 0) {
@@ -3358,9 +3649,13 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
     if (node.children.length === 1) {
       return this.visit(node.children[0]);
     }
-    
-    // Multiple children - not sure what to do
-    throw new Error(`Don't know how to handle ${node.constructor.name} with ${node.children.length} children`);
+
+    // Multiple children - try text extraction as fallback before giving up
+    const text = this.extractTextWithSpaces(node);
+    console.warn(`Unhandled ${node.constructor.name} with ${node.children.length} children - using text fallback: "${text}"`);
+
+    // Return as string literal for now - better than crashing
+    return { type: 'StringLiteral', value: text };
   }
   
   visitConsistentieregel(ctx: any): any {
