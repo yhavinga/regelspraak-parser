@@ -1290,44 +1290,105 @@ class RuntimeContext:
         
         return False
 
-    def check_is(self, instance: RuntimeObject, kenmerk_or_type: str) -> bool:
-        """Handles the 'IS' operator for type, kenmerk, or role checks."""
+    def check_is(self, instance: RuntimeObject, kenmerk_or_type: str, evaluation_date: Optional[datetime] = None) -> bool:
+        """Handles the 'IS' operator for type, kenmerk (including timeline), or role checks.
+
+        Args:
+            instance: The object instance to check
+            kenmerk_or_type: The kenmerk name, type name, or role name to check for
+            evaluation_date: Optional date for timeline kenmerk evaluation (defaults to context's evaluation_date)
+        """
         if instance is None:
             raise RuntimeError("'IS' operator requires a valid object instance on the left.")
-            
+
+        # Use provided evaluation_date or fall back to context's evaluation_date
+        date_to_use = evaluation_date or self.evaluation_date
+
         # Is it a defined kenmerk for this object type?
         obj_type_def = self.domain_model.objecttypes.get(instance.object_type_naam)
         if obj_type_def and kenmerk_or_type in obj_type_def.kenmerken:
+            # Check if it's a timeline kenmerk
+            if kenmerk_or_type in instance.timeline_kenmerken:
+                # Timeline kenmerken require an evaluation date
+                if not date_to_use:
+                    raise RuntimeError(
+                        f"Timeline kenmerk '{kenmerk_or_type}' requires evaluation_date to be set. "
+                        f"Per specification §10.3, temporal context must be explicit."
+                    )
+                # Get the timeline value at the evaluation date
+                timeline_val = instance.timeline_kenmerken[kenmerk_or_type]
+                if timeline_val:
+                    val = timeline_val.get_value_at(date_to_use)
+                    return bool(val.value) if val else False
+            # Regular kenmerk check
             return self.get_kenmerk(instance, kenmerk_or_type)
-        
+
         # Is it a type check? (Simple name comparison for now)
         # TODO: Handle inheritance / subtyping if added later
         elif kenmerk_or_type == instance.object_type_naam:
              return True
-        
+
         # Is it a role check? (spec section 8.1.7 - rolcheck)
         elif self.instance_has_role(instance, kenmerk_or_type):
             return True
-             
+
         else:
              # Not a kenmerk, type, or role - return False
              return False
 
-    def check_in(self, value: Any, collection_expr: Any) -> bool:
-        """Handles the 'IN' operator for membership checks (basic implementation)."""
-        # The right side needs to be evaluated to a collection (list, set, range?)
-        # The 'collection_expr' here is likely an AST node that needs evaluation,
-        # this method might need restructuring or be called from the evaluator differently.
-        # Assuming 'collection' is already the evaluated Python collection:
-        collection = collection_expr # Placeholder - Needs actual evaluation result
-        
-        if isinstance(collection, (list, set, tuple, range)):
+    def check_in(self, value: Any, collection: Any) -> bool:
+        """Handles the 'IN' operator for membership checks with proper Value handling.
+
+        Args:
+            value: The value to check for membership (can be raw value or Value object)
+            collection: The collection to check against (can be list, set, tuple, range, or Value wrapping a collection)
+        """
+        # Unwrap Value objects
+        if isinstance(value, Value):
+            value = value.value
+
+        if isinstance(collection, Value):
+            collection = collection.value
+
+        # Handle different collection types
+        if isinstance(collection, (list, set, tuple)):
+            # For collections of Values, we need to compare the inner values
+            for item in collection:
+                item_val = item.value if isinstance(item, Value) else item
+                if value == item_val:
+                    return True
+            return False
+        elif isinstance(collection, range):
+            # Range works with raw values
             return value in collection
         elif isinstance(collection, dict):
-             return value in collection # Check keys by default? Or values? Assume keys.
-        # TODO: Handle Domein enumerations?
+            # Check dictionary keys
+            for key in collection.keys():
+                key_val = key.value if isinstance(key, Value) else key
+                if value == key_val:
+                    return True
+            return False
+        elif isinstance(collection, str):
+            # First check if it's a domain name (enumeration)
+            if self.domain_model:
+                domain_def = self.domain_model.domeinen.get(collection)
+                if domain_def and hasattr(domain_def, 'enumeratie_waarden') and domain_def.enumeratie_waarden:
+                    # It's a domain with enumeration values
+                    # Check if the value is in the enumeration
+                    for enum_val in domain_def.enumeratie_waarden:
+                        # enum_val is a string from the enumeration list
+                        # Strip quotes if present (enumerations are stored as "'VALUE'")
+                        enum_str = str(enum_val)
+                        if enum_str.startswith("'") and enum_str.endswith("'"):
+                            enum_str = enum_str[1:-1]
+                        if str(value) == enum_str:
+                            return True
+                    return False
+            # Otherwise, treat as string containment check
+            return str(value) in collection
         else:
-            raise RuntimeError(f"'IN' operator requires a collection (list, set, dict keys, range) on the right, got {type(collection)}.")
+            # Not a recognized collection type
+            raise RuntimeError(f"'IN' operator requires a collection (list, set, tuple, range, dict, string) or domain enumeration on the right, got {type(collection)}.")
 
 
 # --- Helper for defaultdict ---

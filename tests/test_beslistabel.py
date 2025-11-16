@@ -6,6 +6,7 @@ from regelspraak.parsing import parse_text
 from regelspraak.engine import Evaluator
 from regelspraak.runtime import RuntimeContext, RuntimeObject, Value
 from regelspraak.beslistabel_parser import BeslistabelParser
+from regelspraak.errors import RuntimeError as RegelSpraakRuntimeError
 from decimal import Decimal
 
 class TestBeslistabel(unittest.TestCase):
@@ -262,6 +263,122 @@ class TestBeslistabel(unittest.TestCase):
         # self.assertEqual(factor1.value, 1)
         # factor2 = context.get_attribute(person2, "woonregio factor")
         # self.assertEqual(factor2.value, 3)
+
+    def test_beslistabel_with_timeline_kenmerk(self):
+        """Test that timeline kenmerken in decision tables use unified check_is path."""
+        # This test verifies that the runtime check_is method is properly handling
+        # timeline kenmerken when called from decision table evaluation
+
+        from datetime import datetime
+        from regelspraak.runtime import TimelineValue
+        from regelspraak.ast import Timeline, Period
+
+        # Create a simple model with timeline kenmerk
+        regelspraak_code = """
+        Objecttype Natuurlijk persoon
+            de naam Tekst;
+            is minderjarig kenmerk (bijvoeglijk) voor elke dag;
+        """
+
+        model = parse_text(regelspraak_code)
+        context = RuntimeContext(model)
+
+        # Create test person with timeline kenmerk
+        person = RuntimeObject(object_type_naam="Natuurlijk persoon", instance_id="p1")
+        context.add_object(person)
+
+        # Create timeline where person is minderjarig until 2023-01-01
+        periods = [
+            Period(
+                start_date=datetime(2020, 1, 1),
+                end_date=datetime(2023, 1, 1),
+                value=Value(value=True, datatype="Boolean")
+            ),
+            Period(
+                start_date=datetime(2023, 1, 1),
+                end_date=datetime(2025, 1, 1),
+                value=Value(value=False, datatype="Boolean")
+            )
+        ]
+        timeline = Timeline(periods=periods, granularity="dag")
+        timeline_value = TimelineValue(timeline=timeline)
+        person.timeline_kenmerken["minderjarig"] = timeline_value
+
+        # Test 1: check_is with evaluation date when minderjarig is True
+        context.evaluation_date = datetime(2022, 6, 15)
+        result = context.check_is(person, "minderjarig", evaluation_date=context.evaluation_date)
+        self.assertTrue(result, "Timeline kenmerk should be True at 2022-06-15")
+
+        # Test 2: check_is with evaluation date when minderjarig is False
+        context.evaluation_date = datetime(2024, 1, 1)
+        result = context.check_is(person, "minderjarig", evaluation_date=context.evaluation_date)
+        self.assertFalse(result, "Timeline kenmerk should be False at 2024-01-01")
+
+        # Test 3: check_is without evaluation_date should raise error
+        context.evaluation_date = None
+        with self.assertRaises(RegelSpraakRuntimeError) as cm:
+            context.check_is(person, "minderjarig")
+        self.assertIn("evaluation_date", str(cm.exception))
+        self.assertIn("Timeline kenmerk", str(cm.exception))
+
+    def test_beslistabel_timeline_kenmerk_missing_evaluation_date(self):
+        """Test that decision table with timeline kenmerk raises error without evaluation_date."""
+        regelspraak_code = """
+        Objecttype Natuurlijk persoon
+            de naam Tekst;
+            is minderjarig kenmerk (bijvoeglijk) voor elke dag;
+            de korting Percentage;
+
+        Beslistabel Kortingen
+            geldig altijd
+        |   | de korting van een Natuurlijk persoon moet gesteld worden op | indien hij minderjarig is |
+        |---|---------------------------------------------------------------|---------------------------|
+        | 1 | 50 procent                                                    | waar                      |
+        | 2 | 0 procent                                                     | onwaar                    |
+        """
+
+        # Parse the code
+        model = parse_text(regelspraak_code)
+        context = RuntimeContext(model)
+
+        # Create test person with timeline kenmerk
+        from datetime import datetime
+        from regelspraak.runtime import TimelineValue
+        from regelspraak.ast import Timeline, Period
+
+        person = RuntimeObject(object_type_naam="Natuurlijk persoon", instance_id="p1")
+        context.add_object(person)
+        context.set_attribute(person, "naam", Value("Jan", datatype="Tekst"))
+
+        # Create timeline kenmerk
+        periods = [
+            Period(
+                start_date=datetime(2020, 1, 1),
+                end_date=datetime(2025, 1, 1),
+                value=Value(value=True, datatype="Boolean")
+            )
+        ]
+        timeline = Timeline(periods=periods, granularity="dag")
+        timeline_value = TimelineValue(timeline=timeline)
+        person.timeline_kenmerken["minderjarig"] = timeline_value
+
+        # Clear evaluation_date
+        context.evaluation_date = None
+
+        # Execute should raise error for timeline kenmerk without evaluation_date
+        evaluator = Evaluator(context)
+
+        # The engine might log the error rather than propagating it
+        # So we check execution completes but with appropriate error handling
+        try:
+            results = evaluator.execute_model(model)
+            # If no exception, verify the korting wasn't set due to error
+            korting_value = person.attributen.get("korting")
+            # The attribute should not be set because timeline kenmerk evaluation failed
+            self.assertIsNone(korting_value)
+        except RegelSpraakRuntimeError as e:
+            # This is expected - timeline kenmerk requires evaluation_date
+            self.assertIn("evaluation_date", str(e))
 
 
 if __name__ == "__main__":

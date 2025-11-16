@@ -3724,217 +3724,14 @@ class Evaluator:
         
         op = expr.operator
 
-        # Handle IS and IN specially as they return boolean values
-        if op == Operator.IS:
-            # Right side should be a kenmerk name (string) or type name (string)
-            right_val = self._evaluate_expression_non_timeline(expr.right)
-            if not isinstance(right_val.value, str):
-                raise RegelspraakError(f"Right side of 'IS' must evaluate to a string (kenmerk/type name), got {type(right_val.value)}", span=expr.right.span)
-            
-            # For IS operator, we need the actual object instance
-            # If left_val is an object reference, use that object
-            if left_val.datatype == "ObjectReference" and isinstance(left_val.value, RuntimeObject):
-                instance = left_val.value
-            else:
-                instance = self.context.current_instance  # Default to current instance
-            
-            if instance is None:
-                raise RegelspraakError("Could not determine object instance for 'IS' check.", span=expr.left.span)
-            
-            kenmerk_name = right_val.value
-            
-            # Check if this is a timeline kenmerk
-            if instance and kenmerk_name in instance.timeline_kenmerken:
-                # Get the timeline value at the current evaluation date
-                timeline_val = instance.timeline_kenmerken[kenmerk_name]
-                if self.context.evaluation_date:
-                    val = timeline_val.get_value_at(self.context.evaluation_date)
-                    bool_result = val.value if val else False
-                else:
-                    # Timeline kenmerk requires evaluation date
-                    raise RegelspraakError(
-                        f"Timeline kenmerk '{kenmerk_name}' requires evaluation_date to be set. "
-                        f"Per specification §10.3, temporal context must be explicit.",
-                        span=expr.span
-                    )
-            else:
-                # Regular kenmerk or type check
-                bool_result = self.context.check_is(instance, right_val.value)
-            return Value(value=bool_result, datatype="Boolean", unit=None)
+        # Handle IS family operators (IS, IN, IS_NIET, HEEFT, HEEFT_NIET) in a unified way
+        is_family_result = self._evaluate_is_family_operators(op, left_val, expr.right,
+                                                             self._evaluate_expression_non_timeline, expr.span)
+        if is_family_result is not None:
+            return is_family_result
 
-        elif op == Operator.IN:
-            right_val = self._evaluate_expression_non_timeline(expr.right)
-            # Extract raw values for IN check
-            left_raw = left_val.value if isinstance(left_val, Value) else left_val
-            right_raw = right_val.value if isinstance(right_val, Value) else right_val
-            bool_result = self.context.check_in(left_raw, right_raw)
-            return Value(value=bool_result, datatype="Boolean", unit=None)
-            
-        elif op == Operator.IS_NIET:
-            # Right side should be a kenmerk name (string) or type name (string)
-            right_val = self._evaluate_expression_non_timeline(expr.right)
-            if not isinstance(right_val.value, str):
-                raise RegelspraakError(f"Right side of 'IS_NIET' must evaluate to a string (kenmerk/type name), got {type(right_val.value)}", span=expr.right.span)
-            # Determine instance for IS_NIET check
-            instance = self.context.current_instance
-            if not instance:
-                raise RegelspraakError("Could not determine object instance for 'IS_NIET' check.", span=expr.left.span)
-            
-            kenmerk_name = right_val.value
-            
-            # Check if this is a timeline kenmerk
-            if instance and kenmerk_name in instance.timeline_kenmerken:
-                # Get the timeline value at the current evaluation date
-                timeline_val = instance.timeline_kenmerken[kenmerk_name]
-                if self.context.evaluation_date:
-                    val = timeline_val.get_value_at(self.context.evaluation_date)
-                    bool_result = not (val.value if val else False)
-                else:
-                    # Timeline kenmerk requires evaluation date
-                    raise RegelspraakError(
-                        f"Timeline kenmerk '{kenmerk_name}' requires evaluation_date to be set. "
-                        f"Per specification §10.3, temporal context must be explicit.",
-                        span=expr.span
-                    )
-            else:
-                # Regular kenmerk or type check
-                bool_result = not self.context.check_is(instance, right_val.value)
-            return Value(value=bool_result, datatype="Boolean", unit=None)
-            
-        elif op == Operator.HEEFT:
-            # HEEFT operator for bezittelijk kenmerken (possessive characteristics) and role checks
-            # Right side should be a kenmerk name or role name
-            right_val = self._evaluate_expression_non_timeline(expr.right)
-            if not isinstance(right_val.value, str):
-                raise RegelspraakError(f"Right side of 'HEEFT' must evaluate to a string (kenmerk/role name), got {type(right_val.value)}", span=expr.right.span)
-            # Check if the current instance has this kenmerk set to true
-            # For bezittelijk kenmerken, we need to check both "heeft X" and "X" forms
-            kenmerk_name = right_val.value
-            
-            # Check if this is a timeline kenmerk
-            if self.context.current_instance and kenmerk_name in self.context.current_instance.timeline_kenmerken:
-                # Get the timeline value at the current evaluation date
-                timeline_val = self.context.current_instance.timeline_kenmerken[kenmerk_name]
-                if self.context.evaluation_date:
-                    val = timeline_val.get_value_at(self.context.evaluation_date)
-                    kenmerk_value = val.value if val else False
-                else:
-                    # Timeline kenmerk requires evaluation date
-                    raise RegelspraakError(
-                        f"Timeline kenmerk requires evaluation_date to be set. "
-                        f"Per specification §10.3, temporal context must be explicit.",
-                        span=getattr(expr, 'span', None)
-                    )
-            else:
-                # Regular kenmerk (not timeline)
-                # First try with "heeft " prefix
-                heeft_kenmerk_name = f"heeft {kenmerk_name}"
-                if self.context.current_instance.object_type_naam in self.context.domain_model.objecttypes:
-                    obj_type = self.context.domain_model.objecttypes[self.context.current_instance.object_type_naam]
-                    if heeft_kenmerk_name in obj_type.kenmerken:
-                        kenmerk_value = self.context.get_kenmerk(self.context.current_instance, heeft_kenmerk_name)
-                    elif kenmerk_name in obj_type.kenmerken:
-                        # Fall back to just the kenmerk name without "heeft"
-                        kenmerk_value = self.context.get_kenmerk(self.context.current_instance, kenmerk_name)
-                    else:
-                        # Not a kenmerk - check if it's a role (spec section 8.1.7 - rolcheck)
-                        # "heeft een passagier" checks if current instance has related objects with role 'passagier'
-                        # Need to check if any related objects have this role
-                        has_related_with_role = False
-                        for feittype_name, feittype in self.context.domain_model.feittypen.items():
-                            if not feittype.rollen:
-                                continue
-                            # Check if this FeitType has the role we're looking for
-                            for i, rol in enumerate(feittype.rollen):
-                                rol_naam_clean = self._strip_articles(rol.naam).lower()
-                                rol_meervoud_clean = self._strip_articles(rol.meervoud).lower() if rol.meervoud else None
-                                kenmerk_clean = self._strip_articles(kenmerk_name).lower()
-                                
-                                if rol_naam_clean == kenmerk_clean or (rol_meervoud_clean and rol_meervoud_clean == kenmerk_clean):
-                                    # Check if current instance has any relationships of this type
-                                    for rel in self.context.relationships:
-                                        if rel.feittype_naam != feittype_name:
-                                            continue
-                                        # Check if current instance is involved and has related objects
-                                        if rel.subject == self.context.current_instance or rel.object == self.context.current_instance:
-                                            has_related_with_role = True
-                                            break
-                                    if has_related_with_role:
-                                        break
-                            if has_related_with_role:
-                                break
-                        kenmerk_value = has_related_with_role
-                else:
-                    kenmerk_value = self.context.get_kenmerk(self.context.current_instance, kenmerk_name)
-            return Value(value=kenmerk_value, datatype="Boolean")
-            
-        elif op == Operator.HEEFT_NIET:
-            # Negated version of HEEFT - checks for absence of kenmerken or roles
-            right_val = self._evaluate_expression_non_timeline(expr.right)
-            if not isinstance(right_val.value, str):
-                raise RegelspraakError(f"Right side of 'HEEFT_NIET' must evaluate to a string (kenmerk/role name), got {type(right_val.value)}", span=expr.right.span)
-            # Check if the current instance has this kenmerk set to true
-            # For bezittelijk kenmerken, we need to check both "heeft X" and "X" forms
-            kenmerk_name = right_val.value
-            
-            # Check if this is a timeline kenmerk
-            if self.context.current_instance and kenmerk_name in self.context.current_instance.timeline_kenmerken:
-                # Get the timeline value at the current evaluation date
-                timeline_val = self.context.current_instance.timeline_kenmerken[kenmerk_name]
-                if self.context.evaluation_date:
-                    val = timeline_val.get_value_at(self.context.evaluation_date)
-                    kenmerk_value = val.value if val else False
-                else:
-                    # Timeline kenmerk requires evaluation date
-                    raise RegelspraakError(
-                        f"Timeline kenmerk requires evaluation_date to be set. "
-                        f"Per specification §10.3, temporal context must be explicit.",
-                        span=getattr(expr, 'span', None)
-                    )
-            else:
-                # Regular kenmerk (not timeline)
-                # First try with "heeft " prefix
-                heeft_kenmerk_name = f"heeft {kenmerk_name}"
-                if self.context.current_instance and self.context.current_instance.object_type_naam in self.context.domain_model.objecttypes:
-                    obj_type = self.context.domain_model.objecttypes[self.context.current_instance.object_type_naam]
-                    if heeft_kenmerk_name in obj_type.kenmerken:
-                        kenmerk_value = self.context.get_kenmerk(self.context.current_instance, heeft_kenmerk_name)
-                    elif kenmerk_name in obj_type.kenmerken:
-                        # Fall back to just the kenmerk name without "heeft"
-                        kenmerk_value = self.context.get_kenmerk(self.context.current_instance, kenmerk_name)
-                    else:
-                        # Not a kenmerk - check if it's a role (spec section 8.1.7 - rolcheck)
-                        # "heeft geen passagier" checks if current instance has NO related objects with role 'passagier'
-                        has_related_with_role = False
-                        for feittype_name, feittype in self.context.domain_model.feittypen.items():
-                            if not feittype.rollen:
-                                continue
-                            # Check if this FeitType has the role we're looking for
-                            for i, rol in enumerate(feittype.rollen):
-                                rol_naam_clean = self._strip_articles(rol.naam).lower()
-                                rol_meervoud_clean = self._strip_articles(rol.meervoud).lower() if rol.meervoud else None
-                                kenmerk_clean = self._strip_articles(kenmerk_name).lower()
-                                
-                                if rol_naam_clean == kenmerk_clean or (rol_meervoud_clean and rol_meervoud_clean == kenmerk_clean):
-                                    # Check if current instance has any relationships of this type
-                                    for rel in self.context.relationships:
-                                        if rel.feittype_naam != feittype_name:
-                                            continue
-                                        # Check if current instance is involved and has related objects
-                                        if rel.subject == self.context.current_instance or rel.object == self.context.current_instance:
-                                            has_related_with_role = True
-                                            break
-                                    if has_related_with_role:
-                                        break
-                            if has_related_with_role:
-                                break
-                        kenmerk_value = has_related_with_role
-                else:
-                    kenmerk_value = self.context.get_kenmerk(self.context.current_instance, kenmerk_name)
-            return Value(value=not kenmerk_value, datatype="Boolean")
-        
         # Handle dagsoort operators
-        elif op in [Operator.IS_EEN_DAGSOORT, Operator.ZIJN_EEN_DAGSOORT, 
+        if op in [Operator.IS_EEN_DAGSOORT, Operator.ZIJN_EEN_DAGSOORT, 
                     Operator.IS_GEEN_DAGSOORT, Operator.ZIJN_GEEN_DAGSOORT]:
             # Right side should be the dagsoort name
             right_val = self._evaluate_expression_non_timeline(expr.right)
@@ -5301,6 +5098,120 @@ class Evaluator:
                     )
                     logger.info(f"Verdeling: Set remainder {attr_name} to {remainder_value.value}")
 
+    def _evaluate_is_family_operators(self, op: Operator, left_val: Value, right_expr: Expression,
+                                      evaluate_func, span: ast.SourceSpan) -> Optional[Value]:
+        """Handle IS, IN, IS_NIET, and HEEFT operators in a unified way.
+
+        Args:
+            op: The operator type
+            left_val: The evaluated left value
+            right_expr: The right expression (not yet evaluated)
+            evaluate_func: The function to use for evaluating the right expression
+            span: The source span for error reporting
+
+        Returns:
+            Value if the operator was handled, None otherwise
+        """
+        if op == Operator.IS:
+            # Right side should be a kenmerk name (string) or type name (string)
+            right_val = evaluate_func(right_expr)
+            if not isinstance(right_val.value, str):
+                raise RegelspraakError(f"Right side of 'IS' must evaluate to a string (kenmerk/type name), got {type(right_val.value)}", span=right_expr.span)
+
+            # For IS operator, we need the actual object instance
+            # If left_val is an object reference, use that object
+            if left_val.datatype == "ObjectReference" and isinstance(left_val.value, RuntimeObject):
+                instance = left_val.value
+            else:
+                instance = self.context.current_instance  # Default to current instance
+
+            if instance is None:
+                raise RegelspraakError("Could not determine object instance for 'IS' check.", span=span)
+
+            # Use the unified check_is that handles both regular and timeline kenmerken
+            bool_result = self.context.check_is(instance, right_val.value)
+            return Value(value=bool_result, datatype="Boolean", unit=None)
+
+        elif op == Operator.IN:
+            right_val = evaluate_func(right_expr)
+            # Pass Value objects directly to check_in - it handles unwrapping
+            bool_result = self.context.check_in(left_val, right_val)
+            return Value(value=bool_result, datatype="Boolean", unit=None)
+
+        elif op == Operator.IS_NIET:
+            # Right side should be a kenmerk name (string) or type name (string)
+            right_val = evaluate_func(right_expr)
+            if not isinstance(right_val.value, str):
+                raise RegelspraakError(f"Right side of 'IS_NIET' must evaluate to a string (kenmerk/type name), got {type(right_val.value)}", span=right_expr.span)
+
+            # Determine instance for IS_NIET check
+            if left_val.datatype == "ObjectReference" and isinstance(left_val.value, RuntimeObject):
+                instance = left_val.value
+            else:
+                instance = self.context.current_instance
+
+            if not instance:
+                raise RegelspraakError("Could not determine object instance for 'IS_NIET' check.", span=span)
+
+            # Use the unified check_is and negate the result
+            bool_result = not self.context.check_is(instance, right_val.value)
+            return Value(value=bool_result, datatype="Boolean", unit=None)
+
+        elif op == Operator.HEEFT:
+            # HEEFT operator for bezittelijk kenmerken (possessive characteristics) and role checks
+            # Right side should be a kenmerk name or role name
+            right_val = evaluate_func(right_expr)
+            if not isinstance(right_val.value, str):
+                raise RegelspraakError(f"Right side of 'HEEFT' must evaluate to a string (kenmerk/role name), got {type(right_val.value)}", span=right_expr.span)
+
+            # For HEEFT, the left side should be an object instance
+            if left_val.datatype == "ObjectReference" and isinstance(left_val.value, RuntimeObject):
+                instance = left_val.value
+            else:
+                instance = self.context.current_instance
+
+            if instance is None:
+                raise RegelspraakError("Could not determine object instance for 'HEEFT' check.", span=span)
+
+            kenmerk_name = right_val.value
+
+            # HEEFT works with bezittelijk kenmerken - try adding "heeft " prefix
+            heeft_kenmerk = f"heeft {kenmerk_name}"
+
+            # Check both with and without "heeft " prefix
+            bool_result = (self.context.check_is(instance, heeft_kenmerk) or
+                          self.context.check_is(instance, kenmerk_name))
+
+            return Value(value=bool_result, datatype="Boolean", unit=None)
+
+        elif op == Operator.HEEFT_NIET:
+            # Negated version of HEEFT - checks for absence of kenmerken or roles
+            right_val = evaluate_func(right_expr)
+            if not isinstance(right_val.value, str):
+                raise RegelspraakError(f"Right side of 'HEEFT_NIET' must evaluate to a string (kenmerk/role name), got {type(right_val.value)}", span=right_expr.span)
+
+            # For HEEFT_NIET, the left side should be an object instance
+            if left_val.datatype == "ObjectReference" and isinstance(left_val.value, RuntimeObject):
+                instance = left_val.value
+            else:
+                instance = self.context.current_instance
+
+            if instance is None:
+                raise RegelspraakError("Could not determine object instance for 'HEEFT_NIET' check.", span=span)
+
+            kenmerk_name = right_val.value
+
+            # HEEFT_NIET works with bezittelijk kenmerken - try adding "heeft " prefix
+            heeft_kenmerk = f"heeft {kenmerk_name}"
+
+            # Check both with and without "heeft " prefix and negate the result
+            bool_result = not (self.context.check_is(instance, heeft_kenmerk) or
+                              self.context.check_is(instance, kenmerk_name))
+
+            return Value(value=bool_result, datatype="Boolean", unit=None)
+
+        return None  # Operator not handled by this method
+
     def _handle_binary(self, expr: BinaryExpression) -> Value:
         """Handle binary operations, returning Value objects."""
         left_val = self.evaluate_expression(expr.left)
@@ -5331,140 +5242,14 @@ class Evaluator:
             else:
                 return Value(value=False, datatype="Boolean", unit=None)
 
-        # Handle IS and IN specially as they return boolean values
-        if op == Operator.IS:
-            # Right side should be a kenmerk name (string) or type name (string)
-            right_val = self.evaluate_expression(expr.right)
-            if not isinstance(right_val.value, str):
-                raise RegelspraakError(f"Right side of 'IS' must evaluate to a string (kenmerk/type name), got {type(right_val.value)}", span=expr.right.span)
-            
-            # For IS operator, we need the actual object instance
-            # If left_val is an object reference, use that object
-            if left_val.datatype == "ObjectReference" and isinstance(left_val.value, RuntimeObject):
-                instance = left_val.value
-            else:
-                instance = self.context.current_instance  # Default to current instance
-            
-            if instance is None:
-                raise RegelspraakError("Could not determine object instance for 'IS' check.", span=expr.left.span)
-                 
-            bool_result = self.context.check_is(instance, right_val.value)
-            return Value(value=bool_result, datatype="Boolean", unit=None)
+        # Handle IS family operators (IS, IN, IS_NIET, HEEFT, HEEFT_NIET) in a unified way
+        is_family_result = self._evaluate_is_family_operators(op, left_val, expr.right,
+                                                             self.evaluate_expression, expr.span)
+        if is_family_result is not None:
+            return is_family_result
 
-        elif op == Operator.IN:
-            right_val = self.evaluate_expression(expr.right)
-            # Extract raw values for IN check
-            left_raw = left_val.value if isinstance(left_val, Value) else left_val
-            right_raw = right_val.value if isinstance(right_val, Value) else right_val
-            bool_result = self.context.check_in(left_raw, right_raw)
-            return Value(value=bool_result, datatype="Boolean", unit=None)
-            
-        elif op == Operator.IS_NIET:
-            # Right side should be a kenmerk name (string) or type name (string)
-            right_val = self.evaluate_expression(expr.right)
-            if not isinstance(right_val.value, str):
-                raise RegelspraakError(f"Right side of 'IS_NIET' must evaluate to a string (kenmerk/type name), got {type(right_val.value)}", span=expr.right.span)
-            # Determine instance for IS_NIET check
-            instance = self.context.current_instance
-            if not instance:
-                raise RegelspraakError("Could not determine object instance for 'IS_NIET' check.", span=expr.left.span)
-            bool_result = not self.context.check_is(instance, right_val.value)
-            return Value(value=bool_result, datatype="Boolean", unit=None)
-            
-        elif op == Operator.HEEFT:
-            # HEEFT operator for bezittelijk kenmerken (possessive characteristics)
-            # Right side should be a kenmerk name
-            right_val = self.evaluate_expression(expr.right)
-            if not isinstance(right_val.value, str):
-                raise RegelspraakError(f"Right side of 'HEEFT' must evaluate to a string (kenmerk name), got {type(right_val.value)}", span=expr.right.span)
-            # Check if the current instance has this kenmerk set to true
-            # For bezittelijk kenmerken, we need to check both "heeft X" and "X" forms
-            kenmerk_name = right_val.value
-            # First try with "heeft " prefix
-            heeft_kenmerk_name = f"heeft {kenmerk_name}"
-            if self.context.current_instance.object_type_naam in self.context.domain_model.objecttypes:
-                obj_type = self.context.domain_model.objecttypes[self.context.current_instance.object_type_naam]
-                # Check if this is a timeline kenmerk
-                if heeft_kenmerk_name in obj_type.kenmerken:
-                    kenmerk_def = obj_type.kenmerken[heeft_kenmerk_name]
-                    if kenmerk_def.tijdlijn:
-                        # This is a timeline kenmerk - return timeline value
-                        timeline_val = self.context.current_instance.timeline_kenmerken.get(heeft_kenmerk_name)
-                        if timeline_val:
-                            return timeline_val
-                        # If no timeline set, return empty timeline with False values
-                        from .ast import Timeline, Period
-                        empty_timeline = Timeline(periods=[], granularity=kenmerk_def.tijdlijn)
-                        return TimelineValue(timeline=empty_timeline)
-                    else:
-                        kenmerk_value = self.context.get_kenmerk(self.context.current_instance, heeft_kenmerk_name)
-                else:
-                    # Fall back to just the kenmerk name without "heeft"
-                    kenmerk_def = obj_type.kenmerken.get(kenmerk_name)
-                    if kenmerk_def and kenmerk_def.tijdlijn:
-                        # This is a timeline kenmerk
-                        timeline_val = self.context.current_instance.timeline_kenmerken.get(kenmerk_name)
-                        if timeline_val:
-                            return timeline_val
-                        # If no timeline set, return empty timeline with False values
-                        from .ast import Timeline, Period
-                        empty_timeline = Timeline(periods=[], granularity=kenmerk_def.tijdlijn)
-                        return TimelineValue(timeline=empty_timeline)
-                    else:
-                        kenmerk_value = self.context.get_kenmerk(self.context.current_instance, kenmerk_name)
-            else:
-                kenmerk_value = self.context.get_kenmerk(self.context.current_instance, kenmerk_name)
-            return Value(value=kenmerk_value, datatype="Boolean")
-            
-        elif op == Operator.HEEFT_NIET:
-            # Negated version of HEEFT - checks for absence of kenmerken or roles
-            right_val = self.evaluate_expression(expr.right)
-            if not isinstance(right_val.value, str):
-                raise RegelspraakError(f"Right side of 'HEEFT_NIET' must evaluate to a string (kenmerk/role name), got {type(right_val.value)}", span=expr.right.span)
-            # Check if the current instance has this kenmerk set to true
-            # For bezittelijk kenmerken, we need to check both "heeft X" and "X" forms
-            kenmerk_name = right_val.value
-            # First try with "heeft " prefix
-            heeft_kenmerk_name = f"heeft {kenmerk_name}"
-            if self.context.current_instance and self.context.current_instance.object_type_naam in self.context.domain_model.objecttypes:
-                obj_type = self.context.domain_model.objecttypes[self.context.current_instance.object_type_naam]
-                if heeft_kenmerk_name in obj_type.kenmerken:
-                    kenmerk_value = self.context.get_kenmerk(self.context.current_instance, heeft_kenmerk_name)
-                elif kenmerk_name in obj_type.kenmerken:
-                    # Fall back to just the kenmerk name without "heeft"
-                    kenmerk_value = self.context.get_kenmerk(self.context.current_instance, kenmerk_name)
-                else:
-                    # Not a kenmerk - check if it's a role (spec section 8.1.7 - rolcheck)
-                    has_related_with_role = False
-                    for feittype_name, feittype in self.context.domain_model.feittypen.items():
-                        if not feittype.rollen:
-                            continue
-                        # Check if this FeitType has the role we're looking for
-                        for i, rol in enumerate(feittype.rollen):
-                            rol_naam_clean = self._strip_articles(rol.naam).lower()
-                            rol_meervoud_clean = self._strip_articles(rol.meervoud).lower() if rol.meervoud else None
-                            kenmerk_clean = self._strip_articles(kenmerk_name).lower()
-                            
-                            if rol_naam_clean == kenmerk_clean or (rol_meervoud_clean and rol_meervoud_clean == kenmerk_clean):
-                                # Check if current instance has any relationships of this type
-                                for rel in self.context.relationships:
-                                    if rel.feittype_naam != feittype_name:
-                                        continue
-                                    # Check if current instance is involved and has related objects
-                                    if rel.subject == self.context.current_instance or rel.object == self.context.current_instance:
-                                        has_related_with_role = True
-                                        break
-                                if has_related_with_role:
-                                    break
-                        if has_related_with_role:
-                            break
-                    kenmerk_value = has_related_with_role
-            else:
-                kenmerk_value = self.context.get_kenmerk(self.context.current_instance, kenmerk_name)
-            return Value(value=not kenmerk_value, datatype="Boolean")
-        
         # Handle dagsoort operators
-        elif op in [Operator.IS_EEN_DAGSOORT, Operator.ZIJN_EEN_DAGSOORT, 
+        if op in [Operator.IS_EEN_DAGSOORT, Operator.ZIJN_EEN_DAGSOORT, 
                     Operator.IS_GEEN_DAGSOORT, Operator.ZIJN_GEEN_DAGSOORT]:
             # Right side should be the dagsoort name
             right_val = self.evaluate_expression(expr.right)

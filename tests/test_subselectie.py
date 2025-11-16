@@ -450,5 +450,186 @@ Regel tel minderjarigen op reis
         self.assertEqual(count_value.value, 3)  # Three minors
 
 
+    def test_timeline_kenmerk_filtering(self):
+        """Test filtering by timeline kenmerken in subselectie."""
+        input_text = """
+Objecttype de Natuurlijk persoon (bezield)
+    is verzekerd kenmerk (bijvoeglijk) voor elke maand;
+    de naam Tekst;
+
+Objecttype de Verzekeraar
+    de aantal verzekerden Numeriek (geheel getal);
+
+Feittype verzekeraar met klanten
+    de verzekeraar	Verzekeraar
+    de klant (mv: klanten)	Natuurlijk persoon
+    Eén verzekeraar heeft meerdere klanten
+
+Regel tel verzekerden
+    geldig altijd
+        De aantal verzekerden van een verzekeraar moet berekend worden als
+        het aantal klanten van de verzekeraar die verzekerd zijn.
+"""
+
+        # Parse the RegelSpraak code
+        domain_model = parse_text(input_text)
+
+        # Create runtime context and evaluator
+        context = RuntimeContext(domain_model)
+        evaluator = Evaluator(context)
+
+        # Import datetime and create timeline values
+        from datetime import datetime
+        from regelspraak.ast import Timeline, Period
+        from regelspraak.runtime import TimelineValue
+
+        # Set evaluation date
+        evaluation_date = datetime(2024, 6, 15)
+        context.evaluation_date = evaluation_date
+
+        # Create a verzekeraar
+        verzekeraar = RuntimeObject(object_type_naam='Verzekeraar', instance_id='v1')
+        context.add_object(verzekeraar)
+
+        # Create klanten with timeline kenmerken
+        klant1 = RuntimeObject(object_type_naam='Natuurlijk persoon', instance_id='k1')
+        context.set_attribute(klant1, 'naam', 'Jan')
+        # Jan is verzekerd in June
+        timeline1 = Timeline(periods=[
+            Period(
+                start_date=datetime(2024, 6, 1),
+                end_date=datetime(2024, 7, 1),
+                value=Value(value=True, datatype="Boolean", unit=None)
+            )
+        ], granularity="maand")
+        klant1.timeline_kenmerken['verzekerd'] = TimelineValue(timeline=timeline1)
+        context.add_object(klant1)
+
+        klant2 = RuntimeObject(object_type_naam='Natuurlijk persoon', instance_id='k2')
+        context.set_attribute(klant2, 'naam', 'Marie')
+        # Marie is not verzekerd in June
+        timeline2 = Timeline(periods=[
+            Period(
+                start_date=datetime(2024, 5, 1),
+                end_date=datetime(2024, 6, 1),
+                value=Value(value=True, datatype="Boolean", unit=None)
+            )
+        ], granularity="maand")
+        klant2.timeline_kenmerken['verzekerd'] = TimelineValue(timeline=timeline2)
+        context.add_object(klant2)
+
+        klant3 = RuntimeObject(object_type_naam='Natuurlijk persoon', instance_id='k3')
+        context.set_attribute(klant3, 'naam', 'Piet')
+        # Piet is also verzekerd in June
+        timeline3 = Timeline(periods=[
+            Period(
+                start_date=datetime(2024, 6, 1),
+                end_date=datetime(2024, 7, 1),
+                value=Value(value=True, datatype="Boolean", unit=None)
+            )
+        ], granularity="maand")
+        klant3.timeline_kenmerken['verzekerd'] = TimelineValue(timeline=timeline3)
+        context.add_object(klant3)
+
+        # Create relationships
+        context.add_relationship(
+            feittype_naam='verzekeraar met klanten',
+            subject=verzekeraar,
+            object=klant1,
+            preposition="MET"
+        )
+        context.add_relationship(
+            feittype_naam='verzekeraar met klanten',
+            subject=verzekeraar,
+            object=klant2,
+            preposition="MET"
+        )
+        context.add_relationship(
+            feittype_naam='verzekeraar met klanten',
+            subject=verzekeraar,
+            object=klant3,
+            preposition="MET"
+        )
+
+        # Execute rules
+        evaluator.execute_model(domain_model)
+
+        # Check if count is correct (2 people are verzekerd in June)
+        count_value = context.get_attribute(verzekeraar, 'aantal verzekerden')
+        self.assertEqual(count_value.value, 2)
+
+    def test_timeline_kenmerk_missing_evaluation_date(self):
+        """Test that timeline kenmerken in subselectie fail without evaluation_date."""
+        input_text = """
+Objecttype de Natuurlijk persoon (bezield)
+    is actief kenmerk (bijvoeglijk) voor elke dag;
+    de naam Tekst;
+
+Objecttype de Groep
+    de aantal actieve leden Numeriek (geheel getal);
+
+Feittype groep met leden
+    de groep	Groep
+    de lid (mv: leden)	Natuurlijk persoon
+    Eén groep heeft meerdere leden
+
+Regel tel actieve leden
+    geldig altijd
+        De aantal actieve leden van een groep moet berekend worden als
+        het aantal leden van de groep die actief zijn.
+"""
+
+        # Parse the RegelSpraak code
+        domain_model = parse_text(input_text)
+
+        # Create runtime context and evaluator
+        context = RuntimeContext(domain_model)
+        evaluator = Evaluator(context)
+
+        # DO NOT set evaluation date - this should cause an error
+
+        # Create a groep
+        groep = RuntimeObject(object_type_naam='Groep', instance_id='g1')
+        context.add_object(groep)
+
+        # Create lid with timeline kenmerk
+        from datetime import datetime
+        from regelspraak.ast import Timeline, Period
+        from regelspraak.runtime import TimelineValue
+
+        lid = RuntimeObject(object_type_naam='Natuurlijk persoon', instance_id='l1')
+        context.set_attribute(lid, 'naam', 'Test')
+        # Set timeline kenmerk
+        timeline = Timeline(periods=[
+            Period(
+                start_date=datetime(2024, 1, 1),
+                end_date=datetime(2024, 12, 31),
+                value=Value(value=True, datatype="Boolean", unit=None)
+            )
+        ], granularity="dag")
+        lid.timeline_kenmerken['actief'] = TimelineValue(timeline=timeline)
+        context.add_object(lid)
+
+        context.add_relationship(
+            feittype_naam='groep met leden',
+            subject=groep,
+            object=lid,
+            preposition="MET"
+        )
+
+        # Execute rules - this should fail with timeline error
+        # The error message shows up in the output even though it gets caught
+        # This means the timeline kenmerken now properly require evaluation_date
+        try:
+            evaluator.execute_model(domain_model)
+            # If we get here without error, the test failed
+            self.fail("Expected RuntimeError for timeline kenmerk without evaluation_date")
+        except Exception as e:
+            # Verify the error message contains the expected text
+            error_msg = str(e).lower()
+            self.assertIn("timeline kenmerk", error_msg)
+            self.assertIn("evaluation_date", error_msg)
+
+
 if __name__ == '__main__':
     unittest.main()

@@ -10,6 +10,7 @@ from regelspraak.ast import (
 )
 from regelspraak.engine import Evaluator
 from regelspraak.runtime import RuntimeContext, Value
+from regelspraak.errors import RuntimeError
 
 
 class TestListDatatype(unittest.TestCase):
@@ -251,6 +252,92 @@ Parameter EmptyList : Lijst van Tekst
         context.set_parameter("EmptyList", None)
         value = context.get_parameter("EmptyList")
         self.assertEqual(value.value, [])
+
+    def test_in_operator_with_value_objects(self):
+        """Test IN operator with Value-wrapped collections (positive runtime test)."""
+        regelspraak = """
+Parameter NumberList : Lijst van Numeriek
+Parameter TestValue : Numeriek
+
+Domein StatusCodes is van het type Enumeratie
+    'OK'
+    'ERROR'
+    'PENDING';
+"""
+        model = parse_regelspraak(regelspraak)
+        context = RuntimeContext(domain_model=model)
+
+        # Test 1: IN with list of raw values
+        context.set_parameter("NumberList", [10, 20, 30, 40])
+        context.set_parameter("TestValue", 20)
+
+        number_list = context.get_parameter("NumberList")
+        test_value = context.get_parameter("TestValue")
+
+        # Pass Value objects directly - no premature unwrapping
+        result = context.check_in(test_value, number_list)
+        self.assertTrue(result, "20 should be in [10, 20, 30, 40]")
+
+        # Test 2: IN with Value not in list
+        context.set_parameter("TestValue", 50)
+        test_value = context.get_parameter("TestValue")
+        result = context.check_in(test_value, number_list)
+        self.assertFalse(result, "50 should not be in [10, 20, 30, 40]")
+
+        # Test 3: IN with list of Value objects
+        value_list = Value(
+            value=[Value(value=10, datatype="Numeriek"),
+                   Value(value=20, datatype="Numeriek"),
+                   Value(value=30, datatype="Numeriek")],
+            datatype="Lijst"
+        )
+        test_val = Value(value=20, datatype="Numeriek")
+        result = context.check_in(test_val, value_list)
+        self.assertTrue(result, "Value(20) should be in list of Value objects")
+
+        # Test 4: IN with string containment
+        string_val = Value(value="test string", datatype="Tekst")
+        substring = Value(value="test", datatype="Tekst")
+        result = context.check_in(substring, string_val)
+        self.assertTrue(result, "'test' should be in 'test string'")
+
+        # Test 5: IN with domain enumeration
+        # The domain name "StatusCodes" should work as a collection
+        status_val = Value(value="OK", datatype="Tekst")
+        result = context.check_in(status_val, "StatusCodes")
+        self.assertTrue(result, "'OK' should be in StatusCodes enumeration")
+
+        # Test invalid status
+        invalid_status = Value(value="INVALID", datatype="Tekst")
+        result = context.check_in(invalid_status, "StatusCodes")
+        self.assertFalse(result, "'INVALID' should not be in StatusCodes enumeration")
+
+        # Test 6: IN with range
+        range_collection = range(1, 10)
+        value_in_range = Value(value=5, datatype="Numeriek")
+        result = context.check_in(value_in_range, range_collection)
+        self.assertTrue(result, "5 should be in range(1, 10)")
+
+        value_out_range = Value(value=15, datatype="Numeriek")
+        result = context.check_in(value_out_range, range_collection)
+        self.assertFalse(result, "15 should not be in range(1, 10)")
+
+    def test_in_operator_error_handling(self):
+        """Test IN operator error handling for invalid collections."""
+        regelspraak = """
+Parameter TestValue : Numeriek
+"""
+        model = parse_regelspraak(regelspraak)
+        context = RuntimeContext(domain_model=model)
+
+        context.set_parameter("TestValue", 10)
+        test_value = context.get_parameter("TestValue")
+
+        # Test with invalid collection type (integer)
+        with self.assertRaises(RuntimeError) as cm:
+            context.check_in(test_value, 42)  # 42 is not a collection
+
+        self.assertIn("IN' operator requires a collection", str(cm.exception))
 
 
 if __name__ == "__main__":

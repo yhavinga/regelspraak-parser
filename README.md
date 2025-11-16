@@ -1,9 +1,6 @@
 # RegelSpraak Parser
 
-> [!WARNING]
-> **EXPERIMENTAL, WORK IN PROGRESS.** This parser is under active development.
-
-ANTLR4-based parser for RegelSpraak v2.1.0 - a Dutch domain-specific language for business rules. Implements **98-99%** of the specification with **487 Python tests** and **454 TypeScript tests** passing.
+ANTLR4-based parser for RegelSpraak v2.1.0 - a Dutch domain-specific language for business rules.
 
 ## What is RegelSpraak?
 
@@ -165,19 +162,20 @@ Regel bereken gemiddeld inkomen
 regelspraak-parser/
 ├── grammar/                # ANTLR grammar files
 ├── src/regelspraak/        # Core implementation
-│   ├── parsing.py         # Parser facade (4KB)
-│   ├── builder.py         # AST builder (180KB - needs splitting)
+│   ├── parsing.py         # Parser facade
+│   ├── builder.py         # AST builder
 │   ├── ast.py             # AST nodes
-│   ├── engine.py          # Execution engine (339KB - needs splitting)
+│   ├── engine.py          # Execution engine
 │   ├── runtime.py         # Runtime data structures
 │   └── cli.py             # Command-line interface
-├── tests/                  # 439+ unit tests
+├── tests/                  # 568+ unit tests
 └── specification/          # Language specification
 ```
 
 ## Documentation
 
-- **Architecture & Roadmap**: See [20250725_CODEBASE_STATUS.md](20250725_CODEBASE_STATUS.md)
+- **System Architecture**: See [ARCHITECTURE.md](ARCHITECTURE.md)
+- **Development Roadmap**: See [ROADMAP.md](ROADMAP.md)
 - **Grammar Implementation**: See [GRAMMAR_IMPLEMENTATION_NOTES.md](GRAMMAR_IMPLEMENTATION_NOTES.md)
 - **Language Specification**: See `specification/` directory
 
