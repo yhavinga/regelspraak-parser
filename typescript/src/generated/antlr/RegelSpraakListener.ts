@@ -143,6 +143,7 @@ import { SimpleExprAfrondingContext } from "./RegelSpraakParser";
 import { SimpleExprBaseContext } from "./RegelSpraakParser";
 import { LogicalExprContext } from "./RegelSpraakParser";
 import { SubordinateClauseExprContext } from "./RegelSpraakParser";
+import { PeriodeCheckExprContext } from "./RegelSpraakParser";
 import { IsKenmerkExprContext } from "./RegelSpraakParser";
 import { HeeftKenmerkExprContext } from "./RegelSpraakParser";
 import { GelijkIsAanOfExprContext } from "./RegelSpraakParser";
@@ -216,6 +217,7 @@ import { BegrenzingContext } from "./RegelSpraakParser";
 import { BegrenzingMinimumContext } from "./RegelSpraakParser";
 import { BegrenzingMaximumContext } from "./RegelSpraakParser";
 import { ConditieBijExpressieContext } from "./RegelSpraakParser";
+import { PeriodevergelijkingElementairContext } from "./RegelSpraakParser";
 import { PeriodevergelijkingEnkelvoudigContext } from "./RegelSpraakParser";
 import { VanafPeriodeContext } from "./RegelSpraakParser";
 import { TotPeriodeContext } from "./RegelSpraakParser";
@@ -242,6 +244,7 @@ import { SubordinateHasExprContext } from "./RegelSpraakParser";
 import { SubordinateIsWithExprContext } from "./RegelSpraakParser";
 import { SubordinateIsKenmerkExprContext } from "./RegelSpraakParser";
 import { DagsoortDefinitionContext } from "./RegelSpraakParser";
+import { TekstreeksExprContext } from "./RegelSpraakParser";
 import { VerdelingResultaatContext } from "./RegelSpraakParser";
 import { VerdelingMethodeSimpleContext } from "./RegelSpraakParser";
 import { VerdelingMethodeMultiLineContext } from "./RegelSpraakParser";
@@ -1698,6 +1701,18 @@ export default class RegelSpraakListener extends ParseTreeListener {
 	 */
 	exitSubordinateClauseExpr?: (ctx: SubordinateClauseExprContext) => void;
 	/**
+	 * Enter a parse tree produced by the `PeriodeCheckExpr`
+	 * labeled alternative in `RegelSpraakParser.comparisonExpression`.
+	 * @param ctx the parse tree
+	 */
+	enterPeriodeCheckExpr?: (ctx: PeriodeCheckExprContext) => void;
+	/**
+	 * Exit a parse tree produced by the `PeriodeCheckExpr`
+	 * labeled alternative in `RegelSpraakParser.comparisonExpression`.
+	 * @param ctx the parse tree
+	 */
+	exitPeriodeCheckExpr?: (ctx: PeriodeCheckExprContext) => void;
+	/**
 	 * Enter a parse tree produced by the `IsKenmerkExpr`
 	 * labeled alternative in `RegelSpraakParser.comparisonExpression`.
 	 * @param ctx the parse tree
@@ -2546,6 +2561,16 @@ export default class RegelSpraakListener extends ParseTreeListener {
 	 */
 	exitConditieBijExpressie?: (ctx: ConditieBijExpressieContext) => void;
 	/**
+	 * Enter a parse tree produced by `RegelSpraakParser.periodevergelijkingElementair`.
+	 * @param ctx the parse tree
+	 */
+	enterPeriodevergelijkingElementair?: (ctx: PeriodevergelijkingElementairContext) => void;
+	/**
+	 * Exit a parse tree produced by `RegelSpraakParser.periodevergelijkingElementair`.
+	 * @param ctx the parse tree
+	 */
+	exitPeriodevergelijkingElementair?: (ctx: PeriodevergelijkingElementairContext) => void;
+	/**
 	 * Enter a parse tree produced by `RegelSpraakParser.periodevergelijkingEnkelvoudig`.
 	 * @param ctx the parse tree
 	 */
@@ -2839,6 +2864,16 @@ export default class RegelSpraakListener extends ParseTreeListener {
 	 * @param ctx the parse tree
 	 */
 	exitDagsoortDefinition?: (ctx: DagsoortDefinitionContext) => void;
+	/**
+	 * Enter a parse tree produced by `RegelSpraakParser.tekstreeksExpr`.
+	 * @param ctx the parse tree
+	 */
+	enterTekstreeksExpr?: (ctx: TekstreeksExprContext) => void;
+	/**
+	 * Exit a parse tree produced by `RegelSpraakParser.tekstreeksExpr`.
+	 * @param ctx the parse tree
+	 */
+	exitTekstreeksExpr?: (ctx: TekstreeksExprContext) => void;
 	/**
 	 * Enter a parse tree produced by `RegelSpraakParser.verdelingResultaat`.
 	 * @param ctx the parse tree
