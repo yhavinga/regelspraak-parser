@@ -899,11 +899,11 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
     // SOM_VAN ALLE attribuutReferentie
     // This handles patterns like "de som van alle belasting van passagiers die minderjarig zijn"
     const attrRef = this.visitAttribuutReferentie(ctx.attribuutReferentie());
-    
+
     if (!attrRef) {
       throw new Error('No attribute reference found in som_van function');
     }
-    
+
     const node = {
       type: 'FunctionCall',
       functionName: 'som_van',
@@ -912,7 +912,34 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
     this.setLocation(node, ctx);
     return node;
   }
-  
+
+  visitSomAlleExpr(ctx: any): Expression {
+    // SOM_VAN ALLE naamwoord
+    // This handles patterns like "de som van alle belasting op basis van afstand"
+    if (!ctx.naamwoord || !ctx.naamwoord()) {
+      throw new Error('Expected naamwoord in som_van alle expression');
+    }
+
+    // Extract the collection name from the naamwoord
+    const collectionName = this.visitNaamwoord(ctx.naamwoord());
+
+    // Create an AttributeReference for the collection
+    const collectionRef = {
+      type: 'AttributeReference',
+      path: [collectionName]
+    } as AttributeReference;
+    this.setLocation(collectionRef, ctx.naamwoord());
+
+    // Create the FunctionCall for som_van
+    const node = {
+      type: 'FunctionCall',
+      functionName: 'som_van',
+      arguments: [collectionRef]
+    } as FunctionCall;
+    this.setLocation(node, ctx);
+    return node;
+  }
+
   private _stripArticle(text: string): string {
     // Strip leading articles like Python does
     const articles = ['de ', 'het ', 'een '];
@@ -1112,49 +1139,69 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
   }
   
   visitAantalFuncExpr(ctx: any): Expression {
-    // HET? AANTAL (ALLE? onderwerpReferentie)
-    // Check if ALLE token is present
-    const hasAlle = ctx.ALLE && ctx.ALLE();
-    
-    // Get the onderwerp reference (which might include subselectie)
-    const onderwerpCtx = ctx.onderwerpReferentie();
-    
-    if (!onderwerpCtx) {
-      throw new Error('Expected onderwerpReferentie in aantal expression');
-    }
-    
-    // If ALLE is present, we need to handle this specially
-    if (hasAlle) {
-      // Visit the onderwerpReferentie to get the object type
-      const onderwerpExpr = this.visit(onderwerpCtx);
-      
-      // If it's a VariableReference, convert to AttributeReference
-      if (onderwerpExpr && onderwerpExpr.type === 'VariableReference') {
-        const objectType = onderwerpExpr.variableName;
-        // Create an AttributeReference representing "alle <objectType>"
-        const attrRef = {
+    // Handles multiple patterns:
+    // - HET AANTAL ALLE naamwoord (e.g., "het aantal alle Persoon")
+    // - HET AANTAL onderwerpReferentie (e.g., "het aantal de passagiers")
+    // - AANTAL ALLE naamwoord
+    // - AANTAL onderwerpReferentie
+
+    const naamwoordCtx = ctx.naamwoord ? ctx.naamwoord() : null;
+    const onderwerpCtx = ctx.onderwerpReferentie ? ctx.onderwerpReferentie() : null;
+    let subjectExpr: Expression | null = null;
+
+    if (naamwoordCtx) {
+      // Pattern: (HET_AANTAL | AANTAL) ALLE naamwoord
+      // Create an AttributeReference for the collection
+      const collectionName = this.visitNaamwoord(naamwoordCtx);
+      subjectExpr = {
+        type: 'AttributeReference',
+        path: [collectionName]
+      } as AttributeReference;
+      this.setLocation(subjectExpr, naamwoordCtx);
+    } else if (onderwerpCtx) {
+      // Pattern: (HET_AANTAL | AANTAL) onderwerpReferentie
+      const visitedOnderwerp = this.visit(onderwerpCtx);
+
+      // If ALLE is present and it's a VariableReference, convert to AttributeReference
+      if ((ctx.ALLE && ctx.ALLE()) && visitedOnderwerp?.type === 'VariableReference') {
+        subjectExpr = {
           type: 'AttributeReference',
-          path: [objectType]
+          path: [(visitedOnderwerp as VariableReference).variableName]
         } as AttributeReference;
-        
-        const node = {
-          type: 'FunctionCall',
-          functionName: 'aantal',
-          arguments: [attrRef]
-        } as FunctionCall;
-    this.setLocation(node, ctx);
-    return node;
+        this.setLocation(subjectExpr, onderwerpCtx);
+      } else {
+        subjectExpr = visitedOnderwerp;
       }
     }
-    
-    // Normal case: just visit the onderwerp reference
-    const onderwerpExpr = this.visit(onderwerpCtx);
-    
-    const node = {
+
+    if (!subjectExpr) {
+      throw new Error('Failed to determine onderwerp or naamwoord in aantal expression');
+    }
+
+    const node: FunctionCall = {
       type: 'FunctionCall',
       functionName: 'aantal',
-      arguments: [onderwerpExpr]
-    } as FunctionCall;
+      arguments: [subjectExpr]
+    };
+    this.setLocation(node, ctx);
+    return node;
+  }
+
+  visitAantalAttribuutExpr(ctx: any): Expression {
+    // HET? AANTAL attribuutReferentie
+    // This handles patterns like "het aantal passagiers van de reis"
+    const attrRef = this.visitAttribuutReferentie(ctx.attribuutReferentie());
+
+    if (!attrRef) {
+      throw new Error('No attribute reference found in aantal function');
+    }
+
+    // Build FunctionCall for aantal with attribute reference
+    const node: FunctionCall = {
+      type: 'FunctionCall',
+      functionName: 'aantal',
+      arguments: [attrRef]
+    };
     this.setLocation(node, ctx);
     return node;
   }
