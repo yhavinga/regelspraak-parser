@@ -411,9 +411,13 @@ export class PredicateEvaluator {
    * Helper: Check if rule has been executed
    */
   private evaluateRegelGevuurd(predicate: SimplePredicate, context: RuntimeContext): boolean {
-    if (predicate.subject?.type === 'Literal' && predicate.subject.valueType === 'text') {
-      const regelNaam = predicate.subject.value as string;
-      return (context as any).isRuleExecuted?.(regelNaam) || false;
+    // For regel status predicates, the rule name should be in left expression
+    if (predicate.left && predicate.left.type === 'Literal') {
+      const literal = predicate.left as any;
+      if (literal.literalType === 'string' || literal.valueType === 'text') {
+        const regelNaam = literal.value as string;
+        return (context as any).isRuleExecuted?.(regelNaam) || false;
+      }
     }
     return false;
   }
@@ -422,9 +426,13 @@ export class PredicateEvaluator {
    * Helper: Check if rule is inconsistent
    */
   private evaluateRegelInconsistent(predicate: SimplePredicate, context: RuntimeContext): boolean {
-    if (predicate.subject?.type === 'Literal' && predicate.subject.valueType === 'text') {
-      const regelNaam = predicate.subject.value as string;
-      return (context as any).isRuleInconsistent?.(regelNaam) || false;
+    // For regel status predicates, the rule name should be in left expression
+    if (predicate.left && predicate.left.type === 'Literal') {
+      const literal = predicate.left as any;
+      if (literal.literalType === 'string' || literal.valueType === 'text') {
+        const regelNaam = literal.value as string;
+        return (context as any).isRuleInconsistent?.(regelNaam) || false;
+      }
     }
     return false;
   }

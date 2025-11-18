@@ -71,6 +71,10 @@ import { DomainModel } from '../ast/domain-model';
  * Implementation of ANTLR4 visitor that builds our AST
  */
 export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements RegelSpraakVisitor<any> {
+  // Track object types and their attributes for compound attribute resolution
+  private objectTypeAttributes: Map<string, Set<string>> = new Map();
+  private feitTypes: Map<string, any> = new Map();
+
   /**
    * Set location directly on the node.
    * No more WeakMap. Location is part of the node.
@@ -1481,12 +1485,27 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
     
     // Check if this is actually a nested navigation that was parsed incorrectly
     // Due to grammar ambiguity, "de straat van het adres" might be parsed as a single naamwoord
-    if (attrText.includes(' van ')) {
-      // This is a nested navigation expression
-      // We need to recursively parse it
-      // For now, just take the first part before "van"
-      const parts = attrText.split(' van ');
-      const actualAttr = this.extractParameterName(parts[0]);
+    if (attrText.includes(' van ') || attrText.includes(' op ') || attrText.includes(' bij ')) {
+      // First check if this is a known compound attribute name
+      let isCompoundAttribute = false;
+
+      // Check against all known object types
+      for (const [objectType, attributes] of this.objectTypeAttributes) {
+        if (attributes.has(attrText)) {
+          isCompoundAttribute = true;
+          break;
+        }
+      }
+
+      // If it's a known compound attribute, don't split it
+      if (isCompoundAttribute) {
+        // Keep the full attribute name intact
+      } else if (attrText.includes(' van ')) {
+        // This is a nested navigation expression
+        // We need to recursively parse it
+        // For now, just take the first part before "van"
+        const parts = attrText.split(' van ');
+        const actualAttr = this.extractParameterName(parts[0]);
       
       // The rest after "van" should be combined with the onderwerpReferentie
       // This is a workaround for the grammar ambiguity
@@ -1530,25 +1549,7 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
         
         return navExpr;
       }
-      
-      const navExpr = {
-        type: 'NavigationExpression',
-        attribute: actualAttr,
-        object: baseObjectExpr
-      } as NavigationExpression;
-      
-      // If we have dimension labels, wrap in DimensionedAttributeReference
-      if (dimensionLabels.length > 0) {
-        const node = {
-          type: 'DimensionedAttributeReference',
-          baseAttribute: navExpr,
-          dimensionLabels
-        } as DimensionedAttributeReference;
-    this.setLocation(node, ctx);
-    return node;
       }
-      
-      return navExpr;
     }
     
     // Simple case: no nested navigation in attribute
@@ -1688,18 +1689,26 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
     // basisOnderwerp : (DE | HET | EEN | ZIJN | ALLE)? identifierOrKeyword+
     // Check if ALLE token is present
     const hasAlle = basisOnderwerpCtx.ALLE && basisOnderwerpCtx.ALLE();
-    
+    // Check if possessive pronoun (ZIJN) is present - important for navigation
+    const hasZijn = basisOnderwerpCtx.ZIJN && basisOnderwerpCtx.ZIJN();
+
     // Extract the identifier(s)
     const identifiers = basisOnderwerpCtx.identifierOrKeyword ? basisOnderwerpCtx.identifierOrKeyword() : [];
-    
+
     if (identifiers.length > 0) {
-      const objectTypeName = Array.isArray(identifiers) 
+      let objectTypeName = Array.isArray(identifiers)
         ? identifiers.map(id => id.getText()).join(' ')
         : identifiers.getText();
-        
+
+      // If it has a possessive pronoun, keep it as part of the variable name
+      // This enables navigation through FeitTypes
+      if (hasZijn) {
+        objectTypeName = 'zijn ' + objectTypeName;
+      }
+
       // Note: If hasAlle is true, we still return a regular VariableReference
       // The handling of "alle" is done by the parent context (e.g., in aggregation functions)
-        
+
       const ref = {
         type: 'VariableReference',
         variableName: objectTypeName
@@ -1720,7 +1729,8 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
     
     // Fallback
     const text = ctx.getText();
-    const variableName = text.replace(/^(de|het|een|zijn|alle)\s*/i, '');
+    // Don't strip possessive pronouns - keep them for navigation
+    const variableName = text.replace(/^(de|het|een|alle)\s*/i, '');
     const ref = {
       type: 'VariableReference',
       variableName
@@ -2077,13 +2087,46 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
   visitObjectCreatieResultaat(ctx: any): any {
     // Get the objectCreatie context
     const objectCreatieCtx = ctx.objectCreatie();
-    
+
     // Get the object type name
     const objectTypeCtx = objectCreatieCtx.objectType ? objectCreatieCtx.objectType() : objectCreatieCtx._objectType;
     if (!objectTypeCtx) {
       throw new Error('Expected object type in object creation');
     }
-    const objectType = this.extractObjectTypeName(objectTypeCtx.getText());
+    let objectType = this.extractObjectTypeName(objectTypeCtx.getText());
+
+    // Resolve role name to actual object type if needed
+    // e.g., "vastgestelde contingent treinmiles" -> "Contingent treinmiles"
+    for (const [feitTypeName, feitType] of this.feitTypes) {
+      for (const rol of feitType.rollen || []) {
+        // Clean role name by removing articles
+        let roleNameClean = (rol.naam || '').toLowerCase();
+        for (const article of ['de ', 'het ', 'een ']) {
+          if (roleNameClean.startsWith(article)) {
+            roleNameClean = roleNameClean.substring(article.length);
+            break;
+          }
+        }
+
+        // Clean object type by removing articles
+        let objectTypeClean = objectType.toLowerCase();
+        for (const article of ['de ', 'het ', 'een ']) {
+          if (objectTypeClean.startsWith(article)) {
+            objectTypeClean = objectTypeClean.substring(article.length);
+            break;
+          }
+        }
+
+        // Check if object type matches or contains the role name
+        if (roleNameClean === objectTypeClean ||
+            roleNameClean.includes(objectTypeClean) ||
+            objectTypeClean.includes(roleNameClean)) {
+          // Found matching role - use the actual object type
+          objectType = rol.objectType || rol.object_type || objectType;
+          break;
+        }
+      }
+    }
     
     // Parse attribute initializations if present
     const attributeInits = [];
@@ -2230,8 +2273,8 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
     const nameCtx = ctx.naamwoordNoIs();
     const rawName = this.extractText(nameCtx).trim();
     const name = this.extractParameterName(rawName);
-    
-    
+
+
     // Check for plural form (in parentheses)
     const plural: string[] = [];
     if (ctx.MV_START()) {
@@ -2243,18 +2286,30 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
         plural.push(identifier.text || identifier.getText());
       }
     }
-    
+
     // Check if animated (bezield)
     const animated = !!ctx.BEZIELD();
-    
+
     // Get all members using the _list() method
     const members = [];
     const memberCtxs = ctx.objectTypeMember_list();
-    
+
+    // Collect attribute names for compound attribute resolution
+    const attributeNames = new Set<string>();
+
     for (const memberCtx of memberCtxs) {
-      members.push(this.visit(memberCtx));
+      const member = this.visit(memberCtx);
+      members.push(member);
+
+      // Track attribute names for this object type
+      if (member.type === 'AttributeSpecification' || member.type === 'KenmerkSpecification') {
+        attributeNames.add(member.name);
+      }
     }
-    
+
+    // Store attributes for this object type
+    this.objectTypeAttributes.set(name, attributeNames);
+
     const objType = {
       type: 'ObjectTypeDefinition' as const,
       name,
@@ -2601,32 +2656,41 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
   visitFeitTypeDefinition(ctx: any): FeitType {
     // Check if it's wederkerig (reciprocal)
     const wederkerig = Boolean(ctx.WEDERKERIG_FEITTYPE && ctx.WEDERKERIG_FEITTYPE());
-    
+
     // Extract the feittype name - _feittypenaam is a naamwoord context
     const naamCtx = ctx._feittypenaam;
     let naam = '';
     if (naamCtx) {
       naam = this.extractTextWithSpaces(naamCtx);
     }
-    
+
     // Extract roles from rolDefinition elements
     const rollen: Rol[] = [];
     const rolDefs = ctx.rolDefinition_list() || [];
-    
+
     for (const rolDef of rolDefs) {
       const rol = this.visitRolDefinition(rolDef);
       if (rol) {
         rollen.push(rol);
       }
     }
-    
+
     // Extract cardinality description from cardinalityLine
     let cardinalityDescription: string | undefined;
     const cardinalityLineCtx = ctx.cardinalityLine();
     if (cardinalityLineCtx) {
       cardinalityDescription = this.extractCardinalityLine(cardinalityLineCtx);
     }
-    
+
+    // Store FeitType for role resolution during object creation
+    const feitType = {
+      naam,
+      rollen,
+      wederkerig,
+      cardinalityDescription
+    };
+    this.feitTypes.set(naam, feitType);
+
     const node: FeitType = {
       type: 'FeitType',
       naam,

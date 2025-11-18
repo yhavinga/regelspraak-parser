@@ -19,7 +19,7 @@ import {
   RegelGroep,
   FeitCreatie
 } from '../ast/rules';
-import { VariableReference, Expression } from '../ast/expressions';
+import { VariableReference, Expression, AttributeReference } from '../ast/expressions';
 import { ExpressionEvaluator } from '../evaluators/expression-evaluator';
 import { Context } from '../runtime/context';
 import { FeitExecutor } from './feit-executor';
@@ -759,8 +759,10 @@ export class RuleExecutor implements IRuleExecutor {
     
     return {
       success: true,
-      objectsCreated: createdObjects,
-      count: createdCount
+      value: {
+        type: 'string',
+        value: `Created ${createdCount} objects`
+      }
     };
   }
   
