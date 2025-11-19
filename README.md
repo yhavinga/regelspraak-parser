@@ -48,15 +48,30 @@ Real example: The entire TOKA implementation including tax calculation, treinmil
 
 ## Quick Start
 
+### Prerequisites
+- Python 3.7+
+- Java (for ANTLR): `brew install openjdk` (macOS) or `apt install default-jre` (Linux)
+
 ### Installation
 
 ```bash
-# Install dependencies and package
-pip install -r requirements.txt
-pip install -e .  # For development
+# 1. Download ANTLR JAR (required)
+mkdir -p lib
+curl -o lib/antlr-4.13.1-complete.jar https://www.antlr.org/download/antlr-4.13.1-complete.jar
 
-# For grammar modifications only:
-# Download ANTLR 4.13.1 and run: make parser
+# 2. Setup Python environment
+python3 -m venv venv
+source venv/bin/activate  # On Windows: venv\Scripts\activate
+
+# 3. Install dependencies
+pip install -r requirements.txt
+pip install -e .
+
+# 4. Generate parser files (required for first-time setup)
+make parser-python
+
+# 5. Verify installation
+make test
 ```
 
 ### Basic Usage
