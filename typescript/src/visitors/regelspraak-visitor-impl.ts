@@ -1711,79 +1711,98 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
     return this.visitOnderwerpBasis(ctx.onderwerpBasis());
   }
   
-  visitOnderwerpBasis(ctx: any): Expression {
+  visitOnderwerpBasis(ctx: any): AttributeReference {
     if (!ctx) {
       throw new Error('Expected onderwerpBasis context');
     }
-    
+
     // onderwerpBasis : basisOnderwerp ( voorzetsel basisOnderwerp )*
-    // For now, just handle the simple case without voorzetsel chaining
-    const basisOnderwerpList = ctx.basisOnderwerp();
-    if (!basisOnderwerpList || basisOnderwerpList.length === 0) {
-      // Fallback
-      const text = ctx.getText();
-      const variableName = text.replace(/^(de|het|een|zijn|alle)\s*/i, '');
-      const ref = {
-        type: 'VariableReference',
-        variableName
-      } as VariableReference;
+    // Process ALL basisOnderwerp elements to build complete navigation chain
+    const path = this.onderwerpBasisToPath(ctx);
+
+    if (path.length === 0) {
+      // Fallback: extract text without articles
+      const fallback = ctx.getText().replace(/^(de|het|een|alle)\s*/i, '').trim();
+      const ref: AttributeReference = {
+        type: 'AttributeReference',
+        path: [fallback]
+      } as AttributeReference;
       this.setLocation(ref, ctx);
       return ref;
     }
-    
-    const basisOnderwerpCtx = basisOnderwerpList[0];
-    
-    // basisOnderwerp : (DE | HET | EEN | ZIJN | ALLE)? identifierOrKeyword+
-    // Check if ALLE token is present
-    const hasAlle = basisOnderwerpCtx.ALLE && basisOnderwerpCtx.ALLE();
-    // Check if possessive pronoun (ZIJN) is present - important for navigation
-    const hasZijn = basisOnderwerpCtx.ZIJN && basisOnderwerpCtx.ZIJN();
 
-    // Extract the identifier(s)
-    const identifiers = basisOnderwerpCtx.identifierOrKeyword ? basisOnderwerpCtx.identifierOrKeyword() : [];
-
-    if (identifiers.length > 0) {
-      let objectTypeName = Array.isArray(identifiers)
-        ? identifiers.map(id => id.getText()).join(' ')
-        : identifiers.getText();
-
-      // If it has a possessive pronoun, keep it as part of the variable name
-      // This enables navigation through FeitTypes
-      if (hasZijn) {
-        objectTypeName = 'zijn ' + objectTypeName;
-      }
-
-      // Note: If hasAlle is true, we still return a regular VariableReference
-      // The handling of "alle" is done by the parent context (e.g., in aggregation functions)
-
-      const ref = {
-        type: 'VariableReference',
-        variableName: objectTypeName
-      } as VariableReference;
-      this.setLocation(ref, ctx);
-      return ref;
-    }
-    
-    // Check for HIJ pronoun
-    if (basisOnderwerpCtx.HIJ && basisOnderwerpCtx.HIJ()) {
-      const ref = {
-        type: 'VariableReference',
-        variableName: 'hij'
-      } as VariableReference;
-      this.setLocation(ref, ctx);
-      return ref;
-    }
-    
-    // Fallback
-    const text = ctx.getText();
-    // Don't strip possessive pronouns - keep them for navigation
-    const variableName = text.replace(/^(de|het|een|alle)\s*/i, '');
-    const ref = {
-      type: 'VariableReference',
-      variableName
-    } as VariableReference;
+    // Return AttributeReference with full navigation path
+    const ref: AttributeReference = {
+      type: 'AttributeReference',
+      path
+    } as AttributeReference;
     this.setLocation(ref, ctx);
     return ref;
+  }
+
+  // Helper: Extract full path from onderwerpBasis context
+  private onderwerpBasisToPath(ctx: any): string[] {
+    if (!ctx) {
+      return [];
+    }
+
+    // Grammar: onderwerpBasis : basisOnderwerp ( voorzetsel basisOnderwerp )*
+    // In TypeScript ANTLR4, repeated elements use _list suffix
+    const path: string[] = [];
+
+    // Get all basisOnderwerp contexts using the _list method
+    const allBasisOnderwerp = ctx.basisOnderwerp_list ? ctx.basisOnderwerp_list() : [];
+
+    // Process each basisOnderwerp to build the navigation path
+    for (let i = 0; i < allBasisOnderwerp.length; i++) {
+      const part = this.visitBasisOnderwerpToString(allBasisOnderwerp[i]);
+      if (part) {
+        path.push(part);
+      }
+    }
+
+    return path;
+  }
+
+  // Helper: Convert single basisOnderwerp to string, preserving possessives
+  private visitBasisOnderwerpToString(ctx: any): string | null {
+    if (!ctx) {
+      return null;
+    }
+
+    // basisOnderwerp : (DE | HET | EEN | ZIJN | ALLE | HIJ)? identifierOrKeyword+
+
+    // Handle pronoun "hij" -> map to "self" for consistency with Python
+    if (ctx.HIJ && ctx.HIJ()) {
+      return 'self';
+    }
+
+    // Get identifiers
+    const identifiers = ctx.identifierOrKeyword ? ctx.identifierOrKeyword() : [];
+    const identifierList = Array.isArray(identifiers) ? identifiers : (identifiers ? [identifiers] : []);
+
+    if (identifierList.length === 0) {
+      // No identifiers, try fallback with text extraction
+      const text = this.extractTextWithSpaces(ctx);
+      // Remove common articles but preserve possessives
+      return text.replace(/^(de|het|een|alle)\s+/i, '').trim();
+    }
+
+    // Build identifier text with proper spacing
+    let text = identifierList.map((id: any) => id.getText()).join(' ');
+
+    // Handle possessive pronoun "zijn" - must be preserved for FeitType navigation
+    if (ctx.ZIJN && ctx.ZIJN()) {
+      text = `zijn ${text}`.trim();
+    }
+
+    // Split on "van" if present to avoid duplicate navigation segments
+    // e.g., "burgemeester van de hoofdstad" -> "burgemeester"
+    if (text.includes(' van ')) {
+      text = text.split(' van ')[0].trim();
+    }
+
+    return text;
   }
   
   // Helper method to convert onderwerpReferentie to a path list
@@ -1791,24 +1810,16 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
     if (!ctx) {
       return [];
     }
-    
+
     // onderwerpReferentie : onderwerpBasis ( (DIE | DAT) predicaat )?
-    // For now, just handle the simple case without predicates
+    // Use the new helper to get the full path
     const onderwerpBasisCtx = ctx.onderwerpBasis();
     if (!onderwerpBasisCtx) {
       return [];
     }
-    
-    const expr = this.visitOnderwerpBasis(onderwerpBasisCtx);
-    
-    // Convert the expression to a path
-    if (expr.type === 'VariableReference') {
-      const varRef = expr as VariableReference;
-      return [varRef.variableName];
-    }
-    
-    // For other expression types, we'd need more complex handling
-    return [];
+
+    // Directly use the path helper to get the navigation chain
+    return this.onderwerpBasisToPath(onderwerpBasisCtx);
   }
   
   visitPredicaat(ctx: any): Predicaat {
