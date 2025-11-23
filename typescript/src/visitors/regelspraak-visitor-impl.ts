@@ -1464,15 +1464,15 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
     return group;
   }
 
-  visitAttribuutReferentie(ctx: any): AttributeReference | NavigationExpression | DimensionedAttributeReference {
+  visitAttribuutReferentie(ctx: any): AttributeReference | SubselectieExpression | DimensionedAttributeReference {
     // attribuutReferentie : attribuutMetLidwoord VAN onderwerpReferentie
     const attrCtx = ctx.attribuutMetLidwoord();
     const attrText = this.extractTextWithSpaces(attrCtx);
-    
+
     // Check for dimensional patterns like "het bruto inkomen" or "het inkomen van huidig jaar"
     const dimensionKeywords = ['bruto', 'netto', 'huidig jaar', 'vorig jaar', 'volgend jaar'];
     const dimensionLabels: string[] = [];
-    
+
     // Check if attribute contains dimension keywords (adjectival style)
     let cleanAttrText = attrText;
     for (const keyword of dimensionKeywords) {
@@ -1482,14 +1482,14 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
         cleanAttrText = cleanAttrText.replace(keyword, '').trim();
       }
     }
-    
+
     // Handle prepositional dimensions: "het inkomen van huidig jaar van de persoon"
     // Need to detect if the first part of onderwerpReferentie is a dimension label
     const onderwerpCtx = ctx.onderwerpReferentie();
     const onderwerpBasisCtx = onderwerpCtx.onderwerpBasis ? onderwerpCtx.onderwerpBasis() : null;
     if (onderwerpBasisCtx) {
       const onderwerpText = this.extractTextWithSpaces(onderwerpBasisCtx);
-      
+
       // Check if this is a dimension keyword
       let isDimensionKeyword = false;
       let matchedKeyword = '';
@@ -1500,33 +1500,30 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
           break;
         }
       }
-      
+
       if (isDimensionKeyword && !dimensionLabels.includes(matchedKeyword)) {
         dimensionLabels.push(matchedKeyword);
-        
-        // Now we need to modify the parsing to skip this dimension part
-        // The actual object reference is after the dimension
-        // For "het inkomen van huidig jaar van de persoon", we need to get "de persoon"
-        
-        // This is a complex case - let's handle it by manually visiting the rest
-        // For now, return a simplified structure
-        const navExpr = {
-          type: 'NavigationExpression',
-          attribute: this.extractParameterName(cleanAttrText),
-          object: {
-            type: 'VariableReference',
-            variableName: 'persoon', // TODO: Extract this properly
-            location: createSourceLocation(ctx)
-          }
-        } as NavigationExpression;
-        
+
+        // Get the actual object path after the dimension
+        // For "het inkomen van huidig jaar van de persoon", we need "de persoon"
+        // This requires looking at the rest of the onderwerp chain
+        const objectPath = this.visitOnderwerpReferentieToPath(onderwerpCtx);
+
+        // Build the full path for AttributeReference
+        const fullPath = objectPath.length > 0 ? [...objectPath, this.extractParameterName(cleanAttrText)] : [this.extractParameterName(cleanAttrText)];
+
+        const baseAttrRef = {
+          type: 'AttributeReference',
+          path: fullPath
+        } as AttributeReference;
+
         const node = {
           type: 'DimensionedAttributeReference',
-          baseAttribute: navExpr,
+          baseAttribute: baseAttrRef,
           dimensionLabels
         } as DimensionedAttributeReference;
-    this.setLocation(node, ctx);
-    return node;
+        this.setLocation(node, ctx);
+        return node;
       }
     }
     
@@ -1545,115 +1542,108 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
       }
 
       // If it's a known compound attribute, don't split it
-      if (isCompoundAttribute) {
-        // Keep the full attribute name intact
-      } else if (attrText.includes(' van ')) {
+      if (!isCompoundAttribute && attrText.includes(' van ')) {
         // This is a nested navigation expression
-        // We need to recursively parse it
-        // For now, just take the first part before "van"
+        // Split it and build the path properly
         const parts = attrText.split(' van ');
         const actualAttr = this.extractParameterName(parts[0]);
-      
-      // The rest after "van" should be combined with the onderwerpReferentie
-      // This is a workaround for the grammar ambiguity
-      const baseObjectExpr = this.visit(onderwerpCtx);
-      
-      // Create a nested navigation if we have multiple parts
-      if (parts.length > 1) {
+
+        // Get the object path
+        const objectPath = this.visitOnderwerpReferentieToPath(onderwerpCtx);
+
+        // Build the complete path including the nested attributes
         // For "de straat van het adres", parts = ["de straat", "het adres"]
-        // We need to create: { attribute: "straat", object: { attribute: "adres", object: persoon } }
-        
-        // Start with the base object (persoon)
-        let currentObject = baseObjectExpr;
-        
-        // Process middle parts from right to left
-        // Skip the first part (actualAttr) as it will be the outermost attribute
+        // Process from right to left (Dutch navigation order)
+        const pathElements: string[] = [...objectPath];
+
+        // Add the middle parts in reverse order
         for (let i = parts.length - 1; i >= 1; i--) {
-          const nestedAttr = this.extractParameterName(parts[i]);
-          currentObject = {
-            type: 'NavigationExpression',
-            attribute: nestedAttr,
-            object: currentObject
-          } as NavigationExpression;
+          pathElements.push(this.extractParameterName(parts[i]));
         }
-        
-        const navExpr = {
-          type: 'NavigationExpression',
-          attribute: actualAttr,
-          object: currentObject
-        } as NavigationExpression;
-        
+
+        // Add the outermost attribute
+        pathElements.push(actualAttr);
+
+        const attrRef = {
+          type: 'AttributeReference',
+          path: pathElements
+        } as AttributeReference;
+
         // If we have dimension labels, wrap in DimensionedAttributeReference
         if (dimensionLabels.length > 0) {
           const node = {
             type: 'DimensionedAttributeReference',
-            baseAttribute: navExpr,
+            baseAttribute: attrRef,
             dimensionLabels
           } as DimensionedAttributeReference;
-    this.setLocation(node, ctx);
-    return node;
+          this.setLocation(node, ctx);
+          return node;
         }
-        
-        return navExpr;
-      }
+
+        this.setLocation(attrRef, ctx);
+        return attrRef;
       }
     }
     
     // Simple case: no nested navigation in attribute
     const attrName = this.extractParameterName(cleanAttrText);
-    
-    // Check if the onderwerp has filtering (predicates)
-    const predicaatCtx = onderwerpCtx.predicaat ? onderwerpCtx.predicaat() : null;
-    if (predicaatCtx && (onderwerpCtx.DIE && onderwerpCtx.DIE() || onderwerpCtx.DAT && onderwerpCtx.DAT())) {
-      // We have a subselectie - use NavigationExpression instead of AttributeReference
-      const objectExpr = this.visitOnderwerpReferentie(onderwerpCtx);
-      
-      const navExpr = {
-        type: 'NavigationExpression',
-        attribute: attrName,
-        object: objectExpr
-      } as NavigationExpression;
-      
-      // If we have dimension labels, wrap in DimensionedAttributeReference
-      if (dimensionLabels.length > 0) {
-        const node = {
-          type: 'DimensionedAttributeReference',
-          baseAttribute: navExpr,
-          dimensionLabels
-        } as DimensionedAttributeReference;
-    this.setLocation(node, ctx);
-    return node;
-      }
-      
-      return navExpr;
-    }
-    
-    // No filtering - use AttributeReference with path
+
+    // Get the object path
     const objectPath = this.visitOnderwerpReferentieToPath(onderwerpCtx);
-    
+
     // Build the full path for AttributeReference
     // Dutch right-to-left navigation per specification
     // For "de naam van de Manager", this becomes ["Manager", "naam"]
     const fullPath = [...objectPath, attrName];
-    
+
     // Create AttributeReference with the full path
-    const attrRef = {
+    const baseAttrRef = {
       type: 'AttributeReference',
       path: fullPath
     } as AttributeReference;
-    
+
+    // Check if the onderwerp has filtering (predicates)
+    const predicaatCtx = onderwerpCtx.predicaat ? onderwerpCtx.predicaat() : null;
+    if (predicaatCtx && (onderwerpCtx.DIE && onderwerpCtx.DIE() || onderwerpCtx.DAT && onderwerpCtx.DAT())) {
+      // We have a subselectie - wrap the AttributeReference in SubselectieExpression
+      const predicaat = this.visitPredicaat(predicaatCtx);
+
+      const subselectie = {
+        type: 'SubselectieExpression',
+        collection: baseAttrRef,
+        predicaat: predicaat
+      } as SubselectieExpression;
+
+      // If we have dimension labels, wrap in DimensionedAttributeReference
+      if (dimensionLabels.length > 0) {
+        const node = {
+          type: 'DimensionedAttributeReference',
+          baseAttribute: subselectie,
+          dimensionLabels
+        } as DimensionedAttributeReference;
+        this.setLocation(node, ctx);
+        return node;
+      }
+
+      this.setLocation(subselectie, ctx);
+      return subselectie;
+    }
+
+    // No filtering - already created baseAttrRef above
+
     // If we have dimension labels, wrap in DimensionedAttributeReference
     if (dimensionLabels.length > 0) {
       const node = {
         type: 'DimensionedAttributeReference',
-        baseAttribute: attrRef,
+        baseAttribute: baseAttrRef,
         dimensionLabels
       } as DimensionedAttributeReference;
-    this.setLocation(node, ctx);
-    return node;
+      this.setLocation(node, ctx);
+      return node;
     }
-    
-    return attrRef;
+
+    this.setLocation(baseAttrRef, ctx);
+    return baseAttrRef;
   }
   
   visitAttrRefExpr(ctx: any): Expression {
@@ -1711,7 +1701,7 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
     return this.visitOnderwerpBasis(ctx.onderwerpBasis());
   }
   
-  visitOnderwerpBasis(ctx: any): AttributeReference {
+  visitOnderwerpBasis(ctx: any): Expression {
     if (!ctx) {
       throw new Error('Expected onderwerpBasis context');
     }
@@ -1723,6 +1713,7 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
     if (path.length === 0) {
       // Fallback: extract text without articles
       const fallback = ctx.getText().replace(/^(de|het|een|alle)\s*/i, '').trim();
+      // Even for fallback, use AttributeReference to maintain consistency
       const ref: AttributeReference = {
         type: 'AttributeReference',
         path: [fallback]
@@ -1731,7 +1722,9 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
       return ref;
     }
 
-    // Return AttributeReference with full navigation path
+    // Always return AttributeReference for onderwerp contexts
+    // This matches Python implementation which only uses VariableReference
+    // for truly standalone identifiers in primaryExpression
     const ref: AttributeReference = {
       type: 'AttributeReference',
       path

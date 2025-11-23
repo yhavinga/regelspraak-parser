@@ -79,8 +79,9 @@ export class ExpressionEvaluator implements IEvaluator {
         return this.aggregationEngine.evaluate(expr as AggregationExpression, context);
       case 'TimelineExpression':
         return this.timelineEvaluator.evaluate(expr as TimelineExpression, context);
-      case 'NavigationExpression':
-        return this.evaluateNavigationExpression(expr as NavigationExpression, context);
+      // NavigationExpression removed - now using AttributeReference with path arrays
+      // case 'NavigationExpression':
+      //   return this.evaluateNavigationExpression(expr as NavigationExpression, context);
       case 'SubselectieExpression':
         return this.evaluateSubselectieExpression(expr as SubselectieExpression, context);
       case 'AttributeReference':
@@ -1998,35 +1999,8 @@ export class ExpressionEvaluator implements IEvaluator {
     let targetObject: Value;
     let attributeName: string;
     
-    if (baseAttribute.type === 'NavigationExpression') {
-      // For dimensional patterns, we need to reconstruct the proper navigation
-      // The attribute name should be cleaned of dimension keywords
-      attributeName = baseAttribute.attribute;
-      
-      // Use dimension registry to identify and remove adjectival dimension labels from attribute name
-      const registry = context.dimensionRegistry;
-      for (const label of expr.dimensionLabels) {
-        const axisName = registry.findAxisForLabel(label);
-        if (axisName && registry.isAdjectival(axisName)) {
-          // Remove adjectival dimension labels from the attribute name
-          attributeName = attributeName.replace(label, '').trim();
-        }
-      }
-      
-      // The object might be nested navigation that includes dimension labels
-      // For now, we'll assume the deepest object is the actual target
-      let currentNav = baseAttribute.object;
-      while (currentNav && currentNav.type === 'NavigationExpression') {
-        currentNav = currentNav.object;
-      }
-      
-      // Evaluate the actual object
-      if (currentNav && currentNav.type === 'VariableReference') {
-        targetObject = this.evaluate(currentNav, context);
-      } else {
-        targetObject = this.evaluate(baseAttribute.object, context);
-      }
-    } else if (baseAttribute.type === 'AttributeReference') {
+    // NavigationExpression has been removed - only handle AttributeReference and SubselectieExpression
+    if (baseAttribute.type === 'AttributeReference') {
       // For AttributeReference with dimensions
       // The path should have the attribute name and object type
       const path = baseAttribute.path;
@@ -2050,6 +2024,30 @@ export class ExpressionEvaluator implements IEvaluator {
       // Get the target object - with object-first order, first element is the object
       const objectName = path[0];
       targetObject = context.getVariable(objectName) || { type: 'null', value: null };
+    } else if (baseAttribute.type === 'SubselectieExpression') {
+      // Handle SubselectieExpression with dimensions
+      // First evaluate the subselectie to get the filtered collection
+      const subselectieResult = this.evaluateSubselectieExpression(baseAttribute as SubselectieExpression, context);
+
+      // For dimensional access, we need a single object, not a collection
+      if (subselectieResult.type === 'array') {
+        const items = subselectieResult.value as Value[];
+        if (items.length === 0) {
+          return { type: 'null', value: null };
+        }
+        // Take the first item from the filtered collection
+        targetObject = items[0];
+      } else {
+        targetObject = subselectieResult;
+      }
+
+      // Extract the attribute name from the underlying collection expression
+      if (baseAttribute.collection?.type === 'AttributeReference') {
+        const path = baseAttribute.collection.path;
+        attributeName = path[path.length - 1];
+      } else {
+        throw new Error('Unable to determine attribute name from SubselectieExpression');
+      }
     } else {
       throw new Error(`Unsupported base attribute type for dimensional reference: ${baseAttribute.type}`);
     }
