@@ -18,9 +18,9 @@ import {
   DateCalcExprContext
 } from '../generated/antlr/RegelSpraakParser';
 import RegelSpraakLexer from '../generated/antlr/RegelSpraakLexer';
-import { 
-  Expression, 
-  NumberLiteral, 
+import {
+  Expression,
+  NumberLiteral,
   BinaryExpression,
   UnaryExpression,
   VariableReference,
@@ -33,7 +33,12 @@ import {
   AttributeComparisonPredicaat,
   SamengesteldeVoorwaarde,
   Kwantificatie,
-  KwantificatieType
+  KwantificatieType,
+  AfrondingExpression,
+  BegrenzingExpression,
+  BegrenzingAfrondingExpression,
+  ConjunctionExpression,
+  DisjunctionExpression
 } from '../ast/expressions';
 import {
   Predicate,
@@ -173,14 +178,168 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
   }
 
   visitExpressie(ctx: ExpressieContext): Expression {
-    // The expressie rule just delegates to logicalExpression
-    // TypeScript might not have the method typed correctly
+    // Handle different expression alternatives based on context type
+    const contextName = ctx.constructor.name;
+
+    // Check for specific labeled alternatives
+    if (contextName === 'ExprAfrondingContext') {
+      return this.visitExprAfronding(ctx);
+    } else if (contextName === 'ExprBegrenzingContext') {
+      return this.visitExprBegrenzing(ctx);
+    } else if (contextName === 'ExprBegrenzingAfrondingContext') {
+      return this.visitExprBegrenzingAfronding(ctx);
+    }
+
+    // Default case: just delegate to logicalExpression
     const logicalExpr = (ctx as any).logicalExpression ? (ctx as any).logicalExpression() : null;
     if (logicalExpr) {
       return this.visit(logicalExpr);
     }
     // Fallback to visiting children
     return this.visitChildren(ctx);
+  }
+
+  visitExprAfronding(ctx: any): Expression {
+    // Expression with afronding (rounding)
+    const expr = this.visit((ctx as any).logicalExpression());
+    if (!expr) {
+      return this.visitChildren(ctx);
+    }
+
+    const afrondingCtx = (ctx as any).afronding ? (ctx as any).afronding() : null;
+    if (!afrondingCtx) {
+      return expr;
+    }
+
+    // Extract rounding direction
+    let direction: AfrondingExpression['direction'] = undefined;
+    if (afrondingCtx.NAAR_BENEDEN && afrondingCtx.NAAR_BENEDEN()) {
+      direction = 'naar_beneden';
+    } else if (afrondingCtx.NAAR_BOVEN && afrondingCtx.NAAR_BOVEN()) {
+      direction = 'naar_boven';
+    } else if (afrondingCtx.REKENKUNDIG && afrondingCtx.REKENKUNDIG()) {
+      direction = 'rekenkundig';
+    } else if (afrondingCtx.RICHTING_NUL && afrondingCtx.RICHTING_NUL()) {
+      direction = 'richting_nul';
+    } else if (afrondingCtx.WEG_VAN_NUL && afrondingCtx.WEG_VAN_NUL()) {
+      direction = 'weg_van_nul';
+    }
+
+    // Extract decimals
+    const decimals = afrondingCtx.NUMBER && afrondingCtx.NUMBER() ?
+      parseInt(afrondingCtx.NUMBER().getText(), 10) : 0;
+
+    const result: AfrondingExpression = {
+      type: 'AfrondingExpression',
+      expression: expr,
+      direction,
+      decimals
+    };
+    this.setLocation(result, ctx);
+    return result;
+  }
+
+  visitExprBegrenzing(ctx: any): Expression {
+    // Expression with begrenzing (limiting)
+    const expr = this.visit((ctx as any).logicalExpression());
+    if (!expr) {
+      return this.visitChildren(ctx);
+    }
+
+    const begrenzingCtx = (ctx as any).begrenzing ? (ctx as any).begrenzing() : null;
+    if (!begrenzingCtx) {
+      return expr;
+    }
+
+    let minimum: Expression | undefined;
+    let maximum: Expression | undefined;
+
+    // Check for minimum
+    if (begrenzingCtx.begrenzingMinimum && begrenzingCtx.begrenzingMinimum()) {
+      const minCtx = begrenzingCtx.begrenzingMinimum();
+      if (minCtx.expressie && minCtx.expressie()) {
+        minimum = this.visit(minCtx.expressie());
+      }
+    }
+    // Check for maximum
+    else if (begrenzingCtx.begrenzingMaximum && begrenzingCtx.begrenzingMaximum()) {
+      const maxCtx = begrenzingCtx.begrenzingMaximum();
+      if (maxCtx.expressie && maxCtx.expressie()) {
+        maximum = this.visit(maxCtx.expressie());
+      }
+    }
+
+    const result: BegrenzingExpression = {
+      type: 'BegrenzingExpression',
+      expression: expr,
+      minimum,
+      maximum
+    };
+    this.setLocation(result, ctx);
+    return result;
+  }
+
+  visitExprBegrenzingAfronding(ctx: any): Expression {
+    // Expression with both begrenzing and afronding
+    const expr = this.visit((ctx as any).logicalExpression());
+    if (!expr) {
+      return this.visitChildren(ctx);
+    }
+
+    // Handle begrenzing
+    let minimum: Expression | undefined;
+    let maximum: Expression | undefined;
+    const begrenzingCtx = (ctx as any).begrenzing ? (ctx as any).begrenzing() : null;
+    if (begrenzingCtx) {
+      // Check for minimum
+      if (begrenzingCtx.begrenzingMinimum && begrenzingCtx.begrenzingMinimum()) {
+        const minCtx = begrenzingCtx.begrenzingMinimum();
+        if (minCtx.expressie && minCtx.expressie()) {
+          minimum = this.visit(minCtx.expressie());
+        }
+      }
+      // Check for maximum
+      else if (begrenzingCtx.begrenzingMaximum && begrenzingCtx.begrenzingMaximum()) {
+        const maxCtx = begrenzingCtx.begrenzingMaximum();
+        if (maxCtx.expressie && maxCtx.expressie()) {
+          maximum = this.visit(maxCtx.expressie());
+        }
+      }
+    }
+
+    // Handle afronding
+    let direction: BegrenzingAfrondingExpression['direction'] = undefined;
+    let decimals = 0;
+    const afrondingCtx = (ctx as any).afronding ? (ctx as any).afronding() : null;
+    if (afrondingCtx) {
+      // Extract rounding direction
+      if (afrondingCtx.NAAR_BENEDEN && afrondingCtx.NAAR_BENEDEN()) {
+        direction = 'naar_beneden';
+      } else if (afrondingCtx.NAAR_BOVEN && afrondingCtx.NAAR_BOVEN()) {
+        direction = 'naar_boven';
+      } else if (afrondingCtx.REKENKUNDIG && afrondingCtx.REKENKUNDIG()) {
+        direction = 'rekenkundig';
+      } else if (afrondingCtx.RICHTING_NUL && afrondingCtx.RICHTING_NUL()) {
+        direction = 'richting_nul';
+      } else if (afrondingCtx.WEG_VAN_NUL && afrondingCtx.WEG_VAN_NUL()) {
+        direction = 'weg_van_nul';
+      }
+
+      // Extract decimals
+      decimals = afrondingCtx.NUMBER && afrondingCtx.NUMBER() ?
+        parseInt(afrondingCtx.NUMBER().getText(), 10) : 0;
+    }
+
+    const result: BegrenzingAfrondingExpression = {
+      type: 'BegrenzingAfrondingExpression',
+      expression: expr,
+      minimum,
+      maximum,
+      direction,
+      decimals
+    };
+    this.setLocation(result, ctx);
+    return result;
   }
 
   visitLogicalExpr(ctx: LogicalExprContext): Expression {
@@ -665,11 +824,11 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
     const left = this.visit(ctx.primaryExpression(0));
     const right = this.visit(ctx.primaryExpression(1));
     const identifier = ctx.identifier()?.getText() || '';
-    
+
     // Check if the identifier is a time unit
-    const timeUnits = ['dagen', 'dag', 'maanden', 'maand', 'jaren', 'jaar', 'weken', 'week', 
+    const timeUnits = ['dagen', 'dag', 'maanden', 'maand', 'jaren', 'jaar', 'weken', 'week',
                        'uren', 'uur', 'minuten', 'minuut', 'seconden', 'seconde'];
-    
+
     if (!timeUnits.includes(identifier.toLowerCase())) {
       // Not a date calculation - treat as arithmetic with the identifier as unit
       // If right is a number literal, add the unit to it
@@ -677,10 +836,10 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
         (right as NumberLiteral).unit = identifier;
       }
     }
-    
+
     // Create binary expression
     const operator = ctx.PLUS() ? '+' : '-';
-    
+
     const node = {
       type: 'BinaryExpression',
       operator: operator,
@@ -689,6 +848,218 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
     } as BinaryExpression;
     this.setLocation(node, ctx);
     return node;
+  }
+
+  visitEersteDatumFuncExpr(ctx: any): Expression {
+    // Parse "de eerste van" function: EERSTE_VAN primaryExpression (COMMA primaryExpression)* EN primaryExpression
+    const args: Expression[] = [];
+
+    // Get all primaryExpression children
+    const primaryExpressions = ctx.primaryExpression ? ctx.primaryExpression() : [];
+    const expressions = Array.isArray(primaryExpressions) ? primaryExpressions : [primaryExpressions];
+
+    for (const expr of expressions) {
+      if (expr) {
+        const result = this.visit(expr);
+        if (result) {
+          args.push(result);
+        }
+      }
+    }
+
+    const node: FunctionCall = {
+      type: 'FunctionCall',
+      functionName: 'eerste_van',
+      arguments: args
+    };
+    this.setLocation(node, ctx);
+    return node;
+  }
+
+  visitLaatsteDatumFuncExpr(ctx: any): Expression {
+    // Parse "de laatste van" function: LAATSTE_VAN primaryExpression (COMMA primaryExpression)* EN primaryExpression
+    const args: Expression[] = [];
+
+    // Get all primaryExpression children
+    const primaryExpressions = ctx.primaryExpression ? ctx.primaryExpression() : [];
+    const expressions = Array.isArray(primaryExpressions) ? primaryExpressions : [primaryExpressions];
+
+    for (const expr of expressions) {
+      if (expr) {
+        const result = this.visit(expr);
+        if (result) {
+          args.push(result);
+        }
+      }
+    }
+
+    const node: FunctionCall = {
+      type: 'FunctionCall',
+      functionName: 'laatste_van',
+      arguments: args
+    };
+    this.setLocation(node, ctx);
+    return node;
+  }
+
+  visitPasenFuncExpr(ctx: any): Expression {
+    // Parse "de eerste paasdag van" function: DE EERSTE_PAASDAG VAN primaryExpression
+    const primaryExpr = ctx.primaryExpression ? ctx.primaryExpression() : null;
+    const args: Expression[] = [];
+
+    if (primaryExpr) {
+      const expr = this.visit(primaryExpr);
+      if (expr) {
+        args.push(expr);
+      }
+    }
+
+    const node: FunctionCall = {
+      type: 'FunctionCall',
+      functionName: 'eerste_paasdag_van',
+      arguments: args
+    };
+    this.setLocation(node, ctx);
+    return node;
+  }
+
+  visitSimpleConcatenatieExpr(ctx: any): Expression {
+    // Pattern: primaryExpression (COMMA primaryExpression)+ (EN | OF) primaryExpression
+    const args: Expression[] = [];
+    let hasOf = false;
+    let hasEn = false;
+
+    // Get all primary expressions
+    const primaryExprs = ctx.primaryExpression ? ctx.primaryExpression() : [];
+    const expressions = Array.isArray(primaryExprs) ? primaryExprs : [primaryExprs];
+
+    // Visit each primary expression
+    for (const expr of expressions) {
+      if (expr) {
+        const result = this.visit(expr);
+        if (result) {
+          args.push(result);
+        }
+      }
+    }
+
+    // Check for OF or EN tokens
+    if (ctx.OF && ctx.OF()) {
+      hasOf = true;
+    }
+    if (ctx.EN && ctx.EN()) {
+      hasEn = true;
+    }
+
+    // Create appropriate expression type based on connector
+    if (hasOf) {
+      const node: DisjunctionExpression = {
+        type: 'DisjunctionExpression',
+        values: args
+      };
+      this.setLocation(node, ctx);
+      return node;
+    } else if (hasEn) {
+      // Check if we're in a function context
+      const parentCtx = ctx.parentCtx;
+      let functionName: string | undefined;
+
+      // Try to determine if this is part of a function call
+      if (parentCtx) {
+        const parentText = parentCtx.getText ? parentCtx.getText() : '';
+        if (parentText.includes('gemiddelde van')) {
+          functionName = 'gemiddelde_van';
+        } else if (parentText.includes('som van')) {
+          functionName = 'som_van';
+        } else if (parentText.includes('eerste van')) {
+          functionName = 'eerste_van';
+        } else if (parentText.includes('laatste van')) {
+          functionName = 'laatste_van';
+        } else if (parentText.includes('totaal van')) {
+          functionName = 'totaal_van';
+        }
+      }
+
+      // If we have a function context, return a FunctionCall
+      if (functionName && args.length > 0) {
+        const node: FunctionCall = {
+          type: 'FunctionCall',
+          functionName,
+          arguments: args
+        };
+        this.setLocation(node, ctx);
+        return node;
+      }
+
+      // Otherwise return a ConjunctionExpression
+      const node: ConjunctionExpression = {
+        type: 'ConjunctionExpression',
+        values: args
+      };
+      this.setLocation(node, ctx);
+      return node;
+    }
+
+    // Fallback: return first argument or throw error
+    if (args.length > 0) {
+      return args[0];
+    }
+
+    throw new Error(`Concatenation expression without valid connector: ${ctx.getText()}`);
+  }
+
+  visitConcatenatieExpr(ctx: any): Expression {
+    // Pattern: CONCATENATIE_VAN primaryExpression (COMMA primaryExpression)* (EN | OF) primaryExpression
+    // This is almost identical to SimpleConcatenatieExpr but with CONCATENATIE_VAN keyword
+    const args: Expression[] = [];
+    let hasOf = false;
+    let hasEn = false;
+
+    // Get all primary expressions
+    const primaryExprs = ctx.primaryExpression ? ctx.primaryExpression() : [];
+    const expressions = Array.isArray(primaryExprs) ? primaryExprs : [primaryExprs];
+
+    // Visit each primary expression
+    for (const expr of expressions) {
+      if (expr) {
+        const result = this.visit(expr);
+        if (result) {
+          args.push(result);
+        }
+      }
+    }
+
+    // Check for OF or EN tokens
+    if (ctx.OF && ctx.OF()) {
+      hasOf = true;
+    }
+    if (ctx.EN && ctx.EN()) {
+      hasEn = true;
+    }
+
+    // Create appropriate expression type based on connector
+    if (hasOf) {
+      const node: DisjunctionExpression = {
+        type: 'DisjunctionExpression',
+        values: args
+      };
+      this.setLocation(node, ctx);
+      return node;
+    } else if (hasEn) {
+      const node: ConjunctionExpression = {
+        type: 'ConjunctionExpression',
+        values: args
+      };
+      this.setLocation(node, ctx);
+      return node;
+    }
+
+    // Fallback: return first argument or throw error
+    if (args.length > 0) {
+      return args[0];
+    }
+
+    throw new Error(`Concatenation expression without valid connector: ${ctx.getText()}`);
   }
 
   visitOnderwerpRefExpr(ctx: any): Expression {

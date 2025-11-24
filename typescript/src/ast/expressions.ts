@@ -141,3 +141,38 @@ export interface SamengesteldeVoorwaarde extends Expression {
   // Unified predicate representation for centralized evaluation
   predicate?: import('../predicates/predicate-types').CompoundPredicate;
 }
+
+// Rounding and limiting expressions
+export interface AfrondingExpression extends Expression {
+  type: 'AfrondingExpression';
+  expression: Expression;
+  direction?: 'naar_beneden' | 'naar_boven' | 'rekenkundig' | 'richting_nul' | 'weg_van_nul';
+  decimals: number;
+}
+
+export interface BegrenzingExpression extends Expression {
+  type: 'BegrenzingExpression';
+  expression: Expression;
+  minimum?: Expression;
+  maximum?: Expression;
+}
+
+export interface BegrenzingAfrondingExpression extends Expression {
+  type: 'BegrenzingAfrondingExpression';
+  expression: Expression;
+  minimum?: Expression;
+  maximum?: Expression;
+  direction?: 'naar_beneden' | 'naar_boven' | 'rekenkundig' | 'richting_nul' | 'weg_van_nul';
+  decimals: number;
+}
+
+// Concatenation expressions
+export interface ConjunctionExpression extends Expression {
+  type: 'ConjunctionExpression';
+  values: Expression[];
+}
+
+export interface DisjunctionExpression extends Expression {
+  type: 'DisjunctionExpression';
+  values: Expression[];
+}
