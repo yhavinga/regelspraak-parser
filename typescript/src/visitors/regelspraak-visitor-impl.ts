@@ -38,7 +38,8 @@ import {
   BegrenzingExpression,
   BegrenzingAfrondingExpression,
   ConjunctionExpression,
-  DisjunctionExpression
+  DisjunctionExpression,
+  AttributeReference
 } from '../ast/expressions';
 import {
   Predicate,
@@ -1561,6 +1562,36 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
   visitAantalAttribuutExpr(ctx: any): Expression {
     // HET? AANTAL attribuutReferentie
     // This handles patterns like "het aantal passagiers van de reis"
+
+    // CRITICAL: First check if the entire phrase is a canonical parameter name
+    // For example: "het aantal treinmiles per passagier voor contingent" might be a parameter
+    const fullText = ctx.getText();
+
+    // Check if we have access to parameter names via parser context
+    // This matches Python's behavior in builder.py:2723-2764
+    if (this.parameterNames && this.parameterNames.size > 0) {
+      // Try various normalizations of the text to match parameter names
+      const normalizations = [
+        fullText,
+        fullText.replace(/^het\s+/i, '').trim(),
+        fullText.replace(/^de\s+/i, '').trim(),
+        fullText.replace(/^een\s+/i, '').trim(),
+      ];
+
+      for (const normalized of normalizations) {
+        if (this.parameterNames.has(normalized)) {
+          // This entire phrase is a parameter name - return VariableReference
+          const node: VariableReference = {
+            type: 'VariableReference',
+            variableName: normalized
+          };
+          this.setLocation(node, ctx);
+          return node;
+        }
+      }
+    }
+
+    // Not a parameter name - proceed with normal aantal function processing
     const attrRef = this.visitAttribuutReferentie(ctx.attribuutReferentie());
 
     if (!attrRef) {
@@ -2125,7 +2156,10 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
       }
     }
 
-    return path;
+    // CRITICAL: Reverse the path for Dutch right-to-left navigation
+    // "passagiers van de reis" -> ["reis", "passagiers"] not ["passagiers", "reis"]
+    // This matches Python's builder.py behavior
+    return path.reverse();
   }
 
   // Helper: Convert single basisOnderwerp to string, preserving possessives
@@ -2359,8 +2393,12 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
     } else if (ctx.constructor.name === 'VerdelingContext') {
       // The generated context is named after the label
       return this.visitVerdelingResultaat(ctx);
+    } else if (ctx.constructor.name === 'ConsistencyCheckResultaatContext') {
+      return this.visitConsistencyCheckResultaat(ctx);
+    } else if (ctx.constructor.name === 'RelationshipWithAttributeResultaatContext') {
+      return this.visitRelationshipWithAttributeResultaat(ctx);
     }
-    
+
     // Fallback to visitChildren
     return this.visitChildren(ctx);
   }
@@ -4347,6 +4385,97 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
       type: 'VerdelingAfronding',
       decimals,
       roundDirection: roundDirection as 'naar beneden' | 'naar boven'
+    };
+    this.setLocation(node, ctx);
+    return node;
+  }
+
+  visitConsistencyCheckResultaat(ctx: any): any {
+    // Handle consistency checks like "moet ongelijk zijn aan"
+    // Grammar: attribuutReferentie consistencyOperator expressie
+    const targetRef = this.visitAttribuutReferentie(ctx.attribuutReferentie());
+    const expr = this.visit(ctx.expressie());
+
+    if (!targetRef || !expr) {
+      throw new Error('Failed to parse consistency check target or expression');
+    }
+
+    // Map consistency operators to comparison operators
+    const operatorCtx = ctx.consistencyOperator ? ctx.consistencyOperator() : null;
+    let operator = '!='; // default to not equal
+
+    if (operatorCtx) {
+      const operatorText = operatorCtx.getText().toLowerCase();
+      if (operatorText.includes('ongelijk')) {
+        operator = '!=';
+      } else if (operatorText.includes('kleiner')) {
+        operator = '<';
+      } else if (operatorText.includes('groter')) {
+        operator = '>';
+      } else if (operatorText.includes('gelijk')) {
+        operator = '==';
+      }
+    }
+
+    // Create a Consistentieregel node
+    const node: Consistentieregel = {
+      type: 'Consistentieregel',
+      criteriumType: 'inconsistent', // This is a consistency check
+      target: targetRef,
+      condition: {
+        type: 'BinaryExpression',
+        operator: operator as any,
+        left: targetRef,
+        right: expr
+      } as BinaryExpression
+    };
+    this.setLocation(node, ctx);
+    return node;
+  }
+
+  visitRelationshipWithAttributeResultaat(ctx: any): any {
+    // Handle "Een X heeft het Y met attribuut gelijk aan expressie" pattern
+    // Get the onderwerp reference (the subject)
+    const onderwerpCtx = ctx.onderwerpReferentie ? ctx.onderwerpReferentie() : null;
+    let onderwerpPath: string[] = [];
+    if (onderwerpCtx) {
+      onderwerpPath = this.visitOnderwerpReferentieToPath(onderwerpCtx);
+    }
+
+    // Get the relationship target (het/de naamwoord after HEEFT)
+    const naamwoordCtx = ctx.naamwoord ? ctx.naamwoord() : null;
+    const relTarget = naamwoordCtx ? this.extractText(naamwoordCtx) : '';
+
+    // Get the attribute to set
+    const attrCtx = ctx.attribuutMetLidwoord ? ctx.attribuutMetLidwoord() : null;
+    let attrName = '';
+    if (attrCtx) {
+      attrName = this.extractText(attrCtx);
+      // Clean up Dutch articles from the beginning if present
+      if (attrName.startsWith('het ')) {
+        attrName = attrName.substring(4);
+      } else if (attrName.startsWith('de ')) {
+        attrName = attrName.substring(3);
+      } else if (attrName.startsWith('een ')) {
+        attrName = attrName.substring(4);
+      }
+    }
+
+    // Get the value expression
+    const valueExpr = ctx.expressie ? this.visit(ctx.expressie()) : null;
+
+    if (!valueExpr) {
+      throw new Error('Failed to parse value expression in relationship creation');
+    }
+
+    // Create an ObjectCreation node with the attribute initialization
+    const node: ObjectCreation = {
+      type: 'ObjectCreation',
+      objectType: relTarget, // The relationship target becomes the object type
+      attributeInits: [{
+        attribute: attrName,
+        value: valueExpr
+      }]
     };
     this.setLocation(node, ctx);
     return node;
