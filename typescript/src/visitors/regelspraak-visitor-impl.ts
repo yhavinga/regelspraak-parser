@@ -748,8 +748,158 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
   }
 
   visitPrimaryExpression(ctx: PrimaryExpressionContext): Expression {
-    // This should not be called directly - specific context types should be handled
-    throw new Error(`Generic visitPrimaryExpression called - should use specific visitor method for ${ctx.constructor.name}`);
+    // Dispatch to specific visitor methods based on context type
+    const contextName = ctx.constructor.name;
+
+    // Handle specific labeled alternatives
+    switch (contextName) {
+      // Literals
+      case 'NumberLiteralExprContext':
+        return this.visitNumberLiteralExpr(ctx);
+      case 'StringLiteralExprContext':
+        return this.visitStringLiteralExpr(ctx);
+      case 'BooleanTrueLiteralExprContext':
+        return this.visitBooleanTrueLiteralExpr(ctx);
+      case 'BooleanFalseLiteralExprContext':
+        return this.visitBooleanFalseLiteralExpr(ctx);
+      case 'DatumLiteralExprContext':
+        return this.visitDatumLiteralExpr(ctx);
+      case 'PercentageLiteralExprContext':
+        return this.visitPercentageLiteralExpr(ctx);
+      case 'EnumLiteralExprContext':
+        return this.visitEnumLiteralExpr(ctx);
+      case 'TekstreeksLiteralExprContext':
+        return this.visitTekstreeksLiteralExpr(ctx);
+
+      // References
+      case 'OnderwerpRefExprContext':
+        return this.visitOnderwerpRefExpr(ctx);
+      case 'AttrRefExprContext':
+        return this.visitAttrRefExpr(ctx);
+      case 'BezieldeRefExprContext':
+        return this.visitBezieldeRefExpr(ctx);
+      case 'ParamRefExprContext':
+        return this.visitParamRefExpr(ctx);
+      case 'IdentifierExprContext':
+        return this.visitIdentifierExpr(ctx);
+      case 'NaamwoordExprContext':
+        return this.visitNaamwoordExpr(ctx);
+      case 'PronounExprContext':
+        return this.visitPronounExpr(ctx);
+
+      // Function calls and special expressions
+      case 'PasenFuncExprContext':
+        return this.visitPasenFuncExpr(ctx);
+      case 'SimpleConcatenatieExprContext':
+        return this.visitSimpleConcatenatieExpr(ctx);
+      case 'AantalFuncExprContext':
+        return this.visitAantalFuncExpr(ctx);
+      case 'AantalAttribuutExprContext':
+        return this.visitAantalAttribuutExpr(ctx);
+      case 'EersteDatumFuncExprContext':
+        return this.visitEersteDatumFuncExpr(ctx);
+      case 'LaatsteDatumFuncExprContext':
+        return this.visitLaatsteDatumFuncExpr(ctx);
+      case 'SomFuncExprContext':
+        return this.visitSomFuncExpr(ctx);
+      case 'SomAlleExprContext':
+        return this.visitSomAlleExpr(ctx);
+      case 'SomAlleAttribuutExprContext':
+        return this.visitSomAlleAttribuutExpr(ctx);
+      case 'MinAlleAttribuutExprContext':
+        return this.visitMinAlleAttribuutExpr(ctx);
+      case 'MaxAlleAttribuutExprContext':
+        return this.visitMaxAlleAttribuutExpr(ctx);
+      case 'TijdsevenredigDeelExprContext':
+        return this.visitTijdsevenredigDeelExpr(ctx);
+      case 'CapitalizedTijdsevenredigDeelExprContext':
+        return this.visitCapitalizedTijdsevenredigDeelExpr(ctx);
+      case 'TijdsduurFuncExprContext':
+        return this.visitTijdsduurFuncExpr(ctx);
+      case 'AbsTijdsduurFuncExprContext':
+        return this.visitAbsTijdsduurFuncExpr(ctx);
+      case 'AbsValFuncExprContext':
+        return this.visitAbsValFuncExpr(ctx);
+      case 'PercentageFuncExprContext':
+        return this.visitPercentageFuncExpr(ctx);
+      case 'PercentageOfExprContext':
+        return this.visitPercentageOfExpr(ctx);
+      case 'WortelFuncExprContext':
+        return this.visitWortelFuncExpr(ctx);
+      case 'MinValFuncExprContext':
+        return this.visitMinValFuncExpr(ctx);
+      case 'MaxValFuncExprContext':
+        return this.visitMaxValFuncExpr(ctx);
+      case 'JaarUitFuncExprContext':
+        return this.visitJaarUitFuncExpr(ctx);
+      case 'MaandUitFuncExprContext':
+        return this.visitMaandUitFuncExpr(ctx);
+      case 'DagUitFuncExprContext':
+        return this.visitDagUitFuncExpr(ctx);
+      case 'DatumMetFuncExprContext':
+        return this.visitDatumMetFuncExpr(ctx);
+      case 'TotaalVanExprContext':
+        return this.visitTotaalVanExpr(ctx);
+      case 'CapitalizedTotaalVanExprContext':
+        return this.visitCapitalizedTotaalVanExpr(ctx);
+      case 'HetAantalDagenInExprContext':
+        return this.visitHetAantalDagenInExpr(ctx);
+      case 'DimensieAggExprContext':
+        return this.visitDimensieAggExpr(ctx);
+      case 'DimensieRangeAggExprContext':
+        return this.visitDimensieRangeAggExpr(ctx);
+      case 'TekstreeksExprContext':
+        return this.visitTekstreeksExpr(ctx);
+      case 'ConcatenatieExprContext':
+        return this.visitConcatenatieExpr(ctx);
+      case 'RekendatumKeywordExprContext':
+        return this.visitRekendatumKeywordExpr(ctx);
+
+      // Unary expressions
+      case 'UnaryMinusExprContext':
+        return this.visitUnaryMinusExpr(ctx);
+      case 'UnaryNietExprContext':
+        return this.visitUnaryNietExpr(ctx);
+
+      // Parenthesized expression
+      case 'ParenExprContext':
+        return this.visitParenExpr(ctx);
+
+      // Date calculations
+      case 'DateCalcExprContext':
+        return this.visitDateCalcExpr(ctx);
+
+      // Conditional and comparison expressions
+      case 'IsKenmerkExprContext':
+        return this.visitIsKenmerkExpr(ctx);
+      case 'HeeftKenmerkExprContext':
+        return this.visitHeeftKenmerkExpr(ctx);
+      case 'RegelStatusConditionExprContext':
+        return this.visitRegelStatusConditionExpr(ctx);
+
+      // Special expressions that need to go through expressie
+      case 'ExprAfrondingContext':
+        return this.visitExprAfronding(ctx);
+      case 'ExprBegrenzingContext':
+        return this.visitExprBegrenzing(ctx);
+      case 'ExprBegrenzingAfrondingContext':
+        return this.visitExprBegrenzingAfronding(ctx);
+
+      default:
+        // If we have a specific visitor method for this context, try to call it
+        const methodName = `visit${contextName.replace('Context', '')}`;
+        if (typeof this[methodName] === 'function') {
+          return this[methodName](ctx);
+        }
+
+        // Last resort: try generic visit
+        const result = this.visit(ctx);
+        if (result) {
+          return result;
+        }
+
+        throw new Error(`Unhandled primaryExpression context type: ${contextName}`);
+    }
   }
 
   visitNumberLiteralExpr(ctx: NumberLiteralExprContext): Expression {
@@ -4101,17 +4251,27 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
 
   // ========== Expression Wrapper Methods ==========
 
-  visitNaamwoordExpr(ctx: any): any {
+  visitNaamwoordExpr(ctx: any): Expression {
     const naamwoordCtx = ctx.naamwoord ? ctx.naamwoord() : null;
     if (naamwoordCtx) {
       const text = this.visitNaamwoord(naamwoordCtx);
-      return { type: 'StringLiteral', value: text };
+      const node: StringLiteral = {
+        type: 'StringLiteral',
+        value: text
+      };
+      this.setLocation(node, ctx);
+      return node;
     }
     // Fallback to text extraction
-    return { type: 'StringLiteral', value: this.extractTextWithSpaces(ctx) };
+    const node: StringLiteral = {
+      type: 'StringLiteral',
+      value: this.extractTextWithSpaces(ctx)
+    };
+    this.setLocation(node, ctx);
+    return node;
   }
 
-  visitParamRefExpr(ctx: any): any {
+  visitParamRefExpr(ctx: any): Expression {
     const paramCtx = ctx.parameterMetLidwoord ? ctx.parameterMetLidwoord() : null;
     if (!paramCtx) {
       throw new Error('Expected parameterMetLidwoord in ParamRefExpr');
@@ -4129,10 +4289,12 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
       paramName = this._stripArticle(fullText);
     }
 
-    return {
+    const node: VariableReference = {
       type: 'VariableReference',  // TypeScript uses VariableReference for parameters
       variableName: paramName
     };
+    this.setLocation(node, ctx);
+    return node;
   }
 
   // Default visitor - fall back to visitChildren
