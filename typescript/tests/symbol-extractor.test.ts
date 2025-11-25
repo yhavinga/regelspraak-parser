@@ -10,9 +10,9 @@ describe('Symbol Extractor', () => {
 
   it('should extract parameter names', () => {
     const source = `
-      Parameter salaris: Bedrag;
-      Parameter leeftijd: Aantal;
-      Parameter naam: Tekst;
+      Parameter salaris: Bedrag
+      Parameter leeftijd: Aantal
+      Parameter naam: Tekst
     `;
     
     const symbols = extractor.extractSymbols(source);

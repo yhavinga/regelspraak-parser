@@ -80,7 +80,7 @@ describe('Object Creation', () => {
                 de prijs Numeriek met eenheid EUR;
                 de btw Numeriek met eenheid EUR;
             
-            Parameter de btw_percentage : Numeriek;
+            Parameter de btw_percentage : Numeriek
             
             Regel MaakProduct
             geldig altijd
@@ -114,7 +114,7 @@ describe('Object Creation', () => {
                 de naam Tekst;
                 de salaris Numeriek met eenheid EUR;
             
-            Parameter de minimum_leeftijd : Numeriek;
+            Parameter de minimum_leeftijd : Numeriek
             
             Regel MaakWerknemer
             geldig altijd

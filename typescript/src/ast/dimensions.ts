@@ -44,6 +44,6 @@ export interface DimensionedValue {
 
 export interface DimensionedAttributeReference {
   type: 'DimensionedAttributeReference';
-  baseAttribute: any; // NavigationExpression or AttributeReference
+  baseAttribute: any; // AttributeReference or SubselectieExpression
   dimensionLabels: string[]; // e.g., ["bruto", "huidig jaar"]
 }

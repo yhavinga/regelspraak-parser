@@ -27,7 +27,7 @@ describe('Parser Autocomplete', () => {
   });
 
   test('suggests something after Parameter keyword', () => {
-    const text = 'Parameter ';
+    const text = 'Parameter '
     const suggestions = parser.getExpectedTokensAt(text, text.length);
     
     // Should have suggestions
@@ -37,7 +37,7 @@ describe('Parser Autocomplete', () => {
   });
 
   test('no empty strings in suggestions', () => {
-    const text = 'Parameter ';
+    const text = 'Parameter '
     const suggestions = parser.getExpectedTokensAt(text, text.length);
     
     // Should not contain empty strings
@@ -45,7 +45,7 @@ describe('Parser Autocomplete', () => {
   });
 
   test('removes duplicates', () => {
-    const text = 'Parameter ';
+    const text = 'Parameter '
     const suggestions = parser.getExpectedTokensAt(text, text.length);
     
     // Check no duplicates
@@ -54,7 +54,7 @@ describe('Parser Autocomplete', () => {
   });
 
   test('returns sorted results', () => {
-    const text = 'Parameter ';
+    const text = 'Parameter '
     const suggestions = parser.getExpectedTokensAt(text, text.length);
     
     // Check sorted

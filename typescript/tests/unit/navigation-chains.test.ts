@@ -172,13 +172,9 @@ describe('Navigation Chain Processing', () => {
         expect((result1.ast as any)?.variableName).toBe('reis');
       }
 
-      // Navigation with "van" - parsed as AttributeReference or NavigationExpression
-      if (result2.ast?.type === 'AttributeReference') {
-        expect((result2.ast as any)?.path).toEqual(['passagier', 'reis']);
-      } else if (result2.ast?.type === 'NavigationExpression') {
-        // Check navigation structure
-        expect(result2.ast).toBeDefined();
-      }
+      // Navigation with "van" - parsed as AttributeReference
+      expect(result2.ast?.type).toBe('AttributeReference');
+      expect((result2.ast as any)?.path).toEqual(['passagier', 'reis']);
     });
   });
 });

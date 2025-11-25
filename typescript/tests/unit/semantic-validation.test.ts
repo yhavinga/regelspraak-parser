@@ -178,7 +178,7 @@ describe('Semantic Validation', () => {
   describe('Unknown Parameter Validation', () => {
     test('should fail when referencing unknown parameter', () => {
       const modelText = `
-        Parameter de leeftijdsgrens : Numeriek;
+        Parameter de leeftijdsgrens : Numeriek
 
         Objecttype de Persoon
           de leeftijd Numeriek;
@@ -199,7 +199,7 @@ describe('Semantic Validation', () => {
 
     test('should pass when referencing known parameter', () => {
       const modelText = `
-        Parameter de leeftijdsgrens : Numeriek;
+        Parameter de leeftijdsgrens : Numeriek
 
         Objecttype de Persoon
           de leeftijd Numeriek;

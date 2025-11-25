@@ -124,7 +124,7 @@ Dimensie de brutonettodimensie, bestaande uit de brutonettodimensies (voor het a
 Objecttype de Persoon (mv: Personen) (bezield)
   het inkomen Numeriek (geheel getal) gedimensioneerd met jaardimensie en brutonettodimensie;
 
-Parameter de persoon : Persoon;
+Parameter de persoon : Persoon
 
 Regel bereken netto inkomen huidig jaar
 geldig altijd

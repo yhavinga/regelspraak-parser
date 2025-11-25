@@ -25,7 +25,6 @@ import {
   UnaryExpression,
   VariableReference,
   FunctionCall,
-  NavigationExpression,
   SubselectieExpression,
   RegelStatusExpression,
   Predicaat,
@@ -1236,8 +1235,29 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
     const onderwerpRef = ctx.onderwerpReferentie ? ctx.onderwerpReferentie() : ctx;
     const onderwerpBasis = onderwerpRef.onderwerpBasis ? onderwerpRef.onderwerpBasis() : onderwerpRef;
     const basisOnderwerp = onderwerpBasis.basisOnderwerp ? onderwerpBasis.basisOnderwerp() : onderwerpBasis;
-    
-    // basisOnderwerp : (DE | HET | EEN | ZIJN | ALLE)? identifierOrKeyword+
+
+    // Handle pronoun "hij" -> map to "self" for consistency with Python
+    // Check if the text is "hij" directly
+    if (ctx.getText && ctx.getText() === 'hij') {
+      const ref = {
+        type: 'VariableReference',
+        variableName: 'self'
+      } as VariableReference;
+      this.setLocation(ref, ctx);
+      return ref;
+    }
+
+    // Also check via basisOnderwerp HIJ token
+    if (basisOnderwerp && basisOnderwerp.HIJ && basisOnderwerp.HIJ()) {
+      const ref = {
+        type: 'VariableReference',
+        variableName: 'self'
+      } as VariableReference;
+      this.setLocation(ref, ctx);
+      return ref;
+    }
+
+    // basisOnderwerp : (DE | HET | EEN | ZIJN | ALLE | HIJ)? identifierOrKeyword+
     if (basisOnderwerp && basisOnderwerp.identifierOrKeyword) {
       // Collect all identifier tokens (skip article)
       const identifiers = basisOnderwerp.identifierOrKeyword();

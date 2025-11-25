@@ -8,10 +8,10 @@ describe('Type-aware autocomplete', () => {
   });
   
   it('should only suggest boolean parameters after indien', () => {
-    const text = `Parameter is_actief: Boolean;
-Parameter leeftijd: Numeriek;
-Parameter naam: Tekst;
-Parameter heeft_schuld: Boolean;
+    const text = `Parameter is_actief: Boolean
+Parameter leeftijd: Numeriek
+Parameter naam: Tekst
+Parameter heeft_schuld: Boolean
 
 Regel Check
   geldig indien `;
@@ -28,11 +28,11 @@ Regel Check
   });
   
   it('should suggest numeric types in arithmetic expressions', () => {
-    const text = `Parameter salaris: Bedrag;
-Parameter bonus: Bedrag;
-Parameter naam: Tekst;
-Parameter actief: Boolean;
-Parameter percentage: Percentage;
+    const text = `Parameter salaris: Bedrag
+Parameter bonus: Bedrag
+Parameter naam: Tekst
+Parameter actief: Boolean
+Parameter percentage: Percentage
 
 Regel Calculate
   totaal = salaris + `;
@@ -49,10 +49,10 @@ Regel Calculate
   });
   
   it('should suggest date parameters in date operations', () => {
-    const text = `Parameter start_datum: Datum;
-Parameter eind_datum: Datum;
-Parameter naam: Tekst;
-Parameter bedrag: Bedrag;
+    const text = `Parameter start_datum: Datum
+Parameter eind_datum: Datum
+Parameter naam: Tekst
+Parameter bedrag: Bedrag
 
 Regel DateCalc
   periode = eind_datum - `;
@@ -68,10 +68,10 @@ Regel DateCalc
   });
   
   it('should suggest type-compatible parameters in comparisons', () => {
-    const text = `Parameter prijs_a: Bedrag;
-Parameter prijs_b: Bedrag;
-Parameter naam: Tekst;
-Parameter datum: Datum;
+    const text = `Parameter prijs_a: Bedrag
+Parameter prijs_b: Bedrag
+Parameter naam: Tekst
+Parameter datum: Datum
 
 Regel Compare
   geldig indien prijs_a > `;
@@ -87,11 +87,11 @@ Regel Compare
   });
   
   it('should handle mixed numeric types correctly', () => {
-    const text = `Parameter aantal: Aantal;
-Parameter percentage: Percentage;
-Parameter bedrag: Bedrag;
-Parameter getal: Numeriek;
-Parameter tekst: Tekst;
+    const text = `Parameter aantal: Aantal
+Parameter percentage: Percentage
+Parameter bedrag: Bedrag
+Parameter getal: Numeriek
+Parameter tekst: Tekst
 
 Regel Mixed
   resultaat = aantal * `;

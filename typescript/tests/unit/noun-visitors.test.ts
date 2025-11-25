@@ -25,7 +25,7 @@ describe('Noun Visitor Methods', () => {
 
   describe('visitNaamwoord - compound nouns with articles', () => {
     test('should parse simple noun with article', () => {
-      const source = `Parameter de leeftijd : Numeriek;`;
+      const source = `Parameter de leeftijd : Numeriek`;
 
       const result = engine.parse(source);
 
@@ -42,7 +42,7 @@ describe('Noun Visitor Methods', () => {
     });
 
     test('should parse compound noun with preposition', () => {
-      const source = `Parameter de leeftijd van persoon : Numeriek;`;
+      const source = `Parameter de leeftijd van persoon : Numeriek`;
 
       const result = engine.parse(source);
 
@@ -59,7 +59,7 @@ describe('Noun Visitor Methods', () => {
     });
 
     test('should parse compound noun with multiple articles', () => {
-      const source = `Parameter de afstand van de reis : Numeriek;`;
+      const source = `Parameter de afstand van de reis : Numeriek`;
 
       const result = engine.parse(source);
 
@@ -76,7 +76,7 @@ describe('Noun Visitor Methods', () => {
     });
 
     test('should handle het article', () => {
-      const source = `Parameter het aantal passagiers : Numeriek;`;
+      const source = `Parameter het aantal passagiers : Numeriek`;
 
       const result = engine.parse(source);
 
@@ -113,7 +113,7 @@ describe('Noun Visitor Methods', () => {
 
   describe('visitNaamwoordWithNumbers - nouns with numeric annotations', () => {
     test('should preserve numbers in identifiers', () => {
-      const source = `Parameter de regel2024 : Tekst;`;
+      const source = `Parameter de regel2024 : Tekst`;
 
       const result = engine.parse(source);
 
@@ -190,7 +190,7 @@ describe('Noun Visitor Methods', () => {
   describe('visitParamRefExpr - parameter references', () => {
     test('should parse parameter reference in expressions', () => {
       const source = `
-Parameter de drempel : Bedrag;
+Parameter de drempel : Bedrag
 
 Regel berekening
   Als de drempel groter is dan 100
@@ -215,7 +215,7 @@ Regel berekening
 
     test('should handle parameter with compound name', () => {
       const source = `
-Parameter de belasting op basis van afstand : Bedrag;`;
+Parameter de belasting op basis van afstand : Bedrag`;
 
       const result = engine.parse(source);
 
@@ -252,7 +252,7 @@ Regel test
 
   describe('TOKA integration - real-world examples', () => {
     test('should parse TOKA parameter with units', () => {
-      const source = `Parameter de afstand tot bestemming : Numeriek met eenheid km;`;
+      const source = `Parameter de afstand tot bestemming : Numeriek met eenheid km`;
 
       const result = engine.parse(source);
 
@@ -308,7 +308,7 @@ Regel test
     });
 
     test('should parse complex TOKA parameter names', () => {
-      const source = `Parameter het aantal treinmiles per passagier voor contingent : Numeriek;`;
+      const source = `Parameter het aantal treinmiles per passagier voor contingent : Numeriek`;
 
       const result = engine.parse(source);
 
@@ -326,7 +326,7 @@ Regel test
 
     test('should not crash on complex noun contexts', () => {
       // This previously would throw "Don't know how to handle NaamwoordContext with 3 children"
-      const source = `Parameter de belasting op basis van afstand plus zijn belasting : Bedrag;`;
+      const source = `Parameter de belasting op basis van afstand plus zijn belasting : Bedrag`;
 
       const result = engine.parse(source);
 
@@ -337,7 +337,7 @@ Regel test
 
   describe('edge cases and error handling', () => {
     test('should handle empty noun phrase gracefully', () => {
-      const source = `Parameter : Numeriek;`;
+      const source = `Parameter : Numeriek`;
 
       const result = engine.parse(source);
 
@@ -347,7 +347,7 @@ Regel test
     });
 
     test('should handle capitalized articles', () => {
-      const source = `Parameter De Leeftijd : Numeriek;`;
+      const source = `Parameter De Leeftijd : Numeriek`;
 
       const result = engine.parse(source);
 
@@ -364,7 +364,7 @@ Regel test
     });
 
     test('should handle multiple prepositions', () => {
-      const source = `Parameter de afstand van plaats tot bestemming : Numeriek;`;
+      const source = `Parameter de afstand van plaats tot bestemming : Numeriek`;
 
       const result = engine.parse(source);
 
@@ -381,7 +381,7 @@ Regel test
     });
 
     test('should handle zijn/haar/hun articles', () => {
-      const source = `Parameter zijn leeftijd : Numeriek;`;
+      const source = `Parameter zijn leeftijd : Numeriek`;
 
       const result = engine.parse(source);
 

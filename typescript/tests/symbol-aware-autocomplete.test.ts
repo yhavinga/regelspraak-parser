@@ -10,8 +10,8 @@ describe('Symbol-aware Autocomplete', () => {
 
   it.skip('should suggest parameter names after "indien"', () => {
     const text = `
-Parameter salaris: Bedrag;
-Parameter leeftijd: Aantal;
+Parameter salaris: Bedrag
+Parameter leeftijd: Aantal
 
 Regel test
   geldig indien `;
@@ -26,8 +26,8 @@ Regel test
 
   it.skip('should suggest parameters in partial context', () => {
     const text = `
-Parameter inkomen: Bedrag;
-Parameter belasting: Bedrag;
+Parameter inkomen: Bedrag
+Parameter belasting: Bedrag
 
 de `;
     const position = text.length;
@@ -41,8 +41,8 @@ de `;
 
   it.skip('should complete partial parameter names', () => {
     const text = `
-Parameter salaris_bruto: Bedrag;
-Parameter salaris_netto: Bedrag;
+Parameter salaris_bruto: Bedrag
+Parameter salaris_netto: Bedrag
 
 indien sal`;
     const position = text.length;
@@ -56,7 +56,7 @@ indien sal`;
 
   it.skip('should not suggest parameters when not appropriate', () => {
     const text = `
-Parameter test: Bedrag;
+Parameter test: Bedrag
 
 Regel `;
     const position = text.length;
@@ -80,9 +80,9 @@ Regel `;
 
   it.skip('should work with multi-line parameter definitions', () => {
     const text = `
-Parameter basis_salaris: Bedrag;
-Parameter bonus: Bedrag;
-Parameter totaal_inkomen: Bedrag;
+Parameter basis_salaris: Bedrag
+Parameter bonus: Bedrag
+Parameter totaal_inkomen: Bedrag
 
 Regel bereken_inkomen
   totaal_inkomen wordt basis_salaris + `;

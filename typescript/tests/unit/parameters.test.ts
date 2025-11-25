@@ -25,7 +25,7 @@ describe('Engine - Parameter Definitions', () => {
 
   describe('basic parameter parsing', () => {
     test('should parse simple numeric parameter', () => {
-      const source = `Parameter de volwassenleeftijd : Numeriek (geheel getal);`;
+      const source = `Parameter de volwassenleeftijd : Numeriek (geheel getal)`;
       
       const result = engine.parse(source);
       
@@ -42,7 +42,7 @@ describe('Engine - Parameter Definitions', () => {
     });
 
     test('should parse parameter with unit', () => {
-      const source = `Parameter de volwassenleeftijd : Numeriek (geheel getal) met eenheid jr;`;
+      const source = `Parameter de volwassenleeftijd : Numeriek (geheel getal) met eenheid jr`;
       
       const result = engine.parse(source);
       
@@ -60,7 +60,7 @@ describe('Engine - Parameter Definitions', () => {
     });
 
     test('should parse parameter with domain reference', () => {
-      const source = `Parameter het aantal kinderen : AantalKinderen;`;
+      const source = `Parameter het aantal kinderen : AantalKinderen`;
       
       const result = engine.parse(source);
       
@@ -77,7 +77,7 @@ describe('Engine - Parameter Definitions', () => {
     });
 
     test('should parse text parameter', () => {
-      const source = `Parameter de standaard locatie : Tekst;`;
+      const source = `Parameter de standaard locatie : Tekst`;
       
       const result = engine.parse(source);
       
@@ -94,7 +94,7 @@ describe('Engine - Parameter Definitions', () => {
     });
 
     test('should parse date parameter', () => {
-      const source = `Parameter de startdatum : Datum in dagen;`;
+      const source = `Parameter de startdatum : Datum in dagen`;
       
       const result = engine.parse(source);
       
@@ -111,7 +111,7 @@ describe('Engine - Parameter Definitions', () => {
     });
 
     test('should parse parameter with timeline', () => {
-      const source = `Parameter de startdatum : Datum in dagen voor elke dag;`;
+      const source = `Parameter de startdatum : Datum in dagen voor elke dag`;
       
       const result = engine.parse(source);
       
@@ -129,7 +129,7 @@ describe('Engine - Parameter Definitions', () => {
     });
 
     test('should parse parameter with Euro unit', () => {
-      const source = `Parameter de initiele belasting : Bedrag met eenheid €;`;
+      const source = `Parameter de initiele belasting : Bedrag met eenheid €`;
       
       const result = engine.parse(source);
       
@@ -147,7 +147,7 @@ describe('Engine - Parameter Definitions', () => {
     });
 
     test('should parse parameter with semicolon', () => {
-      const source = `Parameter de volwassenleeftijd : Numeriek (geheel getal) met eenheid jr;`;
+      const source = `Parameter de volwassenleeftijd : Numeriek (geheel getal) met eenheid jr`;
       
       const result = engine.parse(source);
       
@@ -167,7 +167,7 @@ describe('Engine - Parameter Definitions', () => {
 
   describe('execution', () => {
     test('should execute parameter definition', () => {
-      const source = `Parameter de volwassenleeftijd : Numeriek (geheel getal);`;
+      const source = `Parameter de volwassenleeftijd : Numeriek (geheel getal)`;
       
       const result = engine.run(source);
       

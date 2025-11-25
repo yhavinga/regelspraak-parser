@@ -69,7 +69,7 @@ describe('Parser-based Autocomplete', () => {
   describe('Context-aware completion', () => {
     it('should handle Parameter syntax correctly', () => {
       // In RegelSpraak, Parameter syntax uses : not 'is'
-      const text = 'Parameter loon';
+      const text = 'Parameter loon'
       const position = text.length;
       
       const info = service.getCompletionInfo(text, position);

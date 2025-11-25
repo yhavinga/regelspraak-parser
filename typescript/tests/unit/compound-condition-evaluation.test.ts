@@ -11,8 +11,8 @@ describe('Compound Condition Evaluation', () => {
   describe('ALLE quantifier', () => {
     it('should return true when all conditions are met', () => {
       const code = `
-Parameter de minimum leeftijd: Numeriek (geheel getal) met eenheid jr;
-Parameter de maximum leeftijd: Numeriek (geheel getal) met eenheid jr;
+Parameter de minimum leeftijd: Numeriek (geheel getal) met eenheid jr
+Parameter de maximum leeftijd: Numeriek (geheel getal) met eenheid jr
 
 Regel Geschiktheid
     geldig altijd
@@ -36,8 +36,8 @@ Regel Geschiktheid
 
     it('should skip rule when one condition is not met', () => {
       const code = `
-Parameter de minimum leeftijd: Numeriek (geheel getal) met eenheid jr;
-Parameter de maximum leeftijd: Numeriek (geheel getal) met eenheid jr;
+Parameter de minimum leeftijd: Numeriek (geheel getal) met eenheid jr
+Parameter de maximum leeftijd: Numeriek (geheel getal) met eenheid jr
 
 Regel Geschiktheid
     geldig altijd
@@ -237,7 +237,7 @@ Regel Goedkeuring
   describe('Nested compound conditions', () => {
     it('should evaluate nested compound conditions correctly', () => {
       const code = `
-Parameter de pensioen leeftijd: Numeriek (geheel getal) met eenheid jr;
+Parameter de pensioen leeftijd: Numeriek (geheel getal) met eenheid jr
 
 Regel SpecialeStatus
     geldig altijd
@@ -263,7 +263,7 @@ Regel SpecialeStatus
 
     it('should handle nested conditions with outer condition failing', () => {
       const code = `
-Parameter de pensioen leeftijd: Numeriek (geheel getal) met eenheid jr;
+Parameter de pensioen leeftijd: Numeriek (geheel getal) met eenheid jr
 
 Regel SpecialeStatus
     geldig altijd

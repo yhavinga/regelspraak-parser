@@ -1,5 +1,5 @@
 import { IEvaluator, Value, RuntimeContext } from '../interfaces';
-import { Expression, NumberLiteral, StringLiteral, BinaryExpression, UnaryExpression, VariableReference, FunctionCall, AggregationExpression, NavigationExpression, SubselectieExpression, RegelStatusExpression, AllAttributesExpression, Predicaat, KenmerkPredicaat, AttributeComparisonPredicaat, AttributeReference, SamengesteldeVoorwaarde, KwantificatieType } from '../ast/expressions';
+import { Expression, NumberLiteral, StringLiteral, BinaryExpression, UnaryExpression, VariableReference, FunctionCall, AggregationExpression, SubselectieExpression, RegelStatusExpression, AllAttributesExpression, Predicaat, KenmerkPredicaat, AttributeComparisonPredicaat, AttributeReference, SamengesteldeVoorwaarde, KwantificatieType } from '../ast/expressions';
 import { AggregationEngine } from './aggregation-engine';
 import { TimelineEvaluator } from './timeline-evaluator';
 import { TimelineExpression, TimelineValue, TimelineValueImpl } from '../ast/timelines';
@@ -884,126 +884,6 @@ export class ExpressionEvaluator implements IEvaluator {
     } as UnitValue;
   }
 
-  private evaluateNavigationExpression(expr: NavigationExpression, context: RuntimeContext): Value {
-    // Check if this is an aggregation pattern: "het aantal van alle X van Y"
-    const attributeLower = expr.attribute.toLowerCase();
-    if ((attributeLower === 'aantal' || attributeLower === 'som' || attributeLower === 'totaal') && 
-        expr.object.type === 'NavigationExpression') {
-      const innerNav = expr.object as NavigationExpression;
-      
-      // Check if the inner navigation is "alle passagiers van de vlucht" pattern
-      if (innerNav.attribute.toLowerCase().startsWith('alle ')) {
-        // Extract the role name (e.g., "passagiers" from "alle passagiers")
-        const roleName = innerNav.attribute.substring(5); // Remove "alle " prefix
-        
-        // Evaluate the base object (e.g., "vlucht")
-        const baseObject = this.evaluate(innerNav.object, context);
-        
-        if (baseObject.type !== 'object') {
-          throw new Error(`Expected object but got ${baseObject.type}`);
-        }
-        
-        // Find related objects through Feittype relationships
-        const ctx = context as any;
-        const relatedObjects = this.findRelatedObjectsThroughFeittype(roleName, baseObject, ctx);
-        
-        // Apply the aggregation function
-        if (attributeLower === 'aantal') {
-          // Count the related objects
-          const count = relatedObjects ? relatedObjects.length : 0;
-          return { type: 'number', value: count };
-        } else if (attributeLower === 'som' || attributeLower === 'totaal') {
-          if (!relatedObjects || relatedObjects.length === 0) {
-            return { type: 'number', value: 0 };
-          }
-          // Sum values - would need to extract specific attribute
-          throw new Error('Sum aggregation not yet implemented for Feittype navigation');
-        }
-      }
-    }
-    
-    // First evaluate the object expression
-    const objectValue = this.evaluate(expr.object, context);
-    
-    // Handle navigation into collections
-    if (objectValue.type === 'array') {
-      // When navigating into a collection, return a collection of the attribute values
-      const collection = objectValue.value as Value[];
-      const results: Value[] = [];
-      
-      for (const item of collection) {
-        if (item.type === 'object') {
-          const objectData = item.value as Record<string, Value>;
-          const attributeValue = objectData[expr.attribute];
-          
-          if (attributeValue !== undefined) {
-            results.push(attributeValue);
-          }
-          // Skip items that don't have the attribute
-        }
-      }
-      
-      return {
-        type: 'array',
-        value: results
-      };
-    }
-    
-    // Check if the object is actually an object
-    if (objectValue.type !== 'object') {
-      throw new Error(`Cannot navigate into non-object type: ${objectValue.type}`);
-    }
-    
-    // Get the object's attributes
-    const objectData = objectValue.value as Record<string, Value>;
-    
-    // First check for timeline attributes if we have object type and id
-    const ctx = context as Context;
-    const objType = (objectValue as any).objectType;
-    const objId = (objectValue as any).objectId;
-    
-    if (ctx && objType && objId) {
-      // Try to get timeline attribute value at current evaluation date
-      const timelineValue = ctx.getTimelineAttribute(objType, objId, expr.attribute);
-      if (timelineValue !== null) {
-        return timelineValue;
-      }
-      
-      // Check if there's a timeline for this attribute even if no value at current date
-      // This is important for empty timeline handling
-      const timelineAttr = (ctx as any).timelineAttributes?.get(objType)?.get(objId)?.get(expr.attribute);
-      if (timelineAttr) {
-        // Timeline exists but has no value at current date
-        // Per Python specification: return 0 for numeric types
-        return {
-          type: 'number',
-          value: 0
-        };
-      }
-    }
-    
-    // Look up regular attribute
-    const attributeValue = objectData[expr.attribute];
-    
-    if (attributeValue === undefined) {
-      // Check if this is a navigation through a Feittype relationship
-      // Try to find related objects through Feittype relationships
-      const relatedObjects = this.findRelatedObjectsThroughFeittype(expr.attribute, objectValue, ctx);
-      if (relatedObjects && relatedObjects.length > 0) {
-        // Return as an array of related objects
-        return {
-          type: 'array',
-          value: relatedObjects
-        };
-      }
-      
-      // Throw an error when attribute is not found and no relationships match
-      throw new Error(`Attribute "${expr.attribute}" not found`);
-    }
-    
-    return attributeValue;
-  }
-  
   private findRelatedObjectsThroughFeittype(roleName: string, fromObject: Value, context: any): Value[] | null {
     // Get all registered Feittypen
     const feittypen = context.getAllFeittypen ? context.getAllFeittypen() : [];
@@ -1991,15 +1871,15 @@ export class ExpressionEvaluator implements IEvaluator {
     // DimensionedAttributeReference wraps a navigation/attribute reference with dimension labels
     
     // For the pattern "het netto inkomen van huidig jaar van de persoon", the AST has:
-    // - baseAttribute: NavigationExpression with attribute "netto inkomen" and object pointing to "huidig jaar"
+    // - baseAttribute: AttributeReference with path elements
     // - dimensionLabels: ["netto", "huidig jaar"]
-    
+
     // We need to extract the real attribute name and object from the base attribute
     const baseAttribute = expr.baseAttribute;
     let targetObject: Value;
     let attributeName: string;
-    
-    // NavigationExpression has been removed - only handle AttributeReference and SubselectieExpression
+
+    // Handle AttributeReference and SubselectieExpression
     if (baseAttribute.type === 'AttributeReference') {
       // For AttributeReference with dimensions
       // The path should have the attribute name and object type

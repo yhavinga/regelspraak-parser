@@ -14,7 +14,7 @@ de meter m
 de kilometer km = 1000 m
 de centimeter cm = 1/100 m
 
-Parameter de afstand : Numeriek (getal) met eenheid km;
+Parameter de afstand : Numeriek (getal) met eenheid km
 `;
     
     const context = new Context();
@@ -62,7 +62,7 @@ De waarde van een berekening moet berekend worden als 42.
 
   test('should debug rule with parameter reference', () => {
     const model = `
-Parameter de invoer : Numeriek (getal);
+Parameter de invoer : Numeriek (getal)
 
 Regel test regel
 geldig altijd
@@ -79,7 +79,7 @@ De uitvoer van een berekening moet berekend worden als de invoer plus 10.
     
     const result = engine.run(model, context);
     
-    console.log('Parameter rule result:', result);
+    console.log('Parameter rule result:', result)
     
     expect(result.success).toBe(true);
     

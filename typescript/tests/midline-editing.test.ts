@@ -8,9 +8,9 @@ describe('Mid-line editing autocomplete', () => {
   });
   
   it('should provide suggestions when editing in middle of line', () => {
-    // Full line: "Parameter salaris: Bedrag;"
+    // Full line: "Parameter salaris: Bedrag"
     // Cursor after "Parameter " (position 10)
-    const text = 'Parameter salaris: Bedrag;';
+    const text = 'Parameter salaris: Bedrag';
     const position = 10; // After "Parameter ", before "salaris"
     
     const suggestions = parser.getExpectedTokensAt(text, position);
@@ -21,7 +21,7 @@ describe('Mid-line editing autocomplete', () => {
   
   it('should suggest types when editing after colon', () => {
     // Editing in middle: changing type
-    const text = 'Parameter loon: Tekst;';
+    const text = 'Parameter loon: Tekst';
     const position = 16; // After colon and space, before "Tekst"
     
     const suggestions = parser.getExpectedTokensAt(text, position);
@@ -45,8 +45,8 @@ describe('Mid-line editing autocomplete', () => {
   });
   
   it('should complete partial parameter name in expression', () => {
-    const fullDoc = `Parameter salaris_bruto: Bedrag;
-Parameter salaris_netto: Bedrag;
+    const fullDoc = `Parameter salaris_bruto: Bedrag
+Parameter salaris_netto: Bedrag
 Regel Test
   geldig indien sal > 0;`;
     

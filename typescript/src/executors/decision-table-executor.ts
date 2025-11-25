@@ -90,8 +90,6 @@ export class DecisionTableExecutor {
     switch (expr.type) {
       case 'AttributeReference':
         return (expr as any).path.join('_');
-      case 'NavigationExpression':
-        return (expr as any).attribute;
       case 'VariableReference':
         return (expr as any).variableName;
       default:

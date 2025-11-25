@@ -5,10 +5,9 @@
  * column headers into proper AST expressions that can be evaluated.
  */
 
-import { 
-  Expression, 
-  NavigationExpression, 
-  AttributeReference, 
+import {
+  Expression,
+  AttributeReference,
   VariableReference
 } from '../ast/expressions';
 
@@ -103,7 +102,7 @@ export class DecisionTableHeaderParser {
           case 'attribute_of_object':
             // "indien de reisduur van zijn reis groter is dan"
             return {
-              subjectExpression: this.createNavigationExpression(
+              subjectExpression: this.createNavigationReference(
                 match[1].trim(), // attribute
                 match[2].trim()  // object
               ),
@@ -114,7 +113,7 @@ export class DecisionTableHeaderParser {
           case 'attribute_of_named_object':
             // "indien de leeftijd van passagier groter is dan"
             return {
-              subjectExpression: this.createNavigationExpression(
+              subjectExpression: this.createNavigationReference(
                 match[1].trim(), // attribute
                 match[2].trim()  // object name
               ),
@@ -160,7 +159,7 @@ export class DecisionTableHeaderParser {
             // "de woonregio factor van een Natuurlijk persoon moet gesteld worden op"
             return {
               targetType: 'attribute',
-              targetExpression: this.createNavigationExpression(
+              targetExpression: this.createNavigationReference(
                 match[1].trim(), // attribute
                 match[2].trim()  // object type
               )
@@ -170,7 +169,7 @@ export class DecisionTableHeaderParser {
             // "de belasting van passagier moet gesteld worden op"
             return {
               targetType: 'attribute',
-              targetExpression: this.createNavigationExpression(
+              targetExpression: this.createNavigationReference(
                 match[1].trim(), // attribute
                 match[2].trim()  // object name
               )
@@ -220,21 +219,24 @@ export class DecisionTableHeaderParser {
     };
   }
 
-  private createNavigationExpression(attributeName: string, objectName: string): NavigationExpression {
+  private createNavigationReference(attributeName: string, objectName: string): AttributeReference {
     // Clean names
     const cleanedAttribute = attributeName
       .replace(/^(de|het|een)\s+/i, '')
-      .trim();
-    
+      .trim()
+      .replace(/\s+/g, '_')
+      .toLowerCase();
+
     const cleanedObject = objectName
       .replace(/^(zijn|haar|hun|de|het|een)\s+/i, '')
-      .trim();
-    
-    // Create the navigation expression
+      .trim()
+      .replace(/\s+/g, '_')
+      .toLowerCase();
+
+    // Create AttributeReference with object-first path order
     return {
-      type: 'NavigationExpression',
-      object: this.createVariableReference(cleanedObject),
-      attribute: cleanedAttribute.replace(/\s+/g, '_').toLowerCase()
+      type: 'AttributeReference',
+      path: [cleanedObject, cleanedAttribute]
     };
   }
 

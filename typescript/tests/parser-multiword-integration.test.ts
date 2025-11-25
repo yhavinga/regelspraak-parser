@@ -17,7 +17,7 @@ describe('Parser Multi-word Integration', () => {
   });
 
   it('should complete "is gelijk" to "is gelijk aan"', () => {
-    const text = 'Parameter x: Number;\nRegel test\n  geldig indien x is gelijk';
+    const text = 'Parameter x: Number\nRegel test\n  geldig indien x is gelijk';
     const position = text.length;
     
     const suggestions = service.getSuggestionsAt(text, position);
@@ -26,7 +26,7 @@ describe('Parser Multi-word Integration', () => {
   });
 
   it('should suggest multi-word comparisons after "is"', () => {
-    const text = 'Parameter x: Number;\nRegel test\n  geldig indien x is';
+    const text = 'Parameter x: Number\nRegel test\n  geldig indien x is';
     const position = text.length;
     
     const suggestions = service.getSuggestionsAt(text, position);
@@ -47,7 +47,7 @@ describe('Parser Multi-word Integration', () => {
   });
 
   it('should suggest function multi-words after "de"', () => {
-    const text = 'Parameter salaris: Bedrag;\nRegel test\n  x wordt de';
+    const text = 'Parameter salaris: Bedrag\nRegel test\n  x wordt de';
     const position = text.length;
     
     const suggestions = service.getSuggestionsAt(text, position);

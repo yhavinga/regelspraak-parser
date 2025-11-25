@@ -7,7 +7,7 @@ describe('Indien Conditions', () => {
 
   it('should parse simple indien condition', () => {
     const code = `
-Parameter de volwassenleeftijd: Numeriek (geheel getal) met eenheid jr;
+Parameter de volwassenleeftijd: Numeriek (geheel getal) met eenheid jr
 
 Objecttype de Natuurlijk persoon
     is minderjarig kenmerk (bijvoeglijk);
@@ -29,7 +29,7 @@ Regel Minderjarigheid
 
   it('should parse compound condition with ALLE quantifier', () => {
     const code = `
-Parameter de minimum leeftijd: Numeriek (geheel getal) met eenheid jr;
+Parameter de minimum leeftijd: Numeriek (geheel getal) met eenheid jr
 
 Objecttype de Natuurlijk persoon
     is geschikt kenmerk (bijvoeglijk);
@@ -58,7 +58,7 @@ Regel GeschiktheidsTest
 
   it('should parse compound condition with TEN_MINSTE quantifier', () => {
     const code = `
-Parameter het basis salaris: Bedrag;
+Parameter het basis salaris: Bedrag
 
 Objecttype de Werknemer
     is bonus waardig kenmerk (bijvoeglijk);
@@ -89,7 +89,7 @@ Regel BonusWaardigheid
 
   it('should parse nested compound conditions', () => {
     const code = `
-Parameter de pensioen leeftijd: Numeriek (geheel getal) met eenheid jr;
+Parameter de pensioen leeftijd: Numeriek (geheel getal) met eenheid jr
 
 Objecttype de Natuurlijk persoon
     is complex kenmerk (bijvoeglijk);

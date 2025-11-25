@@ -58,8 +58,8 @@ describe('Autocomplete Integration', () => {
   });
 
   test.skip('handles parameter references in conditions', () => {
-    const text = `Parameter salaris: Bedrag;
-Parameter leeftijd: Numeriek;
+    const text = `Parameter salaris: Bedrag
+Parameter leeftijd: Numeriek
 Regel Test
   geldig indien `;
     
@@ -74,7 +74,7 @@ Regel Test
   });
 
   test.skip('suggests comparison operators after "is"', () => {
-    const text = `Parameter x: Numeriek;
+    const text = `Parameter x: Numeriek
 Regel Test
   geldig indien x is `;
     
@@ -87,7 +87,7 @@ Regel Test
   });
 
   test('suggests assignment patterns after "moet"', () => {
-    const text = `Parameter x: Numeriek;
+    const text = `Parameter x: Numeriek
 Regel Test
   geldig altijd
     Het x moet `;
@@ -100,8 +100,8 @@ Regel Test
   });
 
   test.skip('suggests functions after articles', () => {
-    const text = `Parameter x: Numeriek;
-Parameter y: Numeriek;
+    const text = `Parameter x: Numeriek
+Parameter y: Numeriek
 Regel Test
   geldig altijd
     Het x moet berekend worden als de `;

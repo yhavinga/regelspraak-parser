@@ -180,7 +180,7 @@ Objecttype de Klant
 Objecttype de Bedrijf
   de klant Klant;
 
-Parameter het btw_percentage: Numeriek;
+Parameter het btw_percentage: Numeriek
 
 Regel bereken_btw
 geldig altijd

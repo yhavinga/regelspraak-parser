@@ -71,12 +71,6 @@ export interface AggregationExpression extends Expression {
   };
 }
 
-export interface NavigationExpression extends Expression {
-  type: 'NavigationExpression';
-  attribute: string;
-  object: Expression;
-}
-
 export interface AttributeReference extends Expression {
   type: 'AttributeReference';
   path: string[];

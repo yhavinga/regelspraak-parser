@@ -142,7 +142,7 @@ Regel create infinite
 
   test('should execute non-recursive regel group with multiple rules', () => {
     const model = `
-Parameter het btw percentage : Numeriek (getal);
+Parameter het btw percentage : Numeriek (getal)
 
 Objecttype Product
   de prijs Numeriek met eenheid EUR;

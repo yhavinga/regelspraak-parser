@@ -35,7 +35,7 @@ de meter m
 de kilometer km = 1000 m
 de centimeter cm = 1/100 m
 
-Parameter de afstand : Numeriek (getal) met eenheid km;
+Parameter de afstand : Numeriek (getal) met eenheid km
 
 Regel bereken totaal
 geldig altijd
@@ -89,7 +89,7 @@ de foot ft = 12 inch
 de yard yd = 3 ft
 de mile mi = 1760 yd
 
-Parameter de lengte : Numeriek (getal) met eenheid mi;
+Parameter de lengte : Numeriek (getal) met eenheid mi
 
 Regel converteer naar yards
 geldig altijd
@@ -123,8 +123,8 @@ Eenheidsysteem snelheid
 de meter_per_seconde mps
 de kilometer_per_uur kmh = 5/18 mps
 
-Parameter de snelheid : Numeriek (getal) met eenheid kmh;
-Parameter de tijd : Numeriek (getal) met eenheid uur;
+Parameter de snelheid : Numeriek (getal) met eenheid kmh
+Parameter de tijd : Numeriek (getal) met eenheid uur
 
 Regel bereken afstand
 geldig altijd
@@ -167,8 +167,8 @@ Eenheidsysteem volume
 de milliliter ml
 de liter l = 1000 ml
 
-Parameter het gewicht : Numeriek (getal) met eenheid kg;
-Parameter het volume : Numeriek (getal) met eenheid ml;
+Parameter het gewicht : Numeriek (getal) met eenheid kg
+Parameter het volume : Numeriek (getal) met eenheid ml
 
 Regel bereken dichtheid
 geldig altijd

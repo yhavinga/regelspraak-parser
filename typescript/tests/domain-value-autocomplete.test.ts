@@ -26,7 +26,7 @@ describe('Domain value autocomplete', () => {
   'geparkeerd'
 }
 
-Parameter klant_status: Status;
+Parameter klant_status: Status
 
 Regel CheckStatus
   geldig indien klant_status is gelijk aan `;
@@ -46,7 +46,7 @@ Regel CheckStatus
   'motor'
 }
 
-Parameter voertuig: TypeVoertuig;
+Parameter voertuig: TypeVoertuig
 
 Regel Test
   geldig indien voertuig is `;
@@ -67,7 +67,7 @@ Regel Test
   'winter'
 }
 
-Parameter huidige_seizoen: Seizoen;
+Parameter huidige_seizoen: Seizoen
 
 Regel Test
   wanneer huidige_seizoen

@@ -237,11 +237,11 @@ export class SemanticAnalyzer {
     if (regel.subject.type === 'VariableReference') {
       const varRef = regel.subject as VariableReference;
       objectTypeName = varRef.variableName;
-    } else if (regel.subject.type === 'NavigationExpression') {
-      // Handle "Een Persoon" which might be parsed as NavigationExpression
-      const navExpr = regel.subject as any;
-      if (navExpr.base?.type === 'VariableReference') {
-        objectTypeName = navExpr.base.name;
+    } else if (regel.subject.type === 'AttributeReference') {
+      // Handle "Een Persoon" which might be parsed as AttributeReference
+      const attrRef = regel.subject as AttributeReference;
+      if (attrRef.path.length === 1) {
+        objectTypeName = attrRef.path[0];
       }
     } else {
       // Handle other expression types if needed

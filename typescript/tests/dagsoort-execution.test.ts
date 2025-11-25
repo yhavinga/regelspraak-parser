@@ -147,7 +147,7 @@ describe('Dagsoort Execution Tests', () => {
 
   it('should test date extraction functions', () => {
     const code = `
-      Parameter de test_datum : Datum;
+      Parameter de test_datum : Datum
     `;
 
     const parser = new AntlrParser();

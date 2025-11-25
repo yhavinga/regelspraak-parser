@@ -163,13 +163,13 @@ export class RuleExecutor implements IRuleExecutor {
   }
   
   private executeGelijkstelling(gelijkstelling: Gelijkstelling, context: RuntimeContext): RuleExecutionResult {
-    // The target is an AttributeReference, NavigationExpression, or DimensionedAttributeReference
+    // The target is an AttributeReference or DimensionedAttributeReference
     if (!gelijkstelling.target) {
       throw new Error('No target in gelijkstelling');
     }
-    
+
     let targetPath: string[];
-    
+
     if ((gelijkstelling.target as any).type === 'DimensionedAttributeReference') {
       // For dimensional references, get the path from the base attribute
       const dimRef = gelijkstelling.target as any;
@@ -180,10 +180,6 @@ export class RuleExecutor implements IRuleExecutor {
     } else if (gelijkstelling.target.path) {
       // Regular AttributeReference
       targetPath = gelijkstelling.target.path;
-    } else if ((gelijkstelling.target as any).type === 'NavigationExpression') {
-      // NavigationExpression - extract path
-      const navExpr = gelijkstelling.target as any;
-      targetPath = this.extractPathFromNavigationExpression(navExpr);
     } else {
       throw new Error(`No path in gelijkstelling target. Target type: ${gelijkstelling.target.type}`);
     }
@@ -666,16 +662,6 @@ export class RuleExecutor implements IRuleExecutor {
       refs.push(...this.extractAttributeReferences((expr as any).operand));
     }
     
-    // For NavigationExpression
-    if (expr.type === 'NavigationExpression') {
-      const navExpr = expr as any;
-      if (navExpr.base) {
-        refs.push(...this.extractAttributeReferences(navExpr.base));
-      }
-      if (navExpr.attribute && navExpr.attribute.type === 'AttributeReference') {
-        refs.push(navExpr.attribute);
-      }
-    }
     
     // For FunctionCall expressions
     if (expr.type === 'FunctionCall') {
@@ -922,20 +908,8 @@ export class RuleExecutor implements IRuleExecutor {
     // Pattern: "de <attribute> van <collection>"
     let targetObjects: Value[] = [];
     let attributeName: string = '';
-    
-    if (verdeling.targetCollection.type === 'NavigationExpression') {
-      const navExpr = verdeling.targetCollection as any;
-      attributeName = navExpr.attribute;
-      
-      // Evaluate the object part to get the collection
-      const objectValue = this.expressionEvaluator.evaluate(navExpr.object, context);
-      
-      if (objectValue.type === 'array') {
-        targetObjects = objectValue.value as Value[];
-      } else {
-        throw new Error('Distribution target collection must evaluate to an array');
-      }
-    } else if (verdeling.targetCollection.type === 'AttributeReference') {
+
+    if (verdeling.targetCollection.type === 'AttributeReference') {
       const attrRef = verdeling.targetCollection as any;
       
       // For AttributeReference with path like ["personen", "ontvangen aantal"]
@@ -1011,17 +985,6 @@ export class RuleExecutor implements IRuleExecutor {
     };
   }
   
-  private extractAttributeNameFromTargetCollection(expr: any): string {
-    // This is a simplified extraction - in reality we'd need to properly parse
-    // navigation expressions like "de ontvangen aantal van alle personen"
-    // For now, assume it's a NavigationExpression with the attribute as the first part
-    if (expr.type === 'NavigationExpression') {
-      return expr.attribute;
-    }
-    
-    // Fallback
-    return 'ontvangen aantal';
-  }
   
   private setRemainderValue(remainderTarget: Expression, value: Value, context: RuntimeContext): void {
     // The remainder target should be an attribute reference on the current instance
@@ -1036,19 +999,6 @@ export class RuleExecutor implements IRuleExecutor {
           const objectData = ctx.current_instance.value as Record<string, Value>;
           objectData[attrName] = value;
         }
-      }
-    } else if (remainderTarget.type === 'NavigationExpression') {
-      // Handle navigation expression for remainder target
-      const navExpr = remainderTarget as any;
-      const attrName = navExpr.attribute;
-      const objectExpr = navExpr.object;
-      
-      // Evaluate the object expression to get the target object
-      const targetObject = this.expressionEvaluator.evaluate(objectExpr, context);
-      
-      if (targetObject.type === 'object') {
-        const objectData = targetObject.value as Record<string, Value>;
-        objectData[attrName] = value;
       }
     }
   }
@@ -1431,35 +1381,6 @@ export class RuleExecutor implements IRuleExecutor {
     });
   }
   
-  private extractPathFromNavigationExpression(navExpr: any): string[] {
-    // NavigationExpression has structure: { attribute: string, object: Expression }
-    // We need to build a path from the navigation chain
-    // Dutch right-to-left navigation: object-first order
-    const pathReversed: string[] = [];
-    
-    // Start with the attribute (will be last in final path)
-    pathReversed.push(navExpr.attribute);
-    
-    // Traverse the object chain
-    let current = navExpr.object;
-    while (current) {
-      if (current.type === 'NavigationExpression') {
-        // Another navigation expression - add its attribute
-        pathReversed.push(current.attribute);
-        current = current.object;
-      } else if (current.type === 'VariableReference') {
-        // End of chain - this should be the object type
-        pathReversed.push(current.variableName);
-        break;
-      } else {
-        // Unknown expression type in navigation chain
-        break;
-      }
-    }
-    
-    // Reverse to get object-first order
-    return pathReversed.reverse();
-  }
   
   executeRegelGroep(regelGroep: RegelGroep, context: RuntimeContext): RuleExecutionResult {
     const results: any[] = [];

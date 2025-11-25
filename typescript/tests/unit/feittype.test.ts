@@ -91,7 +91,7 @@ describe('Feittype', () => {
         de passagier	Passagier
       Een vlucht vervoert passagiers
       
-      Parameter de volwassenleeftijd : Numeriek (geheel getal) met eenheid jr;
+      Parameter de volwassenleeftijd : Numeriek (geheel getal) met eenheid jr
     `;
 
     const parseResult = engine.parse(code);
