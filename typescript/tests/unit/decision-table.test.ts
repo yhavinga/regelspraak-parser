@@ -29,7 +29,8 @@ geldig altijd
       });
       
       // Check that the variable was set in context
-      const storedValue = context.getVariable('woonregio_factor');
+      // The parser now preserves multi-word attributes as single strings
+      const storedValue = context.getVariable('woonregio factor');
       expect(storedValue).toEqual({
         type: 'number',
         value: 2

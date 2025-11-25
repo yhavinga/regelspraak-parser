@@ -64,7 +64,8 @@ import {
   VerdelingTieBreak,
   VerdelingMaximum,
   VerdelingAfronding,
-  FeitCreatie
+  FeitCreatie,
+  VariableAssignment
 } from '../ast/rules';
 import { ObjectTypeDefinition, KenmerkSpecification, AttributeSpecification, DataType, DomainReference } from '../ast/object-types';
 import { ParameterDefinition } from '../ast/parameters';
@@ -1987,18 +1988,25 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
       if (ctx.voorwaardeDeel && ctx.voorwaardeDeel()) {
         condition = this.visitVoorwaardeDeel(ctx.voorwaardeDeel());
       }
-      
+
+      // Check for optional variable assignments (variabeleDeel)
+      let variables: VariableAssignment[] | undefined;
+      if (ctx.variabeleDeel && ctx.variabeleDeel()) {
+        variables = this.visitVariabeleDeel(ctx.variabeleDeel());
+      }
+
       const rule = {
         type: 'Rule',
         name,
         version,
         result,
-        condition
+        condition,
+        variables
       };
-      
+
       // Store location separately
       this.setLocation(rule, ctx);
-      
+
       return rule;
     } catch (e) {
       if (e instanceof Error) {
@@ -3520,6 +3528,132 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
     }
     
     throw new Error('Expected expression or compound condition in voorwaardeDeel');
+  }
+
+  // Variable block support (§11 spec)
+  visitVariabeleDeel(ctx: any): VariableAssignment[] {
+    // variabeleDeel : DAARBIJ_GELDT variabeleToekenning* DOT
+    const assignments: VariableAssignment[] = [];
+
+    if (ctx.variabeleToekenning && ctx.variabeleToekenning()) {
+      const toekenningen = Array.isArray(ctx.variabeleToekenning())
+        ? ctx.variabeleToekenning()
+        : [ctx.variabeleToekenning()];
+
+      for (const toekenning of toekenningen) {
+        const assignment = this.visitVariabeleToekenning(toekenning);
+        if (assignment) {
+          assignments.push(assignment);
+        }
+      }
+    }
+
+    return assignments;
+  }
+
+  visitVariabeleToekenning(ctx: any): VariableAssignment {
+    // variabeleToekenning : article=(DE | HET)? varName=IDENTIFIER IS varExpr=variabeleExpressie
+
+    const nameToken = ctx.varName || ctx.IDENTIFIER();
+    if (!nameToken) {
+      throw new Error('Expected variable name in variabeleToekenning');
+    }
+
+    const name = nameToken.getText();
+
+    const exprCtx = ctx.varExpr || ctx.variabeleExpressie();
+    if (!exprCtx) {
+      throw new Error('Expected expression in variabeleToekenning');
+    }
+
+    // Parse the variabeleExpressie which is a limited expression
+    const expression = this.visitVariabeleExpressie(exprCtx);
+
+    const assignment: VariableAssignment = {
+      type: 'VariableAssignment',
+      name,
+      expression
+    };
+
+    this.setLocation(assignment, ctx);
+    return assignment;
+  }
+
+  visitVariabeleExpressie(ctx: any): Expression {
+    // variabeleExpressie : primaryExpression ( (additiveOperator | multiplicativeOperator) primaryExpression )*
+
+    // Start with the first primary expression
+    const primaryCtxList = ctx.primaryExpression();
+    if (!primaryCtxList || primaryCtxList.length === 0) {
+      throw new Error('Expected at least one primaryExpression in variabeleExpressie');
+    }
+
+    let result = this.visit(primaryCtxList[0]);
+
+    // Check for operators and additional primary expressions
+    if (primaryCtxList.length > 1) {
+      // Combine operators - both additive and multiplicative can appear
+      const additiveOps = ctx.additiveOperator ? ctx.additiveOperator() : [];
+      const multiplicativeOps = ctx.multiplicativeOperator ? ctx.multiplicativeOperator() : [];
+
+      // Process remaining expressions with their operators
+      for (let i = 1; i < primaryCtxList.length; i++) {
+        const rightExpr = this.visit(primaryCtxList[i]);
+
+        // Find the operator for this position
+        // Grammar guarantees an operator before each subsequent primaryExpression
+        let operator = '';
+
+        // Check additive operators first
+        if (additiveOps && additiveOps[i - 1]) {
+          operator = additiveOps[i - 1].getText();
+        } else if (multiplicativeOps && multiplicativeOps[i - 1]) {
+          operator = multiplicativeOps[i - 1].getText();
+        }
+
+        if (!operator) {
+          // Try to get from context children directly
+          const children = ctx.children || [];
+          for (let j = 0; j < children.length; j++) {
+            if (children[j] === primaryCtxList[i - 1]) {
+              // Next child should be the operator
+              if (j + 1 < children.length && children[j + 1].getText) {
+                const text = children[j + 1].getText();
+                if (['+', '-', '*', '/', 'maal', 'min', 'plus', 'gedeeld door'].includes(text)) {
+                  operator = text;
+                  break;
+                }
+              }
+            }
+          }
+        }
+
+        if (!operator) {
+          operator = '+'; // Default to addition if no operator found
+        }
+
+        // Map Dutch operators to standard operators
+        const operatorMap: Record<string, string> = {
+          'plus': '+',
+          'min': '-',
+          'maal': '*',
+          'gedeeld door': '/'
+        };
+
+        const normalizedOp = operatorMap[operator] || operator;
+
+        result = {
+          type: 'BinaryExpression',
+          operator: normalizedOp,
+          left: result,
+          right: rightExpr
+        } as BinaryExpression;
+
+        this.setLocation(result, ctx);
+      }
+    }
+
+    return result;
   }
 
   visitToplevelSamengesteldeVoorwaarde(ctx: any): SamengesteldeVoorwaarde {

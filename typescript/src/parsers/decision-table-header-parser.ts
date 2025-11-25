@@ -205,35 +205,31 @@ export class DecisionTableHeaderParser {
   }
 
   private createAttributeReference(attributeName: string): AttributeReference {
-    // Clean attribute name - remove articles and convert to path
+    // Clean attribute name - remove articles but preserve the original casing and spaces
     const cleaned = attributeName
       .replace(/^(de|het|een)\s+/i, '')
       .trim();
-    
-    // Convert spaces to underscores for multi-word attributes
-    const path = cleaned.split(/\s+/).map(word => word.toLowerCase());
-    
+
+    // Keep multi-word attributes as single strings, consistent with visitor pattern
+    // E.g., "woonregio factor" stays as "woonregio factor"
     return {
       type: 'AttributeReference',
-      path: path.length === 1 ? [path[0]] : [path.join('_')]
+      path: [cleaned]
     };
   }
 
   private createNavigationReference(attributeName: string, objectName: string): AttributeReference {
-    // Clean names
+    // Clean names but preserve casing and multi-word structure
     const cleanedAttribute = attributeName
       .replace(/^(de|het|een)\s+/i, '')
-      .trim()
-      .replace(/\s+/g, '_')
-      .toLowerCase();
+      .trim();
 
     const cleanedObject = objectName
       .replace(/^(zijn|haar|hun|de|het|een)\s+/i, '')
-      .trim()
-      .replace(/\s+/g, '_')
-      .toLowerCase();
+      .trim();
 
     // Create AttributeReference with object-first path order
+    // Preserve multi-word names as single path segments
     return {
       type: 'AttributeReference',
       path: [cleanedObject, cleanedAttribute]
@@ -241,13 +237,12 @@ export class DecisionTableHeaderParser {
   }
 
   private createVariableReference(name: string): VariableReference {
-    // Clean and normalize the variable name
+    // Clean and preserve the variable name
     const cleaned = name
       .replace(/^(de|het|een)\s+/i, '')
-      .trim()
-      .replace(/\s+/g, '_')
-      .toLowerCase();
-    
+      .trim();
+
+    // For object types like "Natuurlijk persoon", preserve the multi-word format
     return {
       type: 'VariableReference',
       variableName: cleaned
@@ -256,10 +251,13 @@ export class DecisionTableHeaderParser {
 
   private createKenmerkReference(kenmerkName: string): Expression {
     // For kenmerk checks, we create an attribute reference
-    // The actual kenmerk will be resolved during evaluation
+    // Preserve the kenmerk name format
+    const cleaned = kenmerkName.trim();
+
+    // Use the "is" prefix pattern for kenmerken, consistent with the visitor
     return {
       type: 'AttributeReference',
-      path: ['heeft_' + kenmerkName.replace(/\s+/g, '_').toLowerCase()]
+      path: [`is ${cleaned}`]
     } as AttributeReference;
   }
 }

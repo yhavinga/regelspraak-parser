@@ -14,8 +14,16 @@ export interface Rule {
   result?: ResultPart;  // Keep for backward compatibility
   voorwaarde?: Voorwaarde;  // Also support 'voorwaarde' property name
   condition?: Voorwaarde; // Keep for backward compatibility
+  variables?: VariableAssignment[];  // Optional variable assignments from "Daarbij geldt:" section
   naam?: string;  // Alternative property name
   location?: SourceLocation;  // Set by visitor - guaranteed to exist after parsing
+}
+
+export interface VariableAssignment {
+  type: 'VariableAssignment';
+  name: string;  // Variable name (e.g., 'X', 'Y')
+  expression: Expression;  // The expression to evaluate
+  location?: SourceLocation;
 }
 
 export interface RuleVersion {

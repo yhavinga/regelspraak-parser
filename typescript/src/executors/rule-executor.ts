@@ -1,12 +1,12 @@
 import { IRuleExecutor, RuleExecutionResult, RuntimeContext, Value } from '../interfaces';
-import { 
-  Rule, 
-  Gelijkstelling, 
-  ObjectCreation, 
-  MultipleResults, 
-  ResultPart, 
-  Kenmerktoekenning, 
-  Voorwaarde, 
+import {
+  Rule,
+  Gelijkstelling,
+  ObjectCreation,
+  MultipleResults,
+  ResultPart,
+  Kenmerktoekenning,
+  Voorwaarde,
   Consistentieregel,
   Verdeling,
   VerdelingMethode,
@@ -17,7 +17,8 @@ import {
   VerdelingMaximum,
   VerdelingAfronding,
   RegelGroep,
-  FeitCreatie
+  FeitCreatie,
+  VariableAssignment
 } from '../ast/rules';
 import { VariableReference, Expression, AttributeReference } from '../ast/expressions';
 import { ExpressionEvaluator } from '../evaluators/expression-evaluator';
@@ -47,17 +48,32 @@ export class RuleExecutor implements IRuleExecutor {
           error: new Error(`Rule '${rule.name || rule.naam}' has no result part`)
         };
       }
-      
+
+      // Execute variable assignments first (§11.1 spec - variables are evaluated before conditions)
+      if (rule.variables && rule.variables.length > 0) {
+        for (const variable of rule.variables) {
+          try {
+            const value = this.expressionEvaluator.evaluate(variable.expression, context);
+            context.setVariable(variable.name, value);
+          } catch (error) {
+            return {
+              success: false,
+              error: new Error(`Failed to evaluate variable '${variable.name}': ${error instanceof Error ? error.message : 'unknown error'}`)
+            };
+          }
+        }
+      }
+
       // For Kenmerktoekenning rules with conditions, we handle the condition differently
       // The condition is evaluated per object, not at the rule level
       if (result.type === 'Kenmerktoekenning' && rule.condition) {
         return this.executeKenmerktoekenningWithCondition(
-          result as Kenmerktoekenning, 
-          rule.condition, 
+          result as Kenmerktoekenning,
+          rule.condition,
           context
         );
       }
-      
+
       // For ObjectCreation rules with conditions, iterate over objects
       // The condition determines which objects trigger creation
       if (result.type === 'ObjectCreation' && rule.condition) {
