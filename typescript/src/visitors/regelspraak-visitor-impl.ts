@@ -1400,9 +1400,9 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
     // TIJDSDUUR_VAN primaryExpression TOT primaryExpression (IN_HELE unitName=IDENTIFIER)?
     const fromExpr = this.visit(ctx.primaryExpression(0));
     const toExpr = this.visit(ctx.primaryExpression(1));
-    
-    // Check for unit specification
-    const unit = ctx._unitName ? ctx._unitName.text : undefined;
+
+    // Check for unit specification and normalize to lowercase
+    const unit = ctx._unitName ? ctx._unitName.text.toLowerCase() : undefined;
     
     const funcCall: FunctionCall = {
       type: 'FunctionCall',
@@ -1418,9 +1418,9 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
     // DE_ABSOLUTE_TIJDSDUUR_VAN primaryExpression TOT primaryExpression (IN_HELE unitName=IDENTIFIER)?
     const fromExpr = this.visit(ctx.primaryExpression(0));
     const toExpr = this.visit(ctx.primaryExpression(1));
-    
-    // Check for unit specification
-    const unit = ctx.unitName ? ctx.unitName.text : undefined;
+
+    // Check for unit specification and normalize to lowercase
+    const unit = ctx.unitName ? ctx.unitName.text.toLowerCase() : undefined;
     
     const funcCall: FunctionCall = {
       type: 'FunctionCall',
@@ -2926,7 +2926,8 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
   visitObjectTypeDefinition(ctx: any): ObjectTypeDefinition {
     // Get the name (naamwoordNoIs)
     const nameCtx = ctx.naamwoordNoIs();
-    const rawName = this.extractText(nameCtx).trim();
+    // Use extractTextWithSpaces to preserve multi-word names like "Natuurlijk persoon"
+    const rawName = this.extractTextWithSpaces(nameCtx).trim();
     const name = this.extractParameterName(rawName);
 
 
@@ -2965,10 +2966,13 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
     // Store attributes for this object type
     this.objectTypeAttributes.set(name, attributeNames);
 
+    // Generate default plural if not explicitly provided
+    const pluralForms = plural.length > 0 ? plural : this.generateDefaultPlural(name);
+
     const objType = {
       type: 'ObjectTypeDefinition' as const,
       name,
-      plural: plural.length > 0 ? plural : undefined,
+      plural: pluralForms,
       animated,
       members
     };
@@ -3035,7 +3039,8 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
     } else {
       nameCtx = ctx.naamwoord();
     }
-    const rawName = this.extractText(nameCtx);
+    // Use extractTextWithSpaces to preserve multi-word parameter names
+    const rawName = this.extractTextWithSpaces(nameCtx);
     const name = this.extractParameterName(rawName);
     
     // Get data type or domain reference
@@ -3164,8 +3169,8 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
       }
       
       if (!nameText) {
-        // Fallback to extractText
-        nameText = this.extractText(namePhrase);
+        // Fallback - use extractTextWithSpaces to preserve multi-word attributes
+        nameText = this.extractTextWithSpaces(namePhrase);
       }
     }
     
@@ -5094,5 +5099,29 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
     this.setLocation(node, ctx);
     return node;
   }
-  
+
+  private generateDefaultPlural(singular: string): string[] {
+    // Handle multi-word names
+    const words = singular.split(' ');
+    const lastWord = words[words.length - 1];
+    let pluralLastWord: string;
+
+    // Simple Dutch pluralization rules
+    if (lastWord.endsWith('s') || lastWord.endsWith('x') || lastWord.endsWith('z')) {
+      pluralLastWord = lastWord + 'en';
+    } else if (lastWord.endsWith('heid')) {
+      pluralLastWord = lastWord.replace(/heid$/, 'heden');
+    } else if (lastWord.endsWith('oon')) {
+      pluralLastWord = lastWord.replace(/oon$/, 'onen');
+    } else if (lastWord.match(/[aeiou]$/)) {
+      pluralLastWord = lastWord + 's';
+    } else {
+      pluralLastWord = lastWord + 'en';
+    }
+
+    // Reconstruct multi-word plural
+    words[words.length - 1] = pluralLastWord;
+    return [words.join(' ')];
+  }
+
 }

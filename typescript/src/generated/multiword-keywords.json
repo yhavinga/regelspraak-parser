@@ -1,7 +1,7 @@
 {
-  "generated": "2025-08-25T16:24:36.924Z",
+  "generated": "2025-11-25T13:54:57.900Z",
   "source": "grammar/RegelSpraakLexer.g4",
-  "totalMultiWords": 128,
+  "totalMultiWords": 129,
   "byFirstWord": {
     "(voor": [
       "(voor het attribuut zonder voorzetsel):"
@@ -178,7 +178,8 @@
       "gedeeld door (abs)"
     ],
     "ongelijk": [
-      "ongelijk aan"
+      "ongelijk aan",
+      "ongelijk zijn aan"
     ],
     "richting": [
       "richting nul"
@@ -306,6 +307,7 @@
     "naar rato van",
     "numeriek met exact",
     "ongelijk aan",
+    "ongelijk zijn aan",
     "op volgorde van",
     "reeks van teksten en waarden",
     "richting nul",

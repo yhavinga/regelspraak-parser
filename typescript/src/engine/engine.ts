@@ -24,7 +24,7 @@ export class Engine implements IEngine {
     try {
       // Check if this contains multiple definitions (has newlines and multiple keywords)
       const lines = trimmed.split('\n');
-      const definitionKeywords = ['Parameter ', 'Objecttype ', 'Regel ', 'Beslistabel ', 'Consistentieregel ', 'Verdeling ', 'Eenheidsysteem ', 'Dimensie ', 'Feittype ', 'Wederkerig feittype '];
+      const definitionKeywords = ['Parameter ', 'Objecttype ', 'Regel ', 'Beslistabel ', 'Consistentieregel ', 'Verdeling ', 'Eenheidsysteem ', 'Dimensie ', 'Feittype ', 'Wederkerig feittype ', 'Regelgroep '];
       let definitionCount = 0;
       for (const line of lines) {
         const trimmedLine = line.trim();
@@ -46,7 +46,8 @@ export class Engine implements IEngine {
         const unitSystems = definitions.filter((def: any) => def.type === 'UnitSystemDefinition');
         const dimensions = definitions.filter((def: any) => def.type === 'Dimension');
         const feittypen = definitions.filter((def: any) => def.type === 'FeitType');
-        
+        const regelGroepen = definitions.filter((def: any) => def.type === 'RegelGroep');
+
         return {
           success: true,
           ast: {
@@ -56,7 +57,8 @@ export class Engine implements IEngine {
             parameters,
             unitSystems,
             dimensions,
-            feittypen
+            feittypen,
+            regelGroepen
           }
         };
       }
@@ -108,6 +110,14 @@ export class Engine implements IEngine {
         };
       } else if (trimmed.startsWith('Feittype ') || trimmed.startsWith('Wederkerig feittype ')) {
         // Parse as a full document to handle feittype definition
+        const definitions = this.antlrParser.parse(trimmed);
+        // Return the first (and should be only) definition
+        return {
+          success: true,
+          ast: Array.isArray(definitions) && definitions.length > 0 ? definitions[0] : definitions
+        };
+      } else if (trimmed.startsWith('Regelgroep ')) {
+        // Parse as a full document to handle regelgroep definition
         const definitions = this.antlrParser.parse(trimmed);
         // Return the first (and should be only) definition
         return {
@@ -201,7 +211,7 @@ export class Engine implements IEngine {
           success: true,
           value: { type: 'string', value: 'Model executed' }
         };
-        
+
         // Execute each rule in sequence
         for (const rule of (ast as any).rules || []) {
           const result = this.ruleExecutor.execute(rule, context);
@@ -219,7 +229,25 @@ export class Engine implements IEngine {
             };
           }
         }
-        
+
+        // Execute each regelgroep in sequence
+        for (const regelGroep of (ast as any).regelGroepen || []) {
+          const result = this.ruleExecutor.executeRegelGroep(regelGroep, context);
+          if (!result.success) {
+            return {
+              success: false,
+              error: result.error
+            };
+          }
+          // Keep track of the last result
+          if (result.value) {
+            lastResult = {
+              success: true,
+              value: result.value
+            };
+          }
+        }
+
         return lastResult;
       } else if (ast.type === 'Rule') {
         const result = this.ruleExecutor.execute(ast, context);

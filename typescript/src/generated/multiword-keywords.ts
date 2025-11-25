@@ -10,9 +10,9 @@ export interface MultiWordData {
 }
 
 export const multiWordKeywords: MultiWordData = {
-  "generated": "2025-08-25T16:24:36.924Z",
+  "generated": "2025-11-25T13:54:57.900Z",
   "source": "grammar/RegelSpraakLexer.g4",
-  "totalMultiWords": 128,
+  "totalMultiWords": 129,
   "byFirstWord": {
     "(voor": [
       "(voor het attribuut zonder voorzetsel):"
@@ -189,7 +189,8 @@ export const multiWordKeywords: MultiWordData = {
       "gedeeld door (abs)"
     ],
     "ongelijk": [
-      "ongelijk aan"
+      "ongelijk aan",
+      "ongelijk zijn aan"
     ],
     "richting": [
       "richting nul"
@@ -317,6 +318,7 @@ export const multiWordKeywords: MultiWordData = {
     "naar rato van",
     "numeriek met exact",
     "ongelijk aan",
+    "ongelijk zijn aan",
     "op volgorde van",
     "reeks van teksten en waarden",
     "richting nul",
