@@ -112,16 +112,18 @@ export function resolveNavigationPath(
 
   // Start with the provided start object or current instance
   let currentObject = startObject;
-  
+  let navPath = navigationChain;
+  let gotFromVariable = false;
+
   if (!currentObject) {
     const ctx = context as Context;
     currentObject = ctx.current_instance;
-    
+
     if (!currentObject) {
       // As a fallback, try to get the first element (base object) as a variable
       const baseName = navigationChain[0];
       currentObject = ctx.getVariable(baseName);
-      
+
       if (!currentObject) {
         return {
           targetObject: null,
@@ -129,20 +131,23 @@ export function resolveNavigationPath(
           error: `No starting object available for navigation`
         };
       }
+
+      // When we got the object from a variable, always skip the first element
+      // This matches Python's _navigate_to_target behavior (engine.py:2448-2600)
+      gotFromVariable = true;
+      navPath = navigationChain.slice(1);
     }
   }
 
-  // Navigate through the chain from the current object
-  // For path ["gebouw", "eigenaar", "naam"], we navigate through ["eigenaar"] 
-  // (skipping the first element if it matches the current object type)
-  let navPath = navigationChain;
-  
-  // Check if the first element is the object type
-  const currentObjType = (currentObject.value as any).__type || 
-                         (currentObject as any).objectType;
-  if (navPath.length > 0 && navPath[0].toLowerCase() === currentObjType?.toLowerCase()) {
-    // Skip the first element as it's just referring to the current object type
-    navPath = navPath.slice(1);
+  // Only check for object type match if we didn't get from variable
+  if (!gotFromVariable && navPath.length > 0) {
+    // Check if the first element is the object type
+    const currentObjType = (currentObject.value as any).__type ||
+                           (currentObject as any).objectType;
+    if (currentObjType && navPath[0].toLowerCase() === currentObjType.toLowerCase()) {
+      // Skip the first element as it's just referring to the current object type
+      navPath = navPath.slice(1);
+    }
   }
   
   // Navigate through the path

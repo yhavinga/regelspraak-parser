@@ -1,9 +1,10 @@
 import { RuntimeContext, Value } from '../interfaces';
 import { DecisionTable, DecisionTableCondition, DecisionTableResult } from '../ast/decision-tables';
 import { ExpressionEvaluator } from '../evaluators/expression-evaluator';
-import { Expression, StringLiteral } from '../ast/expressions';
+import { Expression, StringLiteral, AttributeReference } from '../ast/expressions';
 import { DecisionTableHeaderParser, ParsedCondition, ParsedResult } from '../parsers/decision-table-header-parser';
 import { UnitRegistry, performUnitArithmetic, UnitValue } from '../units';
+import { setValueAtPath } from '../utils/navigation';
 
 export interface DecisionTableExecutionResult {
   success: boolean;

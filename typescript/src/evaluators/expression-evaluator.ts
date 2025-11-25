@@ -1141,24 +1141,24 @@ export class ExpressionEvaluator implements IEvaluator {
     // Handle simple navigation patterns like ["persoon", "naam"] (object-first order)
     if (expr.path.length === 2) {
       const [objectName, attribute] = expr.path;
-      
-      // Check if this is a pronoun-based Feittype navigation like ["vluchtdatum", "zijn reis"]
+
+      // Check if this is a pronoun-based Feittype navigation like ["zijn reis", "attribute"]
       if (objectName.startsWith('zijn ') || objectName.startsWith('haar ')) {
         const roleName = objectName.substring(5); // Remove "zijn " or "haar " prefix
         const ctx = context as any;
-        
+
         if (ctx.current_instance && ctx.current_instance.type === 'object') {
           // Find related objects through Feittype using the role name
           const relatedObjects = this.findRelatedObjectsThroughFeittype(roleName, ctx.current_instance, ctx);
-          
+
           if (relatedObjects && relatedObjects.length > 0) {
             // Get the first related object (assumes single relationship)
             const relatedObject = relatedObjects[0];
-            
+
             if (relatedObject.type === 'object') {
               const objectData = relatedObject.value as Record<string, Value>;
               const attrValue = objectData[attribute];
-              
+
               if (attrValue !== undefined) {
                 return attrValue;
               }
@@ -1168,31 +1168,44 @@ export class ExpressionEvaluator implements IEvaluator {
           throw new Error(`No related object found through role '${roleName}'`);
         }
       }
-      
-      // Look up the object as a variable
-      const objectValue = this.evaluateVariableReference({ type: 'VariableReference', variableName: objectName } as VariableReference, context);
-      
-      // Navigate to the attribute
-      if (objectValue.type !== 'object') {
-        throw new Error(`Cannot navigate into non-object type: ${objectValue.type}`);
-      }
-      
-      const obj = objectValue.value as Record<string, Value>;
-      
-      if (!(attribute in obj)) {
-        // Check for Feittype relationships
-        const relatedObjects = this.findRelatedObjectsThroughFeittype(attribute, objectValue, context);
-        if (relatedObjects) {
-          return {
-            type: 'array',
-            value: relatedObjects
-          };
+
+      // Use resolveNavigationPath for all navigation, even simple 2-element paths
+      // This ensures consistent navigation behavior
+      const { resolveNavigationPath } = require('../utils/navigation');
+      const navResult = resolveNavigationPath(expr.path, context);
+
+      if (navResult.error) {
+        // Check for Feittype relationships as a fallback
+        const objectValue = context.getVariable(objectName);
+        if (objectValue && objectValue.type === 'object') {
+          const relatedObjects = this.findRelatedObjectsThroughFeittype(attribute, objectValue, context);
+          if (relatedObjects) {
+            return {
+              type: 'array',
+              value: relatedObjects
+            };
+          }
         }
-        
-        throw new Error(`Attribute '${attribute}' not found on object of type ${objectValue.type}`);
+        throw new Error(navResult.error);
       }
-      
-      return obj[attribute];
+
+      if (!navResult.targetObject) {
+        throw new Error(`Navigation failed for path: ${expr.path.join(' -> ')}`);
+      }
+
+      // Get the attribute from the target object
+      if (navResult.targetObject.type !== 'object') {
+        throw new Error(`Cannot get attribute '${navResult.attributeName}' from non-object`);
+      }
+
+      const objectData = navResult.targetObject.value as Record<string, Value>;
+      const value = objectData[navResult.attributeName];
+
+      if (value === undefined) {
+        throw new Error(`Attribute '${navResult.attributeName}' not found on object`);
+      }
+
+      return value;
     }
     
     // Handle simple single-element paths as variable references

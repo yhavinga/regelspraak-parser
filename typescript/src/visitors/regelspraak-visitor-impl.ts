@@ -3079,15 +3079,25 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
     
     // Check for timeline
     const timeline = ctx.tijdlijn && ctx.tijdlijn() ? true : undefined;
-    
+
+    // Build node with only defined properties
     const node: AttributeSpecification = {
       type: 'AttributeSpecification',
       name,
-      dataType,
-      unit,
-      dimensions: dimensions.length > 0 ? dimensions : undefined,
-      timeline: timeline || undefined
+      dataType
     };
+
+    // Only add optional properties when they have values
+    if (unit !== undefined) {
+      node.unit = unit;
+    }
+    if (dimensions.length > 0) {
+      node.dimensions = dimensions;
+    }
+    if (timeline) {
+      node.timeline = timeline;
+    }
+
     this.setLocation(node, ctx);
     return node;
   }
@@ -4431,6 +4441,43 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
     const naamwoordCtx = ctx.naamwoord ? ctx.naamwoord() : null;
     if (naamwoordCtx) {
       const text = this.visitNaamwoord(naamwoordCtx);
+
+      // Check for navigation patterns (similar to Python builder.py:1107-1128)
+      if (text.includes(' van ') || text.includes(' op ')) {
+        // This looks like a navigation expression, build an AttributeReference
+        const parts = text.split(/\s+(van|op)\s+/);
+
+        if (parts.length >= 3) {
+          // Extract the attribute (first part) and navigation path
+          const attrName = this.extractParameterName(parts[0]);
+          const navigationParts: string[] = [];
+
+          // Process remaining parts, skipping 'van'/'op' separators
+          for (let i = 2; i < parts.length; i += 2) {
+            if (parts[i]) {
+              // Remove articles and clean up the navigation element
+              const cleanPart = this.extractParameterName(parts[i]);
+              if (cleanPart) {
+                navigationParts.push(cleanPart);
+              }
+            }
+          }
+
+          // Build path in Dutch right-to-left order:
+          // "de naam van persoon" → ["persoon", "naam"]
+          if (navigationParts.length > 0) {
+            const path = [...navigationParts.reverse(), attrName];
+            const node: AttributeReference = {
+              type: 'AttributeReference',
+              path: path
+            };
+            this.setLocation(node, ctx);
+            return node;
+          }
+        }
+      }
+
+      // Not a navigation pattern, return as string literal
       const node: StringLiteral = {
         type: 'StringLiteral',
         value: text
@@ -4439,9 +4486,40 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
       return node;
     }
     // Fallback to text extraction
+    const fullText = this.extractTextWithSpaces(ctx);
+
+    // Check for navigation patterns in the full text
+    if (fullText.includes(' van ') || fullText.includes(' op ')) {
+      const parts = fullText.split(/\s+(van|op)\s+/);
+
+      if (parts.length >= 3) {
+        const attrName = this.extractParameterName(parts[0]);
+        const navigationParts: string[] = [];
+
+        for (let i = 2; i < parts.length; i += 2) {
+          if (parts[i]) {
+            const cleanPart = this.extractParameterName(parts[i]);
+            if (cleanPart) {
+              navigationParts.push(cleanPart);
+            }
+          }
+        }
+
+        if (navigationParts.length > 0) {
+          const path = [...navigationParts.reverse(), attrName];
+          const node: AttributeReference = {
+            type: 'AttributeReference',
+            path: path
+          };
+          this.setLocation(node, ctx);
+          return node;
+        }
+      }
+    }
+
     const node: StringLiteral = {
       type: 'StringLiteral',
-      value: this.extractTextWithSpaces(ctx)
+      value: fullText
     };
     this.setLocation(node, ctx);
     return node;
