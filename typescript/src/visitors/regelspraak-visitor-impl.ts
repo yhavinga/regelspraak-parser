@@ -93,7 +93,7 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
       node.location = createSourceLocation(ctx);
     }
   }
-  
+
   visitRegelSpraakDocument(ctx: RegelSpraakDocumentContext): DomainModel {
     // Create a proper DomainModel
     const model: DomainModel = {
@@ -108,7 +108,7 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
       feitTypes: [],
       unitSystems: []
     };
-    
+
     // Get all top-level elements
     const definitions = ctx.definitie_list() || [];
     const rules = ctx.regel_list() || [];
@@ -116,7 +116,7 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
     const beslistabels = ctx.beslistabel_list() || [];
     const consistentieregels = ctx.consistentieregel_list() || [];
     const eenheidsystems = ctx.eenheidsysteemDefinition_list() || [];
-    
+
     // Visit definitions and categorize them
     for (const def of definitions) {
       const result = this.visit(def);
@@ -137,7 +137,7 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
         }
       }
     }
-    
+
     // Visit rules and add to regels
     for (const rule of rules) {
       const result = this.visit(rule);
@@ -145,7 +145,7 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
         model.regels.push(result);
       }
     }
-    
+
     // Visit consistency rules and add to regels
     for (const consistentieregel of consistentieregels) {
       const result = this.visit(consistentieregel);
@@ -153,7 +153,7 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
         model.regels.push(result);
       }
     }
-    
+
     // Visit beslistabels
     for (const beslistabel of beslistabels) {
       const result = this.visit(beslistabel);
@@ -161,7 +161,7 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
         model.beslistabels.push(result);
       }
     }
-    
+
     // Visit regel groups
     for (const regelGroup of regelGroups) {
       const result = this.visit(regelGroup);
@@ -169,7 +169,7 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
         model.regelGroepen.push(result);
       }
     }
-    
+
     // Visit unit systems
     for (const unitSystem of eenheidsystems) {
       const result = this.visit(unitSystem);
@@ -177,7 +177,7 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
         model.unitSystems.push(result);
       }
     }
-    
+
     return model;
   }
 
@@ -349,27 +349,27 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
   visitLogicalExpr(ctx: LogicalExprContext): Expression {
     // Get the left comparison expression
     const left = this.visitComparisonExpression(ctx.comparisonExpression());
-    
+
     // Check if there's a logical operator
     const logicalExpr = ctx.logicalExpression();
     if (!logicalExpr) {
       // No logical operator, just return the comparison expression
       return left;
     }
-    
+
     // Get the right logical expression
     const right = this.visit(logicalExpr);
-    
+
     // Get the logical operator (EN or OF)
     const opToken = ctx.EN() || ctx.OF();
     if (!opToken) {
       throw new Error('Expected logical operator EN or OF');
     }
-    
+
     // Map Dutch operators to standard operators
     const opText = opToken.getText();
     const operator = opText.toLowerCase() === 'en' ? '&&' : '||';
-    
+
     const node = {
       type: 'BinaryExpression',
       operator: operator as any,
@@ -383,7 +383,7 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
   visitComparisonExpression(ctx: any): Expression {
     // Check which type of comparison expression this is
     const contextName = ctx.constructor.name;
-    
+
     if (contextName === 'BinaryComparisonExprContext') {
       return this.visitBinaryComparisonExpr(ctx);
     } else if (contextName === 'UnaryConditionExprContext') {
@@ -405,24 +405,24 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
   visitBinaryComparisonExpr(ctx: BinaryComparisonExprContext): Expression {
     // Get the additive expressions
     const additiveExprs = ctx.additiveExpression_list();
-    
+
     if (additiveExprs.length === 1) {
       // No comparison operator, just return the single expression
       return this.visit(additiveExprs[0]);
     }
-    
+
     // Get the left and right expressions
     const left = this.visit(additiveExprs[0]);
     const right = this.visit(additiveExprs[1]);
-    
+
     // Get the comparison operator
     const compOp = ctx.comparisonOperator();
-    
+
     // Map Dutch operators to standard operators
     const opText = compOp.getText();
     let operator: string;
-    
-    switch(opText) {
+
+    switch (opText) {
       case 'gelijk aan':
       case 'gelijk is aan':
       case 'is gelijk aan':
@@ -461,7 +461,7 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
       default:
         throw new Error(`Unknown comparison operator: ${opText}`);
     }
-    
+
     const node = {
       type: 'BinaryExpression',
       operator: operator as any,
@@ -489,12 +489,12 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
     const naamwoordCtx = ctx.name;
     const rawName = this.extractTextWithSpaces(naamwoordCtx);
     const regelNaam = this.extractParameterName(rawName);
-    
+
     // Extract check type from op token
     const opToken = ctx.op;
     let check: 'gevuurd' | 'inconsistent';
     let predicateOperator: 'gevuurd' | 'inconsistent';
-    
+
     if (opToken.type === RegelSpraakLexer.GEVUURD) {
       check = 'gevuurd';
       predicateOperator = 'gevuurd';
@@ -504,7 +504,7 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
     } else {
       throw new Error(`Unhandled regel status operator: ${opToken.text}`);
     }
-    
+
     // Create regel status expression with unified predicate
     const node: any = {
       type: 'RegelStatusExpression',
@@ -521,7 +521,7 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
         } as StringLiteral
       } as SimplePredicate
     };
-    
+
     this.setLocation(node, ctx);
     if (node.predicate) {
       this.setLocation(node.predicate, ctx);
@@ -532,7 +532,7 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
   visitUnaryCondition(ctx: any): Expression {
     // Check which type of unary condition this is
     const contextName = ctx.constructor.name;
-    
+
     if (contextName === 'UnaryCheckConditionContext') {
       return this.visitUnaryCheckCondition(ctx);
     } else if (contextName === 'UnaryDagsoortConditionContext') {
@@ -549,22 +549,22 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
   visitUnaryDagsoortCondition(ctx: any): Expression {
     // expr=primaryExpression op=(IS_EEN_DAGSOORT | ...) dagsoort=identifier
     const expr = this.visit(ctx.primaryExpression());
-    
+
     // Get the dagsoort identifier
     const dagsoortCtx = ctx.identifier();
     if (!dagsoortCtx) {
       throw new Error('Expected dagsoort identifier');
     }
     const dagsoortName = dagsoortCtx.getText();
-    
+
     // Get the operator - use the private _op property
     const opToken = ctx._op;
     if (!opToken) {
       throw new Error('Expected operator token in dagsoort condition');
     }
-    
+
     let binaryOp: string;
-    
+
     if (opToken.type === RegelSpraakLexer.IS_EEN_DAGSOORT) {
       binaryOp = 'is een dagsoort';
     } else if (opToken.type === RegelSpraakLexer.ZIJN_EEN_DAGSOORT) {
@@ -576,10 +576,10 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
     } else {
       throw new Error(`Unknown dagsoort operator token type: ${opToken.type}`);
     }
-    
+
     // Determine if negated
     const negated = binaryOp.includes('geen');
-    
+
     // Create a binary expression with unified predicate
     const node: any = {
       type: 'BinaryExpression',
@@ -608,7 +608,7 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
   visitUnaryUniekCondition(ctx: any): Expression {
     // ref=onderwerpReferentie MOETEN_UNIEK_ZIJN
     const ref = this.visit(ctx.onderwerpReferentie());
-    
+
     // Create unary expression with unified predicate
     const node: any = {
       type: 'UnaryExpression',
@@ -631,14 +631,14 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
   visitUnaryNumeriekExactCondition(ctx: any): Expression {
     // expr=primaryExpression op=(IS_NUMERIEK_MET_EXACT | ...) NUMBER CIJFERS
     const expr = this.visit(ctx.primaryExpression());
-    
+
     // Get the digit count from NUMBER token
     const digitCountToken = ctx.NUMBER();
     if (!digitCountToken) {
       throw new Error('Expected digit count in numeric exact condition');
     }
     const digitCount = parseInt(digitCountToken.getText());
-    
+
     // Map operator token to string and determine negation
     let operator: string;
     let negated = false;
@@ -655,7 +655,7 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
     } else {
       throw new Error('Unknown numeric exact operator');
     }
-    
+
     // Create binary expression with unified predicate
     const node: any = {
       type: 'BinaryExpression',
@@ -684,22 +684,22 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
   visitAdditiveExpression(ctx: AdditiveExpressionContext): Expression {
     // Get all multiplicative expressions
     const multiplicativeExprs = ctx.multiplicativeExpression_list();
-    
+
     if (multiplicativeExprs.length === 1) {
       return this.visit(multiplicativeExprs[0]);
     }
-    
+
     // Build left-associative tree
     let result = this.visit(multiplicativeExprs[0]);
-    
+
     // Get operators between expressions
     const operators = ctx.additiveOperator_list();
-    
+
     for (let i = 0; i < operators.length; i++) {
       const opText = operators[i].getText();
       const operator = opText === 'plus' ? '+' : '-';
       const right = this.visit(multiplicativeExprs[i + 1]);
-      
+
       result = {
         type: 'BinaryExpression',
         operator: operator as '+' | '-',
@@ -707,29 +707,29 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
         right
       } as BinaryExpression;
     }
-    
+
     return result;
   }
 
   visitMultiplicativeExpression(ctx: MultiplicativeExpressionContext): Expression {
     // Get all power expressions
     const powerExprs = ctx.powerExpression_list();
-    
+
     if (powerExprs.length === 1) {
       return this.visit(powerExprs[0]);
     }
-    
+
     // Build left-associative tree
     let result = this.visit(powerExprs[0]);
-    
+
     // Get operators between expressions
     const operators = ctx.multiplicativeOperator_list();
-    
+
     for (let i = 0; i < operators.length; i++) {
       const opText = operators[i].getText();
       const operator = opText === 'maal' ? '*' : '/';
       const right = this.visit(powerExprs[i + 1]);
-      
+
       result = {
         type: 'BinaryExpression',
         operator: operator as '*' | '/',
@@ -737,7 +737,7 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
         right
       } as BinaryExpression;
     }
-    
+
     return result;
   }
 
@@ -924,7 +924,7 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
     // Convert Dutch decimal notation (comma) to JavaScript notation (dot)
     const normalizedText = text.replace(',', '.');
     const value = parseFloat(normalizedText);
-    
+
     // Check for optional unit
     const unitCtx = ctx.unitIdentifier();
     if (unitCtx) {
@@ -934,10 +934,10 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
         value,
         unit
       } as NumberLiteral;
-    this.setLocation(node, ctx);
-    return node;
+      this.setLocation(node, ctx);
+      return node;
     }
-    
+
     const node = {
       type: 'NumberLiteral',
       value
@@ -950,7 +950,7 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
     // Get the date literal text
     const datumCtx = ctx.datumLiteral();
     const dateText = datumCtx.getText();
-    
+
     // Parse the date - format is DD-MM-YYYY
     const parts = dateText.split('-');
     if (parts.length === 3) {
@@ -959,7 +959,7 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
       const year = parseInt(parts[2], 10);
       // Create UTC date to avoid timezone issues
       const date = new Date(Date.UTC(year, month, day));
-      
+
       const node = {
         type: 'DateLiteral',
         value: date
@@ -967,7 +967,7 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
       this.setLocation(node, ctx);
       return node;
     }
-    
+
     throw new Error(`Invalid date format: ${dateText}`);
   }
 
@@ -976,10 +976,10 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
       type: 'VariableReference',
       variableName: ctx.identifier().getText()
     } as VariableReference;
-    
+
     // Store location for this variable reference
     this.setLocation(ref, ctx);
-    
+
     return ref;
   }
 
@@ -991,11 +991,13 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
     // Handle DateCalcExpr - check if it's actually a date calculation or arithmetic with units
     const left = this.visit(ctx.primaryExpression(0));
     const right = this.visit(ctx.primaryExpression(1));
-    const identifier = ctx.identifier()?.getText() || '';
+    // FIX: Grammar uses timeUnit, not identifier
+    const timeUnitCtx = ctx.timeUnit();
+    const identifier = timeUnitCtx?.getText() || '';
 
     // Check if the identifier is a time unit
     const timeUnits = ['dagen', 'dag', 'maanden', 'maand', 'jaren', 'jaar', 'weken', 'week',
-                       'uren', 'uur', 'minuten', 'minuut', 'seconden', 'seconde'];
+      'uren', 'uur', 'minuten', 'minuut', 'seconden', 'seconde'];
 
     if (!timeUnits.includes(identifier.toLowerCase())) {
       // Not a date calculation - treat as arithmetic with the identifier as unit
@@ -1283,12 +1285,12 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
         return ref;
       }
     }
-    
+
     // Fallback: extract text without article, preserving case
     const text = ctx.getText();
     const match = text.match(/^(?:de|het|een|zijn|alle)?\s*(.+)$/i);
     const variableName = match ? match[1] : text;
-    
+
     const ref = {
       type: 'VariableReference',
       variableName
@@ -1301,10 +1303,10 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
   visitStringLiteralExpr(ctx: any): Expression {
     // Get the string literal token
     const text = ctx.STRING_LITERAL().getText();
-    
+
     // Remove surrounding quotes
     const value = text.slice(1, -1);
-    
+
     const node = {
       type: 'StringLiteral',
       value
@@ -1316,10 +1318,10 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
   visitEnumLiteralExpr(ctx: any): Expression {
     // Get the enum literal token
     const text = ctx.ENUM_LITERAL().getText();
-    
+
     // Remove surrounding quotes
     const value = text.slice(1, -1);
-    
+
     const node = {
       type: 'StringLiteral',  // Treat enum literals as string literals for now
       value
@@ -1331,7 +1333,7 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
   visitUnaryNietExpr(ctx: UnaryNietExprContext): Expression {
     // Get the operand expression
     const operand = this.visit(ctx.primaryExpression());
-    
+
     const node = {
       type: 'UnaryExpression',
       operator: '!',
@@ -1344,7 +1346,7 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
   visitUnaryMinusExpr(ctx: UnaryMinusExprContext): Expression {
     // Get the operand expression
     const operand = this.visit(ctx.primaryExpression());
-    
+
     const node = {
       type: 'UnaryExpression',
       operator: '-',
@@ -1360,12 +1362,12 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
     if (!argCtx) {
       throw new Error('Missing argument for "de wortel van"');
     }
-    
+
     const arg = this.visit(argCtx);
     if (!arg) {
       throw new Error('Invalid argument for "de wortel van"');
     }
-    
+
     const node = {
       type: 'FunctionCall',
       functionName: 'sqrt',
@@ -1381,12 +1383,12 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
     if (!argCtx) {
       throw new Error('Missing argument for "de absolute waarde van"');
     }
-    
+
     const arg = this.visit(argCtx);
     if (!arg) {
       throw new Error('Invalid argument for "de absolute waarde van"');
     }
-    
+
     const node = {
       type: 'FunctionCall',
       functionName: 'abs',
@@ -1402,15 +1404,16 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
     const toExpr = this.visit(ctx.primaryExpression(1));
 
     // Check for unit specification and normalize to lowercase
-    const unit = ctx._unitName ? ctx._unitName.text.toLowerCase() : undefined;
-    
+    const unitIdCtx = ctx.unitIdentifier ? ctx.unitIdentifier() : null;
+    const unit = unitIdCtx ? unitIdCtx.getText().toLowerCase() : undefined;
+
     const funcCall: FunctionCall = {
       type: 'FunctionCall',
       functionName: 'tijdsduur_van',
       arguments: [fromExpr, toExpr],
       unitConversion: unit
     };
-    
+
     return funcCall;
   }
 
@@ -1420,24 +1423,25 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
     const toExpr = this.visit(ctx.primaryExpression(1));
 
     // Check for unit specification and normalize to lowercase
-    const unit = ctx.unitName ? ctx.unitName.text.toLowerCase() : undefined;
-    
+    const unitIdCtx = ctx.unitIdentifier ? ctx.unitIdentifier() : null;
+    const unit = unitIdCtx ? unitIdCtx.getText().toLowerCase() : undefined;
+
     const funcCall: FunctionCall = {
       type: 'FunctionCall',
       functionName: 'abs_tijdsduur_van',
       arguments: [fromExpr, toExpr],
       unitConversion: unit
     };
-    
+
     return funcCall;
   }
-  
+
   visitSomFuncExpr(ctx: any): Expression {
     // SOM_VAN primaryExpression (COMMA primaryExpression)* EN primaryExpression
     // This handles "de som van X, Y en Z" pattern
-    
+
     const args: Expression[] = [];
-    
+
     // Get all primary expressions
     const primaryExprs = ctx.primaryExpression_list();
     if (primaryExprs && primaryExprs.length > 0) {
@@ -1445,7 +1449,7 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
         args.push(this.visit(expr));
       }
     }
-    
+
     const node = {
       type: 'FunctionCall',
       functionName: 'som',
@@ -1454,7 +1458,7 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
     this.setLocation(node, ctx);
     return node;
   }
-  
+
   visitSomAlleAttribuutExpr(ctx: any): Expression {
     // SOM_VAN ALLE attribuutReferentie
     // This handles patterns like "de som van alle belasting van passagiers die minderjarig zijn"
@@ -1504,13 +1508,13 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
     // Strip leading articles like Python does
     const articles = ['de ', 'het ', 'een '];
     const lowerText = text.toLowerCase();
-    
+
     for (const article of articles) {
       if (lowerText.startsWith(article)) {
         return text.substring(article.length);
       }
     }
-    
+
     return text;
   }
 
@@ -1518,12 +1522,12 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
     // This handles aggregation patterns like:
     // "de som van het salaris van alle personen"
     // "het maximum van de leeftijd van alle personen"
-    
+
     // Pattern: <aggregation_function> <attribute_reference> <optional: van alle objecttype>
     if (ctx.getChildCount() < 2) {
       throw new Error(`DimensieAggExpr must have at least 2 children, got ${ctx.getChildCount()}`);
     }
-    
+
     // Extract the aggregation function name by looking at the first child
     let functionName = '';
     const firstChild = ctx.getChild(0);
@@ -1540,57 +1544,57 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
       }
       // Note: 'totaal' removed - grammar doesn't allow it in dimensieAggExpr
     }
-    
+
     if (!functionName) {
       throw new Error('Unknown aggregation function in DimensieAggExpr');
     }
-    
+
     // Get the attribute reference using attribuutMetLidwoord
     const attrMetLidwoordCtx = ctx.attribuutMetLidwoord ? ctx.attribuutMetLidwoord() : null;
-    
+
     if (!attrMetLidwoordCtx) {
       throw new Error('Expected attribuutMetLidwoord in DimensieAggExpr');
     }
-    
+
     // Get attribute name and strip article
     const attrName = this.extractTextWithSpaces(attrMetLidwoordCtx);
     const strippedAttrName = this._stripArticle(attrName);
-    
+
     // Create AttributeReference for the attribute
     const attrRef: AttributeReference = {
       type: 'AttributeReference',
       path: [strippedAttrName]
     };
-    
+
     // Look for dimensieSelectie context which contains the collection reference
     const dimensieSelectieCtx = ctx.dimensieSelectie ? ctx.dimensieSelectie() : null;
-    
-    if (dimensieSelectieCtx && dimensieSelectieCtx.aggregerenOverAlleDimensies && 
-        dimensieSelectieCtx.aggregerenOverAlleDimensies()) {
+
+    if (dimensieSelectieCtx && dimensieSelectieCtx.aggregerenOverAlleDimensies &&
+      dimensieSelectieCtx.aggregerenOverAlleDimensies()) {
       // Has "alle" pattern - get the collection name
       const aggCtx = dimensieSelectieCtx.aggregerenOverAlleDimensies();
       const naamwoordCtx = aggCtx.naamwoord ? aggCtx.naamwoord() : null;
-      
+
       if (naamwoordCtx) {
         const collectionName = this.extractTextWithSpaces(naamwoordCtx);
-        
+
         // Create AttributeReference for the collection
         const collectionRef: AttributeReference = {
           type: 'AttributeReference',
           path: [collectionName]
         };
-        
+
         // Return FunctionCall with both arguments
         const node = {
           type: 'FunctionCall',
           functionName,
           arguments: [attrRef, collectionRef]
         } as FunctionCall;
-    this.setLocation(node, ctx);
-    return node;
+        this.setLocation(node, ctx);
+        return node;
       }
     }
-    
+
     // No collection specified, just return function with attribute
     const node = {
       type: 'FunctionCall',
@@ -1600,11 +1604,11 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
     this.setLocation(node, ctx);
     return node;
   }
-  
+
   visitDimensieRangeAggExpr(ctx: any): Expression {
     // This handles dimension range aggregation patterns like:
     // "de som van zijn betaalde belasting in jaar vanaf vier jaar geleden t/m een jaar geleden"
-    
+
     // Extract the aggregation function name
     let functionName = '';
     const funcCtx = ctx.getalAggregatieFunctie ? ctx.getalAggregatieFunctie() : ctx.datumAggregatieFunctie();
@@ -1624,11 +1628,11 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
         functionName = 'laatste_van';
       }
     }
-    
+
     if (!functionName) {
       throw new Error('Unknown aggregation function in DimensieRangeAggExpr');
     }
-    
+
     // Get the attribute or bezielde reference
     // Grammar uses attribuutMetLidwoord, but in practice test phrases use pronoun "zijn ..."
     // Our naamwoord allows ZIJN as article, so detect a leading "zijn " and convert to a self-bound attribute
@@ -1655,15 +1659,15 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
     } else {
       throw new Error('Expected attribute reference in DimensieRangeAggExpr');
     }
-    
+
     // Get the range labels
     const fromLabelCtx = ctx.naamwoord(0);
     const toLabelCtx = ctx.naamwoord(1);
-    
+
     if (!fromLabelCtx || !toLabelCtx) {
       throw new Error('Expected from and to labels in DimensieRangeAggExpr');
     }
-    
+
     const fromLabel = this.extractTextWithSpaces(fromLabelCtx);
     const toLabel = this.extractTextWithSpaces(toLabelCtx);
 
@@ -1693,11 +1697,11 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
         to: toLabel
       }
     } as any;
-    
+
     this.setLocation(node, ctx);
     return node;
   }
-  
+
   visitAantalFuncExpr(ctx: any): Expression {
     // Handles multiple patterns:
     // - HET AANTAL ALLE naamwoord (e.g., "het aantal alle Persoon")
@@ -1802,7 +1806,7 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
     if (!arg) {
       throw new Error('Missing argument for maand uit function');
     }
-    
+
     const node = {
       type: 'FunctionCall',
       functionName: 'maand_uit',
@@ -1818,7 +1822,7 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
     if (!arg) {
       throw new Error('Missing argument for dag uit function');
     }
-    
+
     const node = {
       type: 'FunctionCall',
       functionName: 'dag_uit',
@@ -1834,7 +1838,7 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
     if (!arg) {
       throw new Error('Missing argument for jaar uit function');
     }
-    
+
     const node = {
       type: 'FunctionCall',
       functionName: 'jaar_uit',
@@ -1847,7 +1851,7 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
   visitHetAantalDagenInExpr(ctx: any): Expression {
     // HET AANTAL DAGEN IN (DE? MAAND | HET? JAAR) DAT expressie
     let periodType: string;
-    
+
     // Check if MAAND or JAAR token is present
     if (ctx.MAAND && ctx.MAAND()) {
       periodType = 'maand';
@@ -1856,21 +1860,21 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
     } else {
       throw new Error('Expected MAAND or JAAR in aantal dagen expression');
     }
-    
+
     // Get the condition expression after DAT
     const conditionCtx = ctx.expressie();
     if (!conditionCtx) {
       throw new Error('Expected condition expression after DAT');
     }
-    
+
     const conditionExpr = this.visit(conditionCtx);
-    
+
     // Create literal for period type
     const periodLiteral: StringLiteral = {
       type: 'StringLiteral',
       value: periodType
     };
-    
+
     // Return as TimelineExpression for proper timeline handling
     const node = {
       type: 'TimelineExpression',
@@ -1886,31 +1890,31 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
     // Handle "hij actief is" pattern 
     // This is parsed as: subject=onderwerpReferentie prepPhrase=naamwoordWithNumbers verb=IS
     // But for "hij actief is", actief is a kenmerk, not a prepositional phrase
-    
+
     // Get the subject and prepPhrase from the context
     const subjectCtx = ctx.onderwerpReferentie ? ctx.onderwerpReferentie() : null;
     // Check for naamwoordWithNumbers first, then fall back to naamwoord
-    const prepPhraseCtx = (ctx.naamwoordWithNumbers && ctx.naamwoordWithNumbers()) ? 
-      ctx.naamwoordWithNumbers() : 
+    const prepPhraseCtx = (ctx.naamwoordWithNumbers && ctx.naamwoordWithNumbers()) ?
+      ctx.naamwoordWithNumbers() :
       (ctx.naamwoord ? ctx.naamwoord() : null);
-    
+
     if (!subjectCtx || !prepPhraseCtx) {
       throw new Error('Invalid SubordinateIsWithExpr context');
     }
-    
+
     const subject = this.visit(subjectCtx);
     const prepPhrase = this.extractTextWithSpaces(prepPhraseCtx);
-    
+
     // Check if this is actually a kenmerk pattern
     // For now, assume it's a boolean kenmerk check
     const kenmerkKey = `is ${prepPhrase}`;
-    
+
     // Create an attribute reference for the kenmerk
     const kenmerkRef: AttributeReference = {
       type: 'AttributeReference',
       path: ['self', kenmerkKey]
     };
-    
+
     // Return a boolean expression that's always true if the kenmerk exists
     // This is a simplification - in reality we'd check the actual value
     return kenmerkRef;
@@ -1919,21 +1923,21 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
   visitSubordinateHasExpr(ctx: any): Expression {
     // Handle "hij een recht op belastingvermindering heeft" pattern
     // This is parsed as: subject=onderwerpReferentie object=naamwoordWithNumbers verb=HEEFT
-    
+
     // Get the subject and object from the context
     const subjectCtx = ctx.onderwerpReferentie ? ctx.onderwerpReferentie() : null;
     // Check for naamwoordWithNumbers first, then fall back to naamwoord
-    const objectCtx = (ctx.naamwoordWithNumbers && ctx.naamwoordWithNumbers()) ? 
-      ctx.naamwoordWithNumbers() : 
+    const objectCtx = (ctx.naamwoordWithNumbers && ctx.naamwoordWithNumbers()) ?
+      ctx.naamwoordWithNumbers() :
       (ctx.naamwoord ? ctx.naamwoord() : null);
-    
+
     if (!subjectCtx || !objectCtx) {
       throw new Error('Invalid SubordinateHasExpr context');
     }
-    
+
     const subject = this.visit(subjectCtx);
     let objectText = this.extractTextWithSpaces(objectCtx);
-    
+
     // Strip leading articles from the attribute name
     // "een recht op belastingvermindering" -> "recht op belastingvermindering"
     const articles = ['de ', 'het ', 'een '];
@@ -1943,16 +1947,16 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
         break;
       }
     }
-    
+
     // If subject is "hij", it refers to the current instance (pronoun resolution)
     // The object becomes the attribute name we want to check
-    
+
     // Create an attribute reference for the attribute
     const attributeRef: AttributeReference = {
       type: 'AttributeReference',
       path: ['self', objectText]
     };
-    
+
     // Return the attribute reference - it will be evaluated as truthy/falsy
     return attributeRef;
   }
@@ -1965,24 +1969,24 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
       if (!nameCtx) {
         throw new Error('Expected rule name');
       }
-      
+
       // Get the text with spaces preserved
       const name = this.extractTextWithSpaces(nameCtx).trim();
-      
+
       // Get version info
       const versionCtx = ctx.regelVersie();
       if (!versionCtx) {
         throw new Error('Expected "geldig" keyword');
       }
       const version = this.visit(versionCtx);
-      
+
       // Get result part
       const resultCtx = ctx.resultaatDeel();
       if (!resultCtx) {
         throw new Error('Expected result part');
       }
       const result = this.visit(resultCtx);
-      
+
       // Check for optional condition (voorwaardeDeel)
       let condition: Voorwaarde | undefined;
       if (ctx.voorwaardeDeel && ctx.voorwaardeDeel()) {
@@ -2023,15 +2027,15 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
       throw new Error('Expected regel group name');
     }
     const name = this.extractTextWithSpaces(nameCtx).trim();
-    
+
     // Check if it's marked as recursive
     const isRecursive = ctx.IS_RECURSIEF() !== null;
-    
+
     // Visit all rules in the group
     const rules: any[] = [];
     const regelContexts = ctx.regel_list() || [];
     const consistentieCtxs = ctx.consistentieregel_list() || [];
-    
+
     // Visit regular rules
     for (const regelCtx of regelContexts) {
       const rule = this.visit(regelCtx);
@@ -2039,7 +2043,7 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
         rules.push(rule);
       }
     }
-    
+
     // Visit consistency rules
     for (const consistentieCtx of consistentieCtxs) {
       const rule = this.visit(consistentieCtx);
@@ -2047,17 +2051,17 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
         rules.push(rule);
       }
     }
-    
+
     const group = {
       type: 'RegelGroep',
       name,
       isRecursive,
       rules
     };
-    
+
     // Store location separately
     this.setLocation(group, ctx);
-    
+
     return group;
   }
 
@@ -2123,7 +2127,7 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
         return node;
       }
     }
-    
+
     // Check if this is actually a nested navigation that was parsed incorrectly
     // Due to grammar ambiguity, "de straat van het adres" might be parsed as a single naamwoord
     if (attrText.includes(' van ') || attrText.includes(' op ') || attrText.includes(' bij ')) {
@@ -2181,7 +2185,7 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
         return attrRef;
       }
     }
-    
+
     // Simple case: no nested navigation in attribute
     const attrName = this.extractParameterName(cleanAttrText);
 
@@ -2242,23 +2246,23 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
     this.setLocation(baseAttrRef, ctx);
     return baseAttrRef;
   }
-  
+
   visitAttrRefExpr(ctx: any): Expression {
     // AttrRefExpr wraps attribuutReferentie in primaryExpression
     const attrRefCtx = ctx.attribuutReferentie();
     return this.visit(attrRefCtx);
   }
-  
+
   visitOnderwerpReferentie(ctx: any): Expression {
     // onderwerpReferentie : onderwerpBasis ( (DIE | DAT) predicaat )?
-    
+
     // Check if there's a subselectie (DIE/DAT predicaat)
     const predicaatCtx = ctx.predicaat ? ctx.predicaat() : null;
     if (predicaatCtx && (ctx.DIE && ctx.DIE() || ctx.DAT && ctx.DAT())) {
       // We have a subselectie!
       const baseExpression = this.visitOnderwerpBasis(ctx.onderwerpBasis());
       const predicaat = this.visitPredicaat(predicaatCtx);
-      
+
       // Convert predicaat to unified predicate
       let unifiedPredicate: Predicate | undefined;
       if ((predicaat as any).predicate) {
@@ -2279,7 +2283,7 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
           value: attrPred.value
         } as AttributePredicate;
       }
-      
+
       const node = {
         type: 'SubselectieExpression',
         collection: baseExpression,
@@ -2287,17 +2291,17 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
         // Add unified predicate representation
         predicate: unifiedPredicate
       } as SubselectieExpression;
-    this.setLocation(node, ctx);
-    if (unifiedPredicate) {
-      this.setLocation(unifiedPredicate, ctx);
+      this.setLocation(node, ctx);
+      if (unifiedPredicate) {
+        this.setLocation(unifiedPredicate, ctx);
+      }
+      return node;
     }
-    return node;
-    }
-    
+
     // No subselectie, just process the onderwerpBasis
     return this.visitOnderwerpBasis(ctx.onderwerpBasis());
   }
-  
+
   visitOnderwerpBasis(ctx: any): Expression {
     if (!ctx) {
       throw new Error('Expected onderwerpBasis context');
@@ -2397,7 +2401,7 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
 
     return text;
   }
-  
+
   // Helper method to convert onderwerpReferentie to a path list
   visitOnderwerpReferentieToPath(ctx: any): string[] {
     if (!ctx) {
@@ -2414,19 +2418,19 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
     // Directly use the path helper to get the navigation chain
     return this.onderwerpBasisToPath(onderwerpBasisCtx);
   }
-  
+
   visitPredicaat(ctx: any): Predicaat {
     // predicaat : elementairPredicaat | samengesteldPredicaat
-    
+
     // First check if we have elementairPredicaat
     const elementairPredicaatCtx = ctx.elementairPredicaat ? ctx.elementairPredicaat() : null;
     if (elementairPredicaatCtx) {
       return this.visitElementairPredicaat(elementairPredicaatCtx);
     }
-    
+
     // Try to get text and check if it's a simple kenmerk
     const text = this.extractTextWithSpaces(ctx);
-    
+
     // Simple kenmerk pattern like "minderjarig zijn"
     if (text.endsWith(' zijn')) {
       const kenmerk = text.replace(/ zijn$/, '').trim();
@@ -2441,49 +2445,49 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
           kenmerk
         } as SimplePredicate
       } as KenmerkPredicaat & { predicate?: SimplePredicate };
-    this.setLocation(node, ctx);
-    if (node.predicate) {
-      this.setLocation(node.predicate, ctx);
+      this.setLocation(node, ctx);
+      if (node.predicate) {
+        this.setLocation(node.predicate, ctx);
+      }
+      return node;
     }
-    return node;
-    }
-    
+
     // TODO: Handle samengesteldPredicaat
     throw new Error(`Unsupported predicate type: ${text}`);
   }
-  
+
   visitElementairPredicaat(ctx: any): Predicaat {
     // elementairPredicaat : objectPredicaat | attribuutVergelijkingsPredicaat
-    
+
     // Check for attribuutVergelijkingsPredicaat first
     const attrVergelijkingCtx = ctx.attribuutVergelijkingsPredicaat ? ctx.attribuutVergelijkingsPredicaat() : null;
     if (attrVergelijkingCtx) {
       return this.visitAttribuutVergelijkingsPredicaat(attrVergelijkingCtx);
     }
-    
+
     // Check for objectPredicaat
     const objectPredicaatCtx = ctx.objectPredicaat ? ctx.objectPredicaat() : null;
     if (objectPredicaatCtx) {
       return this.visitObjectPredicaat(objectPredicaatCtx);
     }
-    
+
     throw new Error('Expected objectPredicaat or attribuutVergelijkingsPredicaat in elementairPredicaat');
   }
-  
+
   visitAttribuutVergelijkingsPredicaat(ctx: any): AttributeComparisonPredicaat {
     // attribuutVergelijkingsPredicaat : EEN? attribuutNaam=naamwoord HEBBEN comparisonOperator expressie
-    
+
     // Get attribute name
     const attrNaamCtx = ctx.naamwoord ? ctx.naamwoord() : ctx._attribuutNaam;
     const attrName = this.extractTextWithSpaces(attrNaamCtx).trim();
-    
+
     // Get comparison operator
     const compOpCtx = ctx.comparisonOperator();
     const opText = compOpCtx.getText();
-    
+
     // Map operator text to standard operator
     let operator: string;
-    switch(opText) {
+    switch (opText) {
       case 'kleiner dan':
       case 'kleiner is dan':
         operator = '<';
@@ -2499,11 +2503,11 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
       default:
         throw new Error(`Unsupported comparison operator in predicaat: ${opText}`);
     }
-    
+
     // Get the expression
     const exprCtx = ctx.expressie();
     const expr = this.visit(exprCtx);
-    
+
     // Create old type with unified predicate
     const node = {
       type: 'AttributeComparisonPredicaat',
@@ -2524,14 +2528,14 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
     }
     return node;
   }
-  
+
   visitObjectPredicaat(ctx: any): KenmerkPredicaat {
     // For now, treat object predicates as kenmerk predicates
     const text = this.extractTextWithSpaces(ctx);
-    
+
     // Remove trailing "zijn" if present
     const kenmerk = text.replace(/ zijn$/, '').trim();
-    
+
     // Create old type with unified predicate
     const node = {
       type: 'KenmerkPredicaat',
@@ -2552,7 +2556,7 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
 
   visitRegelVersie(ctx: any): any {
     const geldigheid = this.visit(ctx.versieGeldigheid());
-    
+
     const node = {
       type: 'RuleVersion',
       validity: geldigheid
@@ -2601,14 +2605,14 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
   visitGelijkstellingResultaat(ctx: any): any {
     // Get the target attribute reference
     const targetCtx = ctx.attribuutReferentie();
-    
+
     // Visit the attribute reference to get the full AttributeReference
     const target = this.visitAttribuutReferentie(targetCtx);
-    
+
     if (!target) {
       throw new Error('Failed to parse gelijkstelling target');
     }
-    
+
     // Get the expression - check which operator is used
     let expression;
     if (ctx.WORDT_BEREKEND_ALS()) {
@@ -2620,37 +2624,37 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
     } else {
       throw new Error('Expected gelijkstelling operator');
     }
-    
+
     const result = {
       type: 'Gelijkstelling',
       target,
       expression
     };
-    
+
     // Store location for this gelijkstelling
     this.setLocation(result, ctx);
-    
+
     return result;
   }
 
   visitFeitCreatieResultaat(ctx: any): FeitCreatie {
     // Get the feitCreatiePattern context
     const patternCtx = ctx.feitCreatiePattern();
-    
+
     if (!patternCtx) {
       throw new Error('FeitCreatieResultaat missing feitCreatiePattern');
     }
-    
+
     // Get the role and subject phrases using the proper methods
     const rolePhrases = patternCtx.feitCreatieRolPhrase_list() || [];
     const subjectPhrases = patternCtx.feitCreatieSubjectPhrase_list() || [];
-    
+
     // Extract role1 (first role phrase)
     let role1 = '';
     if (rolePhrases.length > 0) {
       const role1Ctx = rolePhrases[0];
       const role1Words = [];
-      
+
       // Get all words in the role phrase
       const wordList = role1Ctx.feitCreatieWord_list?.() || [];
       for (const wordCtx of wordList) {
@@ -2658,38 +2662,38 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
       }
       role1 = role1Words.join(' ');
     }
-    
+
     // Extract subject1 (first subject phrase)
     let subject1Text = '';
     if (subjectPhrases.length > 0) {
       const subject1Ctx = subjectPhrases[0];
       const subject1Words = [];
-      
+
       // Get all words in the subject phrase
       const wordList = subject1Ctx.feitCreatieSubjectWord_list?.() || [];
       for (const wordCtx of wordList) {
         subject1Words.push(wordCtx.getText());
       }
       subject1Text = subject1Words.join(' ');
-      
+
       // Left side always has "van een" per spec, so prepend "een"
       if (subject1Text) {
         subject1Text = `een ${subject1Text}`;
       }
     }
-    
+
     // Create subject1 as an AttributeReference
     const subject1: AttributeReference = {
       type: 'AttributeReference',
       path: [subject1Text]
     };
-    
+
     // Extract role2 (second role phrase)
     let role2 = '';
     if (rolePhrases.length > 1) {
       const role2Ctx = rolePhrases[1];
       const role2Words = [];
-      
+
       // Get all words in the role phrase
       const wordList = role2Ctx.feitCreatieWord_list?.() || [];
       for (const wordCtx of wordList) {
@@ -2697,33 +2701,33 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
       }
       role2 = role2Words.join(' ');
     }
-    
+
     // Extract subject2 (second subject phrase)
     let subject2Text = '';
     if (subjectPhrases.length > 1) {
       const subject2Ctx = subjectPhrases[1];
       const subject2Words = [];
-      
+
       // Get all words in the subject phrase
       const wordList = subject2Ctx.feitCreatieSubjectWord_list?.() || [];
       for (const wordCtx of wordList) {
         subject2Words.push(wordCtx.getText());
       }
       subject2Text = subject2Words.join(' ');
-      
+
       // Include article if present
       const article3 = patternCtx.article3;
       if (article3) {
         subject2Text = `${article3.getText()} ${subject2Text}`;
       }
     }
-    
+
     // Create subject2 as an AttributeReference (often a navigation pattern)
     const subject2: AttributeReference = {
       type: 'AttributeReference',
       path: [subject2Text]
     };
-    
+
     // Create the FeitCreatie node
     const result: FeitCreatie = {
       type: 'FeitCreatie',
@@ -2732,10 +2736,10 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
       role2,
       subject2
     };
-    
+
     // Store location
     this.setLocation(result, ctx);
-    
+
     return result;
   }
 
@@ -2774,36 +2778,36 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
 
         // Check if object type matches or contains the role name
         if (roleNameClean === objectTypeClean ||
-            roleNameClean.includes(objectTypeClean) ||
-            objectTypeClean.includes(roleNameClean)) {
+          roleNameClean.includes(objectTypeClean) ||
+          objectTypeClean.includes(roleNameClean)) {
           // Found matching role - use the actual object type
           objectType = rol.objectType || rol.object_type || objectType;
           break;
         }
       }
     }
-    
+
     // Parse attribute initializations if present
     const attributeInits = [];
     const objectAttrInitCtx = objectCreatieCtx.objectAttributeInit();
-    
+
     if (objectAttrInitCtx) {
       // Get the first attribute
       const firstAttrCtx = objectAttrInitCtx.attribuut ? objectAttrInitCtx.attribuut() : objectAttrInitCtx._attribuut;
       const firstValueCtx = objectAttrInitCtx.waarde ? objectAttrInitCtx.waarde() : objectAttrInitCtx._waarde;
-      
+
       if (firstAttrCtx && firstValueCtx) {
         const firstAttr = this.extractAttributeName(firstAttrCtx.getText());
         const firstValue = this.visit(firstValueCtx);
         attributeInits.push({ attribute: firstAttr, value: firstValue });
       }
-      
+
       // Get additional attributes (EN syntax)
       const vervolgList = objectAttrInitCtx.attributeInitVervolg_list();
       for (const vervolg of vervolgList) {
         const attrCtx = vervolg.attribuut ? vervolg.attribuut() : vervolg._attribuut;
         const valueCtx = vervolg.waarde ? vervolg.waarde() : vervolg._waarde;
-        
+
         if (attrCtx && valueCtx) {
           const attr = this.extractAttributeName(attrCtx.getText());
           const value = this.visit(valueCtx);
@@ -2811,7 +2815,7 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
         }
       }
     }
-    
+
     const node = {
       type: 'ObjectCreation',
       objectType,
@@ -2838,61 +2842,61 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
   // Helper to extract target attribute name from full reference
   private extractTargetName(fullReference: string): string {
     const trimmed = fullReference.trim();
-    
+
     // First try to split by spaces
     const words = trimmed.split(/\s+/);
-    
+
     // If multiple words and first is an article, remove it
     if (words.length > 1 && /^(de|het|een)$/i.test(words[0])) {
       // Join remaining words with space, preserving multi-word attributes
       return words.slice(1).join(' ').toLowerCase();
     }
-    
+
     // Check if article is concatenated with the name (no space)
     const concatenatedMatch = trimmed.match(/^(de|het|een)(.+)$/i);
     if (concatenatedMatch && concatenatedMatch[2]) {
       // Extract the part after the article
       return concatenatedMatch[2].toLowerCase();
     }
-    
+
     return trimmed.toLowerCase();
   }
 
   // Helper to extract text from a context
   private extractText(ctx: any): string {
     if (!ctx) return '';
-    
+
     // Use getText() method if available
     if (ctx.getText) {
       return ctx.getText();
     }
-    
+
     // Fallback for contexts without getText
     const start = ctx.start?.start ?? 0;
     const stop = ctx.stop?.stop ?? 0;
     const inputStream = ctx.parser?.inputStream;
-    
+
     if (inputStream && start <= stop) {
       return inputStream.getText(start, stop);
     }
-    
+
     return '';
   }
-  
+
   // Helper to extract text with spaces preserved between tokens
   private extractTextWithSpaces(ctx: any): string {
     if (!ctx) return '';
-    
+
     // If it's a terminal node, just return its text
     if (ctx.symbol) {
       return ctx.getText();
     }
-    
+
     // For parser rule contexts, reconstruct with spaces
     const parts: string[] = [];
     const childCount = ctx.getChildCount ? ctx.getChildCount() : 0;
     // console.log('extractTextWithSpaces childCount:', childCount);
-    
+
     for (let i = 0; i < childCount; i++) {
       const child = ctx.getChild(i);
       // console.log('Child', i, ':', child ? child.constructor.name : 'null');
@@ -2918,7 +2922,7 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
         }
       }
     }
-    
+
     return parts.join(' ');
   }
 
@@ -2976,10 +2980,10 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
       animated,
       members
     };
-    
+
     // Store location separately
     this.setLocation(objType, ctx);
-    
+
     return objType;
   }
 
@@ -2989,12 +2993,12 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
     if (kenmerkCtx) {
       return this.visit(kenmerkCtx);
     }
-    
+
     const attribuutCtx = ctx.attribuutSpecificatie();
     if (attribuutCtx) {
       return this.visit(attribuutCtx);
     }
-    
+
     throw new Error('Expected kenmerk or attribuut specification');
   }
 
@@ -3010,7 +3014,7 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
       const naamwoordCtx = ctx.naamwoord();
       name = this.extractText(naamwoordCtx);
     }
-    
+
     // Check for type (bijvoeglijk or bezittelijk)
     let kenmerkType: 'bijvoeglijk' | 'bezittelijk' | undefined;
     if (ctx.BIJVOEGLIJK && ctx.BIJVOEGLIJK()) {
@@ -3018,16 +3022,16 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
     } else if (ctx.BEZITTELIJK && ctx.BEZITTELIJK()) {
       kenmerkType = 'bezittelijk';
     }
-    
+
     const result: KenmerkSpecification = {
       type: 'KenmerkSpecification',
       name
     };
-    
+
     if (kenmerkType) {
       result.kenmerkType = kenmerkType;
     }
-    
+
     return result;
   }
 
@@ -3042,7 +3046,7 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
     // Use extractTextWithSpaces to preserve multi-word parameter names
     const rawName = this.extractTextWithSpaces(nameCtx);
     const name = this.extractParameterName(rawName);
-    
+
     // Get data type or domain reference
     let dataType: DataType | DomainReference;
     const datatypeCtx = ctx.datatype();
@@ -3052,13 +3056,14 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
       const domainRefCtx = ctx.domeinRef();
       dataType = this.visitDomeinRef(domainRefCtx);
     }
-    
+
     // Get unit if specified
     let unit: string | undefined;
     if (ctx.MET_EENHEID && ctx.MET_EENHEID()) {
-      // Check for named unit (ctx._unitName is the captured IDENTIFIER)
-      if (ctx._unitName) {
-        unit = ctx._unitName.text || ctx._unitName.getText();
+      // Check for named unit using unitIdentifier() accessor
+      const unitIdCtx = ctx.unitIdentifier ? ctx.unitIdentifier() : null;
+      if (unitIdCtx) {
+        unit = unitIdCtx.getText();
       } else if (ctx.PERCENT_SIGN && ctx.PERCENT_SIGN()) {
         unit = '%';
       } else if (ctx.EURO_SYMBOL && ctx.EURO_SYMBOL()) {
@@ -3067,7 +3072,7 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
         unit = '$';
       }
     }
-    
+
     // Get dimensions if specified
     const dimensions: string[] = [];
     if (ctx.GEDIMENSIONEERD_MET && ctx.GEDIMENSIONEERD_MET()) {
@@ -3076,7 +3081,7 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
         dimensions.push(this.extractText(dimRef));
       }
     }
-    
+
     // Check for timeline
     const timeline = ctx.tijdlijn && ctx.tijdlijn() ? true : undefined;
 
@@ -3117,29 +3122,29 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
     } else if (ctx.datumTijdDatatype && ctx.datumTijdDatatype()) {
       return this.visitDatumTijdDatatype(ctx.datumTijdDatatype());
     }
-    
+
     // Try to determine from text as fallback
     const text = this.extractText(ctx);
     throw new Error(`Unknown data type: ${text}`);
   }
-  
+
   visitNumeriekDatatype(ctx: any): DataType {
     // numeriekDatatype : NUMERIEK ( LPAREN getalSpecificatie RPAREN )?
     const result: DataType = { type: 'Numeriek' };
-    
+
     if (ctx.getalSpecificatie && ctx.getalSpecificatie()) {
       const spec = this.extractText(ctx.getalSpecificatie());
       result.specification = spec;
     }
-    
+
     this.setLocation(result, ctx);
     return result;
   }
-  
+
   visitDatumTijdDatatype(ctx: any): DataType {
     // Check if it's DATUM or DATUM_TIJD
     const text = this.extractText(ctx);
-    const node: DataType = text.toLowerCase().includes('tijd') 
+    const node: DataType = text.toLowerCase().includes('tijd')
       ? { type: 'DatumTijd' }
       : { type: 'Datum' };
     this.setLocation(node, ctx);
@@ -3160,14 +3165,14 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
   visitParameterDefinition(ctx: any): ParameterDefinition {
     // Get parameter name phrase (with article)
     const namePhrase = ctx.parameterNamePhrase();
-    
+
     // Extract the full text with spaces preserved
     let nameText = '';
     if (namePhrase) {
       // Get the text with spaces from the original input stream
       const startToken = namePhrase.start;
       const stopToken = namePhrase.stop;
-      
+
       if (startToken && stopToken && startToken.source) {
         // Access the input stream through the token's source
         const inputStream = startToken.source[1]; // TokenSource tuple: [lexer, inputStream]
@@ -3177,16 +3182,16 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
           nameText = inputStream.getText(startIndex, stopIndex);
         }
       }
-      
+
       if (!nameText) {
         // Fallback - use extractTextWithSpaces to preserve multi-word attributes
         nameText = this.extractTextWithSpaces(namePhrase);
       }
     }
-    
+
     // Extract name without article
     const name = this.extractParameterName(nameText);
-    
+
     // Get data type or domain reference
     let dataType: DataType | DomainReference;
     const datatypeCtx = ctx.datatype();
@@ -3196,7 +3201,7 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
       const domainRefCtx = ctx.domeinRef();
       dataType = this.visitDomeinRef(domainRefCtx);
     }
-    
+
     // Get unit if specified
     let unit: string | undefined;
     if (ctx.MET_EENHEID && ctx.MET_EENHEID()) {
@@ -3206,39 +3211,39 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
         unit = this.extractText(unitExpr);
       }
     }
-    
+
     // Check for timeline
     const timeline = ctx.tijdlijn && ctx.tijdlijn() ? true : undefined;
-    
+
     const result: ParameterDefinition = {
       type: 'ParameterDefinition',
       name,
       dataType
     };
-    
+
     // Store location separately
     this.setLocation(result, ctx);
-    
+
     if (unit) {
       result.unit = unit;
     }
-    
+
     if (timeline) {
       result.timeline = timeline;
     }
-    
+
     return result;
   }
-  
+
   visitDagsoortDefinition(ctx: any): any {
     // Grammar: DAGSOORT naamwoord ( MV_START plural+=IDENTIFIER+ RPAREN )? SEMICOLON?
     const nameCtx = ctx.naamwoord();
     if (!nameCtx) {
       throw new Error('Expected naamwoord in dagsoort definition');
     }
-    
+
     const name = this.extractTextWithSpaces(nameCtx);
-    
+
     // Check for plural form
     let plural = undefined;
     if (ctx.MV_START && ctx.MV_START()) {
@@ -3248,7 +3253,7 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
         plural = pluralCtxArray.map((t: any) => t.getText()).join(' ');
       }
     }
-    
+
     const node = {
       type: 'Dagsoort',
       name,
@@ -3257,13 +3262,13 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
     this.setLocation(node, ctx);
     return node;
   }
-  
+
   visitDimensieDefinition(ctx: any): Dimension {
     // Get dimension name
     const nameCtx = ctx.naamwoord(0); // First naamwoord is the dimension name
     const nameText = this.extractTextWithSpaces(nameCtx);
     const name = this.extractParameterName(nameText);
-    
+
     // Get plural form - it's labeled as dimensieNaamMeervoud
     const pluralCtx = ctx._dimensieNaamMeervoud;
     let plural = '';
@@ -3271,13 +3276,13 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
       const pluralText = this.extractTextWithSpaces(pluralCtx);
       plural = this.extractParameterName(pluralText);
     }
-    
+
     // Determine usage style and preposition
     let usageStyle: 'prepositional' | 'adjectival';
     let preposition: string | undefined;
-    
+
     const voorzetselSpec = ctx.voorzetselSpecificatie();
-    
+
     if (voorzetselSpec && voorzetselSpec.NA_HET_ATTRIBUUT_MET_VOORZETSEL && voorzetselSpec.NA_HET_ATTRIBUUT_MET_VOORZETSEL()) {
       usageStyle = 'prepositional';
       // Get the preposition (voorzetsel) - it's labeled as vz
@@ -3292,22 +3297,22 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
       usageStyle = 'prepositional';
       preposition = 'van';
     }
-    
+
     // Get labels
     const labels: DimensionLabel[] = [];
     const labelSpecs = ctx.labelWaardeSpecificatie_list() || [];
-    
+
     for (const labelSpec of labelSpecs) {
       const position = parseInt(labelSpec.NUMBER().getText());
       const labelCtx = labelSpec.naamwoord();
       const label = this.extractTextWithSpaces(labelCtx);
-      
+
       labels.push({
         position,
         label
       });
     }
-    
+
     const dimension = {
       type: 'Dimension' as const,
       name,
@@ -3316,10 +3321,10 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
       preposition,
       labels
     };
-    
+
     // Store location separately
     this.setLocation(dimension, ctx);
-    
+
     return dimension;
   }
 
@@ -3378,7 +3383,7 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
     if (!contentCtx) {
       return null;
     }
-    
+
     // Parse the content more carefully - it contains multiple words
     const words: string[] = [];
     if (contentCtx.children) {
@@ -3388,7 +3393,7 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
         }
       }
     }
-    
+
     // Get object type - it's labeled as _objecttype
     let objectType = '';
     if (ctx._objecttype) {
@@ -3403,13 +3408,13 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
         }
       }
       objectType = objectTypeWords.join(' ');
-      
+
       // Fallback to extractTextWithSpaces if no children found
       if (!objectType) {
         objectType = this.extractTextWithSpaces(ctx._objecttype);
       }
     }
-    
+
     // Determine role name based on the words
     let roleName = '';
     if (!objectType && words.length > 0) {
@@ -3419,7 +3424,7 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
         // Extract object type from full text (tabs might have separated it)
         const fullText = ctx.getText();
         // Try to find capital letter that starts object type
-        const match = fullText.match(/([a-z]+)([A-Z][a-zA-Z]*)/);  
+        const match = fullText.match(/([a-z]+)([A-Z][a-zA-Z]*)/);
         if (match) {
           roleName = match[1];
           objectType = match[2];
@@ -3439,10 +3444,10 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
         // "Natuurlijk persoon" is a common multi-word object type
         objectType = 'Natuurlijk persoon';
         roleName = words.slice(0, -1).join(' ');
-      } else if (words[words.length - 1] === 'Bedrijf' || 
-                 words[words.length - 1] === 'Persoon' ||
-                 words[words.length - 1] === 'Vlucht' ||
-                 words[words.length - 1] === 'Gebouw') {
+      } else if (words[words.length - 1] === 'Bedrijf' ||
+        words[words.length - 1] === 'Persoon' ||
+        words[words.length - 1] === 'Vlucht' ||
+        words[words.length - 1] === 'Gebouw') {
         // Single-word object types
         objectType = words[words.length - 1];
         roleName = words.slice(0, -1).join(' ');
@@ -3459,13 +3464,13 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
       // Object type is explicit, so all words are the role name
       roleName = words.join(' ');
     }
-    
+
     // Check for plural form - it's labeled as _meervoud
     let meervoud: string | undefined;
     if (ctx._meervoud) {
       meervoud = this.extractTextWithSpaces(ctx._meervoud);
     }
-    
+
     const node: Rol = {
       type: 'Rol',
       naam: roleName,
@@ -3479,7 +3484,7 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
   private extractCardinalityLine(ctx: any): string {
     // Extract the full text of the cardinality line
     const tokens: string[] = [];
-    
+
     // Traverse all children to get text
     if (ctx.children) {
       for (const child of ctx.children) {
@@ -3491,37 +3496,37 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
         }
       }
     }
-    
+
     return tokens.join(' ');
   }
-  
+
   // Helper to extract parameter name from full reference with article
   private extractParameterName(fullReference: string): string {
     const trimmed = fullReference.trim();
-    
+
     // First try to split by spaces
     const words = trimmed.split(/\s+/);
-    
+
     // If multiple words and first is an article, remove it
     if (words.length > 1 && /^(de|het)$/i.test(words[0])) {
       // Join remaining words with space, preserving multi-word attributes
       return words.slice(1).join(' ');
     }
-    
+
     // Check if article is concatenated with the name (no space)
     const concatenatedMatch = trimmed.match(/^(de|het)(.+)$/i);
     if (concatenatedMatch && concatenatedMatch[2]) {
       // Extract the part after the article
       return concatenatedMatch[2].trim();
     }
-    
+
     return trimmed;
   }
 
   // Conditional rule support
   visitVoorwaardeDeel(ctx: any): Voorwaarde {
     // voorwaardeDeel : INDIEN ( expressie | toplevelSamengesteldeVoorwaarde )
-    
+
     if (ctx.expressie && ctx.expressie()) {
       const expression = this.visit(ctx.expressie());
       const node: Voorwaarde = {
@@ -3531,7 +3536,7 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
       this.setLocation(node, ctx);
       return node;
     }
-    
+
     if (ctx.toplevelSamengesteldeVoorwaarde && ctx.toplevelSamengesteldeVoorwaarde()) {
       const expression = this.visitToplevelSamengesteldeVoorwaarde(ctx.toplevelSamengesteldeVoorwaarde());
       const node: Voorwaarde = {
@@ -3541,7 +3546,7 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
       this.setLocation(node, ctx);
       return node;
     }
-    
+
     throw new Error('Expected expression or compound condition in voorwaardeDeel');
   }
 
@@ -3674,13 +3679,13 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
   visitToplevelSamengesteldeVoorwaarde(ctx: any): SamengesteldeVoorwaarde {
     // Extract the quantifier
     const kwantificatie = this.visitVoorwaardeKwantificatie(ctx.voorwaardeKwantificatie());
-    
+
     // Extract all condition parts
     const voorwaarden: Expression[] = [];
-    
+
     // In ANTLR4 TypeScript, use the _list method to get all items
     const onderdeelContexts = ctx.samengesteldeVoorwaardeOnderdeel_list();
-    
+
     if (onderdeelContexts) {
       for (const onderdeelCtx of onderdeelContexts) {
         const condition = this.visitSamengesteldeVoorwaardeOnderdeel(onderdeelCtx);
@@ -3689,15 +3694,15 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
         }
       }
     }
-    
+
     if (voorwaarden.length === 0) {
       throw new Error('No conditions found in compound condition');
     }
-    
+
     // Map old quantifier to unified type
     let unifiedQuantifier: UnifiedQuantifierType;
     let count: number | undefined;
-    
+
     switch (kwantificatie.type) {
       case KwantificatieType.ALLE:
         unifiedQuantifier = UnifiedQuantifierType.ALLE;
@@ -3718,12 +3723,12 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
         count = kwantificatie.aantal;
         break;
     }
-    
+
     // Convert expressions to predicates
-    const unifiedPredicates: Predicate[] = voorwaarden.map(expr => 
+    const unifiedPredicates: Predicate[] = voorwaarden.map(expr =>
       this.convertExpressionToPredicate(expr)
     );
-    
+
     const node: SamengesteldeVoorwaarde = {
       type: 'SamengesteldeVoorwaarde',
       kwantificatie,
@@ -3754,7 +3759,7 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
       // Fallback: create compound predicate from old structure
       let quantifier: UnifiedQuantifierType;
       let count: number | undefined;
-      
+
       switch (compound.kwantificatie.type) {
         case KwantificatieType.ALLE:
           quantifier = UnifiedQuantifierType.ALLE;
@@ -3775,7 +3780,7 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
           count = compound.kwantificatie.aantal;
           break;
       }
-      
+
       return {
         type: 'CompoundPredicate',
         quantifier,
@@ -3783,7 +3788,7 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
         predicates: compound.voorwaarden.map(v => this.convertExpressionToPredicate(v))
       } as CompoundPredicate;
     }
-    
+
     // Handle binary expressions (comparisons)
     if (expr.type === 'BinaryExpression') {
       const binary = expr as BinaryExpression;
@@ -3794,11 +3799,11 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
         right: binary.right
       } as SimplePredicate;
     }
-    
+
     // Handle unary expressions (special predicates)
     if (expr.type === 'UnaryExpression') {
       const unary = expr as UnaryExpression;
-      
+
       // Map operators to predicate operators
       if (unary.operator === 'voldoet aan de elfproef') {
         return {
@@ -3817,7 +3822,7 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
       }
       // Add more mappings as needed
     }
-    
+
     // For other expressions, don't convert to predicate
     // This preserves the original behavior where non-boolean expressions
     // in compound conditions will cause a type error
@@ -3871,7 +3876,7 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
         aantal: number
       };
     }
-    
+
     throw new Error('Unknown quantifier in compound condition');
   }
 
@@ -3882,7 +3887,7 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
     } else if (ctx.genesteSamengesteldeVoorwaarde && ctx.genesteSamengesteldeVoorwaarde()) {
       return this.visitGenesteSamengesteldeVoorwaarde(ctx.genesteSamengesteldeVoorwaarde());
     }
-    
+
     return null;
   }
 
@@ -3894,13 +3899,13 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
   visitGenesteSamengesteldeVoorwaarde(ctx: any): SamengesteldeVoorwaarde {
     // Extract the quantifier
     const kwantificatie = this.visitVoorwaardeKwantificatie(ctx.voorwaardeKwantificatie());
-    
+
     // Extract all condition parts
     const voorwaarden: Expression[] = [];
-    
+
     // In ANTLR4 TypeScript, use the _list method to get all items
     const onderdeelContexts = ctx.samengesteldeVoorwaardeOnderdeel_list();
-    
+
     if (onderdeelContexts) {
       for (const onderdeelCtx of onderdeelContexts) {
         const condition = this.visitSamengesteldeVoorwaardeOnderdeel(onderdeelCtx);
@@ -3909,15 +3914,15 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
         }
       }
     }
-    
+
     if (voorwaarden.length === 0) {
       throw new Error('No conditions found in nested compound condition');
     }
-    
+
     // Map old quantifier to unified type
     let unifiedQuantifier: UnifiedQuantifierType;
     let count: number | undefined;
-    
+
     switch (kwantificatie.type) {
       case KwantificatieType.ALLE:
         unifiedQuantifier = UnifiedQuantifierType.ALLE;
@@ -3938,12 +3943,12 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
         count = kwantificatie.aantal;
         break;
     }
-    
+
     // Convert expressions to predicates
-    const unifiedPredicates: Predicate[] = voorwaarden.map(expr => 
+    const unifiedPredicates: Predicate[] = voorwaarden.map(expr =>
       this.convertExpressionToPredicate(expr)
     );
-    
+
     const node: SamengesteldeVoorwaarde = {
       type: 'SamengesteldeVoorwaarde',
       kwantificatie,
@@ -3967,10 +3972,10 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
     // Handle "is kenmerk" expressions (e.g., "hij is minderjarig")
     const left = this.visit(ctx._left || ctx.additiveExpression());
     // Check for naamwoordWithNumbers first, then fall back to naamwoord
-    const kenmerk = ctx.naamwoordWithNumbers && ctx.naamwoordWithNumbers() ? 
-      this.extractTextWithSpaces(ctx.naamwoordWithNumbers()) : 
+    const kenmerk = ctx.naamwoordWithNumbers && ctx.naamwoordWithNumbers() ?
+      this.extractTextWithSpaces(ctx.naamwoordWithNumbers()) :
       (ctx.naamwoord ? ctx.naamwoord().getText() : '');
-    
+
     const node: BinaryExpression = {
       type: 'BinaryExpression',
       operator: '==',
@@ -3988,10 +3993,10 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
     // Handle "heeft kenmerk" expressions (e.g., "hij heeft ervaring")
     const left = this.visit(ctx._left || ctx.additiveExpression());
     // Check for naamwoordWithNumbers first, then fall back to naamwoord
-    const kenmerk = ctx.naamwoordWithNumbers && ctx.naamwoordWithNumbers() ? 
-      this.extractTextWithSpaces(ctx.naamwoordWithNumbers()) : 
+    const kenmerk = ctx.naamwoordWithNumbers && ctx.naamwoordWithNumbers() ?
+      this.extractTextWithSpaces(ctx.naamwoordWithNumbers()) :
       (ctx.naamwoord ? ctx.naamwoord().getText() : '');
-    
+
     const node: BinaryExpression = {
       type: 'BinaryExpression',
       operator: '==',
@@ -4018,12 +4023,12 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
     // Handle "is kenmerk" expressions in subordinate clauses (e.g., "hij is student")
     const subject = this.visitOnderwerpReferentie(ctx._subject || ctx.onderwerpReferentie());
     // Check for naamwoordWithNumbers first
-    const kenmerk = ctx._kenmerk ? 
-      (ctx._kenmerk.naamwoordWithNumbers ? this.extractTextWithSpaces(ctx._kenmerk) : ctx._kenmerk.getText()) : 
-      (ctx.naamwoordWithNumbers && ctx.naamwoordWithNumbers() ? 
-        this.extractTextWithSpaces(ctx.naamwoordWithNumbers()) : 
+    const kenmerk = ctx._kenmerk ?
+      (ctx._kenmerk.naamwoordWithNumbers ? this.extractTextWithSpaces(ctx._kenmerk) : ctx._kenmerk.getText()) :
+      (ctx.naamwoordWithNumbers && ctx.naamwoordWithNumbers() ?
+        this.extractTextWithSpaces(ctx.naamwoordWithNumbers()) :
         (ctx.naamwoord ? ctx.naamwoord().getText() : ''));
-    
+
     const node: BinaryExpression = {
       type: 'BinaryExpression',
       operator: '==',
@@ -4044,12 +4049,12 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
       throw new Error('No expression found in unaryCheckCondition');
     }
     const operand = this.visit(exprCtx);
-    
+
     // Get the operator text - check which token is present
     let operator: string;
     let isElfproef = false;
     let negated = false;
-    
+
     if (ctx.IS_LEEG && ctx.IS_LEEG()) {
       operator = 'is leeg';
     } else if (ctx.IS_GEVULD && ctx.IS_GEVULD()) {
@@ -4075,7 +4080,7 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
     } else {
       throw new Error('Unknown unary check operator');
     }
-    
+
     // For elfproef checks, create SimplePredicate with unified representation
     if (isElfproef) {
       // Create wrapper that looks like UnaryExpression but contains unified predicate
@@ -4097,7 +4102,7 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
       }
       return node;
     }
-    
+
     // For other checks, keep as UnaryExpression for now
     const node = {
       type: 'UnaryExpression',
@@ -4111,12 +4116,12 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
   visitBezieldeRefExpr(ctx: any): any {
     // This handles patterns like "zijn burgerservicenummer"
     const bezieldeRef = ctx.bezieldeReferentie();
-    
+
     // The grammar is: bezieldeReferentie : ZIJN naamwoord
     // Get the naamwoord (noun)
     const naamwoordCtx = bezieldeRef.naamwoord();
     const attribute = naamwoordCtx ? naamwoordCtx.getText() : 'unknown';
-    
+
     // Return an AttributeReference with 'self' path, matching Python implementation
     const node = {
       type: 'AttributeReference',
@@ -4125,7 +4130,7 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
     this.setLocation(node, ctx);
     return node;
   }
-  
+
   visitBooleanTrueLiteralExpr(ctx: any): Expression {
     const node = {
       type: 'BooleanLiteral',
@@ -4134,7 +4139,7 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
     this.setLocation(node, ctx);
     return node;
   }
-  
+
   visitBooleanFalseLiteralExpr(ctx: any): Expression {
     const node = {
       type: 'BooleanLiteral',
@@ -4148,17 +4153,17 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
     // Extract subject (onderwerpReferentie)
     const onderwerpCtx = ctx.onderwerpReferentie();
     const subject = this.visit(onderwerpCtx);
-    
+
     // Extract characteristic name (kenmerkNaam)
     const kenmerkCtx = ctx.kenmerkNaam();
     let characteristic: string;
-    
+
     if (kenmerkCtx) {
       characteristic = this.extractTextWithSpaces(kenmerkCtx);
     } else {
       throw new Error('Could not extract characteristic from kenmerktoekenning');
     }
-    
+
     const node = {
       type: 'Kenmerktoekenning',
       subject,
@@ -4175,9 +4180,9 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
     if (!naamwoordCtx) {
       throw new Error('Expected naamwoord in dagsoortdefinitie');
     }
-    
+
     const dagsoortName = this.extractTextWithSpaces(naamwoordCtx);
-    
+
     const node = {
       type: 'DagsoortDefinitie',
       dagsoortName
@@ -4258,7 +4263,7 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
               phraseParts.push(text);
             }
           } else if (subchild.constructor.name === 'IdentifierOrKeywordWithNumbersContext' ||
-                     subchild.constructor.name === 'IdentifierOrKeywordContext') {
+            subchild.constructor.name === 'IdentifierOrKeywordContext') {
             const text = this.extractText(subchild);
             // Skip capitalized articles that were parsed as identifiers
             if (!['de', 'het', 'een'].includes(text.toLowerCase())) {
@@ -4556,7 +4561,7 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
     if (!node.children || node.children.length === 0) {
       return null;
     }
-    
+
     // Special case for ResultaatDeelContext - provide helpful error
     if (node.constructor.name === 'ResultaatDeelContext') {
       // Try to provide a more helpful error message
@@ -4573,7 +4578,7 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
       }
       throw new Error('Invalid result pattern in ResultaatDeelContext: ' + text);
     }
-    
+
     // Debug when we hit visitChildren for ExpressieContext  
     if (node.constructor.name === 'ExpressieContext') {
       // ExpressieContext should be handled by visitExpressie
@@ -4584,7 +4589,7 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
         return this.visit(logicalExpr);
       }
     }
-    
+
     // If only one child, visit it
     if (node.children.length === 1) {
       return this.visit(node.children[0]);
@@ -4597,15 +4602,15 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
     // Return as string literal for now - better than crashing
     return { type: 'StringLiteral', value: text };
   }
-  
+
   visitConsistentieregel(ctx: any): any {
     // Get the rule name
     const naam = ctx.naamwoord() ? this.extractText(ctx.naamwoord()) : '<unknown_consistentieregel>';
-    
+
     // Determine which type of consistency result we have
     let resultaat = null;
     let voorwaarde = undefined;
-    
+
     if (ctx.uniekzijnResultaat()) {
       // Handle uniqueness check
       resultaat = this.visitUniekzijnResultaat(ctx.uniekzijnResultaat());
@@ -4617,11 +4622,11 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
         voorwaarde = this.visit(ctx.voorwaardeDeel());
       }
     }
-    
+
     if (!resultaat) {
       throw new Error(`Could not parse consistency rule result for '${naam}'`);
     }
-    
+
     // Return as a Rule with Consistentieregel as the result
     const node = {
       type: 'Rule',
@@ -4633,19 +4638,19 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
     this.setLocation(node, ctx);
     return node;
   }
-  
+
   visitUniekzijnResultaat(ctx: any): Consistentieregel {
     // Get the target expression (what must be unique)
     const alleAttrCtx = ctx.alleAttributenVanObjecttype();
     if (!alleAttrCtx) {
       throw new Error('Failed to parse uniqueness target');
     }
-    
+
     const target = this.visitAlleAttributenVanObjecttype(alleAttrCtx);
     if (!target) {
       throw new Error('Failed to parse uniqueness target');
     }
-    
+
     const node: Consistentieregel = {
       type: 'Consistentieregel',
       criteriumType: 'uniek',
@@ -4654,22 +4659,22 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
     this.setLocation(node, ctx);
     return node;
   }
-  
+
   visitAlleAttributenVanObjecttype(ctx: any): AttributeReference {
     // Pattern: DE naamwoord VAN ALLE naamwoord
     // Extract the attribute name (plural form)
     const attrPlural = ctx.naamwoord(0) ? this.extractText(ctx.naamwoord(0)) : null;
     // Extract the object type name
     const objType = ctx.naamwoord(1) ? this.extractText(ctx.naamwoord(1)) : null;
-    
+
     if (!attrPlural || !objType) {
       throw new Error('Failed to parse alle attributen pattern');
     }
-    
+
     // Extract canonical names (remove articles)
     const attrName = this.extractParameterName(attrPlural);
     const objTypeName = this.extractParameterName(objType);
-    
+
     // Create an AttributeReference that represents "attribute of all ObjectType"
     // The path structure represents the navigation: [attribute, "alle", object_type]
     const node: AttributeReference = {
@@ -4679,7 +4684,7 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
     this.setLocation(node, ctx);
     return node;
   }
-  
+
   visitInconsistentResultaat(ctx: any): Consistentieregel {
     // Handle inconsistency check
     const node: Consistentieregel = {
@@ -4689,17 +4694,17 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
     this.setLocation(node, ctx);
     return node;
   }
-  
+
   visitVerdelingResultaat(ctx: any): any {
     // Parse source amount expression
     const sourceAmount = this.visit(ctx._sourceAmount);
-    
+
     // Parse target collection expression
     const targetCollection = this.visit(ctx._targetCollection);
-    
+
     // Parse distribution methods
     const distributionMethods: any[] = [];
-    
+
     // Check for simple single-line format
     if (ctx.verdelingMethodeSimple && ctx.verdelingMethodeSimple()) {
       const simpleCtx = ctx.verdelingMethodeSimple();
@@ -4710,7 +4715,7 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
         }
       }
     }
-    
+
     // Check for multi-line format with bullet points
     else if (ctx.verdelingMethodeMultiLine && ctx.verdelingMethodeMultiLine()) {
       const multiCtx = ctx.verdelingMethodeMultiLine();
@@ -4727,7 +4732,7 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
         }
       }
     }
-    
+
     // Parse remainder target if present
     let remainderTarget = undefined;
     if (ctx.verdelingRest && ctx.verdelingRest()) {
@@ -4736,7 +4741,7 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
         remainderTarget = this.visit(restCtx._remainderTarget);
       }
     }
-    
+
     const node = {
       type: 'Verdeling',
       sourceAmount,
@@ -4747,11 +4752,11 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
     this.setLocation(node, ctx);
     return node;
   }
-  
+
   visitVerdelingGelijkeDelen(ctx: any): any {
     return { type: 'VerdelingGelijkeDelen' };
   }
-  
+
   visitVerdelingNaarRato(ctx: any): any {
     const ratioExpression = this.visit(ctx._ratioExpression);
     const node = {
@@ -4761,7 +4766,7 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
     this.setLocation(node, ctx);
     return node;
   }
-  
+
   visitVerdelingOpVolgorde(ctx: any): any {
     const orderDirection = ctx._orderDirection?.text || 'toenemende';
     const orderExpression = this.visit(ctx._orderExpression);
@@ -4773,7 +4778,7 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
     this.setLocation(node, ctx);
     return node;
   }
-  
+
   visitVerdelingTieBreak(ctx: any): any {
     const tieBreakMethod = this.visit(ctx._tieBreakMethod);
     const node = {
@@ -4783,7 +4788,7 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
     this.setLocation(node, ctx);
     return node;
   }
-  
+
   visitVerdelingMaximum(ctx: any): any {
     const maxExpression = this.visit(ctx._maxExpression);
     const node = {
@@ -4793,7 +4798,7 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
     this.setLocation(node, ctx);
     return node;
   }
-  
+
   visitVerdelingAfronding(ctx: any): any {
     const decimals = ctx._decimals ? parseInt(ctx._decimals.text) : 0;
     const roundDirection = ctx._roundDirection?.text || 'naar beneden';
@@ -4898,30 +4903,30 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
   }
 
   // --- Decision Table (Beslistabel) Visitor Methods ---
-  
+
   visitBeslistabel(ctx: any): any {
     const name = this.extractText(ctx.naamwoord()).trim();
-    
+
     // Check if there's a regelVersie (validity rule)
     let validity = 'altijd';  // default
     if (ctx.regelVersie && ctx.regelVersie()) {
       const versie = this.visit(ctx.regelVersie());
       validity = versie.validity || 'altijd';
     }
-    
+
     // Visit the table structure
     const table = this.visit(ctx.beslistabelTable());
-    
+
     // Import header parser for parsing columns
     const { DecisionTableHeaderParser } = require('../parsers/decision-table-header-parser');
     const headerParser = new DecisionTableHeaderParser();
-    
+
     // Parse the result and condition columns
     const parsedResult = headerParser.parseResultColumn(table.resultColumn);
-    const parsedConditions = table.conditionColumns.map((col: string) => 
+    const parsedConditions = table.conditionColumns.map((col: string) =>
       headerParser.parseConditionColumn(col)
     );
-    
+
     const decisionTable = {
       type: 'DecisionTable',
       name,
@@ -4930,20 +4935,20 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
       parsedResult,
       parsedConditions
     };
-    
+
     // Store location separately
     this.setLocation(decisionTable, ctx);
-    
+
     return decisionTable;
   }
-  
+
   visitBeslistabelTable(ctx: any): any {
     // Visit header to get column information
     const header = this.visit(ctx.beslistabelHeader());
-    
+
     // Visit all rows
     const rows = ctx.beslistabelRow_list().map((row: any) => this.visit(row));
-    
+
     const node = {
       ...header,
       rows
@@ -4951,16 +4956,16 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
     this.setLocation(node, ctx);
     return node;
   }
-  
+
   visitBeslistabelHeader(ctx: any): any {
     // Extract result column text including hidden whitespace
     const resultColumn = this.getFullText(ctx._resultColumn);
-    
+
     // Extract condition column texts - they are stored in _conditionColumns array
-    const conditionColumns = ctx._conditionColumns ? 
-      ctx._conditionColumns.map((col: any) => this.getFullText(col)) : 
+    const conditionColumns = ctx._conditionColumns ?
+      ctx._conditionColumns.map((col: any) => this.getFullText(col)) :
       [];
-    
+
     const node = {
       resultColumn,
       conditionColumns
@@ -4968,11 +4973,11 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
     this.setLocation(node, ctx);
     return node;
   }
-  
+
   // Helper to get full text including hidden whitespace
   private getFullText(ctx: any): string {
     if (!ctx) return '';
-    
+
     // Access the input stream directly to get original text with spaces
     if (ctx.start && ctx.stop && ctx.parser) {
       const inputStream = ctx.parser.getInputStream();
@@ -4985,20 +4990,20 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
         }
       }
     }
-    
+
     // Fallback to extractTextWithSpaces
     return this.extractTextWithSpaces(ctx);
   }
-  
+
   visitBeslistabelRow(ctx: any): any {
     const rowNumber = parseInt(ctx._rowNumber.text);
     const resultExpression = this.visit(ctx._resultExpression);
-    
+
     // Visit all condition values - they are stored in _conditionValues array
-    const conditionValues = ctx._conditionValues ? 
-      ctx._conditionValues.map((value: any) => this.visit(value)) : 
+    const conditionValues = ctx._conditionValues ?
+      ctx._conditionValues.map((value: any) => this.visit(value)) :
       [];
-    
+
     const node = {
       type: 'DecisionTableRow',
       rowNumber,
@@ -5008,33 +5013,33 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
     this.setLocation(node, ctx);
     return node;
   }
-  
+
   visitBeslistabelCellValue(ctx: any): any {
     // Check if this is n.v.t. or an expression
     if (ctx.NVT && ctx.NVT()) {
       return 'n.v.t.';
-    } 
-    
+    }
+
     // Otherwise it should be an expression
     const exprCtx = ctx.expressie();
     if (exprCtx) {
       // Direct call to visitExpressie to avoid dispatch issues
       return this.visitExpressie(exprCtx);
     }
-    
+
     // Shouldn't happen with proper grammar
     throw new Error('Invalid decision table cell value');
   }
 
   // --- Unit System (Eenheidsysteem) Visitor Methods ---
-  
+
   visitEenheidsysteemDefinition(ctx: any): UnitSystemDefinition {
     // Get the name from the identifier (ctx._name holds the labeled identifier context)
     const name = this.extractText(ctx._name);
-    
+
     // Visit all unit entries
     const units = ctx.eenheidEntry_list().map((entry: any) => this.visit(entry));
-    
+
     const node: UnitSystemDefinition = {
       type: 'UnitSystemDefinition',
       name,
@@ -5043,26 +5048,26 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
     this.setLocation(node, ctx);
     return node;
   }
-  
+
   visitEenheidEntry(ctx: any): UnitDefinition {
     // Extract unit name (e.g., "meter") - labeled as _unitName
     const unitName = this.extractText(ctx._unitName);
-    
+
     // Extract abbreviation (e.g., "m") - labeled as _abbrev
     const abbrev = this.extractText(ctx._abbrev);
-    
+
     // Check for symbol (optional, fourth position) - labeled as _symbol
     let symbol: string | undefined;
     if (ctx._symbol) {
       symbol = this.extractText(ctx._symbol);
     }
-    
+
     // Check for plural form - labeled as _pluralName
     let plural: string | undefined;
     if (ctx._pluralName) {
       plural = this.extractText(ctx._pluralName);
     }
-    
+
     // Check for conversion specification - labeled as _value and _targetUnit
     let conversion: UnitConversion | undefined;
     if (ctx._value && ctx._targetUnit) {
@@ -5070,17 +5075,17 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
       // _value is a token, so use getText() or text property
       const valueText = ctx._value.getText ? ctx._value.getText() : ctx._value.text;
       const numberValue = parseFloat(valueText.replace(',', '.'));
-      
+
       const factor = isFraction ? 1 / numberValue : numberValue;
       // _targetUnit might already be extracted
       const toUnit = ctx._targetUnit.getText ? ctx._targetUnit.getText() : this.extractText(ctx._targetUnit);
-      
+
       conversion = {
         factor,
         toUnit
       };
     }
-    
+
     const node = {
       name: unitName,
       plural,
@@ -5091,11 +5096,11 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
     this.setLocation(node, ctx);
     return node;
   }
-  
+
   visitTijdsevenredigDeelExpr(ctx: any): Expression {
     // HET TIJDSEVENREDIG DEEL PER (MAAND|JAAR) VAN expressie [GEDURENDE DE TIJD DAT condition]
     let periodType: 'tijdsevenredig_deel_per_maand' | 'tijdsevenredig_deel_per_jaar';
-    
+
     if (ctx.MAAND && ctx.MAAND()) {
       periodType = 'tijdsevenredig_deel_per_maand';
     } else if (ctx.JAAR && ctx.JAAR()) {
@@ -5103,16 +5108,16 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
     } else {
       throw new Error('Expected MAAND or JAAR in tijdsevenredig deel expression');
     }
-    
+
     // Get the target expression after VAN
     const targetExpr = this.visit(ctx.expressie(0));
-    
+
     // Check for optional temporal condition
     let conditionExpr: Expression | undefined;
     if (ctx.conditieBijExpressie && ctx.conditieBijExpressie()) {
       conditionExpr = this.visitConditieBijExpressie(ctx.conditieBijExpressie());
     }
-    
+
     // Return as TimelineExpression
     const node = {
       type: 'TimelineExpression',
@@ -5123,7 +5128,7 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
     this.setLocation(node, ctx);
     return node;
   }
-  
+
   visitConditieBijExpressie(ctx: any): Expression {
     // GEDURENDE DE TIJD DAT expressie
     // The actual condition is the expression after DAT
@@ -5133,17 +5138,17 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
     }
     return this.visit(exprCtx);
   }
-  
+
   visitTotaalVanExpr(ctx: any): Expression {
     // HET? TOTAAL VAN expressie [GEDURENDE DE TIJD DAT condition]
     const targetExpr = this.visit(ctx.expressie(0));
-    
+
     // Check for optional temporal condition
     let conditionExpr: Expression | undefined;
     if (ctx.conditieBijExpressie && ctx.conditieBijExpressie()) {
       conditionExpr = this.visitConditieBijExpressie(ctx.conditieBijExpressie());
     }
-    
+
     // Return as TimelineExpression for timeline-aware aggregation
     const node = {
       type: 'TimelineExpression',
@@ -5160,13 +5165,13 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
     // This handles cases where "Het totaal van" starts with capital H
     // The identifiers before HET_TOTAAL_VAN are just capitalized text that we ignore
     const targetExpr = this.visit(ctx.expressie(0));
-    
+
     // Check for optional temporal condition
     let conditionExpr: Expression | undefined;
     if (ctx.conditieBijExpressie && ctx.conditieBijExpressie()) {
       conditionExpr = this.visitConditieBijExpressie(ctx.conditieBijExpressie());
     }
-    
+
     // Return as TimelineExpression for timeline-aware aggregation
     const node = {
       type: 'TimelineExpression',

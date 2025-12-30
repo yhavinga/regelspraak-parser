@@ -34,9 +34,9 @@ export interface BooleanLiteral extends Expression {
 export interface BinaryExpression extends Expression {
   type: 'BinaryExpression';
   operator: '+' | '-' | '*' | '/' | '==' | '!=' | '>' | '<' | '>=' | '<=' | '&&' | '||' |
-            'is een dagsoort' | 'zijn een dagsoort' | 'is geen dagsoort' | 'zijn geen dagsoort' |
-            'is numeriek met exact' | 'is niet numeriek met exact' | 
-            'zijn numeriek met exact' | 'zijn niet numeriek met exact';
+  'is een dagsoort' | 'zijn een dagsoort' | 'is geen dagsoort' | 'zijn geen dagsoort' |
+  'is numeriek met exact' | 'is niet numeriek met exact' |
+  'zijn numeriek met exact' | 'zijn niet numeriek met exact';
   left: Expression;
   right: Expression;
 }
@@ -55,8 +55,8 @@ export interface FunctionCall extends Expression {
 
 export interface UnaryExpression extends Expression {
   type: 'UnaryExpression';
-  operator: '-' | '!' | 'niet' | 'voldoet aan de elfproef' | 'voldoen aan de elfproef' | 
-            'voldoet niet aan de elfproef' | 'voldoen niet aan de elfproef' | 'moeten uniek zijn';
+  operator: '-' | '!' | 'niet' | 'voldoet aan de elfproef' | 'voldoen aan de elfproef' |
+  'voldoet niet aan de elfproef' | 'voldoen niet aan de elfproef' | 'moeten uniek zijn';
   operand: Expression;
 }
 
@@ -74,6 +74,17 @@ export interface AggregationExpression extends Expression {
 export interface AttributeReference extends Expression {
   type: 'AttributeReference';
   path: string[];
+}
+
+/**
+ * @deprecated Use AttributeReference with path arrays instead.
+ * NavigationExpression has been removed from the specification.
+ * This interface is kept for backward compatibility with existing tests.
+ */
+export interface NavigationExpression extends Expression {
+  type: 'NavigationExpression';
+  object: Expression;
+  attribute: string;
 }
 
 export interface SubselectieExpression extends Expression {

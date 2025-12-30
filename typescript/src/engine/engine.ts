@@ -20,7 +20,7 @@ export class Engine implements IEngine {
 
   parse(source: string): ParseResult {
     const trimmed = source.trim();
-    
+
     try {
       // Check if this contains multiple definitions (has newlines and multiple keywords)
       const lines = trimmed.split('\n');
@@ -34,11 +34,11 @@ export class Engine implements IEngine {
         }
       }
       const hasMultipleDefinitions = definitionCount >= 2;
-      
+
       if (hasMultipleDefinitions) {
         // Parse as a full document
         const definitions = this.antlrParser.parse(trimmed);
-        
+
         // Wrap definitions in a Model object
         const rules = definitions.filter((def: any) => def.type === 'Rule');
         const objectTypes = definitions.filter((def: any) => def.type === 'ObjectTypeDefinition');
@@ -62,7 +62,7 @@ export class Engine implements IEngine {
           }
         };
       }
-      
+
       // Check if this is a rule, object type, decision table, or just an expression
       if (trimmed.startsWith('Regel ')) {
         // Use ANTLR parser for rules
@@ -144,6 +144,31 @@ export class Engine implements IEngine {
     }
   }
 
+  /**
+   * Parse a complete RegelSpraak model (may contain multiple definitions).
+   * This is a convenience method that wraps the ANTLR parser's parseModel.
+   * @param source The RegelSpraak source code
+   * @returns Parse result with model AST
+   */
+  parseModel(source: string): {
+    success: boolean;
+    model?: any;
+    errors?: string[];
+  } {
+    try {
+      const model = this.antlrParser.parseModel(source);
+      return {
+        success: true,
+        model
+      };
+    } catch (error) {
+      return {
+        success: false,
+        errors: [(error as Error).message]
+      };
+    }
+  }
+
   execute(ast: any, context: RuntimeContext): ExecutionResult {
     try {
       // Handle array of definitions
@@ -152,7 +177,7 @@ export class Engine implements IEngine {
           success: true,
           value: { type: 'null', value: null }
         };
-        
+
         for (const definition of ast) {
           const result = this.execute(definition, context);
           if (!result.success) {
@@ -160,10 +185,10 @@ export class Engine implements IEngine {
           }
           lastResult = result;
         }
-        
+
         return lastResult;
       }
-      
+
       // Handle different AST types
       // Check for DomainModel structure (no type field, but has regels, objectTypes, etc.)
       if (!ast.type && (ast.regels || ast.objectTypes || ast.parameters)) {
@@ -173,7 +198,7 @@ export class Engine implements IEngine {
           success: true,
           value: { type: 'string', value: 'Model executed' }
         };
-        
+
         // Execute each rule in sequence
         for (const rule of (ast.regels || [])) {
           const result = this.ruleExecutor.execute(rule, context);
@@ -191,21 +216,21 @@ export class Engine implements IEngine {
             };
           }
         }
-        
+
         return lastResult;
       } else if (ast.type === 'Model') {
         // First register any unit systems
         for (const unitSystem of (ast as any).unitSystems || []) {
           this.registerUnitSystem(unitSystem, context);
         }
-        
+
         // Register all FeitTypes before executing rules
         for (const feittype of (ast as any).feittypen || []) {
           if (context.registerFeittype) {
             context.registerFeittype(feittype);
           }
         }
-        
+
         // Execute all rules in the model
         let lastResult: ExecutionResult = {
           success: true,
@@ -384,7 +409,7 @@ export class Engine implements IEngine {
 
   evaluate(source: string, data?: Record<string, any>): ExecutionResult {
     const context = new Context();
-    
+
     // Initialize context with provided data
     if (data) {
       for (const [key, value] of Object.entries(data)) {
@@ -393,10 +418,10 @@ export class Engine implements IEngine {
         context.setVariable(key, valueObj);
       }
     }
-    
+
     return this.run(source, context);
   }
-  
+
   private convertToValue(value: any): Value {
     if (typeof value === 'number') {
       return { type: 'number', value };
@@ -414,11 +439,11 @@ export class Engine implements IEngine {
       return { type: 'object', value };
     }
   }
-  
+
   private registerUnitSystem(unitSystemDef: UnitSystemDefinition, context: RuntimeContext): void {
     // Create a new unit system
     const system = new UnitSystem(unitSystemDef.name);
-    
+
     // First pass: add all units without conversions
     for (const unitDef of unitSystemDef.units) {
       const baseUnit: BaseUnit = {
@@ -427,10 +452,10 @@ export class Engine implements IEngine {
         abbreviation: unitDef.abbreviation,
         symbol: unitDef.symbol
       };
-      
+
       system.addUnit(baseUnit);
     }
-    
+
     // Second pass: add conversion information, resolving abbreviations to full names
     for (const unitDef of unitSystemDef.units) {
       if (unitDef.conversion) {
@@ -446,16 +471,16 @@ export class Engine implements IEngine {
             conversionFactor: unitDef.conversion.factor,
             conversionToUnit: targetUnit.name  // Use the full name, not abbreviation
           };
-          
+
           // Re-add the unit with conversion info
           system.addUnit(updatedUnit);
         }
       }
     }
-    
+
     // Register the system in the unit registry
     this.unitRegistry.addSystem(system);
-    
+
     // Also make the registry available in the context
     // This allows expression evaluator to access custom units
     (context as any).unitRegistry = this.unitRegistry;
