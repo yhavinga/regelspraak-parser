@@ -1233,15 +1233,12 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
   }
 
   visitOnderwerpRefExpr(ctx: any): Expression {
-    // For now, treat simple onderwerp references as variable references
-    // The grammar structure is: onderwerpReferentie -> onderwerpBasis -> basisOnderwerp
+    // Get the onderwerpReferentie context from the OnderwerpRefExpr wrapper
     const onderwerpRef = ctx.onderwerpReferentie ? ctx.onderwerpReferentie() : ctx;
-    const onderwerpBasis = onderwerpRef.onderwerpBasis ? onderwerpRef.onderwerpBasis() : onderwerpRef;
-    const basisOnderwerp = onderwerpBasis.basisOnderwerp ? onderwerpBasis.basisOnderwerp() : onderwerpBasis;
 
     // Handle pronoun "hij" -> map to "self" for consistency with Python
-    // Check if the text is "hij" directly
-    if (ctx.getText && ctx.getText() === 'hij') {
+    const ctxText = ctx.getText ? ctx.getText() : '';
+    if (ctxText === 'hij') {
       const ref = {
         type: 'VariableReference',
         variableName: 'self'
@@ -1250,52 +1247,145 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
       return ref;
     }
 
-    // Also check via basisOnderwerp HIJ token
-    if (basisOnderwerp && basisOnderwerp.HIJ && basisOnderwerp.HIJ()) {
-      const ref = {
-        type: 'VariableReference',
-        variableName: 'self'
-      } as VariableReference;
-      this.setLocation(ref, ctx);
-      return ref;
-    }
+    // FIX 1: Detect aggregation patterns that grammar didn't catch
+    // Pattern: "(het) aantal <collection> [die ...]" without ALLE or "van"
+    // The grammar's HET AANTAL onderwerpReferentie requires an article after AANTAL,
+    // so bare nouns like "het aantal personen" fall through to OnderwerpRefExpr.
+    // NOTE: ctx.getText() returns concatenated tokens WITHOUT spaces (e.g., "hetaantalpersonen")
+    const textLower = ctxText.toLowerCase();
+    const aantalMatch = textLower.match(/^(?:het)?aantal(.+)$/);
+    const hasAlle = textLower.includes('alle');
+    const hasVan = textLower.includes('van');
 
-    // basisOnderwerp : (DE | HET | EEN | ZIJN | ALLE | HIJ)? identifierOrKeyword+
-    if (basisOnderwerp && basisOnderwerp.identifierOrKeyword) {
-      // Collect all identifier tokens (skip article)
-      const identifiers = basisOnderwerp.identifierOrKeyword();
-      if (Array.isArray(identifiers)) {
-        // Join multiple identifiers with space, preserving case
-        const variableName = identifiers.map(id => id.getText()).join(' ');
-        const ref = {
-          type: 'VariableReference',
-          variableName
-        } as VariableReference;
-        // Store location for this variable reference
-        this.setLocation(ref, ctx);
-        return ref;
-      } else if (identifiers) {
-        // Single identifier
-        const ref = {
-          type: 'VariableReference',
-          variableName: identifiers.getText()
-        } as VariableReference;
-        // Store location for this variable reference
-        this.setLocation(ref, ctx);
-        return ref;
+    if (aantalMatch && !hasAlle && !hasVan) {
+      // This is an aggregation expression
+      // Extract collection name by getting identifiers from basisOnderwerp, excluding "aantal"
+
+      const onderwerpBasis = onderwerpRef?.onderwerpBasis ? onderwerpRef.onderwerpBasis() : null;
+      let collectionName = '';
+
+      if (onderwerpBasis) {
+        // Get all basisOnderwerp elements (handle single and multiple)
+        const basisList = onderwerpBasis.basisOnderwerp_list
+          ? onderwerpBasis.basisOnderwerp_list()
+          : (onderwerpBasis.basisOnderwerp ? [onderwerpBasis.basisOnderwerp()] : []);
+
+        // If no list but we have a single basisOnderwerp through other access
+        const allBasis = basisList.length > 0 ? basisList : [];
+
+        // Extract identifiers from each basisOnderwerp, filtering out "aantal"
+        const pathParts: string[] = [];
+        for (const basis of allBasis) {
+          if (!basis) continue;
+          const identifiers = basis.identifierOrKeyword ? basis.identifierOrKeyword() : [];
+          const idList = Array.isArray(identifiers) ? identifiers : (identifiers ? [identifiers] : []);
+
+          // Filter out 'aantal' and join remaining identifiers
+          const filtered = idList
+            .map((id: any) => id.getText())
+            .filter((text: string) => text.toLowerCase() !== 'aantal');
+
+          if (filtered.length > 0) {
+            pathParts.push(filtered.join(' '));
+          }
+        }
+
+        // Join path parts (reverse for Dutch right-to-left)
+        collectionName = pathParts.length > 0 ? pathParts.reverse().join(' ') : '';
       }
+
+      // Fallback: use regex extraction if path extraction failed
+      if (!collectionName) {
+        collectionName = aantalMatch[1].trim();
+        // Remove "die..." suffix
+        const dieIdx = collectionName.indexOf('die');
+        const datIdx = collectionName.indexOf('dat');
+        if (dieIdx > 0) collectionName = collectionName.substring(0, dieIdx).trim();
+        else if (datIdx > 0) collectionName = collectionName.substring(0, datIdx).trim();
+      }
+
+      // Build the base expression
+      let baseExpression: Expression;
+      if (onderwerpRef && onderwerpRef.predicaat && onderwerpRef.predicaat()) {
+        // Has subselectie - create collection reference and wrap with predicate
+        const collectionRef: AttributeReference = {
+          type: 'AttributeReference',
+          path: [collectionName]
+        };
+        this.setLocation(collectionRef, onderwerpBasis || ctx);
+
+        const predicaatCtx = onderwerpRef.predicaat();
+        const predicaat = this.visitPredicaat(predicaatCtx);
+
+        baseExpression = {
+          type: 'SubselectieExpression',
+          collection: collectionRef,
+          predicaat
+        } as SubselectieExpression;
+        this.setLocation(baseExpression, onderwerpRef);
+      } else {
+        // No subselectie - just AttributeReference
+        baseExpression = {
+          type: 'AttributeReference',
+          path: [collectionName]
+        } as AttributeReference;
+        this.setLocation(baseExpression, ctx);
+      }
+
+      const node: FunctionCall = {
+        type: 'FunctionCall',
+        functionName: 'aantal',
+        arguments: [baseExpression]
+      };
+      this.setLocation(node, ctx);
+      return node;
     }
 
-    // Fallback: extract text without article, preserving case
-    const text = ctx.getText();
-    const match = text.match(/^(?:de|het|een|zijn|alle)?\s*(.+)$/i);
-    const variableName = match ? match[1] : text;
+    // FIX 2: For cases with DIE/DAT subselectie, delegate to visitOnderwerpReferentie
+    // which properly handles subselectie filtering. Only do this when subselectie is present.
+    // See Python builder.py:1533, 1572-1583
+    if (onderwerpRef && onderwerpRef.predicaat && onderwerpRef.predicaat()) {
+      // Has DIE/DAT - delegate for proper subselectie handling
+      return this.visitOnderwerpReferentie(onderwerpRef);
+    }
+
+    // For simple references without aggregation or subselectie, return VariableReference
+    // This preserves existing behavior for cases like "de isVIP", "het bedrag", etc.
+    const onderwerpBasis = onderwerpRef?.onderwerpBasis ? onderwerpRef.onderwerpBasis() : null;
+    let variableName = '';
+
+    if (onderwerpBasis) {
+      // Get all basisOnderwerp elements
+      const basisList = onderwerpBasis.basisOnderwerp_list
+        ? onderwerpBasis.basisOnderwerp_list()
+        : (onderwerpBasis.basisOnderwerp ? [onderwerpBasis.basisOnderwerp()] : []);
+
+      const pathParts: string[] = [];
+      for (const basis of basisList) {
+        if (!basis) continue;
+        const identifiers = basis.identifierOrKeyword ? basis.identifierOrKeyword() : [];
+        const idList = Array.isArray(identifiers) ? identifiers : (identifiers ? [identifiers] : []);
+
+        const namePart = idList.map((id: any) => id.getText()).join(' ');
+        if (namePart) {
+          pathParts.push(namePart);
+        }
+      }
+
+      variableName = pathParts.length > 0 ? pathParts.join(' ') : '';
+    }
+
+    // Fallback: extract text without article
+    if (!variableName) {
+      const text = ctxText;
+      const match = text.match(/^(?:de|het|een|zijn|alle)?\s*(.+)$/i);
+      variableName = match ? match[1] : text;
+    }
 
     const ref = {
       type: 'VariableReference',
       variableName
     } as VariableReference;
-    // Store location for this variable reference
     this.setLocation(ref, ctx);
     return ref;
   }

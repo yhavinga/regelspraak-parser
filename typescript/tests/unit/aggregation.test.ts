@@ -4,18 +4,18 @@ import { ExpressionEvaluator } from '../../src/evaluators/expression-evaluator';
 describe('Aggregation', () => {
   describe('ANTLR Aggregation Parsing', () => {
     let engine: Engine;
-    
+
     beforeEach(() => {
       engine = new Engine();
     });
-    
+
     test('should parse "de som van X, Y en Z"', () => {
       const parseResult = engine.parse('de som van X, Y en Z');
-      
+
       if (!parseResult.success) {
         console.log('Parse errors:', parseResult.errors);
       }
-      
+
       expect(parseResult.success).toBe(true);
       const result = parseResult.ast;
       expect(result).not.toBeNull();
@@ -32,11 +32,16 @@ describe('Aggregation', () => {
       const result = parseResult.ast;
       expect(result).not.toBeNull();
 
-      // Note: Due to grammar precedence, "het aantal personen" is parsed as
-      // a VariableReference to "aantalpersonen" rather than a function call.
-      // This is a known limitation of the current grammar.
-      expect(result?.type).toBe('VariableReference');
-      expect((result as any)?.variableName).toBe('aantalpersonen');
+      // Fixed: Now correctly parses as FunctionCall with 'aantal' function
+      // Previously this was broken, returning VariableReference('aantalpersonen')
+      expect(result?.type).toBe('FunctionCall');
+      expect(result?.functionName).toBe('aantal');
+      expect(result?.arguments?.length).toBe(1);
+
+      // The argument should be an AttributeReference to 'personen'
+      const arg = result?.arguments?.[0];
+      expect(arg?.type).toBe('AttributeReference');
+      expect((arg as any)?.path).toEqual(['personen']);
     });
 
     test('should parse "de maximale waarde van bedragen"', () => {
@@ -128,7 +133,7 @@ describe('Aggregation', () => {
       context.setVariable('X', { type: 'number', value: 10 });
       context.setVariable('Y', { type: 'number', value: 20 });
       context.setVariable('Z', { type: 'number', value: 30 });
-      
+
       const expr = {
         type: 'AggregationExpression' as const,
         aggregationType: 'som' as const,
@@ -138,112 +143,112 @@ describe('Aggregation', () => {
           { type: 'VariableReference', variableName: 'Z' }
         ]
       };
-      
+
       const result = evaluator.evaluate(expr, context);
       expect(result.type).toBe('number');
       expect(result.value).toBe(60);
     });
 
     test('should count values', () => {
-      context.setVariable('items', { 
-        type: 'list', 
+      context.setVariable('items', {
+        type: 'list',
         value: [
           { type: 'number', value: 1 },
           { type: 'number', value: 2 },
           { type: 'number', value: 3 }
         ]
       });
-      
+
       const expr = {
         type: 'AggregationExpression' as const,
         aggregationType: 'aantal' as const,
         target: { type: 'VariableReference', variableName: 'items' }
       };
-      
+
       const result = evaluator.evaluate(expr, context);
       expect(result.type).toBe('number');
       expect(result.value).toBe(3);
     });
 
     test('should find maximum value', () => {
-      context.setVariable('values', { 
-        type: 'list', 
+      context.setVariable('values', {
+        type: 'list',
         value: [
           { type: 'number', value: 5 },
           { type: 'number', value: 10 },
           { type: 'number', value: 3 }
         ]
       });
-      
+
       const expr = {
         type: 'AggregationExpression' as const,
         aggregationType: 'maximum' as const,
         target: { type: 'VariableReference', variableName: 'values' }
       };
-      
+
       const result = evaluator.evaluate(expr, context);
       expect(result.type).toBe('number');
       expect(result.value).toBe(10);
     });
 
     test('should find minimum value', () => {
-      context.setVariable('values', { 
-        type: 'list', 
+      context.setVariable('values', {
+        type: 'list',
         value: [
           { type: 'number', value: 5 },
           { type: 'number', value: 10 },
           { type: 'number', value: 3 }
         ]
       });
-      
+
       const expr = {
         type: 'AggregationExpression' as const,
         aggregationType: 'minimum' as const,
         target: { type: 'VariableReference', variableName: 'values' }
       };
-      
+
       const result = evaluator.evaluate(expr, context);
       expect(result.type).toBe('number');
       expect(result.value).toBe(3);
     });
 
     test('should get first value', () => {
-      context.setVariable('values', { 
-        type: 'list', 
+      context.setVariable('values', {
+        type: 'list',
         value: [
           { type: 'number', value: 5 },
           { type: 'number', value: 10 },
           { type: 'number', value: 3 }
         ]
       });
-      
+
       const expr = {
         type: 'AggregationExpression' as const,
         aggregationType: 'eerste' as const,
         target: { type: 'VariableReference', variableName: 'values' }
       };
-      
+
       const result = evaluator.evaluate(expr, context);
       expect(result.type).toBe('number');
       expect(result.value).toBe(5);
     });
 
     test('should get last value', () => {
-      context.setVariable('values', { 
-        type: 'list', 
+      context.setVariable('values', {
+        type: 'list',
         value: [
           { type: 'number', value: 5 },
           { type: 'number', value: 10 },
           { type: 'number', value: 3 }
         ]
       });
-      
+
       const expr = {
         type: 'AggregationExpression' as const,
         aggregationType: 'laatste' as const,
         target: { type: 'VariableReference', variableName: 'values' }
       };
-      
+
       const result = evaluator.evaluate(expr, context);
       expect(result.type).toBe('number');
       expect(result.value).toBe(3);
@@ -251,31 +256,31 @@ describe('Aggregation', () => {
 
     test('should throw error for empty collection', () => {
       context.setVariable('empty', { type: 'list', value: [] });
-      
+
       const expr = {
         type: 'AggregationExpression' as const,
         aggregationType: 'som' as const,
         target: { type: 'VariableReference', variableName: 'empty' }
       };
-      
+
       expect(() => evaluator.evaluate(expr, context)).toThrow('Cannot aggregate empty collection');
     });
 
     test('should throw error for non-numeric sum', () => {
-      context.setVariable('strings', { 
-        type: 'list', 
+      context.setVariable('strings', {
+        type: 'list',
         value: [
           { type: 'string', value: 'a' },
           { type: 'string', value: 'b' }
         ]
       });
-      
+
       const expr = {
         type: 'AggregationExpression' as const,
         aggregationType: 'som' as const,
         target: { type: 'VariableReference', variableName: 'strings' }
       };
-      
+
       expect(() => evaluator.evaluate(expr, context)).toThrow('Cannot sum string values');
     });
   });
