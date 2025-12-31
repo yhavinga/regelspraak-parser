@@ -106,7 +106,8 @@ describe('Noun Visitor Methods', () => {
         type: 'ObjectTypeDefinition',
         name: 'persoon',
         plural: ['personen'],
-        attributes: []
+        animated: false,
+        members: []
       });
     });
   });
@@ -143,7 +144,8 @@ describe('Noun Visitor Methods', () => {
         type: 'ObjectTypeDefinition',
         name: 'Persoon1',
         plural: ['Persoon1s'],  // Default pluralization
-        attributes: []
+        animated: false,
+        members: []
       });
     });
   });
@@ -163,7 +165,8 @@ describe('Noun Visitor Methods', () => {
         type: 'ObjectTypeDefinition',
         name: 'natuurlijk persoon',
         plural: ['natuurlijk personen'],
-        attributes: []
+        animated: false,
+        members: []
       });
     });
 
@@ -182,7 +185,8 @@ describe('Noun Visitor Methods', () => {
         type: 'ObjectTypeDefinition',
         name: 'reis',
         plural: ['reizen'],
-        attributes: []
+        animated: false,
+        members: []
       });
     });
   });
@@ -283,7 +287,8 @@ Regel test
         type: 'ObjectTypeDefinition',
         name: 'Natuurlijk persoon',
         plural: ['Natuurlijk personen'],
-        attributes: []
+        animated: false,
+        members: []
       });
     });
 
@@ -301,10 +306,10 @@ Regel test
 
       expect(result.success).toBe(true);
       expect(stripLocations(result.ast).name).toBe('Vlucht');
-      expect(stripLocations(result.ast).attributes).toHaveLength(3);
-      expect(stripLocations(result.ast).attributes[0].name).toBe('luchthaven van vertrek');
-      expect(stripLocations(result.ast).attributes[1].name).toBe('luchthaven van bestemming');
-      expect(stripLocations(result.ast).attributes[2].name).toBe('vluchtdatum');
+      expect(stripLocations(result.ast).members).toHaveLength(3);
+      expect(stripLocations(result.ast).members[0].name).toBe('luchthaven van vertrek');
+      expect(stripLocations(result.ast).members[1].name).toBe('luchthaven van bestemming');
+      expect(stripLocations(result.ast).members[2].name).toBe('vluchtdatum');
     });
 
     test('should parse complex TOKA parameter names', () => {

@@ -11,13 +11,14 @@ describe('Engine - Object Type Definitions', () => {
   describe('basic object type parsing', () => {
     test('should parse simple object type', () => {
       const source = `Objecttype persoon`;
-      
+
       const result = engine.parse(source);
-      
+
       expect(result.success).toBe(true);
       expect(stripLocations(result.ast)).toEqual({
         type: 'ObjectTypeDefinition',
         name: 'persoon',
+        plural: ['personen'],
         animated: false,
         members: []
       });
@@ -25,9 +26,9 @@ describe('Engine - Object Type Definitions', () => {
 
     test('should parse object type with plural', () => {
       const source = `Objecttype persoon (mv:personen)`;
-      
+
       const result = engine.parse(source);
-      
+
       expect(result.success).toBe(true);
       expect(stripLocations(result.ast)).toEqual({
         type: 'ObjectTypeDefinition',
@@ -40,13 +41,14 @@ describe('Engine - Object Type Definitions', () => {
 
     test('should parse animated object type', () => {
       const source = `Objecttype persoon (bezield)`;
-      
+
       const result = engine.parse(source);
-      
+
       expect(result.success).toBe(true);
       expect(stripLocations(result.ast)).toEqual({
         type: 'ObjectTypeDefinition',
         name: 'persoon',
+        plural: ['personen'],
         animated: true,
         members: []
       });
@@ -57,13 +59,14 @@ describe('Engine - Object Type Definitions', () => {
     test('should parse simple kenmerk', () => {
       const source = `Objecttype persoon
   aanwezig kenmerk;`;
-      
+
       const result = engine.parse(source);
-      
+
       expect(result.success).toBe(true);
       expect(stripLocations(result.ast)).toEqual({
         type: 'ObjectTypeDefinition',
         name: 'persoon',
+        plural: ['personen'],
         animated: false,
         members: [{
           type: 'KenmerkSpecification',
@@ -75,9 +78,9 @@ describe('Engine - Object Type Definitions', () => {
     test('should parse bijvoeglijk kenmerk', () => {
       const source = `Objecttype persoon
   gelukkig kenmerk (bijvoeglijk);`;
-      
+
       const result = engine.parse(source);
-      
+
       expect(result.success).toBe(true);
       expect(stripLocations(result.ast?.members[0])).toEqual({
         type: 'KenmerkSpecification',
@@ -89,9 +92,9 @@ describe('Engine - Object Type Definitions', () => {
     test('should parse bezittelijk kenmerk', () => {
       const source = `Objecttype persoon
   gehuwd kenmerk (bezittelijk);`;
-      
+
       const result = engine.parse(source);
-      
+
       expect(result.success).toBe(true);
       expect(stripLocations(result.ast?.members[0])).toEqual({
         type: 'KenmerkSpecification',
@@ -105,9 +108,9 @@ describe('Engine - Object Type Definitions', () => {
     test('should parse simple text attribute', () => {
       const source = `Objecttype persoon
   naam Tekst;`;
-      
+
       const result = engine.parse(source);
-      
+
       expect(result.success).toBe(true);
       expect(stripLocations(result.ast?.members[0])).toEqual({
         type: 'AttributeSpecification',
@@ -119,9 +122,9 @@ describe('Engine - Object Type Definitions', () => {
     test('should parse number attribute', () => {
       const source = `Objecttype persoon
   leeftijd Numeriek (geheel getal);`;
-      
+
       const result = engine.parse(source);
-      
+
       expect(result.success).toBe(true);
       expect(stripLocations(result.ast?.members[0])).toEqual({
         type: 'AttributeSpecification',
@@ -136,9 +139,9 @@ describe('Engine - Object Type Definitions', () => {
       // For now, test with simple unit until we update the grammar
       const source = `Objecttype auto
   snelheid Numeriek (getal) met eenheid km;`;
-      
+
       const result = engine.parse(source);
-      
+
       expect(result.success).toBe(true);
       expect(stripLocations(result.ast?.members[0])).toEqual({
         type: 'AttributeSpecification',
@@ -151,9 +154,9 @@ describe('Engine - Object Type Definitions', () => {
     test('should parse attribute with Euro symbol', () => {
       const source = `Objecttype product
   prijs Bedrag met eenheid €;`;
-      
+
       const result = engine.parse(source);
-      
+
       expect(result.success).toBe(true);
       expect(stripLocations(result.ast?.members[0])).toEqual({
         type: 'AttributeSpecification',
@@ -168,9 +171,9 @@ describe('Engine - Object Type Definitions', () => {
       // This is a limitation in the grammar
       const source = `Objecttype verkoop
   omzet Bedrag gedimensioneerd met dimension1 en dimension2;`;
-      
+
       const result = engine.parse(source);
-      
+
       expect(result.success).toBe(true);
       expect(stripLocations(result.ast?.members[0])).toEqual({
         type: 'AttributeSpecification',
@@ -183,9 +186,9 @@ describe('Engine - Object Type Definitions', () => {
     test('should parse attribute with timeline', () => {
       const source = `Objecttype persoon
   inkomen Bedrag voor elk jaar;`;
-      
+
       const result = engine.parse(source);
-      
+
       expect(result.success).toBe(true);
       expect(stripLocations(result.ast?.members[0])).toEqual({
         type: 'AttributeSpecification',
@@ -203,9 +206,9 @@ describe('Engine - Object Type Definitions', () => {
   naam Tekst;
   leeftijd Numeriek (geheel getal);
   inkomen Bedrag met eenheid € voor elk jaar;`;
-      
+
       const result = engine.parse(source);
-      
+
       expect(result.success).toBe(true);
       expect(stripLocations(result.ast)).toEqual({
         type: 'ObjectTypeDefinition',
@@ -243,9 +246,9 @@ describe('Engine - Object Type Definitions', () => {
     test('should execute object type definition', () => {
       const source = `Objecttype persoon
   naam tekst;`;
-      
+
       const result = engine.run(source);
-      
+
       expect(result.success).toBe(true);
       expect(result.value).toEqual({
         type: 'string',
