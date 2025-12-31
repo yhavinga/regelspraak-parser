@@ -940,27 +940,25 @@ export class RuleExecutor implements IRuleExecutor {
 
     if (verdeling.targetCollection.type === 'AttributeReference') {
       const attrRef = verdeling.targetCollection as any;
+      const path = attrRef.path as string[];
 
-      // For AttributeReference with path like ["personen", "ontvangen aantal"]
-      // With object-first order: first is collection, second is attribute
-      if (attrRef.path.length === 2) {
-        const collectionName = attrRef.path[0];
-        attributeName = attrRef.path[1];
-
-        // Look up the collection as a variable
-        const collectionValue = this.expressionEvaluator.evaluate({
-          type: 'VariableReference',
-          variableName: collectionName
-        } as VariableReference, context);
-
-        if (collectionValue.type === 'array') {
-          targetObjects = collectionValue.value as Value[];
-        } else {
-          throw new Error('Distribution target collection must evaluate to an array');
-        }
-      } else {
-        throw new Error('Distribution target AttributeReference must have exactly 2 path elements');
+      if (path.length === 0) {
+        throw new Error('Distribution target path cannot be empty');
       }
+
+      // Attribute name is always the last element in the path
+      attributeName = path[path.length - 1];
+
+      // Navigation path is everything except the attribute (last element)
+      const navigationPath = path.slice(0, -1);
+
+      if (navigationPath.length === 0) {
+        // Simple case: just an attribute on current instance, no collection
+        throw new Error('Distribution target must reference a collection, not just an attribute');
+      }
+
+      // Try to resolve the collection
+      targetObjects = this.resolveCollectionForVerdeling(navigationPath, context);
     } else {
       throw new Error('Distribution target must be a navigation expression or attribute reference');
     }
@@ -1012,6 +1010,131 @@ export class RuleExecutor implements IRuleExecutor {
       success: true
       // Distributed totalAmount to targetObjects.length targets
     };
+  }
+
+
+  /**
+   * Resolve navigation path to collection of target objects for Verdeling.
+   * Handles patterns like "de X van alle Y van Z" where:
+   * - Y is a collection reference (role name, object type, or variable)
+   * - Z may be a navigation context
+   * 
+   * Ported from Python's _resolve_collection_for_verdeling.
+   */
+  private resolveCollectionForVerdeling(navigationPath: string[], context: RuntimeContext): Value[] {
+    const ctx = context as Context;
+
+    // First path element is typically the collection reference
+    const collectionRef = navigationPath[0];
+
+    // Helper to strip articles from text
+    const stripArticles = (text: string): string => {
+      return text.replace(/^(de|het|een|alle)\s+/i, '').trim();
+    };
+
+    // Try 1: Simple variable lookup (handles existing 2-path cases)
+    const varValue = ctx.getVariable(collectionRef);
+    if (varValue?.type === 'array') {
+      return varValue.value as Value[];
+    }
+
+    // Try 2: Look for FeitType relationship from current instance
+    if (ctx.current_instance) {
+      const currentType = (ctx.current_instance as any).objectType;
+      const pathClean = stripArticles(collectionRef).toLowerCase();
+
+      // Check all FeitTypes for matching roles
+      for (const feittype of ctx.getAllFeittypen()) {
+        if (!feittype.rollen) continue;
+
+        const roleTypes = feittype.rollen.map(r => r.objectType);
+        if (!roleTypes.includes(currentType)) continue;
+
+        // Check if any role name matches our path element
+        for (let i = 0; i < feittype.rollen.length; i++) {
+          const rol = feittype.rollen[i];
+          const roleName = stripArticles(rol.naam || '').toLowerCase();
+          const rolePlural = rol.meervoud ? stripArticles(rol.meervoud).toLowerCase() : '';
+
+          // Check for matches (exact, contains, plural)
+          const matches =
+            pathClean === roleName ||
+            pathClean === rolePlural ||
+            pathClean.includes(roleName) ||
+            pathClean.includes(rolePlural) ||
+            (rolePlural && pathClean.includes(rolePlural));
+
+          if (matches) {
+            // Determine if current instance is subject or object in this relationship
+            let currentRoleIndex: number | null = null;
+            for (let idx = 0; idx < feittype.rollen.length; idx++) {
+              const r = feittype.rollen[idx];
+              if (r.objectType === currentType) {
+                currentRoleIndex = idx;
+                break;
+              }
+            }
+
+            const asSubject = currentRoleIndex === 0;
+            const related = ctx.getRelatedObjects(ctx.current_instance, feittype.naam, asSubject);
+
+            if (related.length > 0) {
+              return related;
+            }
+          }
+        }
+      }
+
+      // Try 3: Find all objects of a matching type
+      const matchedType = this.findObjectTypeMatch(pathClean, ctx);
+      if (matchedType) {
+        return ctx.getObjectsByType(matchedType);
+      }
+    }
+
+    // Try 4: Look up as variable with article stripped
+    const cleanedRef = stripArticles(collectionRef);
+    const cleanedValue = ctx.getVariable(cleanedRef);
+    if (cleanedValue?.type === 'array') {
+      return cleanedValue.value as Value[];
+    }
+
+    // Fallback: return empty array
+    return [];
+  }
+
+  /**
+   * Find object type that matches the given text (singular or plural form)
+   */
+  private findObjectTypeMatch(text: string, context: RuntimeContext): string | null {
+    const ctx = context as Context;
+    const textLower = text.toLowerCase();
+
+    for (const objType of ctx.domainModel.objectTypes || []) {
+      const nameLower = objType.name.toLowerCase();
+
+      // Exact match
+      if (textLower === nameLower) {
+        return objType.name;
+      }
+
+      // Plural match
+      if (objType.plural) {
+        const plurals = Array.isArray(objType.plural) ? objType.plural : [objType.plural];
+        for (const plural of plurals) {
+          if (textLower === plural.toLowerCase()) {
+            return objType.name;
+          }
+        }
+      }
+
+      // Contains match (for compound names)
+      if (textLower.includes(nameLower) || nameLower.includes(textLower)) {
+        return objType.name;
+      }
+    }
+
+    return null;
   }
 
 
