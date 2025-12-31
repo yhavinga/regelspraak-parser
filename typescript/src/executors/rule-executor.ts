@@ -83,7 +83,7 @@ export class RuleExecutor implements IRuleExecutor {
           context
         );
       }
-      
+
       // For FeitCreatie rules with conditions, iterate over objects
       // The condition determines which objects trigger relationship creation
       if (result.type === 'FeitCreatie' && rule.condition) {
@@ -93,13 +93,13 @@ export class RuleExecutor implements IRuleExecutor {
           context
         );
       }
-      
+
       // Check if there's a condition for other rule types
       if (rule.condition) {
         try {
           // Evaluate the condition
           const conditionResult = this.expressionEvaluator.evaluate(rule.condition.expression, context);
-          
+
           // Check if condition is truthy
           if (!this.isTruthy(conditionResult)) {
             // Condition is false, skip rule execution
@@ -118,17 +118,17 @@ export class RuleExecutor implements IRuleExecutor {
           };
         }
       }
-      
+
       // Mark rule as executed for regel status tracking
       const ctx = context as any;
       const ruleName = rule.name || rule.naam;
       if (ctx.markRuleExecuted && ruleName) {
         ctx.markRuleExecuted(ruleName);
       }
-      
+
       // Set current rule name for consistency rule tracking
       ctx._currentRuleName = ruleName;
-      
+
       // Special handling for inconsistent-type consistency rules
       if (result.type === 'Consistentieregel') {
         const consistentieregel = result as Consistentieregel;
@@ -139,7 +139,7 @@ export class RuleExecutor implements IRuleExecutor {
           }
         }
       }
-      
+
       // Execute the result part(s)
       return this.executeResultPart(result, context);
     } catch (error) {
@@ -149,35 +149,35 @@ export class RuleExecutor implements IRuleExecutor {
       };
     }
   }
-  
+
   private executeResultPart(result: ResultPart, context: RuntimeContext): RuleExecutionResult {
     switch (result.type) {
       case 'Gelijkstelling':
         return this.executeGelijkstelling(result as Gelijkstelling, context);
-      
+
       case 'ObjectCreation':
         return this.executeObjectCreation(result as ObjectCreation, context);
-      
+
       case 'MultipleResults':
         return this.executeMultipleResults(result as MultipleResults, context);
-      
+
       case 'Kenmerktoekenning':
         return this.executeKenmerktoekenning(result as Kenmerktoekenning, context);
-      
+
       case 'Consistentieregel':
         return this.executeConsistentieregel(result as Consistentieregel, context);
-      
+
       case 'Verdeling':
         return this.executeVerdeling(result as Verdeling, context);
-      
+
       case 'FeitCreatie':
         return this.feitExecutor.executeFeitCreatie(result as FeitCreatie, context);
-      
+
       default:
         throw new Error(`Unsupported result type: ${(result as any).type}`);
     }
   }
-  
+
   private executeGelijkstelling(gelijkstelling: Gelijkstelling, context: RuntimeContext): RuleExecutionResult {
     // The target is an AttributeReference or DimensionedAttributeReference
     if (!gelijkstelling.target) {
@@ -199,20 +199,20 @@ export class RuleExecutor implements IRuleExecutor {
     } else {
       throw new Error(`No path in gelijkstelling target. Target type: ${gelijkstelling.target.type}`);
     }
-    
+
     if (targetPath.length === 0) {
       throw new Error('Empty target path in gelijkstelling');
     }
-    
+
     // Check if this is an object-scoped rule
     if (isObjectScopedRule(targetPath)) {
       // With object-first order, the object type is the first element
       const objectType = targetPath[0];
-      
+
       // Handle multi-word object types - "Natuurlijkpersoon" should match "Natuurlijk persoon"
       // Try exact match first
       let objects = (context as Context).getObjectsByType(objectType);
-      
+
       // If no exact match, try variations
       if (objects.length === 0) {
         // Try common variations of multi-word object types
@@ -224,7 +224,7 @@ export class RuleExecutor implements IRuleExecutor {
           // Handle specific case
           objectType === 'Natuurlijkpersoon' ? 'Natuurlijk persoon' : objectType
         ];
-        
+
         for (const variant of variations) {
           if (variant !== objectType) {
             objects = (context as Context).getObjectsByType(variant);
@@ -232,7 +232,7 @@ export class RuleExecutor implements IRuleExecutor {
           }
         }
       }
-      
+
       if (objects.length > 0) {
         // Object-scoped rule - iterate over all objects of this type
         for (const obj of objects) {
@@ -240,42 +240,42 @@ export class RuleExecutor implements IRuleExecutor {
           const ctx = context as Context;
           const oldInstance = ctx.current_instance;
           ctx.current_instance = obj;
-          
+
           try {
             // Evaluate expression in the context of this object
             const value = this.expressionEvaluator.evaluate(gelijkstelling.expression, context);
-            
+
             // Navigate through the path to set the attribute
             // For "De vluchtdatum van de reis van een Natuurlijk persoon"
             // path = ["Natuurlijkpersoon", "reis", "vluchtdatum"] (object-first order)
             // Start from current object (Natuurlijk persoon) and navigate to reis (Vlucht)
-            
+
             let currentObj = obj;
             // Navigate through intermediate segments (skip first=object type and last=attribute)
             for (let i = 1; i < targetPath.length - 1; i++) {
               const navSegment = targetPath[i];
-              
+
               // First check if this is a Feittype role navigation
               let navigatedThroughFeittype = false;
               const feittypen = ctx.getAllFeittypen ? ctx.getAllFeittypen() : [];
-              
+
               for (const feittype of feittypen) {
                 for (let targetRoleIdx = 0; targetRoleIdx < (feittype.rollen || []).length; targetRoleIdx++) {
                   const targetRole = feittype.rollen[targetRoleIdx];
                   // Clean role name for comparison
                   const roleNameClean = targetRole.naam.toLowerCase().replace(/^(de|het|een)\s+/, '');
                   const segmentClean = navSegment.toLowerCase().replace(/^(de|het|een)\s+/, '');
-                  
-                  if (roleNameClean === segmentClean || 
-                      (targetRole.meervoud && targetRole.meervoud.toLowerCase() === segmentClean)) {
+
+                  if (roleNameClean === segmentClean ||
+                    (targetRole.meervoud && targetRole.meervoud.toLowerCase() === segmentClean)) {
                     // Found the target role we want to navigate to
                     // Now find which other role matches our current object
                     const currentObjType = (currentObj as any).objectType || currentObj.type;
-                    
+
                     // Find the role that matches the current object type
                     for (let sourceRoleIdx = 0; sourceRoleIdx < feittype.rollen.length; sourceRoleIdx++) {
                       if (sourceRoleIdx === targetRoleIdx) continue; // Skip the target role
-                      
+
                       const sourceRole = feittype.rollen[sourceRoleIdx];
                       if (sourceRole.objectType === currentObjType) {
                         // Current object matches this source role
@@ -283,7 +283,7 @@ export class RuleExecutor implements IRuleExecutor {
                         // If source is at index 0, it's the subject
                         const asSubject = (sourceRoleIdx === 0);
                         const relatedObjects = ctx.getRelatedObjects(currentObj, feittype.naam, asSubject);
-                        
+
                         if (relatedObjects && relatedObjects.length > 0) {
                           currentObj = relatedObjects[0];
                           navigatedThroughFeittype = true;
@@ -296,12 +296,12 @@ export class RuleExecutor implements IRuleExecutor {
                 }
                 if (navigatedThroughFeittype) break;
               }
-              
+
               if (!navigatedThroughFeittype) {
                 // Try as a direct attribute
                 const objData = currentObj.value as Record<string, Value>;
                 const nextObj = objData[navSegment];
-                
+
                 if (!nextObj || nextObj.type !== 'object') {
                   // Can't navigate further - skip this object
                   currentObj = null as any;
@@ -310,19 +310,19 @@ export class RuleExecutor implements IRuleExecutor {
                 currentObj = nextObj;
               }
             }
-            
+
             if (currentObj) {
               // Set the attribute on the final object (last element in path)
               const attributeName = targetPath[targetPath.length - 1];
-              
+
               // Check if this is a timeline value
               if (value.type === 'timeline') {
                 // Store as timeline attribute
                 const objType = (currentObj as any).objectType || currentObj.type || objectType;
                 const objId = (currentObj.value as any).instance_id || (currentObj as any).objectId || 'unknown';
                 // Wrap in TimelineValueImpl if not already
-                const timelineImpl = value instanceof TimelineValueImpl 
-                  ? value 
+                const timelineImpl = value instanceof TimelineValueImpl
+                  ? value
                   : new TimelineValueImpl((value as any).value);
                 ctx.setTimelineAttribute(objType, objId, attributeName, timelineImpl);
               } else {
@@ -338,7 +338,7 @@ export class RuleExecutor implements IRuleExecutor {
             ctx.current_instance = oldInstance;
           }
         }
-        
+
         return {
           success: true,
           target: targetPath.join('.'),
@@ -346,10 +346,10 @@ export class RuleExecutor implements IRuleExecutor {
         };
       }
     }
-    
+
     // Not an object-scoped rule - evaluate the expression once
     const value = this.expressionEvaluator.evaluate(gelijkstelling.expression, context);
-    
+
     if (targetPath.length === 1) {
       // Simple attribute name - likely a variable assignment
       context.setVariable(targetPath[0], value);
@@ -362,11 +362,11 @@ export class RuleExecutor implements IRuleExecutor {
       // Pattern like ["berekening", "resultaat"] - object-first order
       const objectName = targetPath[0];
       const attributeName = targetPath[1];
-      
-      
+
+
       // First, try to get the object as a variable
       const objectValue = context.getVariable(objectName);
-      
+
       if (objectValue && objectValue.type === 'object') {
         // Set the attribute on the specific object
         // Check if this is a timeline value
@@ -375,8 +375,8 @@ export class RuleExecutor implements IRuleExecutor {
           const objType = (objectValue as any).objectType || objectValue.type || objectName;
           const objId = (objectValue.value as any).instance_id || (objectValue as any).objectId || 'unknown';
           // Wrap in TimelineValueImpl if not already
-          const timelineImpl = value instanceof TimelineValueImpl 
-            ? value 
+          const timelineImpl = value instanceof TimelineValueImpl
+            ? value
             : new TimelineValueImpl((value as any).value);
           (context as Context).setTimelineAttribute(objType, objId, attributeName, timelineImpl);
         } else {
@@ -393,7 +393,7 @@ export class RuleExecutor implements IRuleExecutor {
           // Fall back to exact name
           objects = (context as Context).getObjectsByType(objectName);
         }
-        
+
         // Set attribute on all objects of this type
         for (const obj of objects) {
           if (obj.type === 'object') {
@@ -403,8 +403,8 @@ export class RuleExecutor implements IRuleExecutor {
               const objType = (obj as any).objectType || obj.type || capitalizedName;
               const objId = (obj.value as any).instance_id || (obj as any).objectId || 'unknown';
               // Wrap in TimelineValueImpl if not already
-              const timelineImpl = value instanceof TimelineValueImpl 
-                ? value 
+              const timelineImpl = value instanceof TimelineValueImpl
+                ? value
                 : new TimelineValueImpl((value as any).value);
               (context as Context).setTimelineAttribute(objType, objId, attributeName, timelineImpl);
             } else {
@@ -423,11 +423,11 @@ export class RuleExecutor implements IRuleExecutor {
     } else {
       // Complex path - use navigation resolver
       const result = setValueAtPath(targetPath, value, context);
-      
+
       if (!result.success) {
         throw new Error(`Failed to set value at path ${targetPath.join('.')}: ${result.error}`);
       }
-      
+
       return {
         success: true,
         target: targetPath.join('.'),
@@ -435,18 +435,18 @@ export class RuleExecutor implements IRuleExecutor {
       };
     }
   }
-  
+
   private executeObjectCreation(objectCreation: ObjectCreation, context: RuntimeContext): RuleExecutionResult {
     // Generate a unique ID for the new object
     const objectId = (context as any).generateObjectId(objectCreation.objectType);
-    
+
     // Initialize attributes
     const attributes: Record<string, Value> = {};
-    
+
     // Create a temporary context that includes already-initialized attributes
     // This allows expressions to reference other attributes being set
     const tempContext = Object.create(context);
-    tempContext.getVariable = function(name: string): Value | undefined {
+    tempContext.getVariable = function (name: string): Value | undefined {
       // First check if it's an attribute being initialized
       if (attributes[name] !== undefined) {
         return attributes[name];
@@ -454,19 +454,19 @@ export class RuleExecutor implements IRuleExecutor {
       // Otherwise delegate to the original context
       return context.getVariable(name);
     };
-    
+
     // Evaluate each attribute initialization
     for (const init of objectCreation.attributeInits) {
       const value = this.expressionEvaluator.evaluate(init.value, tempContext);
       attributes[init.attribute] = value;
     }
-    
+
     // Create the object in the context
     context.createObject(objectCreation.objectType, objectId, attributes);
-    
+
     // Add to execution trace
     (context as any).addExecutionTrace(`Created ${objectCreation.objectType} with id ${objectId}`);
-    
+
     return {
       success: true,
       objectType: objectCreation.objectType,
@@ -474,30 +474,30 @@ export class RuleExecutor implements IRuleExecutor {
       attributes
     };
   }
-  
+
   private executeMultipleResults(multipleResults: MultipleResults, context: RuntimeContext): RuleExecutionResult {
     const results: RuleExecutionResult[] = [];
-    
+
     for (const result of multipleResults.results) {
       const execResult = this.executeResultPart(result, context);
       results.push(execResult);
-      
+
       // If any result fails, stop and return the failure
       if (!execResult.success) {
         return execResult;
       }
     }
-    
+
     return {
       success: true,
       multipleResults: results
     };
   }
-  
+
   private executeKenmerktoekenning(kenmerktoekenning: Kenmerktoekenning, context: RuntimeContext): RuleExecutionResult {
     // Evaluate the subject expression to get the object(s)
     const subjectValue = this.expressionEvaluator.evaluate(kenmerktoekenning.subject, context);
-    
+
     // The subject should reference an object or collection of objects
     if (subjectValue.type === 'object') {
       // Single object - set the characteristic
@@ -505,7 +505,7 @@ export class RuleExecutor implements IRuleExecutor {
       // Kenmerken are stored with "is " prefix
       const kenmerkKey = `is ${kenmerktoekenning.characteristic}`;
       objectData[kenmerkKey] = { type: 'boolean', value: true };
-      
+
       return {
         success: true,
         // Successfully set characteristic
@@ -514,7 +514,7 @@ export class RuleExecutor implements IRuleExecutor {
       // Collection of objects - set characteristic on all
       const objects = subjectValue.value as Value[];
       let count = 0;
-      
+
       for (const obj of objects) {
         if (obj.type === 'object') {
           const objectData = obj.value as Record<string, Value>;
@@ -524,7 +524,7 @@ export class RuleExecutor implements IRuleExecutor {
           count++;
         }
       }
-      
+
       return {
         success: true,
         // Successfully set characteristic on multiple objects
@@ -533,31 +533,44 @@ export class RuleExecutor implements IRuleExecutor {
       throw new Error(`Cannot set characteristic on value of type ${subjectValue.type}`);
     }
   }
-  
+
   private executeKenmerktoekenningWithCondition(
-    kenmerktoekenning: Kenmerktoekenning, 
+    kenmerktoekenning: Kenmerktoekenning,
     condition: Voorwaarde,
     context: RuntimeContext
   ): RuleExecutionResult {
     // Extract the object type from the subject
-    // The subject should be something like { type: 'VariableReference', variableName: 'Natuurlijkpersoon' }
+    // The subject can be:
+    // - VariableReference: { type: 'VariableReference', variableName: 'Natuurlijkpersoon' }
+    // - AttributeReference with single path: { type: 'AttributeReference', path: ['Planning'] }
     const subjectExpr = kenmerktoekenning.subject;
-    
+
+    let objectType: string | undefined;
+
     if (subjectExpr.type === 'VariableReference') {
       const varRef = subjectExpr as VariableReference;
-      const objectType = varRef.variableName;
-      
+      objectType = varRef.variableName;
+    } else if (subjectExpr.type === 'AttributeReference') {
+      // Handle AttributeReference with single-element path (equivalent to VariableReference)
+      const attrRef = subjectExpr as AttributeReference;
+      if (attrRef.path && attrRef.path.length === 1) {
+        objectType = attrRef.path[0];
+      }
+    }
+
+    if (objectType) {
+
       // Get all objects of this type
       const objects = (context as Context).getObjectsByType(objectType);
-      
+
       let assignedCount = 0;
-      
+
       // For each object, evaluate the condition with the object as context
       for (const obj of objects) {
         // Create a temporary context with _subject pointing to the current object
         const tempContext = Object.create(context);
         tempContext.setVariable = context.setVariable.bind(context);
-        tempContext.getVariable = function(name: string): Value | undefined {
+        tempContext.getVariable = function (name: string): Value | undefined {
           if (name === '_subject') {
             // The obj itself is the Value object
             return obj;
@@ -566,11 +579,11 @@ export class RuleExecutor implements IRuleExecutor {
         };
         // Also set current_instance for pronoun resolution (self/zijn/haar)
         (tempContext as any).current_instance = obj;
-        
+
         // Evaluate the condition for this object
         try {
           const conditionResult = this.expressionEvaluator.evaluate(condition.expression, tempContext);
-          
+
           if (this.isTruthy(conditionResult)) {
             // Condition is true, assign the characteristic
             const objectData = obj.value as Record<string, Value>;
@@ -584,16 +597,16 @@ export class RuleExecutor implements IRuleExecutor {
           // Continue to next object
         }
       }
-      
+
       return {
         success: true,
         // Successfully set characteristic with condition
       };
     }
-    
-    throw new Error('Conditional kenmerktoekenning requires a variable reference subject');
+
+    throw new Error('Conditional kenmerktoekenning requires a VariableReference or single-path AttributeReference subject');
   }
-  
+
   private isTruthy(value: Value): boolean {
     // Check if a value is considered true in a conditional context
     if (value.type === 'boolean') {
@@ -608,7 +621,7 @@ export class RuleExecutor implements IRuleExecutor {
     // For other types, consider non-null as truthy
     return value.value != null;
   }
-  
+
   /**
    * Deduce the object type referenced in a condition.
    * Used for ObjectCreation and FeitCreatie rules to determine what objects to iterate over
@@ -618,53 +631,53 @@ export class RuleExecutor implements IRuleExecutor {
     if (!voorwaarde || !voorwaarde.expression) {
       return undefined;
     }
-    
+
     // Extract attribute references from the condition expression
     const attrRefs = this.extractAttributeReferences(voorwaarde.expression);
-    
+
     // Find which object type owns these attributes
     // We need access to the domain model to check attribute ownership
     const ctx = context as any;
     if (!ctx.domainModel || !ctx.domainModel.objectTypes) {
       return undefined;
     }
-    
+
     for (const attrRef of attrRefs) {
       if (attrRef.path && attrRef.path.length > 0) {
         // Get the attribute name (first element usually)
         let attrName = attrRef.path[0];
         // Remove articles
         attrName = attrName.replace(/^(het |de |een )/i, '');
-        
+
         // Check which object type has this attribute
         for (const objType of ctx.domainModel.objectTypes) {
-          if (objType.attributes && objType.attributes.some((attr: any) => 
+          if (objType.attributes && objType.attributes.some((attr: any) =>
             attr.name === attrName || attr.naam === attrName)) {
             return objType.name || objType.naam;
           }
         }
       }
     }
-    
+
     return undefined;
   }
-  
+
   /**
    * Extract all attribute references from an expression.
    * Used to determine which object type a condition is referring to.
    */
   private extractAttributeReferences(expr: Expression): AttributeReference[] {
     const refs: AttributeReference[] = [];
-    
+
     if (!expr) {
       return refs;
     }
-    
+
     // Check if this expression itself is an AttributeReference
     if (expr.type === 'AttributeReference') {
       refs.push(expr as AttributeReference);
     }
-    
+
     // Recursively check subexpressions for BinaryExpression
     if ((expr as any).left) {
       refs.push(...this.extractAttributeReferences((expr as any).left));
@@ -672,13 +685,13 @@ export class RuleExecutor implements IRuleExecutor {
     if ((expr as any).right) {
       refs.push(...this.extractAttributeReferences((expr as any).right));
     }
-    
+
     // For UnaryExpression
     if ((expr as any).operand) {
       refs.push(...this.extractAttributeReferences((expr as any).operand));
     }
-    
-    
+
+
     // For FunctionCall expressions
     if (expr.type === 'FunctionCall') {
       const funcExpr = expr as any;
@@ -688,10 +701,10 @@ export class RuleExecutor implements IRuleExecutor {
         }
       }
     }
-    
+
     return refs;
   }
-  
+
   /**
    * Execute ObjectCreation with a condition by iterating over relevant objects
    */
@@ -702,7 +715,7 @@ export class RuleExecutor implements IRuleExecutor {
   ): RuleExecutionResult {
     // Deduce which object type to iterate over from the condition
     const targetType = this.deduceTypeFromCondition(condition, context);
-    
+
     if (!targetType) {
       // Cannot deduce type, fall back to regular execution with condition check
       const conditionResult = this.expressionEvaluator.evaluate(condition.expression, context);
@@ -715,18 +728,18 @@ export class RuleExecutor implements IRuleExecutor {
       }
       return this.executeObjectCreation(objectCreation, context);
     }
-    
+
     // Get all objects of the deduced type
     const objects = (context as Context).getObjectsByType(targetType);
     let createdCount = 0;
-    const createdObjects: Array<{objectType: string, objectId: string, attributes: Record<string, Value>}> = [];
-    
+    const createdObjects: Array<{ objectType: string, objectId: string, attributes: Record<string, Value> }> = [];
+
     // For each object, evaluate the condition with the object as context
     for (const obj of objects) {
       // Create a temporary context with current_instance pointing to the current object
       const tempContext = Object.create(context);
       tempContext.setVariable = context.setVariable.bind(context);
-      tempContext.getVariable = function(name: string): Value | undefined {
+      tempContext.getVariable = function (name: string): Value | undefined {
         if (name === '_subject' || name === 'current_instance') {
           return obj;
         }
@@ -734,11 +747,11 @@ export class RuleExecutor implements IRuleExecutor {
       };
       // Also set current_instance for attribute resolution
       (tempContext as any).current_instance = obj;
-      
+
       // Evaluate the condition for this object
       try {
         const conditionResult = this.expressionEvaluator.evaluate(condition.expression, tempContext);
-        
+
         if (this.isTruthy(conditionResult)) {
           // Condition is true, create the object with this context
           const result = this.executeObjectCreation(objectCreation, tempContext);
@@ -758,7 +771,7 @@ export class RuleExecutor implements IRuleExecutor {
         continue;
       }
     }
-    
+
     return {
       success: true,
       value: {
@@ -767,7 +780,7 @@ export class RuleExecutor implements IRuleExecutor {
       }
     };
   }
-  
+
   /**
    * Execute FeitCreatie with a condition by iterating over relevant objects
    */
@@ -778,7 +791,7 @@ export class RuleExecutor implements IRuleExecutor {
   ): RuleExecutionResult {
     // Deduce which object type to iterate over from the condition
     const targetType = this.deduceTypeFromCondition(condition, context);
-    
+
     if (!targetType) {
       // Cannot deduce type, fall back to regular execution with condition check
       const conditionResult = this.expressionEvaluator.evaluate(condition.expression, context);
@@ -791,17 +804,17 @@ export class RuleExecutor implements IRuleExecutor {
       }
       return this.feitExecutor.executeFeitCreatie(feitCreatie, context);
     }
-    
+
     // Get all objects of the deduced type
     const objects = (context as Context).getObjectsByType(targetType);
     let totalCreated = 0;
-    
+
     // For each object, evaluate the condition with the object as context
     for (const obj of objects) {
       // Create a temporary context with current_instance pointing to the current object
       const tempContext = Object.create(context);
       tempContext.setVariable = context.setVariable.bind(context);
-      tempContext.getVariable = function(name: string): Value | undefined {
+      tempContext.getVariable = function (name: string): Value | undefined {
         if (name === '_subject' || name === 'current_instance') {
           return obj;
         }
@@ -809,11 +822,11 @@ export class RuleExecutor implements IRuleExecutor {
       };
       // Also set current_instance for attribute resolution
       (tempContext as any).current_instance = obj;
-      
+
       // Evaluate the condition for this object
       try {
         const conditionResult = this.expressionEvaluator.evaluate(condition.expression, tempContext);
-        
+
         if (this.isTruthy(conditionResult)) {
           // Condition is true, create the relationships with this context
           const result = this.feitExecutor.executeFeitCreatie(feitCreatie, tempContext);
@@ -833,7 +846,7 @@ export class RuleExecutor implements IRuleExecutor {
         continue;
       }
     }
-    
+
     return {
       success: true,
       value: {
@@ -842,33 +855,33 @@ export class RuleExecutor implements IRuleExecutor {
       }
     };
   }
-  
+
   private executeConsistentieregel(consistentieregel: Consistentieregel, context: RuntimeContext): RuleExecutionResult {
     if (consistentieregel.criteriumType === 'uniek') {
       // Handle uniqueness check
       if (!consistentieregel.target) {
         throw new Error('Uniqueness check requires a target expression');
       }
-      
+
       // Evaluate the target expression to get all values to check
       const targetValue = this.expressionEvaluator.evaluate(consistentieregel.target, context);
-      
+
       // The target should be an array of values
       if (targetValue.type !== 'array') {
         throw new Error('Uniqueness check target must evaluate to an array');
       }
-      
+
       const values = targetValue.value as Value[];
       const uniqueValues = new Set<any>();
       let hasNonUniqueValues = false;
-      
+
       // Check for duplicates
       for (const value of values) {
         // Skip undefined/null values
         if (value.value === undefined || value.value === null) {
           continue;
         }
-        
+
         const stringKey = JSON.stringify(value.value);
         if (uniqueValues.has(stringKey)) {
           hasNonUniqueValues = true;
@@ -881,7 +894,7 @@ export class RuleExecutor implements IRuleExecutor {
         }
         uniqueValues.add(stringKey);
       }
-      
+
       // For consistency rules, we don't fail on validation errors
       // Instead, we record the result in the context (implementation specific)
       return {
@@ -893,33 +906,33 @@ export class RuleExecutor implements IRuleExecutor {
       if (consistentieregel.condition) {
         // Evaluate the condition
         const conditionResult = this.expressionEvaluator.evaluate(consistentieregel.condition, context);
-        
+
         // For inconsistency rules, we record if the data is inconsistent
         return {
           success: true,
           // The rule executed successfully
         };
       }
-      
+
       // No condition means always inconsistent?
       return {
         success: true,
       };
     }
-    
+
     throw new Error(`Unknown consistency criterion type: ${consistentieregel.criteriumType}`);
   }
-  
+
   private executeVerdeling(verdeling: Verdeling, context: RuntimeContext): RuleExecutionResult {
     // Evaluate the source amount to get the total to distribute
     const sourceValue = this.expressionEvaluator.evaluate(verdeling.sourceAmount, context);
-    
+
     if (sourceValue.type !== 'number') {
       throw new Error('Distribution source must be a number');
     }
-    
+
     const totalAmount = sourceValue.value as number;
-    
+
     // Parse the target collection to extract objects and attribute
     // Pattern: "de <attribute> van <collection>"
     let targetObjects: Value[] = [];
@@ -927,19 +940,19 @@ export class RuleExecutor implements IRuleExecutor {
 
     if (verdeling.targetCollection.type === 'AttributeReference') {
       const attrRef = verdeling.targetCollection as any;
-      
+
       // For AttributeReference with path like ["personen", "ontvangen aantal"]
       // With object-first order: first is collection, second is attribute
       if (attrRef.path.length === 2) {
         const collectionName = attrRef.path[0];
         attributeName = attrRef.path[1];
-        
+
         // Look up the collection as a variable
         const collectionValue = this.expressionEvaluator.evaluate({
           type: 'VariableReference',
           variableName: collectionName
         } as VariableReference, context);
-        
+
         if (collectionValue.type === 'array') {
           targetObjects = collectionValue.value as Value[];
         } else {
@@ -951,7 +964,7 @@ export class RuleExecutor implements IRuleExecutor {
     } else {
       throw new Error('Distribution target must be a navigation expression or attribute reference');
     }
-    
+
     if (targetObjects.length === 0) {
       // Nothing to distribute to
       // Handle remainder if specified
@@ -963,7 +976,7 @@ export class RuleExecutor implements IRuleExecutor {
         // No targets for distribution
       };
     }
-    
+
     // Calculate distribution based on methods
     const distributionResult = this.calculateDistribution(
       totalAmount,
@@ -971,21 +984,21 @@ export class RuleExecutor implements IRuleExecutor {
       verdeling.distributionMethods,
       context
     );
-    
+
     // Apply distributed values to target objects
     for (let i = 0; i < targetObjects.length; i++) {
       const targetObj = targetObjects[i];
       if (!targetObj || targetObj.type !== 'object') {
         continue;
       }
-      
+
       const objectData = targetObj.value as Record<string, Value>;
       objectData[attributeName] = {
         type: 'number',
         value: distributionResult.amounts[i]
       };
     }
-    
+
     // Handle remainder if specified
     if (verdeling.remainderTarget && distributionResult.remainder > 0) {
       const remainderValue: Value = {
@@ -994,14 +1007,14 @@ export class RuleExecutor implements IRuleExecutor {
       };
       this.setRemainderValue(verdeling.remainderTarget, remainderValue, context);
     }
-    
+
     return {
       success: true
       // Distributed totalAmount to targetObjects.length targets
     };
   }
-  
-  
+
+
   private setRemainderValue(remainderTarget: Expression, value: Value, context: RuntimeContext): void {
     // The remainder target should be an attribute reference on the current instance
     if (remainderTarget.type === 'AttributeReference') {
@@ -1018,7 +1031,7 @@ export class RuleExecutor implements IRuleExecutor {
       }
     }
   }
-  
+
   private calculateDistribution(
     totalAmount: number,
     targetObjects: Value[],
@@ -1029,14 +1042,14 @@ export class RuleExecutor implements IRuleExecutor {
     if (n === 0) {
       return { amounts: [], remainder: totalAmount };
     }
-    
+
     // Start with equal distribution as default
     let amounts = new Array(n).fill(totalAmount / n);
     let hasRatio = false;
     let hasOrdering = false;
     let hasMaximum = false;
     let hasRounding = false;
-    
+
     // Extract all method configurations
     let ratioExpression: Expression | undefined;
     let orderExpression: Expression | undefined;
@@ -1045,35 +1058,35 @@ export class RuleExecutor implements IRuleExecutor {
     let maximumExpression: Expression | undefined;
     let roundingDecimals: number | undefined;
     let roundingDirection: string | undefined;
-    
+
     // Process methods to extract configurations
     for (const method of methods) {
       switch (method.type) {
         case 'VerdelingGelijkeDelen':
           // Equal distribution is the default
           break;
-          
+
         case 'VerdelingNaarRato':
           hasRatio = true;
           ratioExpression = (method as VerdelingNaarRato).ratioExpression;
           break;
-          
+
         case 'VerdelingOpVolgorde':
           hasOrdering = true;
           const orderMethod = method as VerdelingOpVolgorde;
           orderExpression = orderMethod.orderExpression;
           orderDirection = orderMethod.orderDirection as 'toenemende' | 'afnemende';
           break;
-          
+
         case 'VerdelingTieBreak':
           tieBreakMethod = (method as VerdelingTieBreak).tieBreakMethod;
           break;
-          
+
         case 'VerdelingMaximum':
           hasMaximum = true;
           maximumExpression = (method as VerdelingMaximum).maxExpression;
           break;
-          
+
         case 'VerdelingAfronding':
           hasRounding = true;
           const roundingMethod = method as VerdelingAfronding;
@@ -1082,7 +1095,7 @@ export class RuleExecutor implements IRuleExecutor {
           break;
       }
     }
-    
+
     // Apply distribution logic based on methods
     if (hasOrdering && orderExpression) {
       // Sort objects and apply ordered distribution
@@ -1104,7 +1117,7 @@ export class RuleExecutor implements IRuleExecutor {
         context
       );
     }
-    
+
     // Apply maximum constraint if specified
     if (hasMaximum && maximumExpression) {
       amounts = this.applyMaximumConstraint(
@@ -1114,7 +1127,7 @@ export class RuleExecutor implements IRuleExecutor {
         context
       );
     }
-    
+
     // Apply rounding if specified
     if (hasRounding && roundingDecimals !== undefined) {
       amounts = this.applyRounding(
@@ -1123,14 +1136,14 @@ export class RuleExecutor implements IRuleExecutor {
         roundingDirection === 'naar beneden'
       );
     }
-    
+
     // Calculate remainder
     const distributedTotal = amounts.reduce((sum, amt) => sum + amt, 0);
     const remainder = totalAmount - distributedTotal;
-    
+
     return { amounts, remainder };
   }
-  
+
   private distributeByRatio(
     totalAmount: number,
     targetObjects: Value[],
@@ -1140,18 +1153,18 @@ export class RuleExecutor implements IRuleExecutor {
     // Evaluate ratio expression for each target object
     const ratios: number[] = [];
     let totalRatio = 0;
-    
+
     for (const targetObj of targetObjects) {
       if (targetObj.type !== 'object') {
         ratios.push(0);
         continue;
       }
-      
+
       // Temporarily set this object as current for expression evaluation
       const ctx = context as Context;
       const oldInstance = ctx.current_instance;
       ctx.current_instance = targetObj;
-      
+
       try {
         const ratioValue = this.expressionEvaluator.evaluate(ratioExpression, context);
         if (ratioValue.type === 'number') {
@@ -1165,16 +1178,16 @@ export class RuleExecutor implements IRuleExecutor {
         ctx.current_instance = oldInstance;
       }
     }
-    
+
     // Calculate amounts based on ratios
     if (totalRatio === 0) {
       // If all ratios are 0, distribute equally
       return new Array(targetObjects.length).fill(totalAmount / targetObjects.length);
     }
-    
+
     return ratios.map(ratio => (ratio / totalRatio) * totalAmount);
   }
-  
+
   private distributeOrdered(
     totalAmount: number,
     targetObjects: Value[],
@@ -1185,20 +1198,20 @@ export class RuleExecutor implements IRuleExecutor {
     context: RuntimeContext
   ): number[] {
     // Create array of objects with their order values
-    const objectsWithOrder: Array<{obj: Value, orderValue: any, index: number}> = [];
-    
+    const objectsWithOrder: Array<{ obj: Value, orderValue: any, index: number }> = [];
+
     for (let i = 0; i < targetObjects.length; i++) {
       const targetObj = targetObjects[i];
       if (targetObj.type !== 'object') {
-        objectsWithOrder.push({obj: targetObj, orderValue: 0, index: i});
+        objectsWithOrder.push({ obj: targetObj, orderValue: 0, index: i });
         continue;
       }
-      
+
       // Evaluate order expression for this object
       const ctx = context as Context;
       const oldInstance = ctx.current_instance;
       ctx.current_instance = targetObj;
-      
+
       try {
         const orderValue = this.expressionEvaluator.evaluate(orderExpression, context);
         objectsWithOrder.push({
@@ -1210,23 +1223,23 @@ export class RuleExecutor implements IRuleExecutor {
         ctx.current_instance = oldInstance;
       }
     }
-    
+
     // Sort by order value
     objectsWithOrder.sort((a, b) => {
-      const comparison = a.orderValue < b.orderValue ? -1 : 
-                        a.orderValue > b.orderValue ? 1 : 0;
+      const comparison = a.orderValue < b.orderValue ? -1 :
+        a.orderValue > b.orderValue ? 1 : 0;
       return orderDirection === 'toenemende' ? comparison : -comparison;
     });
-    
+
     // Distribute in order, respecting maximum if specified
     const amounts = new Array(targetObjects.length).fill(0);
     let remainingAmount = totalAmount;
-    
+
     // Group by order value for tie-breaking
-    const groups: Array<Array<{obj: Value, index: number}>> = [];
-    let currentGroup: Array<{obj: Value, index: number}> = [];
+    const groups: Array<Array<{ obj: Value, index: number }>> = [];
+    let currentGroup: Array<{ obj: Value, index: number }> = [];
     let lastOrderValue: any = null;
-    
+
     for (const item of objectsWithOrder) {
       if (lastOrderValue !== null && item.orderValue !== lastOrderValue) {
         if (currentGroup.length > 0) {
@@ -1234,29 +1247,29 @@ export class RuleExecutor implements IRuleExecutor {
           currentGroup = [];
         }
       }
-      currentGroup.push({obj: item.obj, index: item.index});
+      currentGroup.push({ obj: item.obj, index: item.index });
       lastOrderValue = item.orderValue;
     }
     if (currentGroup.length > 0) {
       groups.push(currentGroup);
     }
-    
+
     // Distribute to each group
     for (const group of groups) {
       if (remainingAmount <= 0) break;
-      
+
       // For tied objects, distribute based on tie-break method
       if (group.length === 1) {
         // No tie, give all remaining (respecting maximum)
         const index = group[0].index;
         let amount = remainingAmount;
-        
+
         // Apply maximum if specified
         if (maximumExpression) {
           const ctx = context as Context;
           const oldInstance = ctx.current_instance;
           ctx.current_instance = group[0].obj;
-          
+
           try {
             const maxValue = this.expressionEvaluator.evaluate(maximumExpression, context);
             if (maxValue.type === 'number') {
@@ -1266,7 +1279,7 @@ export class RuleExecutor implements IRuleExecutor {
             ctx.current_instance = oldInstance;
           }
         }
-        
+
         amounts[index] = amount;
         remainingAmount -= amount;
       } else {
@@ -1275,15 +1288,15 @@ export class RuleExecutor implements IRuleExecutor {
           if (tieBreakMethod.type === 'VerdelingGelijkeDelen') {
             // Equal distribution within group
             const amountPerObject = remainingAmount / group.length;
-            for (const {obj, index} of group) {
+            for (const { obj, index } of group) {
               let amount = amountPerObject;
-              
+
               // Apply maximum if specified
               if (maximumExpression) {
                 const ctx = context as Context;
                 const oldInstance = ctx.current_instance;
                 ctx.current_instance = obj;
-                
+
                 try {
                   const maxValue = this.expressionEvaluator.evaluate(maximumExpression, context);
                   if (maxValue.type === 'number') {
@@ -1293,7 +1306,7 @@ export class RuleExecutor implements IRuleExecutor {
                   ctx.current_instance = oldInstance;
                 }
               }
-              
+
               amounts[index] = amount;
               remainingAmount -= amount;
             }
@@ -1307,17 +1320,17 @@ export class RuleExecutor implements IRuleExecutor {
               tieBreakExpression,
               context
             );
-            
+
             // Apply amounts with maximum constraint
             for (let i = 0; i < group.length; i++) {
               let amount = groupAmounts[i];
-              
+
               // Apply maximum if specified
               if (maximumExpression) {
                 const ctx = context as Context;
                 const oldInstance = ctx.current_instance;
                 ctx.current_instance = group[i].obj;
-                
+
                 try {
                   const maxValue = this.expressionEvaluator.evaluate(maximumExpression, context);
                   if (maxValue.type === 'number') {
@@ -1327,7 +1340,7 @@ export class RuleExecutor implements IRuleExecutor {
                   ctx.current_instance = oldInstance;
                 }
               }
-              
+
               amounts[group[i].index] = amount;
               remainingAmount -= amount;
             }
@@ -1335,17 +1348,17 @@ export class RuleExecutor implements IRuleExecutor {
         } else {
           // No tie-break method specified, distribute equally
           const amountPerObject = remainingAmount / group.length;
-          for (const {obj, index} of group) {
+          for (const { obj, index } of group) {
             amounts[index] = amountPerObject;
             remainingAmount -= amountPerObject;
           }
         }
       }
     }
-    
+
     return amounts;
   }
-  
+
   private applyMaximumConstraint(
     amounts: number[],
     targetObjects: Value[],
@@ -1353,19 +1366,19 @@ export class RuleExecutor implements IRuleExecutor {
     context: RuntimeContext
   ): number[] {
     const newAmounts: number[] = [];
-    
+
     for (let i = 0; i < amounts.length; i++) {
       const targetObj = targetObjects[i];
       if (targetObj.type !== 'object') {
         newAmounts.push(amounts[i]);
         continue;
       }
-      
+
       // Evaluate maximum for this object
       const ctx = context as Context;
       const oldInstance = ctx.current_instance;
       ctx.current_instance = targetObj;
-      
+
       try {
         const maxValue = this.expressionEvaluator.evaluate(maximumExpression, context);
         if (maxValue.type === 'number') {
@@ -1377,17 +1390,17 @@ export class RuleExecutor implements IRuleExecutor {
         ctx.current_instance = oldInstance;
       }
     }
-    
+
     return newAmounts;
   }
-  
+
   private applyRounding(
     amounts: number[],
     decimals: number,
     roundDown: boolean
   ): number[] {
     const factor = Math.pow(10, decimals);
-    
+
     return amounts.map(amount => {
       if (roundDown) {
         return Math.floor(amount * factor) / factor;
@@ -1396,11 +1409,11 @@ export class RuleExecutor implements IRuleExecutor {
       }
     });
   }
-  
-  
+
+
   executeRegelGroep(regelGroep: RegelGroep, context: RuntimeContext): RuleExecutionResult {
     const results: any[] = [];
-    
+
     if (!regelGroep.isRecursive) {
       // Non-recursive: execute all rules once
       for (const rule of regelGroep.rules) {
@@ -1423,15 +1436,15 @@ export class RuleExecutor implements IRuleExecutor {
       // Recursive: execute with iteration tracking
       const maxIterations = (context as any).maxRecursionIterations || 100; // Use configurable limit from context
       let iteration = 0;
-      
+
       // Cycle detection: track object creation graph
       // Maps creator_id -> set of created object IDs
       const creationGraph: Map<string, Set<string>> = new Map();
-      
+
       while (iteration < maxIterations) {
         iteration++;
         let objectCreated = false;
-        
+
         for (const rule of regelGroep.rules) {
           // Check if this is an object creation rule
           const result = rule.result || rule.resultaat;
@@ -1467,7 +1480,7 @@ export class RuleExecutor implements IRuleExecutor {
                 };
               }
             }
-            
+
             // Execute object creation
             const result = this.execute(rule, context);
             if (result.success) {
@@ -1490,7 +1503,7 @@ export class RuleExecutor implements IRuleExecutor {
             });
           }
         }
-        
+
         // If no objects were created, terminate
         if (!objectCreated) {
           results.push({
@@ -1501,7 +1514,7 @@ export class RuleExecutor implements IRuleExecutor {
           break;
         }
       }
-      
+
       // Check if we hit max iterations
       if (iteration >= maxIterations) {
         results.push({
@@ -1511,7 +1524,7 @@ export class RuleExecutor implements IRuleExecutor {
         });
       }
     }
-    
+
     return {
       success: true,
       value: { type: 'array', value: results }

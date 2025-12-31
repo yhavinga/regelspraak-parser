@@ -19,9 +19,9 @@ describe('Elfproef Predicate', () => {
                     Een Natuurlijk persoon is BSNgeldig
                     indien zijn burgerservicenummer voldoet aan de elfproef.
             `;
-            
+
             const result = engine.parse(source);
-            
+
             expect(result.success).toBe(true);
             expect(result.ast).toMatchObject({
                 type: 'Model',
@@ -56,9 +56,9 @@ describe('Elfproef Predicate', () => {
                     Een Natuurlijk persoon is BSNongeldig
                     indien zijn burgerservicenummer voldoet niet aan de elfproef.
             `;
-            
+
             const result = engine.parse(source);
-            
+
             expect(result.success).toBe(true);
             expect(result.ast?.rules[0].condition).toMatchObject({
                 type: 'Voorwaarde',
@@ -83,22 +83,22 @@ describe('Elfproef Predicate', () => {
                     Een Natuurlijk persoon is BSNgeldig
                     indien zijn burgerservicenummer voldoet aan de elfproef.
             `;
-            
+
             const context = new Context();
-            
+
             // Create person with valid BSN 999999990
             // Validation: 9*9 + 9*8 + 9*7 + 9*6 + 9*5 + 9*4 + 9*3 + 9*2 + 0*(-1) = 396
             // 396 % 11 = 0 (valid!)
-            const personId = context.generateObjectId('Natuurlijkpersoon');
-            context.createObject('Natuurlijkpersoon', personId, {
+            const personId = context.generateObjectId('Natuurlijk persoon');
+            context.createObject('Natuurlijk persoon', personId, {
                 burgerservicenummer: { type: 'string', value: '999999990' }
                 // Note: don't initialize BSNgeldig - it's a kenmerk, not an attribute
             });
-            
+
             const result = engine.run(modelText, context);
-            
+
             expect(result.success).toBe(true);
-            const persons = context.getObjectsByType('Natuurlijkpersoon');
+            const persons = context.getObjectsByType('Natuurlijk persoon');
             expect(persons.length).toBe(1);
             // Check the kenmerk, not an attribute
             expect(persons[0].value['is BSNgeldig']).toEqual({ type: 'boolean', value: true });
@@ -115,21 +115,21 @@ describe('Elfproef Predicate', () => {
                     Een Natuurlijk persoon is BSNgeldig
                     indien zijn burgerservicenummer voldoet aan de elfproef.
             `;
-            
+
             const context = new Context();
-            
+
             // Create person with invalid BSN
             // 1*9 + 1*8 + 1*7 + 1*6 + 1*5 + 1*4 + 1*3 + 1*2 + 1*(-1) = 44
             // 44 % 11 = 0 (but all same digits not allowed)
-            const personId = context.generateObjectId('Natuurlijkpersoon');
-            context.createObject('Natuurlijkpersoon', personId, {
+            const personId = context.generateObjectId('Natuurlijk persoon');
+            context.createObject('Natuurlijk persoon', personId, {
                 burgerservicenummer: { type: 'string', value: '111111111' }
             });
-            
+
             const result = engine.run(modelText, context);
-            
+
             expect(result.success).toBe(true);
-            const persons = context.getObjectsByType('Natuurlijkpersoon');
+            const persons = context.getObjectsByType('Natuurlijk persoon');
             expect(persons.length).toBe(1);
             // For invalid BSN, the kenmerk should not be set (undefined)
             expect(persons[0].value['is BSNgeldig']).toBeUndefined();
@@ -146,19 +146,19 @@ describe('Elfproef Predicate', () => {
                     Een Natuurlijk persoon is BSNgeldig
                     indien zijn burgerservicenummer voldoet aan de elfproef.
             `;
-            
+
             const context = new Context();
-            
+
             // Create person with non-numeric BSN
-            const personId = context.generateObjectId('Natuurlijkpersoon');
-            context.createObject('Natuurlijkpersoon', personId, {
+            const personId = context.generateObjectId('Natuurlijk persoon');
+            context.createObject('Natuurlijk persoon', personId, {
                 burgerservicenummer: { type: 'string', value: 'ABC123DEF' }
             });
-            
+
             const result = engine.run(modelText, context);
-            
+
             expect(result.success).toBe(true);
-            const persons = context.getObjectsByType('Natuurlijkpersoon');
+            const persons = context.getObjectsByType('Natuurlijk persoon');
             expect(persons.length).toBe(1);
             // For invalid BSN, the kenmerk should not be set (undefined)
             expect(persons[0].value['is BSNgeldig']).toBeUndefined();
@@ -175,19 +175,19 @@ describe('Elfproef Predicate', () => {
                     Een Natuurlijk persoon is BSNgeldig
                     indien zijn burgerservicenummer voldoet aan de elfproef.
             `;
-            
+
             const context = new Context();
-            
+
             // Create person with too short BSN (only 7 digits)
-            const personId = context.generateObjectId('Natuurlijkpersoon');
-            context.createObject('Natuurlijkpersoon', personId, {
+            const personId = context.generateObjectId('Natuurlijk persoon');
+            context.createObject('Natuurlijk persoon', personId, {
                 burgerservicenummer: { type: 'string', value: '1234567' }
             });
-            
+
             const result = engine.run(modelText, context);
-            
+
             expect(result.success).toBe(true);
-            const persons = context.getObjectsByType('Natuurlijkpersoon');
+            const persons = context.getObjectsByType('Natuurlijk persoon');
             expect(persons.length).toBe(1);
             // For invalid BSN, the kenmerk should not be set (undefined)
             expect(persons[0].value['is BSNgeldig']).toBeUndefined();
@@ -204,19 +204,19 @@ describe('Elfproef Predicate', () => {
                     Een Natuurlijk persoon is BSNgeldig
                     indien zijn burgerservicenummer voldoet aan de elfproef.
             `;
-            
+
             const context = new Context();
-            
+
             // Create person without BSN
-            const personId = context.generateObjectId('Natuurlijkpersoon');
-            context.createObject('Natuurlijkpersoon', personId, {
+            const personId = context.generateObjectId('Natuurlijk persoon');
+            context.createObject('Natuurlijk persoon', personId, {
                 // Don't set burgerservicenummer
             });
-            
+
             const result = engine.run(modelText, context);
-            
+
             expect(result.success).toBe(true);
-            const persons = context.getObjectsByType('Natuurlijkpersoon');
+            const persons = context.getObjectsByType('Natuurlijk persoon');
             expect(persons.length).toBe(1);
             // For invalid BSN, the kenmerk should not be set (undefined)
             expect(persons[0].value['is BSNgeldig']).toBeUndefined();
@@ -233,19 +233,19 @@ describe('Elfproef Predicate', () => {
                     Een Natuurlijk persoon is BSNongeldig
                     indien zijn burgerservicenummer voldoet niet aan de elfproef.
             `;
-            
+
             const context = new Context();
-            
+
             // Create person with invalid BSN
-            const personId = context.generateObjectId('Natuurlijkpersoon');
-            context.createObject('Natuurlijkpersoon', personId, {
+            const personId = context.generateObjectId('Natuurlijk persoon');
+            context.createObject('Natuurlijk persoon', personId, {
                 burgerservicenummer: { type: 'string', value: '111111111' }
             });
-            
+
             const result = engine.run(modelText, context);
-            
+
             expect(result.success).toBe(true);
-            const persons = context.getObjectsByType('Natuurlijkpersoon');
+            const persons = context.getObjectsByType('Natuurlijk persoon');
             expect(persons.length).toBe(1);
             // Check the negative kenmerk
             expect(persons[0].value['is BSNongeldig']).toEqual({ type: 'boolean', value: true });
@@ -262,22 +262,22 @@ describe('Elfproef Predicate', () => {
                     Een Natuurlijk persoon is BSNgeldig
                     indien zijn burgerservicenummer voldoet aan de elfproef.
             `;
-            
+
             const context = new Context();
-            
+
             // Create person with valid BSN 123456782
             // Validation: 1*9 + 2*8 + 3*7 + 4*6 + 5*5 + 6*4 + 7*3 + 8*2 + 2*(-1)
             // = 9 + 16 + 21 + 24 + 25 + 24 + 21 + 16 - 2 = 154
             // 154 % 11 = 0 (valid!)
-            const personId = context.generateObjectId('Natuurlijkpersoon');
-            context.createObject('Natuurlijkpersoon', personId, {
+            const personId = context.generateObjectId('Natuurlijk persoon');
+            context.createObject('Natuurlijk persoon', personId, {
                 burgerservicenummer: { type: 'string', value: '123456782' }
             });
-            
+
             const result = engine.run(modelText, context);
-            
+
             expect(result.success).toBe(true);
-            const persons = context.getObjectsByType('Natuurlijkpersoon');
+            const persons = context.getObjectsByType('Natuurlijk persoon');
             expect(persons.length).toBe(1);
             // Check the kenmerk, not an attribute
             expect(persons[0].value['is BSNgeldig']).toEqual({ type: 'boolean', value: true });
