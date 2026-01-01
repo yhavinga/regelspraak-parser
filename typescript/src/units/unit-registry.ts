@@ -13,99 +13,98 @@ export class UnitRegistry {
 
   /**
    * Initialize standard unit systems from the specification
+   * Uses hub-and-spoke pattern: all units have toBaseFactor relative to base unit
    */
   private initStandardSystems(): void {
-    // Time system (Tijd)
+    // Time system (Tijd) - base unit: seconde
     const timeSystem = new UnitSystem("Tijd");
-    
-    timeSystem.addUnit({
-      name: "milliseconde",
-      plural: "milliseconden",
-      abbreviation: "ms",
-      conversionFactor: 0.001,
-      conversionToUnit: "seconde"
-    });
-    
+
+    // Base unit: seconde (toBaseFactor = 1)
     timeSystem.addUnit({
       name: "seconde",
       plural: "seconden",
       abbreviation: "s",
-      conversionFactor: 1/60,
-      conversionToUnit: "minuut"
+      toBaseFactor: 1  // Base unit
     });
-    
+
+    timeSystem.addUnit({
+      name: "milliseconde",
+      plural: "milliseconden",
+      abbreviation: "ms",
+      toBaseFactor: 0.001  // 1 ms = 0.001 s
+    });
+
     timeSystem.addUnit({
       name: "minuut",
       plural: "minuten",
       abbreviation: "minuut",
-      conversionFactor: 1/60,
-      conversionToUnit: "uur"
+      toBaseFactor: 60  // 1 min = 60 s
     });
-    
+
     timeSystem.addUnit({
       name: "uur",
       plural: "uren",
       abbreviation: "u",
-      conversionFactor: 1/24,
-      conversionToUnit: "dag"
+      toBaseFactor: 3600  // 1 hr = 3600 s
     });
-    
+
     timeSystem.addUnit({
       name: "dag",
       plural: "dagen",
-      abbreviation: "dg"
+      abbreviation: "dg",
+      toBaseFactor: 86400  // 1 day = 86400 s
     });
-    
+
     timeSystem.addUnit({
       name: "week",
       plural: "weken",
       abbreviation: "wk",
-      conversionFactor: 7,
-      conversionToUnit: "dag"
+      toBaseFactor: 604800  // 7 days = 604800 s
     });
-    
+
     timeSystem.addUnit({
       name: "maand",
       plural: "maanden",
-      abbreviation: "mnd"
-      // No conversion to days
+      abbreviation: "mnd",
+      toBaseFactor: 2629746  // Average month (30.44 days)
     });
-    
+
     timeSystem.addUnit({
       name: "kwartaal",
       plural: "kwartalen",
       abbreviation: "kw",
-      conversionFactor: 3,
-      conversionToUnit: "maand"
+      toBaseFactor: 7889238  // 3 months
     });
-    
+
     timeSystem.addUnit({
       name: "jaar",
       plural: "jaren",
       abbreviation: "jr",
-      conversionFactor: 365.25,
-      conversionToUnit: "dag"
+      toBaseFactor: 31556952  // Average year (365.25 days)
     });
-    
+
     this.systems.set("Tijd", timeSystem);
 
-    // Currency system (Valuta)
+    // Currency system (Valuta) - no conversions between currencies
+    // Each currency is its own base (toBaseFactor = 1)
     const currencySystem = new UnitSystem("Valuta");
-    
+
     currencySystem.addUnit({
       name: "euro",
       plural: "euros",
       abbreviation: "EUR",
-      symbol: "€"
+      symbol: "€",
+      toBaseFactor: 1  // Base for euro
     });
-    
+
     currencySystem.addUnit({
       name: "dollar",
-      plural: "dollars", 
+      plural: "dollars",
       abbreviation: "USD",
-      symbol: "$"
+      symbol: "$",
+      toBaseFactor: 1  // Base for dollar (no cross-currency conversion)
     });
-    
+
     this.systems.set("Valuta", currencySystem);
   }
 
@@ -142,11 +141,11 @@ export class UnitRegistry {
   areUnitsCompatible(unit1: string, unit2: string): boolean {
     const result1 = this.findUnit(unit1);
     const result2 = this.findUnit(unit2);
-    
+
     if (!result1 || !result2) {
       return false;
     }
-    
+
     return result1.system.name === result2.system.name;
   }
 
@@ -156,15 +155,15 @@ export class UnitRegistry {
   convert(value: number, fromUnit: string, toUnit: string): number | undefined {
     const result1 = this.findUnit(fromUnit);
     const result2 = this.findUnit(toUnit);
-    
+
     if (!result1 || !result2) {
       return undefined;
     }
-    
+
     if (result1.system.name !== result2.system.name) {
       return undefined; // Can't convert between different systems
     }
-    
+
     return result1.system.convert(value, fromUnit, toUnit);
   }
 }

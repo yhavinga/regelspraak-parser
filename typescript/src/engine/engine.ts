@@ -444,7 +444,21 @@ export class Engine implements IEngine {
     // Create a new unit system
     const system = new UnitSystem(unitSystemDef.name);
 
-    // First pass: add all units without conversions
+    // Build a map of unit name -> conversion info for graph traversal
+    const conversionMap = new Map<string, { factor: number; toUnit: string }>();
+    const unitDefs = new Map<string, typeof unitSystemDef.units[0]>();
+
+    for (const unitDef of unitSystemDef.units) {
+      unitDefs.set(unitDef.name, unitDef);
+      if (unitDef.conversion) {
+        conversionMap.set(unitDef.name, {
+          factor: unitDef.conversion.factor,
+          toUnit: unitDef.conversion.toUnit
+        });
+      }
+    }
+
+    // First pass: add all units and resolve abbreviations
     for (const unitDef of unitSystemDef.units) {
       const baseUnit: BaseUnit = {
         name: unitDef.name,
@@ -452,30 +466,59 @@ export class Engine implements IEngine {
         abbreviation: unitDef.abbreviation,
         symbol: unitDef.symbol
       };
-
       system.addUnit(baseUnit);
     }
 
-    // Second pass: add conversion information, resolving abbreviations to full names
-    for (const unitDef of unitSystemDef.units) {
-      if (unitDef.conversion) {
-        // Find the target unit by its identifier (which might be an abbreviation)
-        const targetUnit = system.findUnit(unitDef.conversion.toUnit);
-        if (targetUnit) {
-          // Update the unit with conversion info using the full unit name
-          const updatedUnit: BaseUnit = {
-            name: unitDef.name,
-            plural: unitDef.plural,
-            abbreviation: unitDef.abbreviation,
-            symbol: unitDef.symbol,
-            conversionFactor: unitDef.conversion.factor,
-            conversionToUnit: targetUnit.name  // Use the full name, not abbreviation
-          };
-
-          // Re-add the unit with conversion info
-          system.addUnit(updatedUnit);
-        }
+    // Second pass: compute toBaseFactor for each unit via graph traversal
+    // A unit without outgoing conversion edge is a "base" unit (toBaseFactor = 1)
+    // For units with conversions, walk the chain accumulating factors
+    const computeToBaseFactor = (unitName: string, visited: Set<string>): number | undefined => {
+      // Prevent infinite loops
+      if (visited.has(unitName)) {
+        return undefined;
       }
+      visited.add(unitName);
+
+      const conversion = conversionMap.get(unitName);
+      if (!conversion) {
+        // No outgoing conversion - this is a base unit
+        return 1;
+      }
+
+      // Resolve the target unit name (might be abbreviation)
+      const targetUnit = system.findUnit(conversion.toUnit);
+      if (!targetUnit) {
+        // Target not found - can't compute factor
+        return undefined;
+      }
+
+      // Recursively compute the target's toBaseFactor
+      const targetFactor = computeToBaseFactor(targetUnit.name, visited);
+      if (targetFactor === undefined) {
+        return undefined;
+      }
+
+      // Our toBaseFactor = conversion.factor * targetFactor
+      return conversion.factor * targetFactor;
+    };
+
+    // Third pass: set toBaseFactor for all units
+    for (const unitDef of unitSystemDef.units) {
+      const toBaseFactor = computeToBaseFactor(unitDef.name, new Set());
+
+      // Re-add the unit with toBaseFactor computed
+      const updatedUnit: BaseUnit = {
+        name: unitDef.name,
+        plural: unitDef.plural,
+        abbreviation: unitDef.abbreviation,
+        symbol: unitDef.symbol,
+        toBaseFactor: toBaseFactor ?? 1,
+        // Keep legacy fields for backward compatibility
+        conversionFactor: unitDef.conversion?.factor,
+        conversionToUnit: unitDef.conversion ? system.findUnit(unitDef.conversion.toUnit)?.name : undefined
+      };
+
+      system.addUnit(updatedUnit);
     }
 
     // Register the system in the unit registry

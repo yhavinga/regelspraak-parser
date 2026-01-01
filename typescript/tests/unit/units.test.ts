@@ -12,7 +12,7 @@ describe('Units and Dimensions', () => {
     test('should have standard time units', () => {
       const timeSystem = registry.getSystem('Tijd');
       expect(timeSystem).toBeDefined();
-      
+
       // Check various time units
       expect(timeSystem!.findUnit('uur')).toBeDefined();
       expect(timeSystem!.findUnit('u')).toBeDefined(); // abbreviation
@@ -25,7 +25,7 @@ describe('Units and Dimensions', () => {
     test('should have standard currency units', () => {
       const currencySystem = registry.getSystem('Valuta');
       expect(currencySystem).toBeDefined();
-      
+
       expect(currencySystem!.findUnit('euro')).toBeDefined();
       expect(currencySystem!.findUnit('€')).toBeDefined(); // symbol
       expect(currencySystem!.findUnit('EUR')).toBeDefined(); // abbreviation
@@ -38,6 +38,26 @@ describe('Units and Dimensions', () => {
       expect(registry.convert(2, 'uur', 'minuut')).toBe(120);
       // 30 minutes = 0.5 hour
       expect(registry.convert(30, 'minuut', 'uur')).toBe(0.5);
+    });
+
+    test('should convert across multiple hops (hub-and-spoke)', () => {
+      // jaar → seconde requires traversing the entire time chain
+      expect(registry.convert(1, 'jaar', 'seconde')).toBe(31556952);
+      // week → uur (7 days * 24 hours = 168)
+      expect(registry.convert(1, 'week', 'uur')).toBe(168);
+      // dag → milliseconde (86400 * 1000 = 86400000)
+      expect(registry.convert(1, 'dag', 'milliseconde')).toBe(86400000);
+      // seconde → jaar (inverse of year → second)
+      expect(registry.convert(31556952, 'seconde', 'jaar')).toBeCloseTo(1, 5);
+    });
+
+    test('should convert between any time units via hub-and-spoke', () => {
+      // maand → dag (avg 30.44 days per month)
+      expect(registry.convert(1, 'maand', 'dag')).toBeCloseTo(30.44, 1);
+      // kwartaal → maand (3 months)
+      expect(registry.convert(1, 'kwartaal', 'maand')).toBeCloseTo(3, 1);
+      // jaar → maand (12 months)
+      expect(registry.convert(1, 'jaar', 'maand')).toBeCloseTo(12, 1);
     });
 
     test('should check unit compatibility', () => {
@@ -101,9 +121,9 @@ describe('Units and Dimensions', () => {
     test('should fail adding incompatible units', () => {
       context.setVariable('afstand', { type: 'number', value: 10, unit: { name: 'km' } });
       context.setVariable('tijd', { type: 'number', value: 2, unit: { name: 'uur' } });
-      
+
       const result = engine.run('afstand plus tijd', context);
-      
+
       expect(result.success).toBe(false);
       expect(result.error?.message).toContain('incompatible units');
     });
@@ -111,9 +131,9 @@ describe('Units and Dimensions', () => {
     test('should add compatible units with conversion', () => {
       context.setVariable('tijd1', { type: 'number', value: 1, unit: { name: 'uur' } });
       context.setVariable('tijd2', { type: 'number', value: 30, unit: { name: 'minuut' } });
-      
+
       const result = engine.run('tijd1 plus tijd2', context);
-      
+
       expect(result.success).toBe(true);
       expect(result.value).toEqual({
         type: 'number',
@@ -125,9 +145,9 @@ describe('Units and Dimensions', () => {
     test('should multiply to create composite units', () => {
       context.setVariable('vermogen', { type: 'number', value: 5, unit: { name: 'kW' } });
       context.setVariable('tijd', { type: 'number', value: 2, unit: { name: 'u' } });
-      
+
       const result = engine.run('vermogen maal tijd', context);
-      
+
       expect(result.success).toBe(true);
       expect(result.value?.value).toBe(10);
       // Should have composite unit kW*u
@@ -138,9 +158,9 @@ describe('Units and Dimensions', () => {
     test('should divide to create composite units', () => {
       context.setVariable('afstand', { type: 'number', value: 100, unit: { name: 'km' } });
       context.setVariable('tijd', { type: 'number', value: 2, unit: { name: 'u' } });
-      
+
       const result = engine.run('afstand gedeeld door tijd', context);
-      
+
       expect(result.success).toBe(true);
       expect(result.value?.value).toBe(50);
       // Should have composite unit km/u
@@ -150,9 +170,9 @@ describe('Units and Dimensions', () => {
 
     test('should preserve units with unary minus', () => {
       context.setVariable('bedrag', { type: 'number', value: 100, unit: { name: 'euro', symbol: '€' } });
-      
+
       const result = engine.run('min bedrag', context);
-      
+
       expect(result.success).toBe(true);
       expect(result.value).toEqual({
         type: 'number',
