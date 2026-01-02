@@ -13,7 +13,7 @@ describe('Tijdsduur', () => {
   test('should calculate tijdsduur in days', () => {
     // Test just the expression directly
     const expr = 'de tijdsduur van startdatum tot einddatum';
-    
+
     // Set variables
     context.setVariable('startdatum', {
       type: 'date',
@@ -30,16 +30,16 @@ describe('Tijdsduur', () => {
       console.error('Parse errors:', parseResult.errors);
     }
     expect(parseResult.success).toBe(true);
-    
+
     // The parsed AST should be a function call
     const ast = parseResult.ast;
     expect(ast.type).toBe('FunctionCall');
     expect((ast as any).functionName).toBe('tijdsduur_van');
-    
+
     // Evaluate the expression
     const evaluator = new ExpressionEvaluator();
     const result = evaluator.evaluate(ast as any, context);
-    
+
     // By default tijdsduur returns dagen as a unit
     expect(result.type).toBe('number');
     expect(result.value).toBe(9);
@@ -48,11 +48,11 @@ describe('Tijdsduur', () => {
 
   test('should calculate tijdsduur in years', () => {
     const code = `
-Regel test tijdsduur jaren
+Regel test jaarberekening
 geldig altijd
   Het resultaat van een berekening moet berekend worden als de tijdsduur van geboortedatum tot peildatum in hele jaren.
     `;
-    
+
     // Set variables
     context.setVariable('geboortedatum', {
       type: 'date',
@@ -73,10 +73,10 @@ geldig altijd
       console.error('Parse error:', parseResult.errors);
     }
     expect(parseResult.success).toBe(true);
-    
+
     const runResult = engine.run(code, context);
     expect(runResult.success).toBe(true);
-    
+
     const berekeningingObject = context.getVariable('berekening');
     expect(berekeningingObject?.type).toBe('object');
     const result = (berekeningingObject?.value as any).resultaat;
@@ -88,11 +88,11 @@ geldig altijd
 
   test('should calculate tijdsduur in months', () => {
     const code = `
-Regel test tijdsduur maanden
+Regel test maandberekening
 geldig altijd
   Het resultaat van een berekening moet berekend worden als de tijdsduur van start tot eind in hele maanden.
     `;
-    
+
     // Set variables
     context.setVariable('start', {
       type: 'date',
@@ -111,10 +111,10 @@ geldig altijd
 
     const parseResult = engine.parse(code);
     expect(parseResult.success).toBe(true);
-    
+
     const runResult = engine.run(code, context);
     expect(runResult.success).toBe(true);
-    
+
     const berekeningingObject = context.getVariable('berekening');
     expect(berekeningingObject?.type).toBe('object');
     const result = (berekeningingObject?.value as any).resultaat;
@@ -130,7 +130,7 @@ Regel test negatieve tijdsduur
 geldig altijd
   Het resultaat van een berekening moet berekend worden als de tijdsduur van start tot eind.
     `;
-    
+
     // Set variables (end before start)
     context.setVariable('start', {
       type: 'date',
@@ -148,10 +148,10 @@ geldig altijd
 
     const parseResult = engine.parse(code);
     expect(parseResult.success).toBe(true);
-    
+
     const runResult = engine.run(code, context);
     expect(runResult.success).toBe(true);
-    
+
     const berekeningingObject = context.getVariable('berekening');
     expect(berekeningingObject?.type).toBe('object');
     const result = (berekeningingObject?.value as any).resultaat;
@@ -167,7 +167,7 @@ Regel test absolute tijdsduur
 geldig altijd
   Het resultaat van een berekening moet berekend worden als de absolute tijdsduur van datum1 tot datum2.
     `;
-    
+
     // Set variables (end before start)
     context.setVariable('datum1', {
       type: 'date',
@@ -185,10 +185,10 @@ geldig altijd
 
     const parseResult = engine.parse(code);
     expect(parseResult.success).toBe(true);
-    
+
     const runResult = engine.run(code, context);
     expect(runResult.success).toBe(true);
-    
+
     const berekeningingObject = context.getVariable('berekening');
     expect(berekeningingObject?.type).toBe('object');
     const result = (berekeningingObject?.value as any).resultaat;
@@ -204,7 +204,7 @@ Regel test leeftijd berekening
 geldig altijd
   Het resultaat van een berekening moet berekend worden als de tijdsduur van geboorte tot peil in hele jaren.
     `;
-    
+
     // Test case: birthday not yet reached
     context.setVariable('geboorte', {
       type: 'date',
@@ -222,10 +222,10 @@ geldig altijd
 
     let parseResult = engine.parse(code);
     expect(parseResult.success).toBe(true);
-    
+
     let runResult = engine.run(code, context);
     expect(runResult.success).toBe(true);
-    
+
     let berekeningingObject = context.getVariable('berekening');
     expect(berekeningingObject?.type).toBe('object');
     let result = (berekeningingObject?.value as any).resultaat;
@@ -242,7 +242,7 @@ geldig altijd
 
     runResult = engine.run(code, context);
     expect(runResult.success).toBe(true);
-    
+
     result = (berekeningingObject?.value as any).resultaat;
     expect(result).toBeDefined();
     expect(result!.type).toBe('number');
@@ -252,11 +252,11 @@ geldig altijd
 
   test('should calculate tijdsduur with weeks', () => {
     const code = `
-Regel test tijdsduur weken
+Regel test weekberekening
 geldig altijd
   Het resultaat van een berekening moet berekend worden als de tijdsduur van start tot eind in hele weken.
     `;
-    
+
     context.setVariable('start', {
       type: 'date',
       value: new Date('2024-01-01')
@@ -273,10 +273,10 @@ geldig altijd
 
     const parseResult = engine.parse(code);
     expect(parseResult.success).toBe(true);
-    
+
     const runResult = engine.run(code, context);
     expect(runResult.success).toBe(true);
-    
+
     const berekeningingObject = context.getVariable('berekening');
     expect(berekeningingObject?.type).toBe('object');
     const result = (berekeningingObject?.value as any).resultaat;
@@ -288,11 +288,11 @@ geldig altijd
 
   test('should calculate tijdsduur with hours', () => {
     const code = `
-Regel test tijdsduur uren
+Regel test uurberekening
 geldig altijd
   Het resultaat van een berekening moet berekend worden als de tijdsduur van start tot eind in hele uren.
     `;
-    
+
     context.setVariable('start', {
       type: 'date',
       value: new Date('2024-01-01T10:00:00')
@@ -309,10 +309,10 @@ geldig altijd
 
     const parseResult = engine.parse(code);
     expect(parseResult.success).toBe(true);
-    
+
     const runResult = engine.run(code, context);
     expect(runResult.success).toBe(true);
-    
+
     const berekeningingObject = context.getVariable('berekening');
     expect(berekeningingObject?.type).toBe('object');
     const result = (berekeningingObject?.value as any).resultaat;
@@ -349,7 +349,7 @@ geldig altijd
       }
     };
     context.createObject('Persoon', 'person1', person);
-    
+
     // Create vlucht object
     const vlucht = {
       vluchtdatum: {
@@ -370,7 +370,7 @@ geldig altijd
       console.error('Run error:', runResult.error);
     }
     expect(runResult.success).toBe(true);
-    
+
     // Check if person's age was calculated
     const personObj = context.getObject('Persoon', 'person1');
     expect(personObj).toBeDefined();

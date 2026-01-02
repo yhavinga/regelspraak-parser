@@ -3597,14 +3597,14 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
     // First try to split by spaces
     const words = trimmed.split(/\s+/);
 
-    // If multiple words and first is an article, remove it
-    if (words.length > 1 && /^(de|het)$/i.test(words[0])) {
+    // If multiple words and first is an article, remove it (de, het, een)
+    if (words.length > 1 && /^(de|het|een)$/i.test(words[0])) {
       // Join remaining words with space, preserving multi-word attributes
       return words.slice(1).join(' ');
     }
 
     // Check if article is concatenated with the name (no space)
-    const concatenatedMatch = trimmed.match(/^(de|het)(.+)$/i);
+    const concatenatedMatch = trimmed.match(/^(de|het|een)(.+)$/i);
     if (concatenatedMatch && concatenatedMatch[2]) {
       // Extract the part after the article
       return concatenatedMatch[2].trim();
@@ -5279,16 +5279,34 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
     const lastWord = words[words.length - 1];
     let pluralLastWord: string;
 
-    // Simple Dutch pluralization rules
-    if (lastWord.endsWith('s') || lastWord.endsWith('x') || lastWord.endsWith('z')) {
-      pluralLastWord = lastWord + 'en';
-    } else if (lastWord.endsWith('heid')) {
-      pluralLastWord = lastWord.replace(/heid$/, 'heden');
-    } else if (lastWord.endsWith('oon')) {
-      pluralLastWord = lastWord.replace(/oon$/, 'onen');
-    } else if (lastWord.match(/[aeiou]$/)) {
+    // Dutch pluralization rules
+    // 1. Words ending in digits get 's' (e.g., Persoon1 -> Persoon1s)
+    if (lastWord.match(/\d$/)) {
       pluralLastWord = lastWord + 's';
-    } else {
+    }
+    // 2. Words ending in 's' often change s→z (e.g., reis -> reizen)
+    else if (lastWord.endsWith('eis') || lastWord.endsWith('uis') || lastWord.endsWith('oos')) {
+      // Common Dutch words where s→z before adding 'en'
+      pluralLastWord = lastWord.slice(0, -1) + 'zen';
+    }
+    // 3. Other 's' endings add 'en'
+    else if (lastWord.endsWith('s') || lastWord.endsWith('x') || lastWord.endsWith('z')) {
+      pluralLastWord = lastWord + 'en';
+    }
+    // 4. -heid → -heden
+    else if (lastWord.endsWith('heid')) {
+      pluralLastWord = lastWord.replace(/heid$/, 'heden');
+    }
+    // 5. -oon → -onen  
+    else if (lastWord.endsWith('oon')) {
+      pluralLastWord = lastWord.replace(/oon$/, 'onen');
+    }
+    // 6. Words ending in vowel get 's'
+    else if (lastWord.match(/[aeiou]$/)) {
+      pluralLastWord = lastWord + 's';
+    }
+    // 7. Default: add 'en'
+    else {
       pluralLastWord = lastWord + 'en';
     }
 
