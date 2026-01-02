@@ -995,16 +995,11 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
     const timeUnitCtx = ctx.timeUnit();
     const identifier = timeUnitCtx?.getText() || '';
 
-    // Check if the identifier is a time unit
-    const timeUnits = ['dagen', 'dag', 'maanden', 'maand', 'jaren', 'jaar', 'weken', 'week',
-      'uren', 'uur', 'minuten', 'minuut', 'seconden', 'seconde'];
-
-    if (!timeUnits.includes(identifier.toLowerCase())) {
-      // Not a date calculation - treat as arithmetic with the identifier as unit
-      // If right is a number literal, add the unit to it
-      if (right.type === 'NumberLiteral' && identifier) {
-        (right as NumberLiteral).unit = identifier;
-      }
+    // The grammar's DateCalcExpr rule captures the timeUnit token separately from the right operand.
+    // Example: "1 uur plus 30 minuut" → left=1 uur, right=30, timeUnit=minuut
+    // We need to attach the timeUnit to the right operand so unit arithmetic works correctly.
+    if (right.type === 'NumberLiteral' && identifier) {
+      (right as NumberLiteral).unit = identifier;
     }
 
     // Create binary expression
