@@ -1257,7 +1257,7 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
       // Extract collection name by getting identifiers from basisOnderwerp, excluding "aantal"
 
       const onderwerpBasis = onderwerpRef?.onderwerpBasis ? onderwerpRef.onderwerpBasis() : null;
-      let collectionName = '';
+      let collectionPath: string[] = [];
 
       if (onderwerpBasis) {
         // Get all basisOnderwerp elements (handle single and multiple)
@@ -1285,18 +1285,20 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
           }
         }
 
-        // Join path parts (reverse for Dutch right-to-left)
-        collectionName = pathParts.length > 0 ? pathParts.reverse().join(' ') : '';
+        // Reverse path parts for Dutch right-to-left navigation
+        // "Y van de Z" -> ['Z', 'Y'] (pathParts already has ['Y', 'Z'])
+        collectionPath = pathParts.length > 0 ? pathParts.reverse() : [];
       }
 
       // Fallback: use regex extraction if path extraction failed
-      if (!collectionName) {
-        collectionName = aantalMatch[1].trim();
+      if (collectionPath.length === 0) {
+        let fallbackName = aantalMatch[1].trim();
         // Remove "die..." suffix
-        const dieIdx = collectionName.indexOf('die');
-        const datIdx = collectionName.indexOf('dat');
-        if (dieIdx > 0) collectionName = collectionName.substring(0, dieIdx).trim();
-        else if (datIdx > 0) collectionName = collectionName.substring(0, datIdx).trim();
+        const dieIdx = fallbackName.indexOf('die');
+        const datIdx = fallbackName.indexOf('dat');
+        if (dieIdx > 0) fallbackName = fallbackName.substring(0, dieIdx).trim();
+        else if (datIdx > 0) fallbackName = fallbackName.substring(0, datIdx).trim();
+        collectionPath = [fallbackName];
       }
 
       // Build the base expression
@@ -1305,7 +1307,7 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
         // Has subselectie - create collection reference and wrap with predicate
         const collectionRef: AttributeReference = {
           type: 'AttributeReference',
-          path: [collectionName]
+          path: collectionPath
         };
         this.setLocation(collectionRef, onderwerpBasis || ctx);
 
@@ -1322,7 +1324,7 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
         // No subselectie - just AttributeReference
         baseExpression = {
           type: 'AttributeReference',
-          path: [collectionName]
+          path: collectionPath
         } as AttributeReference;
         this.setLocation(baseExpression, ctx);
       }
@@ -1565,17 +1567,19 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
   visitSomAlleExpr(ctx: any): Expression {
     // SOM_VAN ALLE naamwoord
     // This handles patterns like "de som van alle belasting op basis van afstand"
+    // and navigation patterns like "de som van alle passagiers van de reis"
     if (!ctx.naamwoord || !ctx.naamwoord()) {
       throw new Error('Expected naamwoord in som_van alle expression');
     }
 
-    // Extract the collection name from the naamwoord
-    const collectionName = this.visitNaamwoord(ctx.naamwoord());
+    // Parse the naamwoord into a navigation path
+    // "passagiers van de reis" -> ["reis", "passagiers"]
+    const collectionPath = this._parseNaamwoordToNavigationPath(ctx.naamwoord());
 
-    // Create an AttributeReference for the collection
+    // Create an AttributeReference for the collection with proper path
     const collectionRef = {
       type: 'AttributeReference',
-      path: [collectionName]
+      path: collectionPath
     } as AttributeReference;
     this.setLocation(collectionRef, ctx.naamwoord());
 
@@ -1661,12 +1665,14 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
       const naamwoordCtx = aggCtx.naamwoord ? aggCtx.naamwoord() : null;
 
       if (naamwoordCtx) {
-        const collectionName = this.extractTextWithSpaces(naamwoordCtx);
+        // Parse the naamwoord into a navigation path
+        // "passagiers van de reis" -> ["reis", "passagiers"]
+        const collectionPath = this._parseNaamwoordToNavigationPath(naamwoordCtx);
 
-        // Create AttributeReference for the collection
+        // Create AttributeReference for the collection with proper path
         const collectionRef: AttributeReference = {
           type: 'AttributeReference',
-          path: [collectionName]
+          path: collectionPath
         };
 
         // Return FunctionCall with both arguments
@@ -4323,6 +4329,77 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
     // Join all parts with spaces
     return allParts.length > 0 ? allParts.join(' ') : this.extractTextWithSpaces(ctx);
   }
+
+  /**
+   * Parse a naamwoord context into a navigation path array.
+   * Handles patterns like "passagiers van de reis" and returns ["reis", "passagiers"]
+   * for proper navigation through relationships.
+   * 
+   * Key distinction:
+   * - "passagiers van de reis" = navigation (only "van") → split to ["reis", "passagiers"]
+   * - "belasting op basis van afstand" = compound attr (has "op" + "van") → keep as single element
+   * 
+   * Port of Python builder.py:935-986 (_parse_naamwoord_to_navigation_path)
+   */
+  private _parseNaamwoordToNavigationPath(ctx: any): string[] {
+    if (!ctx) {
+      return [];
+    }
+
+    // Collect all parts from the naamwoord structure
+    // Grammar: naamwoord : naamPhrase ( voorzetsel naamPhrase )*
+    const parts: string[] = [];
+    const prepositions: string[] = [];
+
+    const childCount = ctx.getChildCount ? ctx.getChildCount() : 0;
+    for (let i = 0; i < childCount; i++) {
+      const child = ctx.getChild(i);
+
+      if (child.constructor.name === 'NaamPhraseContext') {
+        // Extract text from naamPhrase without articles
+        const phraseText: string[] = [];
+        const phraseChildCount = child.getChildCount ? child.getChildCount() : 0;
+
+        for (let j = 0; j < phraseChildCount; j++) {
+          const subchild = child.getChild(j);
+          if (subchild.getText) {
+            const text = subchild.getText();
+            // Skip articles
+            if (!['de', 'het', 'een', 'De', 'Het', 'Een'].includes(text)) {
+              phraseText.push(text);
+            }
+          }
+        }
+
+        if (phraseText.length > 0) {
+          parts.push(phraseText.join(' '));
+        }
+      } else if (child.constructor.name === 'VoorzetselContext') {
+        // Track all prepositions
+        const text = this.extractText(child);
+        prepositions.push(text);
+      }
+    }
+
+    // Only treat as navigation if:
+    // 1. We have 2+ parts AND
+    // 2. The ONLY preposition is "van" (pure navigation pattern)
+    // 
+    // If there are other prepositions (op, bij, voor, etc.), keep as compound attribute name
+    const isNavigation = parts.length >= 2 &&
+      prepositions.length === 1 &&
+      prepositions[0] === 'van';
+
+    if (isNavigation) {
+      // Reverse for Dutch navigation: "passagiers van de reis" -> ["reis", "passagiers"]
+      return parts.reverse();
+    }
+
+    // Not pure navigation - return as single compound element
+    // Join all parts to preserve compound attribute names like "belasting op basis van afstand"
+    return parts.length > 0 ? [this.visitNaamwoord(ctx)] : [this.extractTextWithSpaces(ctx)];
+  }
+
 
   visitNaamwoordWithNumbers(ctx: any): string {
     // Process all parts of the naamwoordWithNumbers according to grammar:
