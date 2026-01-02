@@ -55,8 +55,8 @@ describe('Semantic Validation', () => {
         Regel MaakProductFout
         geldig altijd
           Er wordt een nieuw Product aangemaakt
-          met naam "Test"
-          en onbekend_attribuut 123.
+          met naam gelijk aan "Test"
+          en onbekend_attribuut gelijk aan 123.
       `;
 
       const model = parser.parseModel(modelText);
@@ -77,8 +77,8 @@ describe('Semantic Validation', () => {
         Regel MaakProduct
         geldig altijd
           Er wordt een nieuw Product aangemaakt
-          met naam "Test"
-          en prijs 100.
+          met naam gelijk aan "Test"
+          en prijs gelijk aan 100.
       `;
 
       const model = parser.parseModel(modelText);
@@ -100,8 +100,8 @@ describe('Semantic Validation', () => {
         Regel MaakProductFout
         geldig altijd
           Er wordt een nieuw Product aangemaakt
-          met naam 123
-          en prijs "honderd euro".
+          met naam gelijk aan 123
+          en prijs gelijk aan "honderd euro".
       `;
 
       const model = parser.parseModel(modelText);
@@ -121,8 +121,8 @@ describe('Semantic Validation', () => {
         Regel MaakProduct
         geldig altijd
           Er wordt een nieuw Product aangemaakt
-          met naam "Laptop"
-          en prijs 1000.
+          met naam gelijk aan "Laptop"
+          en prijs gelijk aan 1000.
       `;
 
       const model = parser.parseModel(modelText);

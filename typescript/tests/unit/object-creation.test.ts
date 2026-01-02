@@ -17,23 +17,23 @@ describe('Object Creation', () => {
             geldig altijd
                 Er wordt een nieuw Persoon aangemaakt.
         `;
-        
+
         const context = new Context();
-        
+
         // Execute the model
         const result = engine.run(modelText, context);
-        
+
         expect(result.success).toBe(true);
-        
+
         // Check that the rule was executed
         const trace = context.getExecutionTrace();
         expect(trace.length).toBeGreaterThan(0);
-        
+
         // Check that a new Persoon object was created
         const persons = context.getObjectsByType('Persoon');
         expect(persons).toBeDefined();
         expect(persons.length).toBe(1);
-        
+
         const newPerson = persons[0];
         expect(newPerson.type).toBe('object');
         expect(newPerson.objectType).toBe('Persoon');
@@ -49,22 +49,22 @@ describe('Object Creation', () => {
             Regel MaakVasteKlant
             geldig altijd
                 Er wordt een nieuw Klant aangemaakt 
-                met naam "Jan Jansen"
-                en leeftijd 35
-                en email "jan@example.com".
+                met naam gelijk aan "Jan Jansen"
+                en leeftijd gelijk aan 35
+                en email gelijk aan "jan@example.com".
         `;
-        
+
         const context = new Context();
-        
+
         // Execute the model
         const result = engine.run(modelText, context);
-        
+
         expect(result.success).toBe(true);
-        
+
         // Check that a new Klant object was created with attributes
         const klanten = context.getObjectsByType('Klant');
         expect(klanten.length).toBe(1);
-        
+
         const newKlant = klanten[0];
         expect(newKlant.type).toBe('object');
         expect(newKlant.objectType).toBe('Klant');
@@ -85,23 +85,23 @@ describe('Object Creation', () => {
             Regel MaakProduct
             geldig altijd
                 Er wordt een nieuw Product aangemaakt
-                met naam "Laptop"
-                en prijs 1000
-                en btw (de prijs maal de btw_percentage gedeeld door 100).
+                met naam gelijk aan "Laptop"
+                en prijs gelijk aan 1000
+                en btw gelijk aan (de prijs maal de btw_percentage gedeeld door 100).
         `;
-        
+
         const context = new Context();
         context.setVariable('btw_percentage', { type: 'number', value: 21 });
-        
+
         // Execute the model
         const result = engine.run(modelText, context);
-        
+
         expect(result.success).toBe(true);
-        
+
         // Check the created product
         const products = context.getObjectsByType('Product');
         expect(products.length).toBe(1);
-        
+
         const product = products[0];
         expect(product.value.naam).toEqual({ type: 'string', value: 'Laptop' });
         expect(product.value.prijs).toEqual({ type: 'number', value: 1000 });
@@ -119,28 +119,28 @@ describe('Object Creation', () => {
             Regel MaakWerknemer
             geldig altijd
                 Er wordt een nieuw Werknemer aangemaakt
-                met naam "Peter"
-                en salaris 3000
+                met naam gelijk aan "Peter"
+                en salaris gelijk aan 3000
                 indien de leeftijd groter is dan de minimum_leeftijd.
         `;
-        
+
         const context = new Context();
         context.setVariable('minimum_leeftijd', { type: 'number', value: 18 });
-        
+
         // Test with age below minimum - should not create
         context.setVariable('leeftijd', { type: 'number', value: 16 });
         let result = engine.run(modelText, context);
         expect(result.success).toBe(true);
         let werknemers = context.getObjectsByType('Werknemer');
         expect(werknemers.length).toBe(0);
-        
+
         // Test with age above minimum - should create
         context.setVariable('leeftijd', { type: 'number', value: 25 });
         result = engine.run(modelText, context);
         expect(result.success).toBe(true);
         werknemers = context.getObjectsByType('Werknemer');
         expect(werknemers.length).toBe(1);
-        
+
         const werknemer = werknemers[0];
         expect(werknemer.value.naam).toEqual({ type: 'string', value: 'Peter' });
         expect(werknemer.value.salaris).toEqual({ type: 'number', value: 3000 });
@@ -166,20 +166,20 @@ describe('Object Creation', () => {
                 met factuurnummer 67890
                 en ordernummer 12345.
         `;
-        
+
         const context = new Context();
-        
+
         // Execute the model
         const result = engine.run(modelText, context);
-        
+
         expect(result.success).toBe(true);
-        
+
         // Check both objects were created
         const orders = context.getObjectsByType('Order');
         expect(orders.length).toBe(1);
         expect(orders[0].value.ordernummer).toEqual({ type: 'number', value: 12345 });
         expect(orders[0].value.status).toEqual({ type: 'string', value: 'nieuw' });
-        
+
         const facturen = context.getObjectsByType('Factuur');
         expect(facturen.length).toBe(1);
         expect(facturen[0].value.factuurnummer).toEqual({ type: 'number', value: 67890 });

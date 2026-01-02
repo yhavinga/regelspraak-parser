@@ -22,23 +22,23 @@ Regel set leeftijd
   geldig altijd
   De leeftijd van een Persoon moet gesteld worden op 25 jr.
 `;
-    
+
     const context = new Context();
-    const persoon = { 
-      type: 'object', 
-      value: {} 
+    const persoon = {
+      type: 'object',
+      value: {}
     };
     context.setVariable('Persoon', persoon);
-    
+
     const result = engine.run(model, context);
-    
+
     expect(result.success).toBe(true);
-    
+
     // Check that the regel group was parsed
     const ast = engine.parse(model);
     expect(ast.success).toBe(true);
     expect(ast.ast).toBeDefined();
-    
+
     // Find the regel group in the AST
     if (Array.isArray(ast.ast)) {
       const regelGroep = ast.ast.find((item: any) => item.type === 'RegelGroep');
@@ -59,20 +59,20 @@ Regelgroep Iteratieve berekening is recursief
 Regel creeer berekening
   geldig altijd
   Er wordt een nieuw Berekening aangemaakt
-  met de iteratie 1
-  en de waarde 10
+  met de iteratie gelijk aan 1
+  en de waarde gelijk aan 10
   indien het aantal alle Berekening kleiner is dan 3.
 
 Regel bereken waarde
   geldig altijd
   De waarde van een Berekening moet berekend worden als de waarde van de Berekening plus 1.
 `;
-    
+
     const result = engine.parse(model);
-    
+
     expect(result.success).toBe(true);
     expect(result.ast).toBeDefined();
-    
+
     // Find the regel group in the AST
     if (Array.isArray(result.ast)) {
       const regelGroep = result.ast.find((item: any) => item.type === 'RegelGroep');
@@ -91,18 +91,18 @@ Objecttype Counter
 Regelgroep Tel tot vijf is recursief
 Regel maak counter
   geldig altijd
-  Er wordt een nieuw Counter aangemaakt met de waarde 1
+  Er wordt een nieuw Counter aangemaakt met de waarde gelijk aan 1
   indien het aantal alle Counter kleiner is dan 5.
 `;
-    
+
     const context = new Context();
     // Set up the alle Counter collection
     context.setVariable('alle Counter', { type: 'array', value: [] });
-    
+
     const result = engine.run(model, context);
-    
+
     expect(result.success).toBe(true);
-    
+
     // For model execution, check the last result which should be the RegelGroep execution
     if (result.value) {
       // Get the number of counters created
@@ -122,16 +122,16 @@ Objecttype InfiniteLoop
 Regelgroep Infinite loop is recursief
 Regel create infinite
   geldig altijd
-  Er wordt een nieuw InfiniteLoop aangemaakt met de waarde 1.
+  Er wordt een nieuw InfiniteLoop aangemaakt met de waarde gelijk aan 1.
 `;
-    
+
     const context = new Context();
     context.setVariable('alle InfiniteLoop', { type: 'array', value: [] });
-    
+
     const result = engine.run(model, context);
-    
+
     expect(result.success).toBe(true);
-    
+
     // Should create many objects up to the iteration limit
     const loops = context.getVariable('alle InfiniteLoop');
     if (loops && loops.type === 'array') {
@@ -158,10 +158,10 @@ Regel bereken totaalprijs
   geldig altijd
   De totaalprijs van een Product moet berekend worden als de prijs van het Product plus de btw van het Product.
 `;
-    
+
     const context = new Context();
     context.setVariable('btw percentage', { type: 'number', value: 0.21 });
-    
+
     const product = {
       type: 'object',
       value: {
@@ -169,11 +169,11 @@ Regel bereken totaalprijs
       }
     };
     context.setVariable('Product', product);
-    
+
     const result = engine.run(model, context);
-    
+
     expect(result.success).toBe(true);
-    
+
     // For now, just check that parsing and execution completed successfully
     // Rule group execution for existing objects would need additional implementation
   });
