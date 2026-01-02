@@ -1725,13 +1725,32 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
     }
 
     // Get the attribute or bezielde reference
-    // Grammar uses attribuutMetLidwoord, but in practice test phrases use pronoun "zijn ..."
-    // Our naamwoord allows ZIJN as article, so detect a leading "zijn " and convert to a self-bound attribute
+    // Grammar: (bezieldeReferentie | attribuutReferentie) VANAF ...
+    // The grammar also allows attribuutMetLidwoord for backward compat
+    const attrRefCtx = ctx.attribuutReferentie ? ctx.attribuutReferentie() : null;
     const attrMetLidwoordCtx = ctx.attribuutMetLidwoord ? ctx.attribuutMetLidwoord() : null;
     const bezieldeCtx = ctx.bezieldeReferentie ? ctx.bezieldeReferentie() : null;
 
     let attrRef: AttributeReference;
-    if (bezieldeCtx) {
+
+    if (attrRefCtx) {
+      // Full attribuutReferentie: "de belasting van de persoon"
+      // Delegate to visitAttribuutReferentie to build proper navigation path
+      const visited = this.visitAttribuutReferentie(attrRefCtx);
+      if (visited.type === 'DimensionedAttributeReference') {
+        attrRef = (visited as any).baseAttribute;
+      } else if (visited.type === 'AttributeReference') {
+        attrRef = visited as AttributeReference;
+      } else if (visited.type === 'SubselectieExpression') {
+        // Extract base from subselectie
+        const subsel = visited as any;
+        attrRef = subsel.collection?.type === 'AttributeReference'
+          ? subsel.collection
+          : { type: 'AttributeReference', path: ['self'] };
+      } else {
+        attrRef = { type: 'AttributeReference', path: ['self'] };
+      }
+    } else if (bezieldeCtx) {
       // Direct bezielde reference parsed: ZIJN naamwoord
       const naamwoordCtx = bezieldeCtx.naamwoord();
       const fullAttrText = naamwoordCtx ? this.extractTextWithSpaces(naamwoordCtx) : '';

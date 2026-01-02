@@ -27,24 +27,24 @@ export class Context implements RuntimeContext {
   public evaluation_date: Date = new Date();
   public domainModel: DomainModel;
   public dimensionRegistry: DimensionRegistry;
-  
+
   // Store relationships between objects
   private relationships: Relationship[] = [];
-  
+
   // Store Feittype definitions
   private feittypen: Map<string, FeitType> = new Map();
-  
+
   // Store timeline attributes for objects
   // Map from object type -> object id -> attribute name -> TimelineValue
   private timelineAttributes: Map<string, Map<string, Map<string, TimelineValueImpl>>> = new Map();
-  
+
   // Store timeline parameters
   private timelineParameters: Map<string, TimelineValueImpl> = new Map();
-  
+
   // Rule execution tracking for regel status conditions
   private executedRules: Set<string> = new Set();  // Rules that have been executed (fired)
   private inconsistentRules: Set<string> = new Set();  // Consistency rules that found inconsistencies
-  
+
   // Configurable maximum iterations for recursive rule groups (spec §9.9)
   public maxRecursionIterations: number = 100;
 
@@ -66,7 +66,7 @@ export class Context implements RuntimeContext {
         unitSystems: []
       };
     }
-    
+
     // Initialize dimension registry from model
     this.dimensionRegistry = new DimensionRegistry();
     if (this.domainModel.dimensions) {
@@ -119,12 +119,35 @@ export class Context implements RuntimeContext {
     this.objects.get(type)!.set(id, attributes);
   }
 
+  /**
+   * Canonicalize type name for comparison (lowercase, no spaces/articles)
+   */
+  private canonicalizeTypeName(name: string): string {
+    return name.toLowerCase()
+      .replace(/^(de|het|een)\s+/g, '')
+      .replace(/\s+/g, '');
+  }
+
   getObjectsByType(type: string): Value[] {
-    const typeMap = this.objects.get(type);
+    // Try exact match first
+    let typeMap = this.objects.get(type);
+
+    // If no exact match, try canonicalized matching
+    // Handles: "Natuurlijk persoon" matching "Natuurlijkpersoon"
+    if (!typeMap) {
+      const canonicalQuery = this.canonicalizeTypeName(type);
+      for (const [storedType, map] of this.objects.entries()) {
+        if (this.canonicalizeTypeName(storedType) === canonicalQuery) {
+          typeMap = map;
+          break;
+        }
+      }
+    }
+
     if (!typeMap) {
       return [];
     }
-    
+
     const result: Value[] = [];
     for (const [id, attributes] of typeMap.entries()) {
       result.push({
@@ -152,16 +175,16 @@ export class Context implements RuntimeContext {
     const evalDate = date || this.evaluation_date;
     const typeMap = this.timelineAttributes.get(type);
     if (!typeMap) return null;
-    
+
     const objectMap = typeMap.get(id);
     if (!objectMap) return null;
-    
+
     const timelineValue = objectMap.get(attrName);
     if (!timelineValue) return null;
-    
+
     return timelineValue.getValueAt(evalDate);
   }
-  
+
   /**
    * Set a timeline attribute value.
    */
@@ -169,79 +192,79 @@ export class Context implements RuntimeContext {
     if (!this.timelineAttributes.has(type)) {
       this.timelineAttributes.set(type, new Map());
     }
-    
+
     const typeMap = this.timelineAttributes.get(type)!;
     if (!typeMap.has(id)) {
       typeMap.set(id, new Map());
     }
-    
+
     const objectMap = typeMap.get(id)!;
     objectMap.set(attrName, timelineValue);
   }
-  
+
   /**
    * Get a timeline parameter value.
    */
   getTimelineParameter(name: string): TimelineValueImpl | undefined {
     return this.timelineParameters.get(name);
   }
-  
+
   /**
    * Set a timeline parameter value.
    */
   setTimelineParameter(name: string, timelineValue: TimelineValueImpl): void {
     this.timelineParameters.set(name, timelineValue);
   }
-  
+
   generateObjectId(type: string): string {
     this.objectCounter++;
     return `${type}_${this.objectCounter}`;
   }
-  
+
   getEvaluationDate(): Date {
     return this.evaluation_date;
   }
-  
+
   setEvaluationDate(date: Date): void {
     this.evaluation_date = date;
   }
-  
+
   setCurrentInstance(instance: Value | undefined): void {
     this.current_instance = instance;
   }
-  
+
   // --- Feittype Handling ---
-  
+
   /**
    * Register a Feittype definition
    */
   registerFeittype(feittype: FeitType): void {
     this.feittypen.set(feittype.naam, feittype);
   }
-  
+
   /**
    * Get a Feittype definition by name
    */
   getFeittype(naam: string): FeitType | undefined {
     return this.feittypen.get(naam);
   }
-  
+
   /**
    * Get all registered FeitTypes
    */
   getAllFeittypen(): FeitType[] {
     return Array.from(this.feittypen.values());
   }
-  
+
   // --- Relationship Handling ---
-  
+
   /**
    * Find a FeitType that has the given role
    */
   findFeittypeByRole(roleName: string): FeitType | undefined {
     for (const feittype of this.feittypen.values()) {
       if (!feittype.rollen) continue;
-      
+
       for (const rol of feittype.rollen) {
         if (rol.naam === roleName || rol.meervoud === roleName) {
           return feittype;
@@ -250,7 +273,7 @@ export class Context implements RuntimeContext {
     }
     return undefined;
   }
-  
+
   /**
    * Creates and stores a relationship between two objects
    */
@@ -258,18 +281,18 @@ export class Context implements RuntimeContext {
     if (subject.type !== 'object' || object.type !== 'object') {
       throw new Error('Relationships can only be created between objects');
     }
-    
+
     const relationship: Relationship = {
       feittypeNaam,
       subject,
       object,
       preposition
     };
-    
+
     this.relationships.push(relationship);
     return relationship;
   }
-  
+
   /**
    * Find relationships matching the given criteria
    */
@@ -291,7 +314,7 @@ export class Context implements RuntimeContext {
       return true;
     });
   }
-  
+
   /**
    * Get objects related to the given subject via the specified feittype
    */
@@ -299,17 +322,17 @@ export class Context implements RuntimeContext {
     if (subject.type !== 'object') {
       return [];
     }
-    
+
     const related: Value[] = [];
     for (const rel of this.relationships) {
       if (rel.feittypeNaam !== feittypeNaam) {
         continue;
       }
-      
+
       // Check if objects match by comparing their identities
       const subjectMatches = this.objectsMatch(rel.subject, subject);
       const objectMatches = this.objectsMatch(rel.object, subject);
-      
+
       if (asSubject && subjectMatches) {
         related.push(rel.object);
       } else if (!asSubject && objectMatches) {
@@ -320,7 +343,7 @@ export class Context implements RuntimeContext {
   }
 
   // --- Rule Execution Tracking (for regel status conditions) ---
-  
+
   markRuleExecuted(regelNaam: string): void {
     this.executedRules.add(regelNaam);
   }
@@ -336,16 +359,16 @@ export class Context implements RuntimeContext {
   isRuleInconsistent(regelNaam: string): boolean {
     return this.inconsistentRules.has(regelNaam);
   }
-  
+
   // --- Dimension Handling ---
-  
+
   /**
    * Get a dimension definition by name
    */
   getDimension(name: string): Dimension | undefined {
     return this.domainModel.dimensions?.find(d => d.name === name);
   }
-  
+
   /**
    * Helper to check if two object values represent the same object
    */
@@ -353,19 +376,19 @@ export class Context implements RuntimeContext {
     if (obj1.type !== 'object' || obj2.type !== 'object') {
       return false;
     }
-    
+
     // Compare by objectType and objectId if available
     const o1 = obj1 as any;
     const o2 = obj2 as any;
-    
+
     if (o1.objectType && o2.objectType && o1.objectType !== o2.objectType) {
       return false;
     }
-    
+
     if (o1.objectId && o2.objectId) {
       return o1.objectId === o2.objectId;
     }
-    
+
     // If no IDs, compare by reference
     return obj1 === obj2;
   }
@@ -375,28 +398,28 @@ export class Context implements RuntimeContext {
    */
   clone(): Context {
     const cloned = new Context(this.domainModel);
-    
+
     // Copy scopes
     cloned.scopes = this.scopes.map(scope => new Map(scope));
-    
+
     // Copy objects
     cloned.objects = new Map();
     for (const [type, typeMap] of this.objects) {
       cloned.objects.set(type, new Map(typeMap));
     }
-    
+
     // Copy other properties
     cloned.objectCounter = this.objectCounter;
     cloned.current_instance = this.current_instance;
     cloned.evaluation_date = this.evaluation_date;
     cloned.executionTrace = [...this.executionTrace];
-    
+
     // Copy relationships
     cloned.relationships = [...this.relationships];
-    
+
     // Copy feittypen
     cloned.feittypen = new Map(this.feittypen);
-    
+
     // Copy timeline attributes
     cloned.timelineAttributes = new Map();
     for (const [type, typeMap] of this.timelineAttributes) {
@@ -406,17 +429,17 @@ export class Context implements RuntimeContext {
       }
       cloned.timelineAttributes.set(type, clonedTypeMap);
     }
-    
+
     // Copy timeline parameters
     cloned.timelineParameters = new Map(this.timelineParameters);
-    
+
     // Copy rule execution tracking
     cloned.executedRules = new Set(this.executedRules);
     cloned.inconsistentRules = new Set(this.inconsistentRules);
-    
+
     // Note: dimensionRegistry is already initialized from domainModel in constructor
     // It references the same dimension definitions, which is correct since they don't change
-    
+
     return cloned;
   }
 }

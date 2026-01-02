@@ -6,17 +6,17 @@ import { ExpressionEvaluator } from './expression-evaluator';
  * Engine for evaluating aggregation expressions in RegelSpraak
  */
 export class AggregationEngine {
-  constructor(private expressionEvaluator: any) {}
+  constructor(private expressionEvaluator: any) { }
 
   evaluate(expr: AggregationExpression, context: RuntimeContext): Value {
     // Collect values to aggregate
     const values = this.collectValues(expr.target, context);
-    
+
     // Apply dimension range filtering if specified
-    const filteredValues = expr.dimensionRange 
+    const filteredValues = expr.dimensionRange
       ? this.filterByDimensionRange(values, expr.dimensionRange, context)
       : values;
-    
+
     // Perform aggregation
     return this.aggregate(filteredValues, expr.aggregationType);
   }
@@ -28,7 +28,7 @@ export class AggregationEngine {
     } else {
       // Single expression - might return a collection
       const result = this.expressionEvaluator.evaluate(target, context);
-      
+
       // If it's a list, extract all values
       if (result.type === 'list' && Array.isArray(result.value)) {
         return result.value as Value[];
@@ -40,7 +40,7 @@ export class AggregationEngine {
   }
 
   private filterByDimensionRange(
-    values: Value[], 
+    values: Value[],
     range: { dimension: string; from: string; to: string },
     context: RuntimeContext
   ): Value[] {
@@ -52,28 +52,28 @@ export class AggregationEngine {
     if (!axis) {
       axis = registry.findAxisForLabel(range.from) || registry.findAxisForLabel(range.to) || '';
     }
-    
+
     // Get the labels that fall within the specified range
     const labelsInRange = axis ? registry.getLabelsInRange(axis, range.from, range.to) : [];
-    
+
     if (labelsInRange.length === 0) {
       // Invalid range or dimension - return empty array
       return [];
     }
-    
+
     // Filter values based on whether they correspond to labels in the range
     // This assumes values are structured with dimension coordinates
     const filteredValues: Value[] = [];
-    
+
     for (const value of values) {
       // Check if this value has dimension coordinates that match our range
       // For now, we'll handle the simple case where values are directly keyed by dimension labels
       // In a more complete implementation, we'd need to handle complex dimensional structures
-      
+
       if (value.type === 'object' && value.value) {
         // Check if the object has values for the dimension labels in range
         const objValue = value.value as Record<string, any>;
-        
+
         for (const label of labelsInRange) {
           if (label in objValue) {
             // Found a value for this label - include it
@@ -97,7 +97,7 @@ export class AggregationEngine {
         filteredValues.push(value);
       }
     }
-    
+
     return filteredValues;
   }
 
@@ -125,8 +125,18 @@ export class AggregationEngine {
   }
 
   private sum(values: Value[]): Value {
-    // Ensure all values are numbers
-    const numbers = values.map(v => {
+    // Filter out null/undefined values first (Python parity - see engine.py:6954)
+    const validValues = values.filter(v =>
+      v.type !== 'null' && v.value !== null && v.value !== undefined
+    );
+
+    if (validValues.length === 0) {
+      // Python returns 0 for all-null (engine.py:6976)
+      return { type: 'number', value: 0 };
+    }
+
+    // Ensure remaining values are numbers
+    const numbers = validValues.map(v => {
       if (v.type !== 'number') {
         throw new Error(`Cannot sum ${v.type} values`);
       }
@@ -147,8 +157,16 @@ export class AggregationEngine {
   }
 
   private maximum(values: Value[]): Value {
-    // Ensure all values are numbers
-    const numbers = values.map(v => {
+    // Filter out null/undefined values (Python parity)
+    const validValues = values.filter(v =>
+      v.type !== 'null' && v.value !== null && v.value !== undefined
+    );
+
+    if (validValues.length === 0) {
+      return { type: 'null', value: null };
+    }
+
+    const numbers = validValues.map(v => {
       if (v.type !== 'number') {
         throw new Error(`Cannot find maximum of ${v.type} values`);
       }
@@ -162,8 +180,16 @@ export class AggregationEngine {
   }
 
   private minimum(values: Value[]): Value {
-    // Ensure all values are numbers
-    const numbers = values.map(v => {
+    // Filter out null/undefined values (Python parity)
+    const validValues = values.filter(v =>
+      v.type !== 'null' && v.value !== null && v.value !== undefined
+    );
+
+    if (validValues.length === 0) {
+      return { type: 'null', value: null };
+    }
+
+    const numbers = validValues.map(v => {
       if (v.type !== 'number') {
         throw new Error(`Cannot find minimum of ${v.type} values`);
       }
