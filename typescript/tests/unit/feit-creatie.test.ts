@@ -22,7 +22,7 @@ Regel passagier met recht op treinmiles
     is een passagier van de reis met treinmiles van het vastgestelde contingent treinmiles.`;
 
       const result = engine.parse(code);
-      
+
       expect(result.success).toBe(true);
       if (result.success && result.ast.type === 'Model') {
         expect(result.ast.rules).toHaveLength(1);
@@ -30,7 +30,7 @@ Regel passagier met recht op treinmiles
         expect(rule.type).toBe('Rule');
         expect(rule.name).toBe('passagier met recht op treinmiles');
         expect(rule.result.type).toBe('FeitCreatie');
-        
+
         const feitCreatie = rule.result as any;
         expect(feitCreatie.role1).toBe('passagier met recht op treinmiles');
         expect(feitCreatie.role2).toBe('passagier');
@@ -52,43 +52,43 @@ Feittype lidmaatschap
 
 Regel maak lidmaatschap
   geldig altijd
-    Een lid van een club is een persoon.`;
+    Een lid van een club is een persoon van de club.`;
 
       // Need to provide variables with transformed names (spaces removed)
       const context = {
-        'persoon': { 
-          type: 'object', 
-          value: { 
+        'persoon': {
+          type: 'object',
+          value: {
             object_type_naam: 'Persoon',
             instance_id: 'p1',
             naam: 'Jan'
-          } 
+          }
         },
-        'club': { 
-          type: 'object', 
-          value: { 
+        'club': {
+          type: 'object',
+          value: {
             object_type_naam: 'Club',
             instance_id: 'c1',
             naam: 'Schaakclub'
-          } 
+          }
         },
         // The parser transforms "lid van een club" to "lidvaneenclub"
-        'lidvaneenclub': { 
-          type: 'object', 
-          value: { 
+        'lidvaneenclub': {
+          type: 'object',
+          value: {
             object_type_naam: 'Club',
             instance_id: 'c1',
             naam: 'Schaakclub'
-          } 
+          }
         }
       };
 
       const result = engine.evaluate(code, context);
-      
+
       if (!result.success) {
         console.error('Test failed with error:', result.error);
       }
-      
+
       expect(result.success).toBe(true);
       // The relationship should be created
       expect(result.value).toBeDefined();
@@ -128,58 +128,58 @@ Regel verdeel miles
     is een passagier van de reis van het contingent.`;
 
       const context = {
-        'vlucht': { 
-          type: 'object', 
-          value: { 
+        'vlucht': {
+          type: 'object',
+          value: {
             object_type_naam: 'Vlucht',
             instance_id: 'v1',
             vluchtnummer: 'KL123'
-          } 
+          }
         },
-        'contingent': { 
-          type: 'object', 
-          value: { 
+        'contingent': {
+          type: 'object',
+          value: {
             object_type_naam: 'Contingent',
             instance_id: 'c1',
             aantal_miles: 1000,
-            reis: { 
-              type: 'object', 
-              value: { 
+            reis: {
+              type: 'object',
+              value: {
                 object_type_naam: 'Vlucht',
                 instance_id: 'v1'
-              } 
+              }
             }
-          } 
+          }
         },
-        'passagiers': { 
-          type: 'list', 
+        'passagiers': {
+          type: 'list',
           value: [
-            { 
-              type: 'object', 
-              value: { 
+            {
+              type: 'object',
+              value: {
                 object_type_naam: 'Persoon',
                 instance_id: 'p1',
                 naam: 'Alice'
-              } 
+              }
             },
-            { 
-              type: 'object', 
-              value: { 
+            {
+              type: 'object',
+              value: {
                 object_type_naam: 'Persoon',
                 instance_id: 'p2',
                 naam: 'Bob'
-              } 
+              }
             }
           ]
         }
       };
 
       const result = engine.evaluate(code, context);
-      
+
       if (!result.success) {
         console.error('Evaluation failed:', result.error);
       }
-      
+
       expect(result.success).toBe(true);
       // Should create relationships for passagiers
     });
@@ -218,46 +218,46 @@ Regel alleen volwassenen
     indien de leeftijd van de persoon groter dan de minimum leeftijd van de activiteit is.`;
 
       const context = {
-        'activiteit': { 
-          type: 'object', 
-          value: { 
+        'activiteit': {
+          type: 'object',
+          value: {
             object_type_naam: 'Activiteit',
             instance_id: 'a1',
             naam: 'Wijnproeverij',
             minimum_leeftijd: 18
-          } 
+          }
         },
-        'personen': { 
-          type: 'list', 
+        'personen': {
+          type: 'list',
           value: [
-            { 
-              type: 'object', 
-              value: { 
+            {
+              type: 'object',
+              value: {
                 object_type_naam: 'Persoon',
                 instance_id: 'p1',
                 naam: 'Alice',
                 leeftijd: 25
-              } 
+              }
             },
-            { 
-              type: 'object', 
-              value: { 
+            {
+              type: 'object',
+              value: {
                 object_type_naam: 'Persoon',
                 instance_id: 'p2',
                 naam: 'Bob',
                 leeftijd: 16
-              } 
+              }
             }
           ]
         }
       };
 
       const result = engine.evaluate(code, context);
-      
+
       if (!result.success) {
         console.error('Test failed with error:', result.error);
       }
-      
+
       expect(result.success).toBe(true);
       // Should only create relationship for Alice (age 25), not Bob (age 16)
     });
@@ -272,7 +272,7 @@ Regel invalid feit creatie
     is een andere rol van een ander object.`;
 
       const result = engine.evaluate(code, {});
-      
+
       // Should not crash, but might return error or skip
       expect(result.success).toBeDefined();
     });
@@ -284,7 +284,7 @@ Regel malformed
     Een van een is een van een.`;
 
       const parseResult = engine.parse(code);
-      
+
       // Parser should still handle this, even if pattern is incomplete
       expect(parseResult.success).toBeDefined();
     });
@@ -309,30 +309,30 @@ Regel maak huwelijk
     Een echtgenote van een huwelijk is een partner van het huwelijk.`;
 
       const context = {
-        'persoon': { 
-          type: 'object', 
-          value: { 
+        'persoon': {
+          type: 'object',
+          value: {
             object_type_naam: 'Persoon',
             instance_id: 'p1',
             naam: 'Jan'
-          } 
+          }
         },
-        'partner': { 
-          type: 'object', 
-          value: { 
+        'partner': {
+          type: 'object',
+          value: {
             object_type_naam: 'Partner',
             instance_id: 'pa1',
             naam: 'Marie'
-          } 
+          }
         }
       };
 
       const result = engine.evaluate(code, context);
-      
+
       if (!result.success) {
         console.error('Test failed with error:', result.error);
       }
-      
+
       expect(result.success).toBe(true);
       // Should create reciprocal relationship due to "Wederkerig"
     });
