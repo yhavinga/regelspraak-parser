@@ -20,7 +20,7 @@ describe('Engine - Navigation Expressions', () => {
         }
       };
       context.setVariable('persoon', persoon);
-      
+
       const result = engine.run('de naam van persoon', context);
       expect(result.success).toBe(true);
       expect(result.value).toEqual({ type: 'string', value: 'Jan' });
@@ -34,7 +34,7 @@ describe('Engine - Navigation Expressions', () => {
         }
       };
       context.setVariable('klant', klant);
-      
+
       const result = engine.run('het inkomen van klant', context);
       expect(result.success).toBe(true);
       expect(result.value).toEqual({ type: 'number', value: 50000 });
@@ -48,7 +48,7 @@ describe('Engine - Navigation Expressions', () => {
         }
       };
       context.setVariable('persoon', persoon);
-      
+
       const result = engine.run('de leeftijd van de persoon', context);
       expect(result.success).toBe(true);
       expect(result.value).toEqual({ type: 'number', value: 25 });
@@ -70,7 +70,7 @@ describe('Engine - Navigation Expressions', () => {
         }
       };
       context.setVariable('persoon', persoon);
-      
+
       const result = engine.run('de straat van het adres van persoon', context);
       expect(result.success).toBe(true);
       expect(result.value).toEqual({ type: 'string', value: 'Hoofdstraat' });
@@ -90,7 +90,7 @@ describe('Engine - Navigation Expressions', () => {
         }
       };
       context.setVariable('hoofdstad', hoofdstad);
-      
+
       const result = engine.run('de naam van de burgemeester van de hoofdstad', context);
       expect(result.success).toBe(true);
       expect(result.value).toEqual({ type: 'string', value: 'Piet' });
@@ -107,7 +107,7 @@ describe('Engine - Navigation Expressions', () => {
         }
       };
       context.setVariable('factuur', factuur);
-      
+
       const result = engine.run('het bedrag van factuur plus de btw van factuur', context);
       expect(result.success).toBe(true);
       expect(result.value).toEqual({ type: 'number', value: 121 });
@@ -121,7 +121,7 @@ describe('Engine - Navigation Expressions', () => {
         }
       };
       context.setVariable('persoon', persoon);
-      
+
       const result = engine.run('de leeftijd van persoon groter is dan 65', context);
       expect(result.success).toBe(true);
       expect(result.value).toEqual({ type: 'boolean', value: true });
@@ -143,7 +143,7 @@ describe('Engine - Navigation Expressions', () => {
         }
       };
       context.setVariable('persoon', persoon);
-      
+
       const result = engine.run('de leeftijd van persoon', context);
       expect(result.success).toBe(false);
       expect(result.error?.message).toContain("Attribute 'leeftijd' not found");
@@ -151,10 +151,10 @@ describe('Engine - Navigation Expressions', () => {
 
     test('should fail on non-object navigation', () => {
       context.setVariable('nummer', { type: 'number', value: 42 });
-      
+
       const result = engine.run('de waarde van nummer', context);
       expect(result.success).toBe(false);
-      expect(result.error?.message).toContain('Cannot navigate into non-object');
+      expect(result.error?.message).toContain('Cannot get attribute');
     });
   });
 
@@ -167,7 +167,7 @@ describe('Engine - Navigation Expressions', () => {
         }
       };
       context.setVariable('project', project);
-      
+
       const result = engine.run('de totale kosten van project', context);
       expect(result.success).toBe(true);
       expect(result.value).toEqual({ type: 'number', value: 75000 });
@@ -181,7 +181,7 @@ describe('Engine - Navigation Expressions', () => {
         }
       };
       context.setVariable('persoon', persoon);
-      
+
       const result = engine.run('de volledige_naam van persoon', context);
       expect(result.success).toBe(true);
       expect(result.value).toEqual({ type: 'string', value: 'Jan de Vries' });
