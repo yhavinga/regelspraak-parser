@@ -4369,21 +4369,29 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
     // Grammar: naamwoord : naamPhrase ( voorzetsel naamPhrase )*
     const parts: string[] = [];
     const prepositions: string[] = [];
+    const prepositionIndices: number[] = []; // Track which parts are preceded by specific prepositions
 
     const childCount = ctx.getChildCount ? ctx.getChildCount() : 0;
+    let lastPreposition = '';
+
     for (let i = 0; i < childCount; i++) {
       const child = ctx.getChild(i);
 
       if (child.constructor.name === 'NaamPhraseContext') {
-        // Extract text from naamPhrase without articles
+        // Extract text from naamPhrase
         const phraseText: string[] = [];
         const phraseChildCount = child.getChildCount ? child.getChildCount() : 0;
+        let startsWithArticle = false;
 
         for (let j = 0; j < phraseChildCount; j++) {
           const subchild = child.getChild(j);
           if (subchild.getText) {
             const text = subchild.getText();
-            // Skip articles
+            // Track if phrase starts with article (navigation indicator)
+            if (j === 0 && ['de', 'het', 'een', 'De', 'Het', 'Een', 'alle'].includes(text)) {
+              startsWithArticle = true;
+            }
+            // Skip articles in output
             if (!['de', 'het', 'een', 'De', 'Het', 'Een'].includes(text)) {
               phraseText.push(text);
             }
@@ -4392,30 +4400,56 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
 
         if (phraseText.length > 0) {
           parts.push(phraseText.join(' '));
+          // Track if this part is preceded by "van" + article (navigation pattern)
+          if (lastPreposition === 'van' && startsWithArticle) {
+            prepositionIndices.push(parts.length - 1);
+          }
         }
+        lastPreposition = '';
       } else if (child.constructor.name === 'VoorzetselContext') {
-        // Track all prepositions
         const text = this.extractText(child);
         prepositions.push(text);
+        lastPreposition = text;
       }
     }
 
-    // Only treat as navigation if:
-    // 1. We have 2+ parts AND
-    // 2. The ONLY preposition is "van" (pure navigation pattern)
-    // 
-    // If there are other prepositions (op, bij, voor, etc.), keep as compound attribute name
-    const isNavigation = parts.length >= 2 &&
-      prepositions.length === 1 &&
-      prepositions[0] === 'van';
+    // Find navigation split point: rightmost "van" followed by article+noun
+    // Pattern: compound attributes with "op" or internal "van" stay together,
+    // but "van de/het/alle X" at the end is navigation
+    if (parts.length >= 2 && prepositionIndices.length > 0) {
+      // Split at the first navigation indicator
+      const navIdx = prepositionIndices[0];
 
-    if (isNavigation) {
+      // Everything before navIdx is the compound attribute
+      const compoundAttribute = this.visitNaamwoord({
+        getChildCount: () => {
+          // Reconstruct partial context - just return full text for parts before nav
+          return 0;
+        },
+        getText: () => parts.slice(0, navIdx).join(' ')
+      });
+
+      // Parts from navIdx onward are navigation elements
+      const navParts = parts.slice(navIdx);
+
+      // Reverse navigation parts (Dutch right-to-left)
+      // and prepend compound attribute
+      return [...navParts.reverse(), parts.slice(0, navIdx).join(' ')];
+    }
+
+    // Simple case: only "van" preposition(s) without article pattern
+    // This handles "passagiers van de reis" → ["reis", "passagiers"]
+    const isSimpleNavigation = parts.length >= 2 &&
+      prepositions.length >= 1 &&
+      prepositions.every(p => p === 'van');
+
+    if (isSimpleNavigation) {
       // Reverse for Dutch navigation: "passagiers van de reis" -> ["reis", "passagiers"]
       return parts.reverse();
     }
 
-    // Not pure navigation - return as single compound element
-    // Join all parts to preserve compound attribute names like "belasting op basis van afstand"
+    // Not navigation - return as single compound element
+    // Preserves compound attribute names like "belasting op basis van afstand"
     return parts.length > 0 ? [this.visitNaamwoord(ctx)] : [this.extractTextWithSpaces(ctx)];
   }
 

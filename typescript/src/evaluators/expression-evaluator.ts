@@ -1142,13 +1142,39 @@ export class ExpressionEvaluator implements IEvaluator {
     if (expr.path.length === 2) {
       const [objectName, attribute] = expr.path;
 
-      // Check if this is a pronoun-based Feittype navigation like ["zijn reis", "attribute"]
+      // Check if this is a pronoun-based navigation like ["zijn product", "attribute"]
+      // Python pattern: first check direct attribute, then Feittype relationship
       if (objectName.startsWith('zijn ') || objectName.startsWith('haar ')) {
         const roleName = objectName.substring(5); // Remove "zijn " or "haar " prefix
         const ctx = context as any;
 
         if (ctx.current_instance && ctx.current_instance.type === 'object') {
-          // Find related objects through Feittype using the role name
+          const instanceData = ctx.current_instance.value as Record<string, Value>;
+
+          // FIRST: Check if roleName is a direct attribute on current_instance (Python engine.py:2254-2258)
+          // This handles cases like "zijn product" where product is an embedded object attribute
+          const directAttr = instanceData[roleName];
+          if (directAttr !== undefined && directAttr !== null) {
+            // If the attribute is an object, get the nested attribute
+            if (directAttr.type === 'object') {
+              const nestedData = directAttr.value as Record<string, Value>;
+              const attrValue = nestedData[attribute];
+              if (attrValue !== undefined) {
+                return attrValue;
+              }
+            } else if (typeof directAttr === 'object' && 'value' in directAttr) {
+              // Handle wrapped object values
+              const objValue = directAttr.value;
+              if (objValue && typeof objValue === 'object') {
+                const attrValue = (objValue as Record<string, Value>)[attribute];
+                if (attrValue !== undefined) {
+                  return attrValue;
+                }
+              }
+            }
+          }
+
+          // SECOND: Try Feittype relationship navigation as fallback
           const relatedObjects = this.findRelatedObjectsThroughFeittype(roleName, ctx.current_instance, ctx);
 
           if (relatedObjects && relatedObjects.length > 0) {
@@ -1212,13 +1238,22 @@ export class ExpressionEvaluator implements IEvaluator {
     if (expr.path.length === 1) {
       const variableName = expr.path[0];
 
-      // Check if this is a pronoun-based Feittype role like "zijn reis"
+      // Check if this is a pronoun-based navigation like "zijn product"
+      // Python pattern: first check direct attribute, then Feittype relationship
       if (variableName.startsWith('zijn ') || variableName.startsWith('haar ')) {
         const roleName = variableName.substring(5); // Remove pronoun prefix
         const ctx = context as any;
 
         if (ctx.current_instance && ctx.current_instance.type === 'object') {
-          // Find related objects through Feittype using the role name
+          const instanceData = ctx.current_instance.value as Record<string, Value>;
+
+          // FIRST: Check if roleName is a direct attribute on current_instance
+          const directAttr = instanceData[roleName];
+          if (directAttr !== undefined && directAttr !== null) {
+            return directAttr;
+          }
+
+          // SECOND: Try Feittype relationship navigation as fallback
           const relatedObjects = this.findRelatedObjectsThroughFeittype(roleName, ctx.current_instance, ctx);
 
           if (relatedObjects && relatedObjects.length > 0) {

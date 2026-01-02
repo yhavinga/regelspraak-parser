@@ -20,13 +20,13 @@ export interface NavigationResult {
 function navigateThroughFeittype(roleName: string, fromObject: Value, context: Context): Value | null {
   // Get all registered Feittypen from the context
   const feittypen = (context as any).feittypen || new Map();
-  
+
   // Clean the role name for comparison
   const roleNameClean = roleName.toLowerCase()
     .replace(/^de\s+/, '')
     .replace(/^het\s+/, '')
     .replace(/^een\s+/, '');
-  
+
   // Check each Feittype for matching roles
   for (const [feittypeName, feittype] of feittypen) {
     for (const rol of feittype.rollen) {
@@ -34,17 +34,17 @@ function navigateThroughFeittype(roleName: string, fromObject: Value, context: C
         .replace(/^de\s+/, '')
         .replace(/^het\s+/, '')
         .replace(/^een\s+/, '');
-      
+
       // Check for exact match or plural forms
       if (rolNaamClean === roleNameClean ||
-          rol.meervoud?.toLowerCase() === roleNameClean ||
-          (roleNameClean.endsWith('s') && roleNameClean.slice(0, -1) === rolNaamClean) ||
-          (roleNameClean.endsWith('en') && roleNameClean.slice(0, -2) === rolNaamClean)) {
-        
+        rol.meervoud?.toLowerCase() === roleNameClean ||
+        (roleNameClean.endsWith('s') && roleNameClean.slice(0, -1) === rolNaamClean) ||
+        (roleNameClean.endsWith('en') && roleNameClean.slice(0, -2) === rolNaamClean)) {
+
         // Found a matching role - check if current object can participate
-        const fromObjectType = (fromObject.value as any).__type || 
-                               (fromObject as any).objectType;
-        
+        const fromObjectType = (fromObject.value as any).__type ||
+          (fromObject as any).objectType;
+
         // Find if the fromObject's type matches any role in this Feittype
         for (let otherIdx = 0; otherIdx < feittype.rollen.length; otherIdx++) {
           const otherRol = feittype.rollen[otherIdx];
@@ -53,7 +53,7 @@ function navigateThroughFeittype(roleName: string, fromObject: Value, context: C
             // Get related objects through this relationship
             const asSubject = (otherIdx === 0);
             const relatedObjects = context.getRelatedObjects(fromObject, feittypeName, asSubject);
-            
+
             if (relatedObjects && relatedObjects.length > 0) {
               // For navigation, return the first related object
               // (similar to Python implementation)
@@ -64,7 +64,7 @@ function navigateThroughFeittype(roleName: string, fromObject: Value, context: C
       }
     }
   }
-  
+
   return null;
 }
 
@@ -125,10 +125,11 @@ export function resolveNavigationPath(
       currentObject = ctx.getVariable(baseName);
 
       if (!currentObject) {
+        // Match Python's error format for undefined variables
         return {
           targetObject: null,
           attributeName: '',
-          error: `No starting object available for navigation`
+          error: `Undefined variable: ${baseName}`
         };
       }
 
@@ -143,13 +144,13 @@ export function resolveNavigationPath(
   if (!gotFromVariable && navPath.length > 0) {
     // Check if the first element is the object type
     const currentObjType = (currentObject.value as any).__type ||
-                           (currentObject as any).objectType;
+      (currentObject as any).objectType;
     if (currentObjType && navPath[0].toLowerCase() === currentObjType.toLowerCase()) {
       // Skip the first element as it's just referring to the current object type
       navPath = navPath.slice(1);
     }
   }
-  
+
   // Navigate through the path
   for (const navAttribute of navPath) {
     if (!currentObject || currentObject.type !== 'object') {
@@ -163,12 +164,12 @@ export function resolveNavigationPath(
     // First try direct attribute navigation
     const objectData = currentObject.value as Record<string, Value>;
     let nextObject = objectData[navAttribute];
-    
+
     // If no direct attribute, try Feittype relationship navigation
     if (!nextObject) {
       const ctx = context as Context;
       const relatedObject = navigateThroughFeittype(navAttribute, currentObject, ctx);
-      
+
       if (!relatedObject) {
         return {
           targetObject: null,
@@ -176,10 +177,10 @@ export function resolveNavigationPath(
           error: `Navigation attribute '${navAttribute}' not found and no matching Feittype relationship`
         };
       }
-      
+
       nextObject = relatedObject;
     }
-    
+
     currentObject = nextObject;
   }
 
@@ -201,7 +202,7 @@ export function isObjectScopedRule(path: string[]): boolean {
   if (path.length < 2) {
     return false;
   }
-  
+
   const firstElement = path[0];
   // Check if the first element starts with a capital letter (object type convention)
   return !!(firstElement && firstElement[0] === firstElement[0].toUpperCase());
@@ -225,24 +226,24 @@ export function setValueAtPath(
   const ctx = context as Context;
   const startObject = ctx.current_instance;
   const navigationResult = resolveNavigationPath(path, context, startObject);
-  
+
   if (!navigationResult.targetObject) {
     return {
       success: false,
       error: navigationResult.error || 'Failed to resolve navigation path'
     };
   }
-  
+
   if (navigationResult.targetObject.type !== 'object') {
     return {
       success: false,
       error: 'Target is not an object'
     };
   }
-  
+
   // Set the attribute value
   const objectData = navigationResult.targetObject.value as Record<string, Value>;
   objectData[navigationResult.attributeName] = value;
-  
+
   return { success: true };
 }
