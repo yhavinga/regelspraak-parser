@@ -57,30 +57,32 @@ describe('Autocomplete Integration', () => {
     }
   });
 
-  test.skip('handles parameter references in conditions', () => {
+  test('handles parameter references in conditions', () => {
     const text = `Parameter salaris: Bedrag
 Parameter leeftijd: Numeriek
 Regel Test
   geldig indien `;
-    
+
     const suggestions = parser.getExpectedTokensAt(text, text.length);
-    
-    // Should include parameter names
+
+    // Should include parameter names (works after type filter relaxation)
     expect(suggestions).toContain('salaris');
     expect(suggestions).toContain('leeftijd');
-    // And articles
+    // AND articles (works after merge strategy implementation)
     expect(suggestions).toContain('de');
     expect(suggestions).toContain('het');
+    expect(suggestions).toContain('een');
   });
 
-  test.skip('suggests comparison operators after "is"', () => {
+  test('suggests comparison operators after "is"', () => {
+    // Works after merge strategy implementation
     const text = `Parameter x: Numeriek
 Regel Test
   geldig indien x is `;
-    
+
     const suggestions = parser.getExpectedTokensAt(text, text.length);
-    
-    // Should include comparison operators
+
+    // Should include comparison operators from SimpleAutocomplete
     expect(suggestions).toContain('gelijk aan');
     expect(suggestions).toContain('groter dan');
     expect(suggestions).toContain('kleiner dan');
@@ -91,28 +93,29 @@ Regel Test
 Regel Test
   geldig altijd
     Het x moet `;
-    
+
     const suggestions = parser.getExpectedTokensAt(text, text.length);
-    
+
     // Should include assignment patterns
     expect(suggestions).toContain('berekend worden als');
     expect(suggestions).toContain('gesteld worden op');
   });
 
-  test.skip('suggests functions after articles', () => {
+  test('suggests functions after articles', () => {
+    // Works after merge strategy implementation
     const text = `Parameter x: Numeriek
 Parameter y: Numeriek
 Regel Test
   geldig altijd
     Het x moet berekend worden als de `;
-    
+
     const suggestions = parser.getExpectedTokensAt(text, text.length);
-    
-    // Should include parameters
+
+    // Parameters work
     expect(suggestions).toContain('x');
     expect(suggestions).toContain('y');
-    
-    // And functions
+
+    // Functions now suggested from SimpleAutocomplete
     expect(suggestions).toContain('som van');
     expect(suggestions).toContain('absolute waarde van');
   });

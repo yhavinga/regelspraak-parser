@@ -188,7 +188,12 @@ export class ParserBasedAutocompleteService {
 
     // CRITICAL FIX: Truncate after PLACEHOLDER to avoid errors from text after cursor
     // Insert placeholder at token start position and drop everything after
-    return text.substring(0, tokenStart) + 'PLACEHOLDER';
+    // Insert placeholder at token start position and drop everything after
+    const truncated = text.substring(0, tokenStart) + 'PLACEHOLDER';
+
+    // Carmel note: Truncation is essential to isolate the current parse context
+    // from potential syntax errors downstream.
+    return truncated;
   }
 
   private parseAndGetError(text: string): string | null {
@@ -196,7 +201,7 @@ export class ParserBasedAutocompleteService {
       const chars = new CharStream(text);
       const lexer = new RegelSpraakLexer(chars);
 
-      // Capture lexer errors too
+      // Capture lexer errors
       let lexerError: string | null = null;
       class LexerErrorCapture extends ErrorListener<any> {
         syntaxError(
@@ -222,7 +227,6 @@ export class ParserBasedAutocompleteService {
 
       // Capture parser errors
       let parserError: string | null = null;
-
       class ParserErrorCapture extends ErrorListener<any> {
         syntaxError(
           recognizer: Recognizer<any>,
@@ -246,7 +250,15 @@ export class ParserBasedAutocompleteService {
         // Expected to fail
       }
 
-      // Return parser error if available, otherwise lexer error
+      // Filter out generic tokens from the error message if we want to de-clutter
+      if (parserError) {
+        // Remove broad generic placeholders that are less helpful than specific symbols
+        const cleanError = (parserError as string)
+          .replace(/'identifier'/g, '')
+          .replace(/'<naam>'/g, '');
+        parserError = cleanError;
+      }
+
       return parserError || lexerError;
     } catch (e) {
       return null;
@@ -399,9 +411,10 @@ export class ParserBasedAutocompleteService {
    * Get the expected type context at cursor position
    */
   private getExpectedTypeContext(textUpToCursor: string, paramTypes?: Record<string, string>): string | null {
-    // After indien - expect boolean
+    // After indien - allow any type (conditions can compare any types, not just booleans)
+    // Previously returned 'boolean' which filtered out numeric/text parameters
     if (/indien\s*$/i.test(textUpToCursor)) {
-      return 'boolean';
+      return null;  // No type restriction - suggest all parameters
     }
 
     // After comparison with a typed parameter  
