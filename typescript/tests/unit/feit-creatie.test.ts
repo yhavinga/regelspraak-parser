@@ -186,7 +186,7 @@ Regel verdeel miles
   });
 
   describe('Conditional FeitCreatie', () => {
-    it.skip('should only create relationships when condition is met', () => {
+    it('should only create relationships when condition is met', () => {
       // This test needs to be redesigned - the FeitCreatie pattern doesn't parse correctly
       // The issue is "Een deelnemer van een activiteit is een persoon van de activiteit"
       // is not a valid FeitCreatie pattern. FeitCreatie needs specific subject references

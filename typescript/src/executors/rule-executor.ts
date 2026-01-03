@@ -20,7 +20,19 @@ import {
   FeitCreatie,
   VariableAssignment
 } from '../ast/rules';
-import { VariableReference, Expression, AttributeReference } from '../ast/expressions';
+import {
+  VariableReference,
+  Expression,
+  AttributeReference,
+  SubselectieExpression,
+  AggregationExpression,
+  SamengesteldeVoorwaarde,
+  ConjunctionExpression,
+  DisjunctionExpression,
+  UnaryExpression,
+  BinaryExpression,
+  FunctionCall
+} from '../ast/expressions';
 import { ExpressionEvaluator } from '../evaluators/expression-evaluator';
 import { Context } from '../runtime/context';
 import { FeitExecutor } from './feit-executor';
@@ -622,6 +634,10 @@ export class RuleExecutor implements IRuleExecutor {
     return value.value != null;
   }
 
+  private stripArticles(text: string): string {
+    return text.replace(/^(de|het|een|alle|één)\s+/i, '').trim();
+  }
+
   /**
    * Deduce the object type referenced in a condition.
    * Used for ObjectCreation and FeitCreatie rules to determine what objects to iterate over
@@ -632,73 +648,155 @@ export class RuleExecutor implements IRuleExecutor {
       return undefined;
     }
 
-    // Extract attribute references from the condition expression
-    const attrRefs = this.extractAttributeReferences(voorwaarde.expression);
+    // Extract references from the condition expression
+    // This now includes both AttributeReference and VariableReference
+    const refs = this.extractReferences(voorwaarde.expression);
 
-    // Find which object type owns these attributes
-    // We need access to the domain model to check attribute ownership
+    // Find which object type owns these attributes or matches the variables
     const ctx = context as any;
     if (!ctx.domainModel || !ctx.domainModel.objectTypes) {
       return undefined;
     }
 
-    for (const attrRef of attrRefs) {
-      if (attrRef.path && attrRef.path.length > 0) {
-        // Get the attribute name (first element usually)
-        let attrName = attrRef.path[0];
-        // Remove articles
-        attrName = attrName.replace(/^(het |de |een )/i, '');
+    // Keep track of candidates to handle ambiguity
+    const candidates = new Set<string>();
 
-        // Check which object type has this attribute
+    for (const ref of refs) {
+      if (ref.type === 'AttributeReference') {
+        const attrRef = ref as AttributeReference;
+        if (attrRef.path && attrRef.path.length > 0) {
+          // Case 1: Object-first path (e.g., ["persoon", "leeftijd"])
+          // The attribute is the last element
+          const potentialAttrName = attrRef.path[attrRef.path.length - 1];
+          const objectNameOrPath = attrRef.path.slice(0, -1);
+
+          if (objectNameOrPath.length > 0) {
+            // Check if the prefix resolves to an object type
+            const prefix = objectNameOrPath[0]; // Simplified: check first element
+            for (const objType of ctx.domainModel.objectTypes) {
+              const typeName = objType.name || objType.naam;
+              if (typeName && typeName.toLowerCase() === prefix.toLowerCase()) {
+                if (this.typeHasAttribute(objType, potentialAttrName)) {
+                  candidates.add(objType.name || objType.naam);
+                }
+              }
+            }
+          }
+
+          // Case 2: Attribute-first/Single path (legacy or specific patterns)
+          // Try to fuzzy match the first element as an attribute of some type
+          let attrName = attrRef.path[0];
+          attrName = this.stripArticles(attrName);
+
+          for (const objType of ctx.domainModel.objectTypes) {
+            if (this.typeHasAttribute(objType, attrName)) {
+              candidates.add(objType.name || objType.naam);
+            }
+          }
+        }
+      } else if (ref.type === 'VariableReference') {
+        const varRef = ref as VariableReference;
+        const varName = this.stripArticles(varRef.variableName);
+
+        // Check if the variable name itself matches an object type (singular or plural)
         for (const objType of ctx.domainModel.objectTypes) {
-          if (objType.attributes && objType.attributes.some((attr: any) =>
-            attr.name === attrName || attr.naam === attrName)) {
-            return objType.name || objType.naam;
+          const typeName = objType.name || objType.naam;
+          // distinct heuristics
+          if (typeName.toLowerCase() === varName.toLowerCase()) {
+            candidates.add(typeName);
+          }
+          if (objType.plural && objType.plural.some((p: string) => p.toLowerCase() === varName.toLowerCase())) {
+            candidates.add(typeName);
+          }
+        }
+
+        // Also check if this 'variable' is actually a unique attribute of some type
+        // (This happens because simple noun phrases are parsed as VariableReference)
+        for (const objType of ctx.domainModel.objectTypes) {
+          if (this.typeHasAttribute(objType, varName)) {
+            candidates.add(objType.name || objType.naam);
           }
         }
       }
     }
 
+    // If we have exactly one candidate, return it
+    if (candidates.size === 1) {
+      return candidates.values().next().value;
+    }
+
+    // TODO: stricter resolution if multiple candidates?
     return undefined;
   }
 
+  private typeHasAttribute(objType: any, attrName: string): boolean {
+    if (!objType.members) return false;
+    const normalizedAttr = attrName.toLowerCase();
+
+    return objType.members.some((member: any) => {
+      const memberName = (member.name || member.naam || '').toLowerCase();
+      return this.stripArticles(memberName) === this.stripArticles(normalizedAttr);
+    });
+  }
+
   /**
-   * Extract all attribute references from an expression.
-   * Used to determine which object type a condition is referring to.
+   * Extract all attribute and variable references from an expression.
+   * Recursively traverses the expression tree.
    */
-  private extractAttributeReferences(expr: Expression): AttributeReference[] {
-    const refs: AttributeReference[] = [];
+  private extractReferences(expr: Expression): (AttributeReference | VariableReference)[] {
+    const refs: (AttributeReference | VariableReference)[] = [];
 
     if (!expr) {
       return refs;
     }
 
-    // Check if this expression itself is an AttributeReference
+    // Direct match
     if (expr.type === 'AttributeReference') {
       refs.push(expr as AttributeReference);
+    } else if (expr.type === 'VariableReference') {
+      refs.push(expr as VariableReference);
     }
 
-    // Recursively check subexpressions for BinaryExpression
-    if ((expr as any).left) {
-      refs.push(...this.extractAttributeReferences((expr as any).left));
-    }
-    if ((expr as any).right) {
-      refs.push(...this.extractAttributeReferences((expr as any).right));
-    }
+    // Recursive traversal
+    if ((expr as any).left) refs.push(...this.extractReferences((expr as any).left));
+    if ((expr as any).right) refs.push(...this.extractReferences((expr as any).right));
+    if ((expr as any).operand) refs.push(...this.extractReferences((expr as any).operand));
 
-    // For UnaryExpression
-    if ((expr as any).operand) {
-      refs.push(...this.extractAttributeReferences((expr as any).operand));
-    }
-
-
-    // For FunctionCall expressions
+    // Function calls
     if (expr.type === 'FunctionCall') {
-      const funcExpr = expr as any;
-      if (funcExpr.arguments) {
-        for (const arg of funcExpr.arguments) {
-          refs.push(...this.extractAttributeReferences(arg));
-        }
+      const func = expr as FunctionCall;
+      if (func.arguments) {
+        func.arguments.forEach(arg => refs.push(...this.extractReferences(arg)));
+      }
+    }
+
+    // Nested expressions
+    if (expr.type === 'SubselectieExpression') {
+      const sub = expr as SubselectieExpression;
+      refs.push(...this.extractReferences(sub.collection));
+      // We might want references from the predicate too, but usually the collection defines the type
+    }
+
+    if (expr.type === 'AggregationExpression') {
+      const agg = expr as AggregationExpression;
+      if (Array.isArray(agg.target)) {
+        agg.target.forEach(t => refs.push(...this.extractReferences(t)));
+      } else {
+        refs.push(...this.extractReferences(agg.target));
+      }
+    }
+
+    if (expr.type === 'SamengesteldeVoorwaarde') {
+      const sv = expr as SamengesteldeVoorwaarde;
+      if (sv.voorwaarden) {
+        sv.voorwaarden.forEach(v => refs.push(...this.extractReferences(v)));
+      }
+    }
+
+    if (expr.type === 'ConjunctionExpression' || expr.type === 'DisjunctionExpression') {
+      const conj = expr as any; // Both have .values
+      if (conj.values) {
+        conj.values.forEach((v: Expression) => refs.push(...this.extractReferences(v)));
       }
     }
 
