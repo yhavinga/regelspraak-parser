@@ -141,6 +141,8 @@ MOET: 'moet';
 MOETEN: 'moeten';
 WORDT_VERDEELD_OVER: 'wordt verdeeld over';
 ZIJN: 'zijn';
+HAAR: 'haar';
+HUN: 'hun';
 
 // Conditions & Operator Keywords
 AAN: 'aan';

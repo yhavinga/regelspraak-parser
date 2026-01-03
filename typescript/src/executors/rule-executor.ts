@@ -635,7 +635,7 @@ export class RuleExecutor implements IRuleExecutor {
   }
 
   private stripArticles(text: string): string {
-    return text.replace(/^(de|het|een|alle|één)\s+/i, '').trim();
+    return text.replace(/^(de|het|een|alle|één|zijn|haar|hun)\s+/i, '').trim();
   }
 
   /**

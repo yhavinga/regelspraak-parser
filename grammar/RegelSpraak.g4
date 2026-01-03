@@ -600,9 +600,9 @@ kenmerkPhrase  // Handle complex kenmerk names like "in het hoogseizoen"
     : voorzetsel? (DE | HET | EEN)? identifierOrKeywordWithNumbers+
     ;
 
-// Rule for bezieldeReferentie (Simplified from spec 13.4.16.37 for ZIJN case)
+// Rule for bezieldeReferentie (Simplified from spec 13.4.16.37 for possessive pronouns)
 bezieldeReferentie // Used in primaryExpression
-    : ZIJN naamwoord
+    : (ZIJN | HAAR | HUN) naamwoord
     ;
 
 // --- Predicaat Rules (§5.6 and §13.4.14) ---

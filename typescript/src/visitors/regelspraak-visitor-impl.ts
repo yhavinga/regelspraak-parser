@@ -4224,10 +4224,10 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
   }
 
   visitBezieldeRefExpr(ctx: any): any {
-    // This handles patterns like "zijn burgerservicenummer"
+    // This handles patterns like "zijn burgerservicenummer", "haar leeftijd", "hun naam"
     const bezieldeRef = ctx.bezieldeReferentie();
 
-    // The grammar is: bezieldeReferentie : ZIJN naamwoord
+    // The grammar is: bezieldeReferentie : (ZIJN | HAAR | HUN) naamwoord
     // Get the naamwoord (noun)
     const naamwoordCtx = bezieldeRef.naamwoord();
     const attribute = naamwoordCtx ? naamwoordCtx.getText() : 'unknown';
