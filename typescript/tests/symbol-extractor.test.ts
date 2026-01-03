@@ -63,7 +63,7 @@ describe('Symbol Extractor', () => {
     expect(Object.keys(symbols.domains)).toEqual([]);
   });
 
-  it.skip('should extract unit names', () => {
+  it('should extract unit names', () => {
     // SKIP: Unit extraction not implemented in symbol-extractor
     // Grammar supports Eenheidsysteem but extractor ignores it
     const source = `
