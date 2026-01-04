@@ -31,7 +31,10 @@ export class ExpressionEvaluator implements IEvaluator {
     'aantal_dagen_in': this.aantal_dagen_in.bind(this),
     'maand_uit': this.maand_uit.bind(this),
     'dag_uit': this.dag_uit.bind(this),
-    'jaar_uit': this.jaar_uit.bind(this)
+    'jaar_uit': this.jaar_uit.bind(this),
+    'eerste_van': this.eerste_van.bind(this),
+    'laatste_van': this.laatste_van.bind(this),
+    'eerste_paasdag_van': this.eerste_paasdag_van.bind(this)
   };
   private aggregationEngine: AggregationEngine;
   private timelineEvaluator: TimelineEvaluator;
@@ -96,6 +99,12 @@ export class ExpressionEvaluator implements IEvaluator {
         return this.evaluateRegelStatusExpression(expr as RegelStatusExpression, context);
       case 'DateLiteral':
         return this.evaluateDateLiteral(expr as any, context);
+      case 'AfrondingExpression':
+        return this.evaluateAfrondingExpression(expr as any, context);
+      case 'BegrenzingExpression':
+        return this.evaluateBegrenzingExpression(expr as any, context);
+      case 'BegrenzingAfrondingExpression':
+        return this.evaluateBegrenzingAfrondingExpression(expr as any, context);
       default:
         throw new Error(`Unknown expression type: ${expr.type}`);
     }
@@ -916,7 +925,15 @@ export class ExpressionEvaluator implements IEvaluator {
             if (otherIdx === roleIdx) continue; // Skip the target role
 
             const otherRol = feittype.rollen[otherIdx];
-            if (otherRol.objectType === fromObjType) {
+            // Use flexible matching: parser may include cardinality text in objectType
+            // e.g., "Natuurlijk persoon één reis betreft" instead of just "Natuurlijk persoon"
+            const otherObjType = otherRol.objectType || '';
+            const otherObjTypeClean = otherObjType.toLowerCase().trim();
+            const fromObjTypeClean = fromObjType.toLowerCase().trim();
+
+            if (otherObjTypeClean === fromObjTypeClean ||
+              otherObjTypeClean.startsWith(fromObjTypeClean) ||
+              fromObjTypeClean.startsWith(otherObjTypeClean)) {
               // fromObject matches this role, so we can navigate
               // Determine navigation direction: if fromObject is at index 0, it's the subject
               const asSubject = (otherIdx === 0);
@@ -2163,5 +2180,167 @@ export class ExpressionEvaluator implements IEvaluator {
     // TODO: Implement proper Easter calculation for Good Friday, Easter Monday, Ascension Day, Whit Monday
 
     return false;
+  }
+
+  // --- Built-in functions: eerste_van, laatste_van, eerste_paasdag_van ---
+
+  /**
+   * Return the first non-null value from the arguments.
+   * Mirrors Python's eerste_van function.
+   */
+  private eerste_van(args: Value[]): Value {
+    for (const arg of args) {
+      if (arg.value !== null && arg.value !== undefined) {
+        return arg;
+      }
+    }
+    return { type: 'null', value: null };
+  }
+
+  /**
+   * Return the last non-null value from the arguments.
+   * Mirrors Python's laatste_van function.
+   */
+  private laatste_van(args: Value[]): Value {
+    for (let i = args.length - 1; i >= 0; i--) {
+      if (args[i].value !== null && args[i].value !== undefined) {
+        return args[i];
+      }
+    }
+    return { type: 'null', value: null };
+  }
+
+  /**
+   * Calculate Easter date for a given year using the Anonymous Gregorian algorithm.
+   * Mirrors Python's eerste_paasdag_van function.
+   */
+  private eerste_paasdag_van(args: Value[]): Value {
+    if (args.length !== 1) {
+      throw new Error('eerste_paasdag_van expects exactly 1 argument (year)');
+    }
+
+    const yearArg = args[0];
+    if (yearArg.type !== 'number') {
+      throw new Error('eerste_paasdag_van expects a numeric year');
+    }
+
+    const year = yearArg.value as number;
+
+    // Anonymous Gregorian algorithm for Easter calculation
+    const a = year % 19;
+    const b = Math.floor(year / 100);
+    const c = year % 100;
+    const d = Math.floor(b / 4);
+    const e = b % 4;
+    const f = Math.floor((b + 8) / 25);
+    const g = Math.floor((b - f + 1) / 3);
+    const h = (19 * a + b - d - g + 15) % 30;
+    const i = Math.floor(c / 4);
+    const k = c % 4;
+    const l = (32 + 2 * e + 2 * i - h - k) % 7;
+    const m = Math.floor((a + 11 * h + 22 * l) / 451);
+    const month = Math.floor((h + l - 7 * m + 114) / 31);
+    const day = ((h + l - 7 * m + 114) % 31) + 1;
+
+    return {
+      type: 'date',
+      value: new Date(year, month - 1, day)
+    };
+  }
+
+  // --- Expression evaluators: Afronding, Begrenzing, BegrenzingAfronding ---
+
+  /**
+   * Evaluate rounding expression (afronding).
+   * Handles patterns like "naar beneden afgerond op 0 decimalen"
+   */
+  private evaluateAfrondingExpression(expr: any, context: RuntimeContext): Value {
+    const innerValue = this.evaluate(expr.expression, context);
+    const decimals = expr.decimals ?? 0;
+    const direction = expr.direction as string | undefined;
+
+    const numValue = this.toNumber(innerValue);
+    if (numValue === null) return innerValue;
+
+    const factor = Math.pow(10, decimals);
+    let result: number;
+
+    // Handle both Dutch direction names from visitor and English for backwards compatibility
+    if (direction === 'down' || direction === 'naar_beneden') {
+      result = Math.floor(numValue * factor) / factor;
+    } else if (direction === 'up' || direction === 'naar_boven') {
+      result = Math.ceil(numValue * factor) / factor;
+    } else if (direction === 'richting_nul') {
+      // Round towards zero (truncate)
+      result = Math.trunc(numValue * factor) / factor;
+    } else if (direction === 'weg_van_nul') {
+      // Round away from zero
+      result = (numValue >= 0 ? Math.ceil(numValue * factor) : Math.floor(numValue * factor)) / factor;
+    } else {
+      // Default (rekenkundig or undefined): standard rounding
+      result = Math.round(numValue * factor) / factor;
+    }
+
+    return {
+      ...innerValue,
+      value: result
+    };
+  }
+
+  /**
+   * Evaluate bounding expression (begrenzing).
+   * Handles patterns like "met een minimum van 0 €"
+   */
+  private evaluateBegrenzingExpression(expr: any, context: RuntimeContext): Value {
+    const innerValue = this.evaluate(expr.expression, context);
+    const numValue = this.toNumber(innerValue);
+    if (numValue === null) return innerValue;
+
+    let result = numValue;
+
+    if (expr.minimum !== undefined) {
+      const minVal = this.toNumber(this.evaluate(expr.minimum, context));
+      if (minVal !== null && result < minVal) result = minVal;
+    }
+
+    if (expr.maximum !== undefined) {
+      const maxVal = this.toNumber(this.evaluate(expr.maximum, context));
+      if (maxVal !== null && result > maxVal) result = maxVal;
+    }
+
+    return {
+      ...innerValue,
+      value: result
+    };
+  }
+
+  /**
+   * Evaluate combined bounding and rounding expression.
+   * Handles patterns like "met een minimum van 0 € naar beneden afgerond op 0 decimalen"
+   */
+  private evaluateBegrenzingAfrondingExpression(expr: any, context: RuntimeContext): Value {
+    // Apply begrenzing first
+    const bounded = this.evaluateBegrenzingExpression({
+      expression: expr.expression,
+      minimum: expr.minimum,
+      maximum: expr.maximum
+    }, context);
+
+    // Then apply afronding
+    return this.evaluateAfrondingExpression({
+      expression: { type: 'Literal', value: bounded.value },
+      decimals: expr.decimals,
+      direction: expr.direction
+    }, context);
+  }
+
+  /**
+   * Helper to convert Value to number, or return null if not numeric.
+   */
+  private toNumber(value: Value): number | null {
+    if (value.type === 'number' && typeof value.value === 'number') {
+      return value.value;
+    }
+    return null;
   }
 }

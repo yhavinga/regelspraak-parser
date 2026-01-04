@@ -189,17 +189,54 @@ export class Engine implements IEngine {
         return lastResult;
       }
 
-      // Handle different AST types
       // Check for DomainModel structure (no type field, but has regels, objectTypes, etc.)
       if (!ast.type && (ast.regels || ast.objectTypes || ast.parameters)) {
         // This is a DomainModel from the parser
-        // Execute all rules in the model
+
+        // First register any unit systems
+        for (const unitSystem of (ast.unitSystems || [])) {
+          this.registerUnitSystem(unitSystem, context);
+        }
+
+        // Register all FeitTypes before executing rules
+        for (const feittype of (ast.feitTypes || [])) {
+          if ((context as any).registerFeittype) {
+            (context as any).registerFeittype(feittype);
+          }
+        }
+
         let lastResult: ExecutionResult = {
           success: true,
           value: { type: 'string', value: 'Model executed' }
         };
 
-        // Execute each rule in sequence
+        // Get beslistabels from the model
+        const beslistabels = ast.beslistabels || [];
+
+        // ============================================================
+        // Phase 1: Execute decision tables that provide lookup values
+        // ============================================================
+        for (const beslistabel of beslistabels) {
+          const targetType = this.deduceBeslistabelTargetType(beslistabel);
+          if (!targetType) continue;
+
+          const instances = (context as any).getObjectsByType(targetType);
+          for (const instance of instances) {
+            const previousInstance = (context as any).current_instance;
+            (context as any).current_instance = instance;
+            try {
+              this.decisionTableExecutor.execute(beslistabel, context);
+            } catch (e) {
+              // Silently continue - table may depend on rule output
+            } finally {
+              (context as any).current_instance = previousInstance;
+            }
+          }
+        }
+
+        // ============================================================
+        // Phase 2: Execute all rules in sequence
+        // ============================================================
         for (const rule of (ast.regels || [])) {
           const result = this.ruleExecutor.execute(rule, context);
           if (!result.success) {
@@ -208,7 +245,59 @@ export class Engine implements IEngine {
               error: result.error
             };
           }
-          // Keep track of the last result
+          if (result.value) {
+            lastResult = {
+              success: true,
+              value: result.value
+            };
+          }
+        }
+
+        // ============================================================
+        // Phase 3: Re-execute decision tables that depend on rule outputs
+        // ============================================================
+        for (const beslistabel of beslistabels) {
+          const targetType = this.deduceBeslistabelTargetType(beslistabel);
+          if (!targetType) continue;
+
+          const instances = (context as any).getObjectsByType(targetType);
+          for (const instance of instances) {
+            const previousInstance = (context as any).current_instance;
+            (context as any).current_instance = instance;
+            try {
+              this.decisionTableExecutor.execute(beslistabel, context);
+            } catch (e) {
+              console.warn(`Decision table phase 3 error for ${beslistabel.naam}: ${e}`);
+            } finally {
+              (context as any).current_instance = previousInstance;
+            }
+          }
+        }
+
+        // ============================================================
+        // Phase 4: Re-run Gelijkstelling rules that depend on decision tables
+        // ============================================================
+        for (const rule of (ast.regels || [])) {
+          if (rule.resultaat?.type !== 'Gelijkstelling') continue;
+
+          const result = this.ruleExecutor.execute(rule, context);
+          if (result.success && result.value) {
+            lastResult = {
+              success: true,
+              value: result.value
+            };
+          }
+        }
+
+        // Execute each regelgroep in sequence
+        for (const regelGroep of (ast.regelGroepen || [])) {
+          const result = this.ruleExecutor.executeRegelGroep(regelGroep, context);
+          if (!result.success) {
+            return {
+              success: false,
+              error: result.error
+            };
+          }
           if (result.value) {
             lastResult = {
               success: true,
@@ -231,13 +320,39 @@ export class Engine implements IEngine {
           }
         }
 
-        // Execute all rules in the model
         let lastResult: ExecutionResult = {
           success: true,
           value: { type: 'string', value: 'Model executed' }
         };
 
-        // Execute each rule in sequence
+        // Get beslistabels from the model (handle both naming conventions)
+        const beslistabels = (ast as any).beslistabels || (ast as any).decisionTables || [];
+
+        // ============================================================
+        // Phase 1: Execute decision tables that provide lookup values
+        // (e.g., "Woonregio factor" which maps province to region)
+        // ============================================================
+        for (const beslistabel of beslistabels) {
+          const targetType = this.deduceBeslistabelTargetType(beslistabel);
+          if (!targetType) continue;
+
+          const instances = (context as any).getObjectsByType(targetType);
+          for (const instance of instances) {
+            const previousInstance = (context as any).current_instance;
+            (context as any).current_instance = instance;
+            try {
+              this.decisionTableExecutor.execute(beslistabel, context);
+            } catch (e) {
+              // Silently continue - table may depend on rule output computed in Phase 3
+            } finally {
+              (context as any).current_instance = previousInstance;
+            }
+          }
+        }
+
+        // ============================================================
+        // Phase 2: Execute all rules in sequence
+        // ============================================================
         for (const rule of (ast as any).rules || []) {
           const result = this.ruleExecutor.execute(rule, context);
           if (!result.success) {
@@ -246,13 +361,53 @@ export class Engine implements IEngine {
               error: result.error
             };
           }
-          // Keep track of the last result
           if (result.value) {
             lastResult = {
               success: true,
               value: result.value
             };
           }
+        }
+
+        // ============================================================
+        // Phase 3: Re-execute decision tables that depend on rule outputs
+        // (e.g., "Belasting op basis van reisduur" needs "belasting op basis van afstand")
+        // ============================================================
+        for (const beslistabel of beslistabels) {
+          const targetType = this.deduceBeslistabelTargetType(beslistabel);
+          if (!targetType) continue;
+
+          const instances = (context as any).getObjectsByType(targetType);
+          for (const instance of instances) {
+            const previousInstance = (context as any).current_instance;
+            (context as any).current_instance = instance;
+            try {
+              this.decisionTableExecutor.execute(beslistabel, context);
+            } catch (e) {
+              // Log error but continue
+              console.warn(`Decision table phase 3 error for ${beslistabel.naam}: ${e}`);
+            } finally {
+              (context as any).current_instance = previousInstance;
+            }
+          }
+        }
+
+        // ============================================================
+        // Phase 4: Re-run Gelijkstelling rules that depend on decision tables
+        // (e.g., "Te betalen belasting" needs "belasting op basis van reisduur" from Phase 3)
+        // ============================================================
+        for (const rule of (ast as any).rules || []) {
+          // Only re-run Gelijkstelling rules
+          if (rule.resultaat?.type !== 'Gelijkstelling') continue;
+
+          const result = this.ruleExecutor.execute(rule, context);
+          if (result.success && result.value) {
+            lastResult = {
+              success: true,
+              value: result.value
+            };
+          }
+          // Silently continue on errors - rule may have already been evaluated correctly
         }
 
         // Execute each regelgroep in sequence
@@ -264,7 +419,6 @@ export class Engine implements IEngine {
               error: result.error
             };
           }
-          // Keep track of the last result
           if (result.value) {
             lastResult = {
               success: true,
@@ -527,5 +681,45 @@ export class Engine implements IEngine {
     // Also make the registry available in the context
     // This allows expression evaluator to access custom units
     (context as any).unitRegistry = this.unitRegistry;
+  }
+
+  /**
+   * Deduce the target object type from a decision table's result column header.
+   * Parses patterns like "de woonregio factor van een Natuurlijk persoon" → "Natuurlijk persoon"
+   */
+  private deduceBeslistabelTargetType(table: any): string | undefined {
+    // Get the result columns from the table
+    const resultColumns = table.resultColumns || table.results || [];
+
+    for (const column of resultColumns) {
+      const headerText = column.headerText || column.header || '';
+
+      // Pattern: "de/het X van een/de/het Y"
+      // We want to extract Y (the object type)
+      const vanMatch = headerText.match(/van\s+(?:een|de|het)\s+(.+?)(?:\s+moet|\s*$)/i);
+      if (vanMatch) {
+        return vanMatch[1].trim();
+      }
+
+      // Alternative pattern: look for object type reference in target expression
+      if (column.targetExpression?.path?.length >= 2) {
+        // Path format: ["passagier", "woonregio factor"] or similar
+        const possibleType = column.targetExpression.path[0];
+        if (possibleType) {
+          return possibleType;
+        }
+      }
+    }
+
+    // Try to get from the first row's result assignment target
+    const rows = table.rows || [];
+    if (rows.length > 0 && rows[0].results?.length > 0) {
+      const firstResult = rows[0].results[0];
+      if (firstResult?.target?.path?.length >= 2) {
+        return firstResult.target.path[0];
+      }
+    }
+
+    return undefined;
   }
 }

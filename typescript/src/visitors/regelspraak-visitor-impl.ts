@@ -1019,8 +1019,9 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
     // Parse "de eerste van" function: EERSTE_VAN primaryExpression (COMMA primaryExpression)* EN primaryExpression
     const args: Expression[] = [];
 
-    // Get all primaryExpression children
-    const primaryExpressions = ctx.primaryExpression ? ctx.primaryExpression() : [];
+    // Use the generated parser's method - primaryExpression_list() returns an array
+    const primaryExpressions = ctx.primaryExpression_list ? ctx.primaryExpression_list() :
+      (ctx.primaryExpression ? ctx.primaryExpression() : []);
     const expressions = Array.isArray(primaryExpressions) ? primaryExpressions : [primaryExpressions];
 
     for (const expr of expressions) {
@@ -1045,8 +1046,9 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
     // Parse "de laatste van" function: LAATSTE_VAN primaryExpression (COMMA primaryExpression)* EN primaryExpression
     const args: Expression[] = [];
 
-    // Get all primaryExpression children
-    const primaryExpressions = ctx.primaryExpression ? ctx.primaryExpression() : [];
+    // Use the generated parser's method - primaryExpression_list() returns an array
+    const primaryExpressions = ctx.primaryExpression_list ? ctx.primaryExpression_list() :
+      (ctx.primaryExpression ? ctx.primaryExpression() : []);
     const expressions = Array.isArray(primaryExpressions) ? primaryExpressions : [primaryExpressions];
 
     for (const expr of expressions) {
@@ -1272,7 +1274,10 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
         const pathParts: string[] = [];
         for (const basis of allBasis) {
           if (!basis) continue;
-          const identifiers = basis.identifierOrKeyword ? basis.identifierOrKeyword() : [];
+          // Use _list() for multiple identifiers (ANTLR-generated pattern)
+          const identifiers = basis.identifierOrKeyword_list
+            ? basis.identifierOrKeyword_list()
+            : (basis.identifierOrKeyword ? basis.identifierOrKeyword() : []);
           const idList = Array.isArray(identifiers) ? identifiers : (identifiers ? [identifiers] : []);
 
           // Filter out 'aantal' and join remaining identifiers
@@ -1360,7 +1365,10 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
       const pathParts: string[] = [];
       for (const basis of basisList) {
         if (!basis) continue;
-        const identifiers = basis.identifierOrKeyword ? basis.identifierOrKeyword() : [];
+        // Use _list() for multiple identifiers (ANTLR-generated pattern)
+        const identifiers = basis.identifierOrKeyword_list
+          ? basis.identifierOrKeyword_list()
+          : (basis.identifierOrKeyword ? basis.identifierOrKeyword() : []);
         const idList = Array.isArray(identifiers) ? identifiers : (identifiers ? [identifiers] : []);
 
         const namePart = idList.map((id: any) => id.getText()).join(' ');
@@ -2485,7 +2493,10 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
     }
 
     // Get identifiers
-    const identifiers = ctx.identifierOrKeyword ? ctx.identifierOrKeyword() : [];
+    // Use _list() for multiple identifiers (ANTLR-generated pattern)
+    const identifiers = ctx.identifierOrKeyword_list
+      ? ctx.identifierOrKeyword_list()
+      : (ctx.identifierOrKeyword ? ctx.identifierOrKeyword() : []);
     const identifierList = Array.isArray(identifiers) ? identifiers : (identifiers ? [identifiers] : []);
 
     if (identifierList.length === 0) {
@@ -3231,6 +3242,13 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
       return node;
     } else if (ctx.datumTijdDatatype && ctx.datumTijdDatatype()) {
       return this.visitDatumTijdDatatype(ctx.datumTijdDatatype());
+    } else if (ctx.percentageDatatype && ctx.percentageDatatype()) {
+      return this.visitPercentageDatatype(ctx.percentageDatatype());
+    } else if (ctx.lijstDatatype && ctx.lijstDatatype()) {
+      // Handle list datatype - parse as text for now
+      const node: DataType = { type: 'Lijst', specification: this.extractText(ctx.lijstDatatype()) };
+      this.setLocation(node, ctx);
+      return node;
     }
 
     // Try to determine from text as fallback
@@ -3259,6 +3277,19 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
       : { type: 'Datum' };
     this.setLocation(node, ctx);
     return node;
+  }
+
+  visitPercentageDatatype(ctx: any): DataType {
+    // percentageDatatype : PERCENTAGE ( LPAREN getalSpecificatie RPAREN )?
+    const result: DataType = { type: 'Percentage' };
+
+    if (ctx.getalSpecificatie && ctx.getalSpecificatie()) {
+      const spec = this.extractText(ctx.getalSpecificatie());
+      result.specification = spec;
+    }
+
+    this.setLocation(result, ctx);
+    return result;
   }
 
   visitDomeinRef(ctx: any): DomainReference {

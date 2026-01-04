@@ -30,12 +30,14 @@ export interface AttributeSpecification {
   timeline?: boolean;
 }
 
-export type DataType = 
+export type DataType =
   | { type: 'Tekst' }
   | { type: 'Numeriek'; specification?: string }
   | { type: 'Boolean' }
   | { type: 'Datum' }
-  | { type: 'DatumTijd' };
+  | { type: 'DatumTijd' }
+  | { type: 'Percentage'; specification?: string }
+  | { type: 'Lijst'; specification?: string };
 
 export interface DomainReference {
   type: 'DomainReference';
