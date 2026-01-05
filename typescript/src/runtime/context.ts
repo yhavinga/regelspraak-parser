@@ -74,6 +74,13 @@ export class Context implements RuntimeContext {
         this.dimensionRegistry.register(dimension);
       }
     }
+
+    // Register FeitTypes from model so relationship navigation works
+    if (this.domainModel.feitTypes) {
+      for (const feittype of this.domainModel.feitTypes) {
+        this.registerFeittype(feittype);
+      }
+    }
   }
 
   getVariable(name: string): Value | undefined {
@@ -302,10 +309,10 @@ export class Context implements RuntimeContext {
     feittypeNaam?: string;
   }): Relationship[] {
     return this.relationships.filter(rel => {
-      if (criteria.subject && rel.subject !== criteria.subject) {
+      if (criteria.subject && !this.objectsMatch(rel.subject, criteria.subject)) {
         return false;
       }
-      if (criteria.object && rel.object !== criteria.object) {
+      if (criteria.object && !this.objectsMatch(rel.object, criteria.object)) {
         return false;
       }
       if (criteria.feittypeNaam && rel.feittypeNaam !== criteria.feittypeNaam) {
@@ -370,9 +377,10 @@ export class Context implements RuntimeContext {
   }
 
   /**
-   * Helper to check if two object values represent the same object
+   * Helper to check if two object values represent the same object.
+   * Public for reuse by other components that need identity comparison.
    */
-  private objectsMatch(obj1: Value, obj2: Value): boolean {
+  objectsMatch(obj1: Value, obj2: Value): boolean {
     if (obj1.type !== 'object' || obj2.type !== 'object') {
       return false;
     }

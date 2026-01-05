@@ -51,6 +51,32 @@ export class RuleExecutor implements IRuleExecutor {
   private expressionEvaluator = new ExpressionEvaluator();
   private feitExecutor = new FeitExecutor();
 
+  /**
+   * Resolves a role name (e.g., "passagier") to its FeitType objectType (e.g., "Natuurlijk persoon").
+   * This enables object-scoped rule detection for role-based targets.
+   */
+  private resolveRoleToObjectType(roleName: string, context: RuntimeContext): string | null {
+    const ctx = context as Context;
+    const feittypen = ctx.getAllFeittypen ? ctx.getAllFeittypen() : [];
+    const roleClean = roleName.toLowerCase().replace(/^(de|het|een)\s+/, '').trim();
+
+    for (const feittype of feittypen) {
+      for (const rol of feittype.rollen || []) {
+        const rolNaamClean = (rol.naam || '').toLowerCase().replace(/^(de|het|een)\s+/, '').trim();
+        const meervoudClean = (rol.meervoud || '').toLowerCase().trim();
+
+        if (rolNaamClean === roleClean || meervoudClean === roleClean) {
+          // Found matching role - return its objectType (stripped of cardinality text)
+          const objType = rol.objectType || '';
+          // Split on common cardinality words and take first part
+          return objType.split(/\s+(één|een|meerdere|veel)\s+/i)[0].trim();
+        }
+      }
+    }
+    return null;
+  }
+
+
   execute(rule: Rule, context: RuntimeContext): RuleExecutionResult {
     try {
       const result = rule.result || rule.resultaat;
@@ -356,6 +382,52 @@ export class RuleExecutor implements IRuleExecutor {
           target: targetPath.join('.'),
           value: { type: 'string', value: `Set on all ${objects.length} ${objectType} objects` }
         };
+      }
+    }
+
+    // Check if first element might be a role name that maps to an object type
+    // This handles targets like "passagier" → "Natuurlijk persoon"
+    if (targetPath.length >= 2) {
+      const potentialRole = targetPath[0];
+      const resolvedType = this.resolveRoleToObjectType(potentialRole, context);
+
+      if (resolvedType) {
+        // Role-based scoping - iterate over all objects of the resolved type
+        const objects = (context as Context).getObjectsByType(resolvedType);
+
+        if (objects.length > 0) {
+          for (const obj of objects) {
+            // Set current_instance for pronoun resolution
+            const ctx = context as Context;
+            const oldInstance = ctx.current_instance;
+            ctx.current_instance = obj;
+
+            try {
+              // Evaluate the expression for this instance
+              const instanceValue = this.expressionEvaluator.evaluate(gelijkstelling.expression, context);
+
+              // Set the attribute value using the rest of the path
+              const attributePath = targetPath.slice(1);
+              const objectData = obj.value as Record<string, Value>;
+
+              if (attributePath.length === 1) {
+                objectData[attributePath[0]] = instanceValue;
+              } else {
+                // Navigate to nested attribute
+                setValueAtPath(attributePath, instanceValue, context);
+              }
+            } finally {
+              // Restore previous current_instance
+              ctx.current_instance = oldInstance;
+            }
+          }
+
+          return {
+            success: true,
+            target: targetPath.join('.'),
+            value: { type: 'string', value: `Set on all ${objects.length} ${resolvedType} objects (via role "${potentialRole}")` }
+          };
+        }
       }
     }
 

@@ -24,6 +24,8 @@ export class ExpressionEvaluator implements IEvaluator {
     'aantal': this.aantal.bind(this),
     'som': this.som.bind(this),
     'som_van': this.som_van.bind(this),
+    'maximum_van': this.maximum_van.bind(this),
+    'minimum_van': this.minimum_van.bind(this),
     // 'totaal_van' removed - handled via TimelineExpression
     'tijdsevenredig_deel': this.tijdsevenredig_deel.bind(this),
     'tijdsduur_van': this.tijdsduur_van.bind(this),
@@ -209,19 +211,33 @@ export class ExpressionEvaluator implements IEvaluator {
     }
 
     // Type check - both must be numbers for arithmetic
-    if (left.type !== 'number' || right.type !== 'number') {
-      throw new Error(`Cannot apply ${expr.operator} to ${left.type} and ${right.type}`);
+    // Convert null/non-number to 0 for arithmetic operations (graceful degradation for missing/wrong type attributes)
+    // This matches Python's behavior where missing attributes compute as 0 rather than crash
+    let leftVal = left;
+    let rightVal = right;
+    const arithmeticOps = ['+', '-', '*', '/'];
+    if (arithmeticOps.includes(expr.operator)) {
+      if (leftVal.type === 'null' || leftVal.type === 'string' || leftVal.type === 'boolean') {
+        leftVal = { type: 'number', value: 0 };
+      }
+      if (rightVal.type === 'null' || rightVal.type === 'string' || rightVal.type === 'boolean') {
+        rightVal = { type: 'number', value: 0 };
+      }
+    }
+
+    if (leftVal.type !== 'number' || rightVal.type !== 'number') {
+      throw new Error(`Cannot apply ${expr.operator} to ${leftVal.type} and ${rightVal.type}`);
     }
 
     // Use unit arithmetic if either operand has units
-    if (left.unit || right.unit || (left as UnitValue).compositeUnit || (right as UnitValue).compositeUnit) {
+    if (leftVal.unit || rightVal.unit || (leftVal as UnitValue).compositeUnit || (rightVal as UnitValue).compositeUnit) {
       try {
         // Use context's unit registry if available (for custom unit systems)
         const registry = (context as any).unitRegistry || this.unitRegistry;
         return performUnitArithmetic(
           expr.operator as '+' | '-' | '*' | '/',
-          left as UnitValue,
-          right as UnitValue,
+          leftVal as UnitValue,
+          rightVal as UnitValue,
           registry
         );
       } catch (error) {
@@ -231,25 +247,25 @@ export class ExpressionEvaluator implements IEvaluator {
     }
 
     // No units - simple arithmetic
-    const leftVal = left.value as number;
-    const rightVal = right.value as number;
+    const leftNum = leftVal.value as number;
+    const rightNum = rightVal.value as number;
     let result: number;
 
     switch (expr.operator) {
       case '+':
-        result = leftVal + rightVal;
+        result = leftNum + rightNum;
         break;
       case '-':
-        result = leftVal - rightVal;
+        result = leftNum - rightNum;
         break;
       case '*':
-        result = leftVal * rightVal;
+        result = leftNum * rightNum;
         break;
       case '/':
-        if (rightVal === 0) {
+        if (rightNum === 0) {
           throw new Error('Division by zero');
         }
-        result = leftVal / rightVal;
+        result = leftNum / rightNum;
         break;
       default:
         throw new Error(`Unknown operator: ${expr.operator}`);
@@ -553,6 +569,24 @@ export class ExpressionEvaluator implements IEvaluator {
       return this.aantal_dagen_in_special(expr, context);
     }
 
+    // Special handling for som_van with 2 arguments (attribute path + collection)
+    // Pattern: "som van de <attribute> van alle <collection>"
+    if (expr.functionName === 'som_van' && expr.arguments.length === 2) {
+      return this.som_van_special(expr, context);
+    }
+
+    // Special handling for maximum_van with 2 arguments (attribute path + collection)
+    // Pattern: "maximale waarde van de <attribute> van alle <collection>"
+    if (expr.functionName === 'maximum_van' && expr.arguments.length === 2) {
+      return this.aggregation_special(expr, context, Math.max, -Infinity);
+    }
+
+    // Special handling for minimum_van with 2 arguments (attribute path + collection)
+    // Pattern: "minimale waarde van de <attribute> van alle <collection>"
+    if (expr.functionName === 'minimum_van' && expr.arguments.length === 2) {
+      return this.aggregation_special(expr, context, Math.min, Infinity);
+    }
+
     // Defensive check: totaal_van should be handled via TimelineExpression, not FunctionCall
     if (expr.functionName === 'totaal_van') {
       throw new Error('totaal_van should be handled via TimelineExpression. Grammar may have changed unexpectedly.');
@@ -646,6 +680,133 @@ export class ExpressionEvaluator implements IEvaluator {
     };
   }
 
+  /**
+   * Special handling for som_van with 2 arguments:
+   * Pattern: "som van de <attribute> van alle <collection>"
+   * arg[0] = attribute path to extract from each item
+   * arg[1] = collection path to iterate
+   */
+  private som_van_special(expr: FunctionCall, context: RuntimeContext): Value {
+    const attrArg = expr.arguments[0];
+    const collectionArg = expr.arguments[1];
+
+    // First evaluate the collection argument
+    const collectionValue = this.evaluate(collectionArg, context);
+
+    if (collectionValue.type !== 'array') {
+      // If collection is a single object, wrap it in an array
+      const items = collectionValue.type === 'object' ? [collectionValue] : [];
+      if (items.length === 0) {
+        return { type: 'number', value: 0 };
+      }
+    }
+
+    const items = (collectionValue.type === 'array'
+      ? collectionValue.value
+      : [collectionValue]) as Value[];
+
+    // Extract the attribute name from the first argument
+    let attrName: string;
+    if (attrArg.type === 'AttributeReference') {
+      attrName = (attrArg as AttributeReference).path[
+        (attrArg as AttributeReference).path.length - 1
+      ];
+    } else if (attrArg.type === 'VariableReference') {
+      attrName = (attrArg as VariableReference).variableName;
+    } else {
+      throw new Error(`som_van expects AttributeReference or VariableReference as first arg, got ${attrArg.type}`);
+    }
+
+    // Sum the attribute values from each item
+    let sum = 0;
+    for (const item of items) {
+      if (item.type === 'object') {
+        const objData = item.value as Record<string, Value>;
+        let attrValue = objData[attrName];
+
+        // Try alternate names (with underscores, normalized)
+        if (attrValue === undefined) {
+          const altName = attrName.replace(/\s+/g, '_');
+          attrValue = objData[altName];
+        }
+        if (attrValue === undefined) {
+          const altName = attrName.replace(/_/g, ' ');
+          attrValue = objData[altName];
+        }
+
+        if (attrValue !== undefined && attrValue.type === 'number') {
+          sum += attrValue.value as number;
+        }
+        // If attribute is null/undefined, treat as 0 (graceful handling)
+      }
+    }
+
+    return { type: 'number', value: sum };
+  }
+
+  /**
+   * Generic aggregation handling for min/max patterns with 2 arguments:
+   * arg[0] = attribute path to extract from each item
+   * arg[1] = collection path to iterate
+   */
+  private aggregation_special(
+    expr: FunctionCall,
+    context: RuntimeContext,
+    reducer: (...values: number[]) => number,
+    initialValue: number
+  ): Value {
+    const attrArg = expr.arguments[0];
+    const collectionArg = expr.arguments[1];
+
+    // First evaluate the collection argument
+    const collectionValue = this.evaluate(collectionArg, context);
+
+    const items = (collectionValue.type === 'array'
+      ? collectionValue.value
+      : [collectionValue]) as Value[];
+
+    // Extract the attribute name from the first argument
+    let attrName: string;
+    if (attrArg.type === 'AttributeReference') {
+      attrName = (attrArg as AttributeReference).path[
+        (attrArg as AttributeReference).path.length - 1
+      ];
+    } else if (attrArg.type === 'VariableReference') {
+      attrName = (attrArg as VariableReference).variableName;
+    } else {
+      throw new Error(`Aggregation expects AttributeReference or VariableReference as first arg, got ${attrArg.type}`);
+    }
+
+    // Aggregate the attribute values from each item
+    let result = initialValue;
+    for (const item of items) {
+      if (item.type === 'object') {
+        const objData = item.value as Record<string, Value>;
+        let attrValue = objData[attrName];
+
+        // Try alternate names (with underscores, normalized)
+        if (attrValue === undefined) {
+          const altName = attrName.replace(/\s+/g, '_');
+          attrValue = objData[altName];
+        }
+        if (attrValue === undefined) {
+          const altName = attrName.replace(/_/g, ' ');
+          attrValue = objData[altName];
+        }
+
+        if (attrValue !== undefined && attrValue.type === 'number') {
+          result = reducer(result, attrValue.value as number);
+        }
+      }
+    }
+
+    // Return 0 if no values found
+    return {
+      type: 'number',
+      value: result === initialValue ? 0 : result
+    };
+  }
+
   private som_van(args: Value[]): Value {
     // Sum aggregation for attribute references with filtering
     if (args.length !== 1) {
@@ -673,6 +834,58 @@ export class ExpressionEvaluator implements IEvaluator {
     } else {
       throw new Error(`som_van expects an array argument, got ${arg.type}`);
     }
+  }
+
+  private maximum_van(args: Value[]): Value {
+    // Maximum aggregation - should receive an array of values
+    if (args.length !== 1) {
+      throw new Error('maximum_van expects exactly 1 argument (an array of values)');
+    }
+
+    const arg = args[0];
+    if (arg.type !== 'array') {
+      throw new Error(`maximum_van expects an array argument, got ${arg.type}`);
+    }
+
+    const values = arg.value as Value[];
+    let maxValue = -Infinity;
+
+    for (const val of values) {
+      if (val.type === 'number') {
+        maxValue = Math.max(maxValue, val.value as number);
+      }
+    }
+
+    return {
+      type: 'number',
+      value: maxValue === -Infinity ? 0 : maxValue
+    };
+  }
+
+  private minimum_van(args: Value[]): Value {
+    // Minimum aggregation - should receive an array of values
+    if (args.length !== 1) {
+      throw new Error('minimum_van expects exactly 1 argument (an array of values)');
+    }
+
+    const arg = args[0];
+    if (arg.type !== 'array') {
+      throw new Error(`minimum_van expects an array argument, got ${arg.type}`);
+    }
+
+    const values = arg.value as Value[];
+    let minValue = Infinity;
+
+    for (const val of values) {
+      if (val.type === 'number') {
+        minValue = Math.min(minValue, val.value as number);
+      }
+    }
+
+    return {
+      type: 'number',
+      value: minValue === Infinity ? 0 : minValue
+    };
   }
 
   // totaal_van method removed - handled via TimelineExpression in timeline-evaluator
@@ -897,8 +1110,8 @@ export class ExpressionEvaluator implements IEvaluator {
     // Get all registered Feittypen
     const feittypen = context.getAllFeittypen ? context.getAllFeittypen() : [];
 
-    // Clean the role name for comparison (remove articles)
-    const roleNameClean = roleName.toLowerCase().replace(/^(de|het|een)\s+/, '').trim();
+    // Clean the role name for comparison (remove articles AND possessives)
+    const roleNameClean = roleName.toLowerCase().replace(/^(de|het|een|zijn|haar|hun)\s+/, '').trim();
 
     // Check each Feittype to see if it has a matching role
     for (const feittype of feittypen) {
@@ -1242,7 +1455,18 @@ export class ExpressionEvaluator implements IEvaluator {
       }
 
       const objectData = navResult.targetObject.value as Record<string, Value>;
-      const value = objectData[navResult.attributeName];
+      let value = objectData[navResult.attributeName];
+
+      // If attribute not found directly, try FeitType relationship navigation
+      if (value === undefined) {
+        const relatedObjects = this.findRelatedObjectsThroughFeittype(
+          navResult.attributeName, navResult.targetObject, context
+        );
+        if (relatedObjects && relatedObjects.length > 0) {
+          // Always return array for FeitType relationships to support aggregation
+          value = { type: 'array', value: relatedObjects };
+        }
+      }
 
       if (value === undefined) {
         throw new Error(`Attribute '${navResult.attributeName}' not found on object`);

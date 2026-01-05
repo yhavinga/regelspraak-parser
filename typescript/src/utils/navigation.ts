@@ -18,8 +18,8 @@ export interface NavigationResult {
  * @returns The related object, or null if no relationship found
  */
 function navigateThroughFeittype(roleName: string, fromObject: Value, context: Context): Value | null {
-  // Get all registered Feittypen from the context
-  const feittypen = (context as any).feittypen || new Map();
+  // Get all registered Feittypen from the context using public method
+  const feittypen = context.getAllFeittypen ? context.getAllFeittypen() : [];
 
   // Clean the role name for comparison
   const roleNameClean = roleName.toLowerCase()
@@ -28,7 +28,10 @@ function navigateThroughFeittype(roleName: string, fromObject: Value, context: C
     .replace(/^een\s+/, '');
 
   // Check each Feittype for matching roles
-  for (const [feittypeName, feittype] of feittypen) {
+  for (const feittype of feittypen) {
+    const feittypeName = feittype.naam;
+    if (!feittype.rollen) continue;
+
     for (const rol of feittype.rollen) {
       const rolNaamClean = rol.naam.toLowerCase()
         .replace(/^de\s+/, '')
@@ -41,6 +44,7 @@ function navigateThroughFeittype(roleName: string, fromObject: Value, context: C
         (roleNameClean.endsWith('s') && roleNameClean.slice(0, -1) === rolNaamClean) ||
         (roleNameClean.endsWith('en') && roleNameClean.slice(0, -2) === rolNaamClean)) {
 
+
         // Found a matching role - check if current object can participate
         const fromObjectType = (fromObject.value as any).__type ||
           (fromObject as any).objectType;
@@ -48,7 +52,15 @@ function navigateThroughFeittype(roleName: string, fromObject: Value, context: C
         // Find if the fromObject's type matches any role in this Feittype
         for (let otherIdx = 0; otherIdx < feittype.rollen.length; otherIdx++) {
           const otherRol = feittype.rollen[otherIdx];
-          if (otherRol !== rol && otherRol.objectType === fromObjectType) {
+          // Use flexible matching: parser may include cardinality text in objectType
+          // e.g., "Natuurlijk persoon één reis betreft" instead of just "Natuurlijk persoon"
+          const otherObjType = (otherRol.objectType || '').toLowerCase().trim();
+          const fromObjTypeLower = (fromObjectType || '').toLowerCase().trim();
+
+          if (otherRol !== rol && (
+            otherObjType === fromObjTypeLower ||
+            otherObjType.startsWith(fromObjTypeLower) ||
+            fromObjTypeLower.startsWith(otherObjType))) {
             // The fromObject can participate in this Feittype
             // Get related objects through this relationship
             const asSubject = (otherIdx === 0);
@@ -66,6 +78,29 @@ function navigateThroughFeittype(roleName: string, fromObject: Value, context: C
   }
 
   return null;
+}
+
+/**
+ * Checks if a role name maps to a specific object type.
+ * E.g., "reis" role maps to "Vlucht" object type.
+ */
+function isRoleForObjectType(roleName: string, objectType: string, context: Context): boolean {
+  const feittypen = context.getAllFeittypen ? context.getAllFeittypen() : [];
+  const roleClean = roleName.toLowerCase().trim();
+  const objTypeClean = objectType.toLowerCase().trim();
+
+  for (const feittype of feittypen) {
+    for (const rol of feittype.rollen || []) {
+      const rolNaamClean = (rol.naam || '').toLowerCase().replace(/^(de|het|een)\s+/, '').trim();
+
+      if (rolNaamClean === roleClean) {
+        // Found matching role - check if its objectType matches
+        const roleObjType = (rol.objectType || '').toLowerCase().split(/\s+(één|een|meerdere|veel)\s+/i)[0].trim();
+        return roleObjType === objTypeClean || objTypeClean.startsWith(roleObjType);
+      }
+    }
+  }
+  return false;
 }
 
 /**
@@ -87,6 +122,8 @@ export function resolveNavigationPath(
   context: RuntimeContext,
   startObject?: Value
 ): NavigationResult {
+
+
   if (path.length === 0) {
     return {
       targetObject: null,
@@ -137,16 +174,43 @@ export function resolveNavigationPath(
       // This matches Python's _navigate_to_target behavior (engine.py:2448-2600)
       gotFromVariable = true;
       navPath = navigationChain.slice(1);
+    } else {
+      // Have current_instance, check if first segment is a FeitType role navigation
+      const baseName = navigationChain[0];
+      // Strip possessive pronouns for matching
+      const roleNameClean = baseName.toLowerCase().replace(/^(de|het|een|zijn|haar|hun)\s+/, '').trim();
+
+      // Check if this could be a FeitType role navigation from current_instance
+      const relatedObject = navigateThroughFeittype(roleNameClean, currentObject, ctx);
+      if (relatedObject) {
+        // Successfully navigated through FeitType, start from related object
+        currentObject = relatedObject;
+        navPath = navigationChain.slice(1);
+      } else if (baseName !== roleNameClean && currentObject.type === 'object') {
+        // If roleNameClean is different from baseName (had pronoun stripped),
+        // check if the role name matches an attribute
+        const objData = (currentObject.value as any) || {};
+        if (objData[roleNameClean] !== undefined) {
+          currentObject = objData[roleNameClean];
+          navPath = navigationChain.slice(1);
+        }
+      }
     }
   }
 
   // Only check for object type match if we didn't get from variable
-  if (!gotFromVariable && navPath.length > 0) {
+  if (!gotFromVariable && navPath.length > 0 && currentObject) {
     // Check if the first element is the object type
     const currentObjType = (currentObject.value as any).__type ||
       (currentObject as any).objectType;
-    if (currentObjType && navPath[0].toLowerCase() === currentObjType.toLowerCase()) {
-      // Skip the first element as it's just referring to the current object type
+    const firstPathClean = navPath[0].toLowerCase().replace(/^(de|het|een|zijn|haar|hun)\s+/, '').trim();
+
+    if (currentObjType && (
+      firstPathClean === currentObjType.toLowerCase() ||
+      // Also check if first element is a role name that maps to this objectType
+      isRoleForObjectType(firstPathClean, currentObjType, context as Context)
+    )) {
+      // Skip the first element as it's just referring to the current object type/role
       navPath = navPath.slice(1);
     }
   }
@@ -185,7 +249,7 @@ export function resolveNavigationPath(
   }
 
   return {
-    targetObject: currentObject,
+    targetObject: currentObject || null,
     attributeName
   };
 }
