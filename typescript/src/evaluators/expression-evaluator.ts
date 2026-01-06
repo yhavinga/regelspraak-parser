@@ -1372,11 +1372,36 @@ export class ExpressionEvaluator implements IEvaluator {
     if (expr.path.length === 2) {
       const [objectName, attribute] = expr.path;
 
+      // Check if the first element matches current_instance.objectType
+      // This handles paths like ["Vlucht", "passagiers"] when current_instance is a Vlucht
+      const ctx = context as any;
+      if (ctx.current_instance && ctx.current_instance.type === 'object') {
+        const currentObjType = ctx.current_instance.objectType;
+        if (currentObjType && objectName.toLowerCase() === currentObjType.toLowerCase()) {
+          // First element matches current instance type - get attribute from current instance
+          const instanceData = ctx.current_instance.value as Record<string, Value>;
+
+          // Check if it's a direct attribute
+          const directAttr = instanceData[attribute];
+          if (directAttr !== undefined) {
+            return directAttr;
+          }
+
+          // Try FeitType relationship navigation from current instance
+          const relatedObjects = this.findRelatedObjectsThroughFeittype(attribute, ctx.current_instance, ctx);
+          if (relatedObjects && relatedObjects.length > 0) {
+            return { type: 'array', value: relatedObjects };
+          }
+          // Attribute/relationship not found - return empty array for graceful degradation
+          // This allows aggregation functions like `aantal` to work correctly with empty collections
+          return { type: 'array', value: [] };
+        }
+      }
+
       // Check if this is a pronoun-based navigation like ["zijn product", "attribute"]
       // Python pattern: first check direct attribute, then Feittype relationship
       if (objectName.startsWith('zijn ') || objectName.startsWith('haar ')) {
         const roleName = objectName.substring(5); // Remove "zijn " or "haar " prefix
-        const ctx = context as any;
 
         if (ctx.current_instance && ctx.current_instance.type === 'object') {
           const instanceData = ctx.current_instance.value as Record<string, Value>;

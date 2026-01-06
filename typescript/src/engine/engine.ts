@@ -238,6 +238,40 @@ export class Engine implements IEngine {
         // Phase 2: Execute all rules in sequence
         // ============================================================
         for (const rule of (ast.regels || [])) {
+          // Special handling for ObjectCreation rules - need to iterate over source objects
+          // Check both 'result' (parsed) and 'resultaat' (legacy) field names
+          const ruleResult = rule.result || rule.resultaat;
+          if (ruleResult?.type === 'ObjectCreation') {
+            const sourceType = this.deduceObjectCreationSourceType(rule, context);
+            if (sourceType) {
+              // Iterate over all instances of the source type
+              const instances = (context as any).getObjectsByType(sourceType);
+              for (const instance of instances) {
+                const previousInstance = (context as any).current_instance;
+                (context as any).current_instance = instance;
+                try {
+                  // Evaluate condition if present
+                  if (rule.condition) {
+                    const conditionResult = this.expressionEvaluator.evaluate(rule.condition.expression, context);
+                    if (conditionResult.type !== 'boolean' || !conditionResult.value) {
+                      continue; // Condition not met - skip this instance
+                    }
+                  }
+                  // Execute the ObjectCreation for this source instance
+                  const result = this.ruleExecutor.execute(rule, context);
+                  if (result.value) {
+                    lastResult = { success: true, value: result.value };
+                  }
+                } catch (e) {
+                  console.warn(`ObjectCreation rule '${rule.name || rule.naam}' failed for instance: ${e}`);
+                } finally {
+                  (context as any).current_instance = previousInstance;
+                }
+              }
+              continue; // Skip normal execution
+            }
+          }
+
           const result = this.ruleExecutor.execute(rule, context);
           if (!result.success) {
             return {
@@ -354,6 +388,40 @@ export class Engine implements IEngine {
         // Phase 2: Execute all rules in sequence
         // ============================================================
         for (const rule of (ast as any).rules || []) {
+          // Special handling for ObjectCreation rules - need to iterate over source objects
+          // Check both 'result' (parsed) and 'resultaat' (legacy) field names
+          const ruleResult = rule.result || rule.resultaat;
+          if (ruleResult?.type === 'ObjectCreation') {
+            const sourceType = this.deduceObjectCreationSourceType(rule, context);
+            if (sourceType) {
+              // Iterate over all instances of the source type
+              const instances = (context as any).getObjectsByType(sourceType);
+              for (const instance of instances) {
+                const previousInstance = (context as any).current_instance;
+                (context as any).current_instance = instance;
+                try {
+                  // Evaluate condition if present
+                  if (rule.condition) {
+                    const conditionResult = this.expressionEvaluator.evaluate(rule.condition.expression, context);
+                    if (conditionResult.type !== 'boolean' || !conditionResult.value) {
+                      continue; // Condition not met - skip this instance
+                    }
+                  }
+                  // Execute the ObjectCreation for this source instance
+                  const result = this.ruleExecutor.execute(rule, context);
+                  if (result.value) {
+                    lastResult = { success: true, value: result.value };
+                  }
+                } catch (e) {
+                  console.warn(`ObjectCreation rule '${rule.name || rule.naam}' failed for instance: ${e}`);
+                } finally {
+                  (context as any).current_instance = previousInstance;
+                }
+              }
+              continue; // Skip normal execution
+            }
+          }
+
           const result = this.ruleExecutor.execute(rule, context);
           if (!result.success) {
             return {
@@ -717,6 +785,89 @@ export class Engine implements IEngine {
       const firstResult = rows[0].results[0];
       if (firstResult?.target?.path?.length >= 2) {
         return firstResult.target.path[0];
+      }
+    }
+
+    return undefined;
+  }
+
+  /**
+   * Deduce the source object type for an ObjectCreation rule by scanning
+   * its expressions for capitalized object type references (e.g., "de Vlucht").
+   * This mirrors Python's _deduce_rule_target_type behavior.
+   */
+  private deduceObjectCreationSourceType(rule: any, context: RuntimeContext): string | undefined {
+    // Check both 'result' (parsed) and 'resultaat' (legacy) field names
+    const objectCreation = rule.result || rule.resultaat;
+    if (!objectCreation || objectCreation.type !== 'ObjectCreation') {
+      return undefined;
+    }
+
+    // Scan attribute init expressions for VariableReference or AttributeReference
+    // with capitalized names that match object types
+    const candidates = new Set<string>();
+
+    const extractTypeReferences = (expr: any): void => {
+      if (!expr) return;
+
+      // Check VariableReference
+      if (expr.type === 'VariableReference') {
+        const name = expr.variableName;
+        // Capitalized names like "Vlucht" or "Natuurlijk persoon" are potential object types
+        if (name && /^[A-Z]/.test(name)) {
+          candidates.add(name);
+        }
+      }
+
+      // Check AttributeReference paths
+      if (expr.type === 'AttributeReference' && expr.path) {
+        for (const segment of expr.path) {
+          if (typeof segment === 'string' && /^[A-Z]/.test(segment)) {
+            candidates.add(segment);
+          }
+        }
+      }
+
+      // Recurse into sub-expressions
+      if (expr.left) extractTypeReferences(expr.left);
+      if (expr.right) extractTypeReferences(expr.right);
+      if (expr.operand) extractTypeReferences(expr.operand);
+      if (expr.arguments) {
+        for (const arg of expr.arguments) {
+          extractTypeReferences(arg);
+        }
+      }
+      if (expr.expression) extractTypeReferences(expr.expression);
+      if (expr.collection) extractTypeReferences(expr.collection);
+    };
+
+    // Scan all attribute initializations
+    for (const init of objectCreation.attributeInits || []) {
+      extractTypeReferences(init.value);
+    }
+
+    // Also check the condition's expression if present
+    if (rule.condition?.expression) {
+      extractTypeReferences(rule.condition.expression);
+    }
+
+    // Find which candidate maps to an actual object type with instances
+    for (const candidate of candidates) {
+      const instances = (context as any).getObjectsByType(candidate);
+      if (instances && instances.length > 0) {
+        return candidate;
+      }
+
+      // Try with common variations (add space before capitals)
+      const variations = [
+        candidate.replace(/([a-z])([A-Z])/g, '$1 $2'),
+        candidate.replace(/lijk(?=[A-Z])/g, 'lijk ')
+      ];
+      for (const variant of variations) {
+        const varInstances = (context as any).getObjectsByType(variant);
+        if (varInstances && varInstances.length > 0) {
+          return variant;
+        }
       }
     }
 
