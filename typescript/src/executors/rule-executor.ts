@@ -60,22 +60,60 @@ export class RuleExecutor implements IRuleExecutor {
     const feittypen = ctx.getAllFeittypen ? ctx.getAllFeittypen() : [];
     const roleClean = roleName.toLowerCase().replace(/^(de|het|een)\s+/, '').trim();
 
+    // First, check if role name contains a known object type name
+    // This is more reliable than the FeitType parsing which has issues with multi-word roles
+    for (const objType of ctx.domainModel?.objectTypes || []) {
+      const objTypeLower = objType.name.toLowerCase();
+      // Check if role contains the full object type name
+      // e.g., "te verdelen contingent treinmiles" contains "contingent treinmiles"
+      if (roleClean.includes(objTypeLower)) {
+        return objType.name;
+      }
+    }
+
+    // Fallback to FeitType lookup
     for (const feittype of feittypen) {
       for (const rol of feittype.rollen || []) {
         const rolNaamClean = (rol.naam || '').toLowerCase().replace(/^(de|het|een)\s+/, '').trim();
         const meervoudClean = (rol.meervoud || '').toLowerCase().trim();
 
+        // Exact match
         if (rolNaamClean === roleClean || meervoudClean === roleClean) {
-          // Found matching role - return its objectType (stripped of cardinality text)
           const objType = rol.objectType || '';
-          // Split on common cardinality words and take first part
-          return objType.split(/\s+(één|een|meerdere|veel)\s+/i)[0].trim();
+          const cleanObjType = objType.split(/\s+(één|een|meerdere|veel)\s+/i)[0].trim();
+          // Only return if the objectType looks like a valid type (has at least 2 words or is capitalized)
+          if (cleanObjType && (cleanObjType.includes(' ') || cleanObjType[0] === cleanObjType[0].toUpperCase())) {
+            return cleanObjType;
+          }
+        }
+      }
+    }
+
+    return null;
+  }
+
+  /**
+   * Deduce the base object type from a Verdeling's sourceAmount expression.
+   * Extracts the first path segment and resolves it as a role name.
+   * E.g., "totaal aantal treinmiles van een te verdelen contingent treinmiles"
+   * → role "te verdelen contingent treinmiles" → "Contingent treinmiles"
+   */
+  private deduceVerdelingBaseType(verdeling: Verdeling, context: RuntimeContext): string | null {
+    const sourceExpr = verdeling.sourceAmount;
+    if (sourceExpr.type === 'AttributeReference') {
+      const path = (sourceExpr as any).path as string[];
+      if (path && path.length > 0) {
+        // Try each path segment to find a role name that maps to an object type
+        for (const segment of path) {
+          const objType = this.resolveRoleToObjectType(segment, context);
+          if (objType) {
+            return objType;
+          }
         }
       }
     }
     return null;
   }
-
 
   execute(rule: Rule, context: RuntimeContext): RuleExecutionResult {
     try {
@@ -1094,6 +1132,39 @@ export class RuleExecutor implements IRuleExecutor {
   }
 
   private executeVerdeling(verdeling: Verdeling, context: RuntimeContext): RuleExecutionResult {
+    const ctx = context as Context;
+
+    // Deduce base object type from source amount path for proper scoping
+    // E.g., "totaal aantal treinmiles van een te verdelen contingent treinmiles"
+    // → finds role "te verdelen contingent treinmiles" → "Contingent treinmiles"
+    const baseType = this.deduceVerdelingBaseType(verdeling, context);
+
+    if (baseType) {
+      // Object-scoped Verdeling: iterate over instances of the base type
+      const instances = ctx.getObjectsByType(baseType);
+      if (instances.length > 0) {
+        for (const instance of instances) {
+          const originalInstance = ctx.current_instance;
+          ctx.setCurrentInstance(instance);
+          try {
+            this.executeVerdelingForInstance(verdeling, ctx);
+          } finally {
+            ctx.setCurrentInstance(originalInstance);
+          }
+        }
+        return { success: true };
+      }
+    }
+
+    // Fallback: execute without object scoping (original behavior)
+    return this.executeVerdelingForInstance(verdeling, ctx);
+  }
+
+  /**
+   * Execute Verdeling for a single instance context.
+   * Extracted from original executeVerdeling to support object-scoped iteration.
+   */
+  private executeVerdelingForInstance(verdeling: Verdeling, context: RuntimeContext): RuleExecutionResult {
     // Evaluate the source amount to get the total to distribute
     const sourceValue = this.expressionEvaluator.evaluate(verdeling.sourceAmount, context);
 
@@ -1267,6 +1338,18 @@ export class RuleExecutor implements IRuleExecutor {
     const cleanedValue = ctx.getVariable(cleanedRef);
     if (cleanedValue?.type === 'array') {
       return cleanedValue.value as Value[];
+    }
+
+    // Try 5: Resolve as FeitType role name to get objects of that type
+    // Handles cases like "passagiers met recht op treinmiles" → "Natuurlijk persoon"
+    for (const segment of navigationPath) {
+      const roleObjType = this.resolveRoleToObjectType(segment, context);
+      if (roleObjType) {
+        const objects = ctx.getObjectsByType(roleObjType);
+        if (objects.length > 0) {
+          return objects;
+        }
+      }
     }
 
     // Fallback: return empty array
