@@ -803,7 +803,58 @@ export class Engine implements IEngine {
       return undefined;
     }
 
-    // Scan attribute init expressions for VariableReference or AttributeReference
+    // For ObjectCreation WITHOUT conditions, use FeitType-based deduction
+    // (mirrors Python engine.py:529-557)
+    // Pattern: "Een X heeft het Y" - we need to iterate over X
+    if (!rule.condition && !rule.voorwaarde) {
+      const objectType = objectCreation.objectType;
+      const objectTypeLower = this.stripArticles(objectType).toLowerCase();
+      // Also normalize by removing spaces for comparison (parser may have concatenated words)
+      const objectTypeNormalized = objectTypeLower.replace(/\s+/g, '');
+
+      const feittypen = (context as any).getAllFeittypen?.() || [];
+
+      // First pass: exact matches (prefer these to avoid false positives)
+      for (const feittype of feittypen) {
+        for (const role of feittype.rollen || []) {
+          const roleNameLower = this.stripArticles(role.naam).toLowerCase();
+          const roleNameNormalized = roleNameLower.replace(/\s+/g, '');
+          const roleObjectTypeLower = role.objectType?.toLowerCase() || '';
+          const roleObjectTypeNormalized = roleObjectTypeLower.replace(/\s+/g, '');
+
+          // Exact match on role name or role objectType (with space normalization)
+          if (roleNameNormalized === objectTypeNormalized || roleObjectTypeNormalized === objectTypeNormalized) {
+            // Found matching FeitType - return the OTHER role's objectType
+            for (const otherRole of feittype.rollen || []) {
+              if (otherRole.naam !== role.naam) {
+                return otherRole.objectType;
+              }
+            }
+          }
+        }
+      }
+
+      // Second pass: substring containment (for compound names)
+      for (const feittype of feittypen) {
+        for (const role of feittype.rollen || []) {
+          const roleNameLower = this.stripArticles(role.naam).toLowerCase();
+          const roleNameNormalized = roleNameLower.replace(/\s+/g, '');
+          const roleObjectTypeLower = role.objectType?.toLowerCase() || '';
+          const roleObjectTypeNormalized = roleObjectTypeLower.replace(/\s+/g, '');
+
+          if (roleNameNormalized.includes(objectTypeNormalized) || objectTypeNormalized.includes(roleNameNormalized) ||
+              roleObjectTypeNormalized.includes(objectTypeNormalized) || objectTypeNormalized.includes(roleObjectTypeNormalized)) {
+            for (const otherRole of feittype.rollen || []) {
+              if (otherRole.naam !== role.naam) {
+                return otherRole.objectType;
+              }
+            }
+          }
+        }
+      }
+    }
+
+    // Fall back to expression scanning for VariableReference or AttributeReference
     // with capitalized names that match object types
     const candidates = new Set<string>();
 
@@ -872,5 +923,12 @@ export class Engine implements IEngine {
     }
 
     return undefined;
+  }
+
+  /**
+   * Strip Dutch articles from the beginning of a string
+   */
+  private stripArticles(text: string): string {
+    return text.replace(/^(de|het|een)\s+/i, '').trim();
   }
 }
