@@ -92,29 +92,6 @@ export class RuleExecutor implements IRuleExecutor {
     return null;
   }
 
-  /**
-   * Deduce the base object type from a Verdeling's sourceAmount expression.
-   * Extracts the first path segment and resolves it as a role name.
-   * E.g., "totaal aantal treinmiles van een te verdelen contingent treinmiles"
-   * → role "te verdelen contingent treinmiles" → "Contingent treinmiles"
-   */
-  private deduceVerdelingBaseType(verdeling: Verdeling, context: RuntimeContext): string | null {
-    const sourceExpr = verdeling.sourceAmount;
-    if (sourceExpr.type === 'AttributeReference') {
-      const path = (sourceExpr as any).path as string[];
-      if (path && path.length > 0) {
-        // Try each path segment to find a role name that maps to an object type
-        for (const segment of path) {
-          const objType = this.resolveRoleToObjectType(segment, context);
-          if (objType) {
-            return objType;
-          }
-        }
-      }
-    }
-    return null;
-  }
-
   execute(rule: Rule, context: RuntimeContext): RuleExecutionResult {
     try {
       const result = rule.result || rule.resultaat;
@@ -1110,48 +1087,23 @@ export class RuleExecutor implements IRuleExecutor {
         // The rule executed successfully, regardless of whether values were unique
       };
     } else if (consistentieregel.criteriumType === 'inconsistent') {
-      // Handle inconsistency check - needs object scoping like Gelijkstelling
+      // Handle inconsistency check
+      // Note: Engine now handles object scoping via central deduction, so we just evaluate the condition
       if (consistentieregel.condition) {
-        // Try to deduce target type from the condition expression
-        const targetType = this.deduceTargetTypeFromExpression(consistentieregel.condition, context);
-
-        if (targetType) {
-          // Iterate over all instances of the target type
-          const ctx = context as Context;
-          const instances = ctx.getObjectsByType(targetType);
-
-          for (const instance of instances) {
-            const originalInstance = ctx.current_instance;
-            ctx.setCurrentInstance(instance);
-            try {
-              // Evaluate the condition for this instance
-              const conditionResult = this.expressionEvaluator.evaluate(consistentieregel.condition, context);
-
-              // For inconsistency rules, check if condition is violated
-              if (conditionResult.type === 'boolean' && !conditionResult.value) {
-                // Condition failed - mark as inconsistent
-                if (ctx.markRuleInconsistent && (ctx as any)._currentRuleName) {
-                  ctx.markRuleInconsistent((ctx as any)._currentRuleName);
-                }
-              }
-            } finally {
-              ctx.setCurrentInstance(originalInstance);
-            }
-          }
-
-          return {
-            success: true,
-            // The rule executed successfully
-          };
-        }
-
-        // Fallback: evaluate without object scoping
+        // Evaluate the condition for the current instance (set by Engine)
         const conditionResult = this.expressionEvaluator.evaluate(consistentieregel.condition, context);
 
-        // For inconsistency rules, we record if the data is inconsistent
+        // For inconsistency rules, check if condition is violated
+        if (conditionResult.type === 'boolean' && !conditionResult.value) {
+          // Condition failed - mark as inconsistent
+          const ctx = context as Context;
+          if (ctx.markRuleInconsistent && (ctx as any)._currentRuleName) {
+            ctx.markRuleInconsistent((ctx as any)._currentRuleName);
+          }
+        }
+
         return {
           success: true,
-          // The rule executed successfully
         };
       }
 
@@ -1164,96 +1116,10 @@ export class RuleExecutor implements IRuleExecutor {
     throw new Error(`Unknown consistency criterion type: ${consistentieregel.criteriumType}`);
   }
 
-  /**
-   * Deduce target object type from an expression by scanning for object type references.
-   * Used for Consistentieregel object scoping.
-   */
-  private deduceTargetTypeFromExpression(expr: Expression, context: RuntimeContext): string | null {
-    const ctx = context as Context;
-
-    // Recursively scan expression for object type references
-    const scanExpression = (e: Expression): string | null => {
-      // Check if expression is an AttributeReference with object type in path
-      if (e.type === 'AttributeReference') {
-        const path = (e as any).path as string[];
-        if (path && path.length > 0) {
-          // Check each path segment against known object types
-          for (const segment of path) {
-            // Try matching against object types (case-insensitive)
-            const segmentLower = segment.toLowerCase();
-            for (const objType of ctx.domainModel?.objectTypes || []) {
-              if (segmentLower === objType.name.toLowerCase()) {
-                return objType.name;
-              }
-            }
-          }
-        }
-      }
-
-      // Check BinaryExpression (left and right sides)
-      if (e.type === 'BinaryExpression') {
-        const left = scanExpression((e as any).left);
-        if (left) return left;
-        const right = scanExpression((e as any).right);
-        if (right) return right;
-      }
-
-      // Check UnaryExpression
-      if (e.type === 'UnaryExpression') {
-        return scanExpression((e as any).operand);
-      }
-
-      return null;
-    };
-
-    return scanExpression(expr);
-  }
-
   private executeVerdeling(verdeling: Verdeling, context: RuntimeContext): RuleExecutionResult {
+    // Note: Engine now handles object scoping via central deduction
+    // We just execute the distribution for the current instance (set by Engine)
     const ctx = context as Context;
-
-    // Deduce base object type from source amount path for proper scoping
-    // E.g., "totaal aantal treinmiles van een te verdelen contingent treinmiles"
-    // → finds role "te verdelen contingent treinmiles" → "Contingent treinmiles"
-    const baseType = this.deduceVerdelingBaseType(verdeling, context);
-
-    if (baseType) {
-      // Object-scoped Verdeling: iterate over instances of the base type
-      const instances = ctx.getObjectsByType(baseType);
-      if (instances.length > 0) {
-        for (const instance of instances) {
-          const originalInstance = ctx.current_instance;
-          ctx.setCurrentInstance(instance);
-          try {
-            this.executeVerdelingForInstance(verdeling, ctx);
-          } finally {
-            ctx.setCurrentInstance(originalInstance);
-          }
-        }
-        return { success: true };
-      } else {
-        // No instances to distribute over (matches Python behavior)
-        // Python still evaluates sourceAmount and puts it in remainder if specified
-        if (verdeling.remainderTarget) {
-          // Need to evaluate sourceAmount, but it may contain role-based paths
-          // that require current_instance. Try evaluation, fall back to 0 on error.
-          let sourceValue: Value;
-          try {
-            sourceValue = this.expressionEvaluator.evaluate(verdeling.sourceAmount, context);
-          } catch (e) {
-            console.warn(`Verdeling: Could not evaluate sourceAmount with 0 instances: ${e}`);
-            sourceValue = { type: 'number', value: 0 };
-          }
-
-          if (sourceValue.type === 'number') {
-            this.setRemainderValue(verdeling.remainderTarget, sourceValue, context);
-          }
-        }
-        return { success: true };
-      }
-    }
-
-    // Fallback: execute without object scoping (original behavior)
     return this.executeVerdelingForInstance(verdeling, ctx);
   }
 

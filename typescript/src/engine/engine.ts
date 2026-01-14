@@ -238,53 +238,52 @@ export class Engine implements IEngine {
         // Phase 2: Execute all rules in sequence
         // ============================================================
         for (const rule of (ast.regels || [])) {
-          // Special handling for ObjectCreation rules - need to iterate over source objects
-          // Check both 'result' (parsed) and 'resultaat' (legacy) field names
-          const ruleResult = rule.result || rule.resultaat;
-          if (ruleResult?.type === 'ObjectCreation') {
-            const sourceType = this.deduceObjectCreationSourceType(rule, context);
-            if (sourceType) {
-              // Iterate over all instances of the source type
-              const instances = (context as any).getObjectsByType(sourceType);
-              console.log(`ObjectCreation "${rule.name || rule.naam}": ${instances.length} ${sourceType} instances`);
-              for (const instance of instances) {
-                const previousInstance = (context as any).current_instance;
-                (context as any).current_instance = instance;
-                try {
-                  // Evaluate condition if present
-                  if (rule.condition) {
-                    const conditionResult = this.expressionEvaluator.evaluate(rule.condition.expression, context);
-                    if (conditionResult.type !== 'boolean' || !conditionResult.value) {
-                      continue; // Condition not met - skip this instance
-                    }
-                  }
-                  // Execute the ObjectCreation for this source instance
-                  const result = this.ruleExecutor.execute(rule, context);
-                  if (result.value) {
-                    lastResult = { success: true, value: result.value };
-                  }
-                } catch (e) {
-                  console.warn(`ObjectCreation rule '${rule.name || rule.naam}' failed for instance: ${e}`);
-                } finally {
-                  (context as any).current_instance = previousInstance;
-                }
-              }
-              continue; // Skip normal execution
+          // Deduce target type for rule (central deduction matching Python)
+          const targetType = this.deduceRuleTargetType(rule, context);
+
+          if (!targetType) {
+            // Rule doesn't target specific object type - execute directly
+            const result = this.ruleExecutor.execute(rule, context);
+            if (!result.success) {
+              return { success: false, error: result.error };
             }
+            if (result.value) {
+              lastResult = { success: true, value: result.value };
+            }
+            continue;
           }
 
-          const result = this.ruleExecutor.execute(rule, context);
-          if (!result.success) {
-            return {
-              success: false,
-              error: result.error
-            };
-          }
-          if (result.value) {
-            lastResult = {
-              success: true,
-              value: result.value
-            };
+          // Iterate over all instances of target type
+          const instances = (context as any).getObjectsByType(targetType);
+          for (const instance of instances) {
+            const previousInstance = (context as any).current_instance;
+            (context as any).current_instance = instance;
+            try {
+              // Evaluate condition if present
+              const voorwaarde = rule.voorwaarde || rule.condition;
+              if (voorwaarde) {
+                const expression = voorwaarde.expression || voorwaarde.expressie;
+                if (expression) {
+                  const conditionResult = this.expressionEvaluator.evaluate(expression, context);
+                  if (conditionResult.type !== 'boolean' || !conditionResult.value) {
+                    continue; // Condition not met - skip this instance
+                  }
+                }
+              }
+
+              // Execute rule for this instance
+              const result = this.ruleExecutor.execute(rule, context);
+              if (!result.success) {
+                return { success: false, error: result.error };
+              }
+              if (result.value) {
+                lastResult = { success: true, value: result.value };
+              }
+            } catch (e) {
+              console.warn(`Rule '${rule.name || rule.naam}' failed for ${targetType} instance: ${e}`);
+            } finally {
+              (context as any).current_instance = previousInstance;
+            }
           }
         }
 
@@ -315,12 +314,29 @@ export class Engine implements IEngine {
         for (const rule of (ast.regels || [])) {
           if (rule.resultaat?.type !== 'Gelijkstelling') continue;
 
-          const result = this.ruleExecutor.execute(rule, context);
-          if (result.success && result.value) {
-            lastResult = {
-              success: true,
-              value: result.value
-            };
+          const targetType = this.deduceRuleTargetType(rule, context);
+          if (!targetType) {
+            // No target type - execute directly
+            const result = this.ruleExecutor.execute(rule, context);
+            if (result.success && result.value) {
+              lastResult = { success: true, value: result.value };
+            }
+            continue;
+          }
+
+          // Iterate over all instances of target type
+          const instances = (context as any).getObjectsByType(targetType);
+          for (const instance of instances) {
+            const previousInstance = (context as any).current_instance;
+            (context as any).current_instance = instance;
+            try {
+              const result = this.ruleExecutor.execute(rule, context);
+              if (result.success && result.value) {
+                lastResult = { success: true, value: result.value };
+              }
+            } finally {
+              (context as any).current_instance = previousInstance;
+            }
           }
         }
 
@@ -389,52 +405,52 @@ export class Engine implements IEngine {
         // Phase 2: Execute all rules in sequence
         // ============================================================
         for (const rule of (ast as any).rules || []) {
-          // Special handling for ObjectCreation rules - need to iterate over source objects
-          // Check both 'result' (parsed) and 'resultaat' (legacy) field names
-          const ruleResult = rule.result || rule.resultaat;
-          if (ruleResult?.type === 'ObjectCreation') {
-            const sourceType = this.deduceObjectCreationSourceType(rule, context);
-            if (sourceType) {
-              // Iterate over all instances of the source type
-              const instances = (context as any).getObjectsByType(sourceType);
-              for (const instance of instances) {
-                const previousInstance = (context as any).current_instance;
-                (context as any).current_instance = instance;
-                try {
-                  // Evaluate condition if present
-                  if (rule.condition) {
-                    const conditionResult = this.expressionEvaluator.evaluate(rule.condition.expression, context);
-                    if (conditionResult.type !== 'boolean' || !conditionResult.value) {
-                      continue; // Condition not met - skip this instance
-                    }
-                  }
-                  // Execute the ObjectCreation for this source instance
-                  const result = this.ruleExecutor.execute(rule, context);
-                  if (result.value) {
-                    lastResult = { success: true, value: result.value };
-                  }
-                } catch (e) {
-                  console.warn(`ObjectCreation rule '${rule.name || rule.naam}' failed for instance: ${e}`);
-                } finally {
-                  (context as any).current_instance = previousInstance;
-                }
-              }
-              continue; // Skip normal execution
+          // Deduce target type for rule (central deduction matching Python)
+          const targetType = this.deduceRuleTargetType(rule, context);
+
+          if (!targetType) {
+            // Rule doesn't target specific object type - execute directly
+            const result = this.ruleExecutor.execute(rule, context);
+            if (!result.success) {
+              return { success: false, error: result.error };
             }
+            if (result.value) {
+              lastResult = { success: true, value: result.value };
+            }
+            continue;
           }
 
-          const result = this.ruleExecutor.execute(rule, context);
-          if (!result.success) {
-            return {
-              success: false,
-              error: result.error
-            };
-          }
-          if (result.value) {
-            lastResult = {
-              success: true,
-              value: result.value
-            };
+          // Iterate over all instances of target type
+          const instances = (context as any).getObjectsByType(targetType);
+          for (const instance of instances) {
+            const previousInstance = (context as any).current_instance;
+            (context as any).current_instance = instance;
+            try {
+              // Evaluate condition if present
+              const voorwaarde = rule.voorwaarde || rule.condition;
+              if (voorwaarde) {
+                const expression = voorwaarde.expression || voorwaarde.expressie;
+                if (expression) {
+                  const conditionResult = this.expressionEvaluator.evaluate(expression, context);
+                  if (conditionResult.type !== 'boolean' || !conditionResult.value) {
+                    continue; // Condition not met - skip this instance
+                  }
+                }
+              }
+
+              // Execute rule for this instance
+              const result = this.ruleExecutor.execute(rule, context);
+              if (!result.success) {
+                return { success: false, error: result.error };
+              }
+              if (result.value) {
+                lastResult = { success: true, value: result.value };
+              }
+            } catch (e) {
+              console.warn(`Rule '${rule.name || rule.naam}' failed for ${targetType} instance: ${e}`);
+            } finally {
+              (context as any).current_instance = previousInstance;
+            }
           }
         }
 
@@ -469,12 +485,29 @@ export class Engine implements IEngine {
           // Only re-run Gelijkstelling rules
           if (rule.resultaat?.type !== 'Gelijkstelling') continue;
 
-          const result = this.ruleExecutor.execute(rule, context);
-          if (result.success && result.value) {
-            lastResult = {
-              success: true,
-              value: result.value
-            };
+          const targetType = this.deduceRuleTargetType(rule, context);
+          if (!targetType) {
+            // No target type - execute directly
+            const result = this.ruleExecutor.execute(rule, context);
+            if (result.success && result.value) {
+              lastResult = { success: true, value: result.value };
+            }
+            continue;
+          }
+
+          // Iterate over all instances of target type
+          const instances = (context as any).getObjectsByType(targetType);
+          for (const instance of instances) {
+            const previousInstance = (context as any).current_instance;
+            (context as any).current_instance = instance;
+            try {
+              const result = this.ruleExecutor.execute(rule, context);
+              if (result.success && result.value) {
+                lastResult = { success: true, value: result.value };
+              }
+            } finally {
+              (context as any).current_instance = previousInstance;
+            }
           }
           // Silently continue on errors - rule may have already been evaluated correctly
         }
@@ -796,6 +829,8 @@ export class Engine implements IEngine {
    * Deduce the source object type for an ObjectCreation rule by scanning
    * its expressions for capitalized object type references (e.g., "de Vlucht").
    * This mirrors Python's _deduce_rule_target_type behavior.
+   *
+   * @deprecated Use deduceRuleTargetType() instead. This method is kept for backward compatibility.
    */
   private deduceObjectCreationSourceType(rule: any, context: RuntimeContext): string | undefined {
     // Check both 'result' (parsed) and 'resultaat' (legacy) field names
@@ -931,5 +966,537 @@ export class Engine implements IEngine {
    */
   private stripArticles(text: string): string {
     return text.replace(/^(de|het|een)\s+/i, '').trim();
+  }
+
+  /**
+   * Recursively extract all AttributeReference nodes from an expression.
+   * Ports Python engine.py lines 490-510.
+   */
+  private extractAttributeReferences(expr: any): any[] {
+    const refs: any[] = [];
+
+    if (!expr) return refs;
+
+    if (expr.type === 'AttributeReference') {
+      refs.push(expr);
+    } else if (expr.type === 'BinaryExpression') {
+      refs.push(...this.extractAttributeReferences(expr.left));
+      refs.push(...this.extractAttributeReferences(expr.right));
+    } else if (expr.type === 'UnaryExpression') {
+      refs.push(...this.extractAttributeReferences(expr.operand));
+    } else if (expr.type === 'FunctionCall' && expr.arguments) {
+      for (const arg of expr.arguments) {
+        refs.push(...this.extractAttributeReferences(arg));
+      }
+    } else if (expr.type === 'SamengesteldeVoorwaarde' && expr.voorwaarden) {
+      for (const voorwaarde of expr.voorwaarden) {
+        refs.push(...this.extractAttributeReferences(voorwaarde));
+      }
+    }
+
+    return refs;
+  }
+
+  /**
+   * Deduce object type from a rule's condition expression.
+   * Ports Python engine.py lines 463-488.
+   */
+  private deduceTypeFromCondition(voorwaarde: any, context: RuntimeContext): string | null {
+    if (!voorwaarde) return null;
+
+    const expression = voorwaarde.expression || voorwaarde.expressie;
+    if (!expression) return null;
+
+    const attrRefs = this.extractAttributeReferences(expression);
+
+    for (const attrRef of attrRefs) {
+      if (!attrRef.path || attrRef.path.length === 0) continue;
+
+      // Get first path element (attribute name)
+      let attrName = attrRef.path[0];
+      attrName = this.stripArticles(attrName);
+
+      // Find which object type owns this attribute
+      const ctx = context as any;
+      if (ctx.domainModel?.objectTypes) {
+        for (const objType of ctx.domainModel.objectTypes) {
+          // Check if attributen exists and is an object
+          if (objType.attributen && typeof objType.attributen === 'object') {
+            // Use hasOwnProperty instead of 'in' to avoid prototype chain issues
+            if (Object.prototype.hasOwnProperty.call(objType.attributen, attrName)) {
+              return objType.name;
+            }
+          }
+        }
+      }
+    }
+
+    return null;
+  }
+
+  /**
+   * Map a role alias to its object type via FeitType definitions.
+   * Ports Python engine.py lines 8896-8918.
+   */
+  private roleAliasToObjectType(name: string, context: RuntimeContext): string | null {
+    if (!name) return null;
+
+    const ctx = context as any;
+
+    // Strip possessive pronouns first
+    let nameCleaned = name.toLowerCase();
+    for (const pronoun of ['zijn ', 'haar ', 'hun ']) {
+      if (nameCleaned.startsWith(pronoun)) {
+        nameCleaned = nameCleaned.substring(pronoun.length);
+        break;
+      }
+    }
+
+    nameCleaned = this.stripArticles(nameCleaned);
+
+    // Search all FeitTypes
+    const feittypen = ctx.getAllFeittypen?.() || [];
+    for (const feittype of feittypen) {
+      for (const rol of feittype.rollen || []) {
+        if (!rol.naam) continue;
+
+        const rolNaam = this.stripArticles(rol.naam).toLowerCase();
+        const rolPlural = rol.meervoud ? this.stripArticles(rol.meervoud).toLowerCase() : '';
+
+        if (nameCleaned === rolNaam || nameCleaned === rolPlural) {
+          return rol.objectType;
+        }
+      }
+    }
+
+    return null;
+  }
+
+  /**
+   * Deduce which object type this rule applies to.
+   * Mirrors Python's _deduce_rule_target_type() for architectural parity.
+   *
+   * @param rule - The rule to analyze
+   * @param context - Runtime context for accessing domain model
+   * @returns Object type name to iterate over, or null if rule doesn't target objects
+   */
+  private deduceRuleTargetType(rule: any, context: RuntimeContext): string | null {
+    const resultaat = rule.result || rule.resultaat;
+    if (!resultaat) return null;
+
+    // Debug logging for TOKA troubleshooting
+    const ruleName = rule.name || rule.naam;
+
+    // Type-based dispatch matching Python's architecture
+    let targetType: string | null = null;
+    switch (resultaat.type) {
+      case 'Gelijkstelling':
+      case 'KenmerkToekenning':
+      case 'Initialisatie':
+        targetType = this.deduceTypeFromAttributeTarget(resultaat, rule, context);
+        break;
+
+      case 'ObjectCreation':
+        targetType = this.deduceTypeForObjectCreation(resultaat, rule, context);
+        break;
+
+      case 'Dagsoortdefinitie':
+        targetType = 'Dag';
+        break;
+
+      case 'Consistentieregel':
+        targetType = this.deduceTypeForConsistentieregel(resultaat, rule, context);
+        break;
+
+      case 'Verdeling':
+        targetType = this.deduceTypeForVerdeling(resultaat, context);
+        break;
+
+      case 'FeitCreatie':
+        targetType = this.deduceTypeForFeitCreatie(resultaat, context);
+        break;
+
+      default:
+        targetType = null;
+    }
+
+
+    return targetType;
+  }
+
+  /**
+   * Deduce type from attribute target (Gelijkstelling/KenmerkToekenning/Initialisatie).
+   * Ports Python engine.py lines 517-849.
+   */
+  private deduceTypeFromAttributeTarget(resultaat: any, rule: any, context: RuntimeContext): string | null {
+    const ctx = context as any;
+    let targetRef = resultaat.target;
+
+    // Handle DimensionedAttributeReference by extracting base attribute
+    if (targetRef?.type === 'DimensionedAttributeReference') {
+      targetRef = targetRef.baseAttribute;
+    }
+
+    if (!targetRef || !targetRef.path) return null;
+
+    // Path structure: ["attribute", "object_type", ...]
+    // e.g., ["resultaat", "Bedrag"] for "De resultaat van een Bedrag"
+    // e.g., ["leeftijd", "Natuurlijk persoon"] for "De leeftijd van een Natuurlijk persoon"
+
+    if (targetRef.path.length === 1) {
+      // Single element path could be:
+      // 1. Object type (for KenmerkToekenning)
+      // 2. Attribute name (for Gelijkstelling)
+      // 3. Role name
+
+      const pathElem = targetRef.path[0];
+
+      if (ctx.domainModel?.objectTypes) {
+        // Try exact match as object type
+        for (const objType of ctx.domainModel.objectTypes) {
+          if (pathElem === objType.name) {
+            return objType.name;
+          }
+        }
+
+        // Try case-insensitive match as object type
+        for (const objType of ctx.domainModel.objectTypes) {
+          if (pathElem.toLowerCase() === objType.name.toLowerCase()) {
+            return objType.name;
+          }
+        }
+
+        // Try to match as a role name from FeitTypes
+        const roleObjType = this.roleAliasToObjectType(pathElem, context);
+        if (roleObjType) {
+          return roleObjType;
+        }
+
+        // Not an object type - check if it's an attribute name
+        for (const objType of ctx.domainModel.objectTypes) {
+          if (objType.attributen && typeof objType.attributen === 'object') {
+            if (Object.prototype.hasOwnProperty.call(objType.attributen, pathElem)) {
+              return objType.name;
+            }
+          }
+        }
+      }
+    } else if (targetRef.path.length >= 3) {
+      // For paths with 3+ elements in nested navigation
+      // Example: ['persoon', 'woonadres', 'postcode']
+      // The first element (rightmost in Dutch) is typically the object type
+      let potentialType = targetRef.path[0];
+      potentialType = this.stripArticles(potentialType);
+
+      if (ctx.domainModel?.objectTypes) {
+        // Try exact match
+        for (const objType of ctx.domainModel.objectTypes) {
+          if (potentialType === objType.name) {
+            return objType.name;
+          }
+        }
+
+        // Try capitalized version
+        const potentialTypeCap = potentialType.charAt(0).toUpperCase() + potentialType.slice(1);
+        for (const objType of ctx.domainModel.objectTypes) {
+          if (potentialTypeCap === objType.name) {
+            return objType.name;
+          }
+        }
+
+        // Try case-insensitive match
+        for (const objType of ctx.domainModel.objectTypes) {
+          if (potentialType.toLowerCase() === objType.name.toLowerCase()) {
+            return objType.name;
+          }
+        }
+      }
+    } else if (targetRef.path.length === 2) {
+      // Path could be:
+      // 1. Dutch right-to-left for FeitType roles: ["reis", "totaal te betalen belasting"]
+      // 2. Original left-to-right: ["inkomen", "Natuurlijk persoon"]
+      // 3. Complex attribute with object type: ["belasting op basis van afstand", "passagier"]
+
+      // Try both elements as potential object type/role
+      for (let i = 0; i < 2; i++) {
+        let potentialType = targetRef.path[i];
+        potentialType = this.stripArticles(potentialType);
+
+        if (ctx.domainModel?.objectTypes) {
+          // Try exact match
+          for (const objType of ctx.domainModel.objectTypes) {
+            if (potentialType === objType.name) {
+              return objType.name;
+            }
+          }
+
+          // Try case-insensitive match
+          for (const objType of ctx.domainModel.objectTypes) {
+            if (potentialType.toLowerCase() === objType.name.toLowerCase()) {
+              return objType.name;
+            }
+          }
+
+          // Try capitalized match
+          const potentialTypeCap = potentialType.charAt(0).toUpperCase() + potentialType.slice(1);
+          for (const objType of ctx.domainModel.objectTypes) {
+            if (potentialTypeCap === objType.name) {
+              return objType.name;
+            }
+          }
+
+          // Try role alias
+          const roleObjType = this.roleAliasToObjectType(potentialType, context);
+          if (roleObjType) {
+            return roleObjType;
+          }
+        }
+      }
+    }
+
+    return null;
+  }
+
+  /**
+   * Deduce type for ObjectCreation rules.
+   * Ports Python engine.py lines 523-560.
+   */
+  private deduceTypeForObjectCreation(resultaat: any, rule: any, context: RuntimeContext): string | null {
+    // For ObjectCreation with condition, deduce from condition
+    const voorwaarde = rule.voorwaarde || rule.condition;
+    if (voorwaarde) {
+      return this.deduceTypeFromCondition(voorwaarde, context);
+    }
+
+    // For ObjectCreation without condition, use FeitType relationships
+    return this.deduceObjectCreationSourceType(rule, context) || null;
+  }
+
+  /**
+   * Deduce type for Consistentieregel rules.
+   * Ports Python engine.py lines 564-625.
+   */
+  private deduceTypeForConsistentieregel(resultaat: any, rule: any, context: RuntimeContext): string | null {
+    const ctx = context as any;
+
+    // For uniqueness checks, the target has pattern: ["alle", object_type, attribute]
+    if (resultaat.criteriumType === 'uniek' && resultaat.target) {
+      if (resultaat.target.type === 'AttributeReference' && resultaat.target.path?.length >= 3) {
+        // The object type is the second element in the path (after "alle")
+        const objType = resultaat.target.path[1];
+
+        // Try exact match first
+        if (ctx.domainModel?.objectTypes) {
+          for (const definedType of ctx.domainModel.objectTypes) {
+            if (definedType.name === objType) {
+              return definedType.name;
+            }
+          }
+
+          // Try plural form match
+          for (const definedType of ctx.domainModel.objectTypes) {
+            if (definedType.meervoud && definedType.meervoud === objType) {
+              return definedType.name;
+            }
+          }
+
+          // Try case-insensitive match
+          const objTypeLower = objType.toLowerCase();
+          for (const definedType of ctx.domainModel.objectTypes) {
+            if (definedType.name.toLowerCase() === objTypeLower) {
+              return definedType.name;
+            }
+          }
+
+          // Try partial match as last resort
+          for (const definedType of ctx.domainModel.objectTypes) {
+            const defLower = definedType.name.toLowerCase();
+            if (defLower.includes(objTypeLower) || objTypeLower.includes(defLower)) {
+              return definedType.name;
+            }
+          }
+        }
+      }
+    } else if (resultaat.criteriumType === 'inconsistent') {
+      // Extract target from condition's attribute references
+      // Check both resultaat.condition and rule.voorwaarde
+      const condition = resultaat.condition || rule.voorwaarde?.expressie || rule.voorwaarde?.expression;
+
+      if (condition) {
+        const refs = this.extractAttributeReferences(condition);
+        if (refs.length > 0) {
+          // First try to find object type from the path
+          for (const ref of refs) {
+            if (ref.path) {
+              for (const pathElement of ref.path) {
+                // Check if it's a known object type (exact match)
+                if (ctx.domainModel?.objectTypes) {
+                  for (const objType of ctx.domainModel.objectTypes) {
+                    if (pathElement === objType.name) {
+                      return objType.name;
+                    }
+                  }
+
+                  // Check case-insensitive match
+                  for (const objType of ctx.domainModel.objectTypes) {
+                    if (pathElement.toLowerCase() === objType.name.toLowerCase()) {
+                      return objType.name;
+                    }
+                  }
+
+                  // Check capitalized variant (e.g., "vlucht" → "Vlucht")
+                  const pathCapitalized = pathElement.charAt(0).toUpperCase() + pathElement.slice(1);
+                  for (const objType of ctx.domainModel.objectTypes) {
+                    if (pathCapitalized === objType.name) {
+                      return objType.name;
+                    }
+                  }
+                }
+
+                // Check if it's a role that maps to an object type
+                const roleObjType = this.roleAliasToObjectType(pathElement, context);
+                if (roleObjType) {
+                  return roleObjType;
+                }
+              }
+            }
+          }
+
+          // If no object type found in path, deduce from which object has these attributes
+          for (const ref of refs) {
+            if (ref.path && ref.path.length > 0) {
+              const attrName = ref.path[0];
+              // Search all object types to find which one has this attribute
+              if (ctx.domainModel?.objectTypes) {
+                for (const objType of ctx.domainModel.objectTypes) {
+                  if (objType.attributen && typeof objType.attributen === 'object') {
+                    if (Object.prototype.hasOwnProperty.call(objType.attributen, attrName)) {
+                      return objType.name;
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+
+    return null;
+  }
+
+  /**
+   * Deduce type for Verdeling rules.
+   * Ports Python engine.py lines 670-694 (more comprehensive version).
+   */
+  private deduceTypeForVerdeling(resultaat: any, context: RuntimeContext): string | null {
+    // For Verdeling, try to deduce from the source amount expression
+    const ctx = context as any;
+
+    if (resultaat.sourceAmount?.type === 'AttributeReference' && resultaat.sourceAmount.path) {
+      for (const pathElem of resultaat.sourceAmount.path) {
+        // First check if it's a role name that maps to an object type
+        const roleObjType = this.roleAliasToObjectType(pathElem, context);
+        if (roleObjType) {
+          return roleObjType;
+        }
+
+        // Extract object type from the path element
+        const words = pathElem.toLowerCase().split(/\s+/);
+
+        // Try each object type
+        if (ctx.domainModel?.objectTypes) {
+          for (const objType of ctx.domainModel.objectTypes) {
+            const objTypeWords = objType.name.toLowerCase().split(/\s+/);
+
+            // Check if all words of the object type appear in the path element
+            if (objTypeWords.every((word: string) => words.includes(word))) {
+              return objType.name;
+            }
+          }
+        }
+      }
+    }
+
+    return null;
+  }
+
+  /**
+   * Deduce type for FeitCreatie rules.
+   * Ports Python engine.py lines 661-669.
+   */
+  private deduceTypeForFeitCreatie(resultaat: any, context: RuntimeContext): string | null {
+    // Try subject1 first
+    const result1 = this.deduceTypeFromSubjectRef(resultaat.subject1, context);
+    if (result1) return result1;
+
+    // Otherwise try subject2
+    return this.deduceTypeFromSubjectRef(resultaat.subject2, context);
+  }
+
+  /**
+   * Deduce object type from a FeitCreatie subject reference.
+   * Ports Python engine.py lines 410-461.
+   */
+  private deduceTypeFromSubjectRef(subjectRef: any, context: RuntimeContext): string | null {
+    if (!subjectRef || !subjectRef.path) return null;
+
+    const ctx = context as any;
+
+    for (const pathElem of subjectRef.path) {
+      // Remove articles
+      const cleanElem = this.stripArticles(pathElem);
+
+      // Check if it's an exact object type match
+      if (ctx.domainModel?.objectTypes) {
+        for (const objType of ctx.domainModel.objectTypes) {
+          if (cleanElem === objType.name) {
+            return objType.name;
+          }
+        }
+      }
+
+      // Check if this is a role in a feittype
+      const feittypen = ctx.getAllFeittypen?.() || [];
+      for (const feittype of feittypen) {
+        if (feittype.naam && feittype.naam.toLowerCase().includes(cleanElem.toLowerCase())) {
+          if (feittype.rollen && feittype.rollen.length > 0) {
+            return feittype.rollen[0].objectType;
+          }
+        }
+      }
+
+      // Try to find object type within the path element
+      const pathElemLower = cleanElem.toLowerCase();
+      const words = pathElemLower.split(/\s+/);
+
+      if (words.length > 0) {
+        // First try last word (most specific)
+        const lastWord = words[words.length - 1];
+        if (ctx.domainModel?.objectTypes) {
+          for (const objType of ctx.domainModel.objectTypes) {
+            if (lastWord === objType.name.toLowerCase()) {
+              return objType.name;
+            }
+          }
+        }
+
+        // Try longer combinations from the end
+        for (let length = words.length; length > 1; length--) {
+          for (let start = 0; start <= words.length - length; start++) {
+            const candidate = words.slice(start, start + length).join(' ');
+            if (ctx.domainModel?.objectTypes) {
+              for (const objType of ctx.domainModel.objectTypes) {
+                if (candidate === objType.name.toLowerCase()) {
+                  return objType.name;
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+
+    return null;
   }
 }
