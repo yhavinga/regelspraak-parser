@@ -2252,9 +2252,12 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
       // First check if this is a known compound attribute name
       let isCompoundAttribute = false;
 
+      // Normalize by removing articles for comparison (matches Python builder.py:1136)
+      const normalizedAttrText = this.extractParameterName(attrText);
+
       // Check against all known object types
       for (const [objectType, attributes] of this.objectTypeAttributes) {
-        if (attributes.has(attrText)) {
+        if (attributes.has(normalizedAttrText)) {
           isCompoundAttribute = true;
           break;
         }
