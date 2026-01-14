@@ -199,6 +199,36 @@ export class ExpressionEvaluator implements IEvaluator {
     const left = this.evaluate(expr.left, context);
     const right = this.evaluate(expr.right, context);
 
+    // Check for date arithmetic (matching Python engine.py:5290-5314)
+    if (expr.operator === '+' || expr.operator === '-') {
+      const isLeftDate = left.type === 'date';
+      const isRightDate = right.type === 'date';
+      const timeUnits = ['jaren', 'jaar', 'jr', 'maanden', 'maand', 'mnd', 'weken', 'week', 'dagen', 'dag', 'dg', 'uren', 'uur', 'u', 'minuten', 'minuut', 'seconden', 'seconde', 's'];
+
+      // Get unit name (handle both string and Unit object)
+      const getUnitName = (val: Value): string | undefined => {
+        if (!val.unit) return undefined;
+        return typeof val.unit === 'string' ? val.unit : val.unit.name;
+      };
+
+      // Date +/- time-unit
+      const rightUnit = getUnitName(right);
+      if (isLeftDate && !isRightDate && rightUnit && timeUnits.includes(rightUnit)) {
+        return this.addTimeToDate(left, right, expr.operator === '-', context);
+      }
+
+      // time-unit + Date (commutative)
+      const leftUnit = getUnitName(left);
+      if (!isLeftDate && isRightDate && leftUnit && timeUnits.includes(leftUnit)) {
+        return this.addTimeToDate(right, left, false, context);
+      }
+
+      // Date - Date -> tijdsduur_van call (auto-conversion)
+      if (isLeftDate && isRightDate && expr.operator === '-') {
+        return this.tijdsduur_van([left, right], undefined);
+      }
+    }
+
     // Check if either operand is a timeline
     if (left.type === 'timeline' || right.type === 'timeline') {
       return this.evaluateTimelineBinaryExpression(expr, left, right, context);
@@ -1004,6 +1034,76 @@ export class ExpressionEvaluator implements IEvaluator {
 
     // Create unit value with the specified unit
     return createUnitValue(value, unit);
+  }
+
+  /**
+   * Add or subtract a time unit from a date.
+   * Ports Python's _add_time_to_date (engine.py:5316-5398)
+   */
+  private addTimeToDate(dateVal: Value, timeVal: Value, subtract: boolean, context: RuntimeContext): Value {
+    if (dateVal.value === null || dateVal.value === undefined) {
+      return { type: 'date', value: null };
+    }
+
+    if (timeVal.value === null || timeVal.value === undefined) {
+      return dateVal;
+    }
+
+    const date = dateVal.value as Date;
+    const amount = this.toNumber(timeVal) || 0;
+    // Handle both string unit and Unit object
+    const unitName = typeof timeVal.unit === 'string' ? timeVal.unit : timeVal.unit?.name;
+    const multiplier = subtract ? -1 : 1;
+
+    let newDate = new Date(date);
+
+    switch (unitName) {
+      case 'jaren':
+      case 'jaar':
+      case 'jr':
+        newDate.setFullYear(date.getFullYear() + amount * multiplier);
+        break;
+
+      case 'maanden':
+      case 'maand':
+      case 'mnd':
+        newDate.setMonth(date.getMonth() + amount * multiplier);
+        break;
+
+      case 'weken':
+      case 'week':
+        newDate.setDate(date.getDate() + (amount * 7 * multiplier));
+        break;
+
+      case 'dagen':
+      case 'dag':
+      case 'dg':
+        newDate.setDate(date.getDate() + amount * multiplier);
+        break;
+
+      case 'uren':
+      case 'uur':
+      case 'u':
+        newDate.setHours(date.getHours() + amount * multiplier);
+        break;
+
+      case 'minuten':
+      case 'minuut':
+        newDate.setMinutes(date.getMinutes() + amount * multiplier);
+        break;
+
+      case 'seconden':
+      case 'seconde':
+      case 's':
+        newDate.setSeconds(date.getSeconds() + amount * multiplier);
+        break;
+
+      default:
+        // Default to days
+        newDate.setDate(date.getDate() + amount * multiplier);
+    }
+
+    return { type: 'date', value: newDate };
   }
 
   private abs_tijdsduur_van(args: Value[], unitConversion?: string): Value {
