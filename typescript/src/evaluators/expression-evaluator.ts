@@ -521,6 +521,17 @@ export class ExpressionEvaluator implements IEvaluator {
   private evaluateVariableReference(expr: VariableReference, context: RuntimeContext): Value {
     // First check if there's a current instance and the variable name is an attribute
     const ctx = context as any;
+
+    // Strip possessive pronouns for FeitType lookup (matches Python _strip_possessive_pronoun)
+    let lookupName = expr.variableName;
+    const possessivePrefixes = ['zijn ', 'haar ', 'hun '];
+    for (const prefix of possessivePrefixes) {
+      if (expr.variableName.toLowerCase().startsWith(prefix)) {
+        lookupName = expr.variableName.substring(prefix.length);
+        break;
+      }
+    }
+
     if (ctx.current_instance && ctx.current_instance.type === 'object') {
       const currentInstance = ctx.current_instance;
       const objectData = currentInstance.value as Record<string, Value>;
@@ -533,15 +544,19 @@ export class ExpressionEvaluator implements IEvaluator {
       }
 
       // Check if this is a Feittype role name that should navigate to a related object
-      const relatedObjects = this.findRelatedObjectsThroughFeittype(expr.variableName, currentInstance, ctx);
+      // Use lookupName (possessive stripped) for FeitType lookup
+      const relatedObjects = this.findRelatedObjectsThroughFeittype(lookupName, currentInstance, ctx);
       if (relatedObjects && relatedObjects.length > 0) {
         // Return the first related object (assumes single relationship)
         return relatedObjects[0];
       }
 
-      // Check if it's an attribute of the current instance
+      // Check if it's an attribute of the current instance (try both original and stripped)
       if (objectData[expr.variableName] !== undefined) {
         return objectData[expr.variableName];
+      }
+      if (lookupName !== expr.variableName && objectData[lookupName] !== undefined) {
+        return objectData[lookupName];
       }
     }
 

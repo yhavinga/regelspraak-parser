@@ -246,6 +246,7 @@ export class Engine implements IEngine {
             if (sourceType) {
               // Iterate over all instances of the source type
               const instances = (context as any).getObjectsByType(sourceType);
+              console.log(`ObjectCreation "${rule.name || rule.naam}": ${instances.length} ${sourceType} instances`);
               for (const instance of instances) {
                 const previousInstance = (context as any).current_instance;
                 (context as any).current_instance = instance;

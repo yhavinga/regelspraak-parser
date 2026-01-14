@@ -76,10 +76,10 @@ export class Context implements RuntimeContext {
     }
 
     // Register FeitTypes from model so relationship navigation works
-    if (this.domainModel.feitTypes) {
-      for (const feittype of this.domainModel.feitTypes) {
-        this.registerFeittype(feittype);
-      }
+    // Check both 'feitTypes' and 'feittypen' - AST uses 'feittypen', some code uses 'feitTypes'
+    const feitTypes = this.domainModel.feitTypes || (this.domainModel as any).feittypen || [];
+    for (const feittype of feitTypes) {
+      this.registerFeittype(feittype);
     }
   }
 
