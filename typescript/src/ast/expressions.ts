@@ -46,6 +46,11 @@ export interface VariableReference extends Expression {
   variableName: string;
 }
 
+export interface ParameterReference extends Expression {
+  type: 'ParameterReference';
+  parameterName: string;
+}
+
 export interface FunctionCall extends Expression {
   type: 'FunctionCall';
   functionName: string;

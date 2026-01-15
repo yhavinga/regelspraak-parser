@@ -1,5 +1,5 @@
 import { IEvaluator, Value, RuntimeContext } from '../interfaces';
-import { Expression, NumberLiteral, StringLiteral, BinaryExpression, UnaryExpression, VariableReference, FunctionCall, AggregationExpression, SubselectieExpression, RegelStatusExpression, AllAttributesExpression, Predicaat, KenmerkPredicaat, AttributeComparisonPredicaat, AttributeReference, SamengesteldeVoorwaarde, KwantificatieType } from '../ast/expressions';
+import { Expression, NumberLiteral, StringLiteral, BinaryExpression, UnaryExpression, VariableReference, ParameterReference, FunctionCall, AggregationExpression, SubselectieExpression, RegelStatusExpression, AllAttributesExpression, Predicaat, KenmerkPredicaat, AttributeComparisonPredicaat, AttributeReference, SamengesteldeVoorwaarde, KwantificatieType } from '../ast/expressions';
 import { AggregationEngine } from './aggregation-engine';
 import { TimelineEvaluator } from './timeline-evaluator';
 import { TimelineExpression, TimelineValue, TimelineValueImpl } from '../ast/timelines';
@@ -78,6 +78,8 @@ export class ExpressionEvaluator implements IEvaluator {
         return this.evaluateUnaryExpression(expr as UnaryExpression, context);
       case 'VariableReference':
         return this.evaluateVariableReference(expr as VariableReference, context);
+      case 'ParameterReference':
+        return this.evaluateParameterReference(expr as ParameterReference, context);
       case 'FunctionCall':
         return this.evaluateFunctionCall(expr as FunctionCall, context);
       case 'AggregationExpression':
@@ -606,6 +608,26 @@ export class ExpressionEvaluator implements IEvaluator {
     }
 
     throw new Error(`Undefined variable: ${expr.variableName}`);
+  }
+
+  private evaluateParameterReference(expr: ParameterReference, context: RuntimeContext): Value {
+    const ctx = context as any;
+
+    // Check for timeline parameters first
+    if (ctx.getTimelineParameter) {
+      const timelineValue = ctx.getTimelineParameter(expr.parameterName);
+      if (timelineValue) {
+        return timelineValue;
+      }
+    }
+
+    // Get parameter value from context
+    const value = context.getParameter(expr.parameterName);
+    if (value !== undefined) {
+      return value;
+    }
+
+    throw new Error(`Undefined parameter: ${expr.parameterName}`);
   }
 
   private evaluateFunctionCall(expr: FunctionCall, context: RuntimeContext): Value {

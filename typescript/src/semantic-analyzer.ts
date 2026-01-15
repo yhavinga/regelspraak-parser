@@ -2,15 +2,16 @@ import { DomainModel } from './ast/domain-model';
 import { ObjectTypeDefinition, AttributeSpecification, KenmerkSpecification } from './ast/object-types';
 import { ParameterDefinition } from './ast/parameters';
 import { Rule, RegelGroep, Gelijkstelling, Kenmerktoekenning, ObjectCreation } from './ast/rules';
-import { 
-  Expression, 
-  Literal, 
-  AttributeReference, 
+import {
+  Expression,
+  Literal,
+  AttributeReference,
   VariableReference,
-  BinaryExpression, 
-  UnaryExpression, 
+  ParameterReference,
+  BinaryExpression,
+  UnaryExpression,
   FunctionCall,
-  SubselectieExpression 
+  SubselectieExpression
 } from './ast/expressions';
 import { DecisionTable } from './ast/decision-tables';
 import { Dimension } from './ast/dimensions';
@@ -327,12 +328,17 @@ export class SemanticAnalyzer {
       case 'AttributeReference':
         this.validateAttributeReference(expr as AttributeReference);
         break;
-      
-      // ParameterReference doesn't exist, using VariableReference
-      // This case is handled above
-      
+
+      case 'ParameterReference':
+        // Validate parameter exists in domain model
+        const paramRef = expr as ParameterReference;
+        if (!this.parameters.has(paramRef.parameterName)) {
+          this.addError(`Undefined parameter: ${paramRef.parameterName}`);
+        }
+        break;
+
       case 'VariableReference':
-        // In RegelSpraak, parameters are often referenced like variables with articles
+        // Variables are rule-scoped, defined in waar blocks
         const varRef = expr as VariableReference;
         const varName = varRef.variableName;
         
@@ -395,10 +401,16 @@ export class SemanticAnalyzer {
       case 'AttributeReference':
         // Would need to resolve attribute type
         return 'Unknown';
-      
-      // ParameterReference doesn't exist, using VariableReference
-      // This case is handled above
-      
+
+      case 'ParameterReference':
+        // Look up parameter type from definitions
+        const pRef = expr as ParameterReference;
+        const paramDef = this.parameters.get(pRef.parameterName);
+        if (paramDef) {
+          return this.getDataTypeString(paramDef.dataType);
+        }
+        return 'Unknown';
+
       case 'BinaryExpression':
         const binExpr = expr as BinaryExpression;
         // Comparison operators return boolean

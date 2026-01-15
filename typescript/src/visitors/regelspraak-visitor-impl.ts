@@ -24,6 +24,7 @@ import {
   BinaryExpression,
   UnaryExpression,
   VariableReference,
+  ParameterReference,
   FunctionCall,
   SubselectieExpression,
   RegelStatusExpression,
@@ -126,6 +127,8 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
           model.objectTypes.push(result);
         } else if (result.type === 'ParameterDefinition') {
           model.parameters.push(result);
+          // Track parameter name for ParameterReference creation
+          this.parameterNames.add(result.name);
         } else if (result.type === 'Dimension') {
           model.dimensions.push(result);
         } else if (result.type === 'Dagsoort' || result.type === 'DagsoortDefinitie') {
@@ -1890,10 +1893,10 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
 
       for (const normalized of normalizations) {
         if (this.parameterNames.has(normalized)) {
-          // This entire phrase is a parameter name - return VariableReference
-          const node: VariableReference = {
-            type: 'VariableReference',
-            variableName: normalized
+          // This entire phrase is a parameter name - return ParameterReference
+          const node: ParameterReference = {
+            type: 'ParameterReference',
+            parameterName: normalized
           };
           this.setLocation(node, ctx);
           return node;
@@ -4828,9 +4831,9 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
       paramName = this._stripArticle(fullText);
     }
 
-    const node: VariableReference = {
-      type: 'VariableReference',  // TypeScript uses VariableReference for parameters
-      variableName: paramName
+    const node: ParameterReference = {
+      type: 'ParameterReference',
+      parameterName: paramName
     };
     this.setLocation(node, ctx);
     return node;
