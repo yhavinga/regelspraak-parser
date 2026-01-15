@@ -3736,15 +3736,23 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
     // variabeleDeel : DAARBIJ_GELDT variabeleToekenning* DOT
     const assignments: VariableAssignment[] = [];
 
-    if (ctx.variabeleToekenning && ctx.variabeleToekenning()) {
-      const toekenningen = Array.isArray(ctx.variabeleToekenning())
-        ? ctx.variabeleToekenning()
-        : [ctx.variabeleToekenning()];
+    // Find variabeleToekenning nodes in children
+    if (ctx.children) {
+      const toekenningen = ctx.children.filter((child: any) =>
+        child.constructor && child.constructor.name &&
+        child.constructor.name.includes('VariabeleToekenning')
+      );
 
-      for (const toekenning of toekenningen) {
-        const assignment = this.visitVariabeleToekenning(toekenning);
-        if (assignment) {
-          assignments.push(assignment);
+      if (toekenningen.length > 0) {
+        for (const toekenning of toekenningen) {
+          try {
+            const assignment = this.visitVariabeleToekenning(toekenning);
+            if (assignment) {
+              assignments.push(assignment);
+            }
+          } catch (error) {
+            console.log('[VISITOR] Error parsing variable assignment:', error);
+          }
         }
       }
     }
@@ -3782,76 +3790,62 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
 
   visitVariabeleExpressie(ctx: any): Expression {
     // variabeleExpressie : primaryExpression ( (additiveOperator | multiplicativeOperator) primaryExpression )*
+    // NOTE: The grammar creates direct expression contexts (OnderwerpRefExpr, AttrRefExpr, etc.),
+    // not PrimaryExpression wrappers, so we work with the actual children.
 
-    // Start with the first primary expression
-    const primaryCtxList = ctx.primaryExpression();
-    if (!primaryCtxList || primaryCtxList.length === 0) {
-      throw new Error('Expected at least one primaryExpression in variabeleExpressie');
+    if (!ctx.children || ctx.children.length === 0) {
+      throw new Error('Expected children in variabeleExpressie');
     }
 
-    let result = this.visit(primaryCtxList[0]);
+    // Filter out operator nodes to get expression nodes
+    const expressionNodes = ctx.children.filter((child: any) => {
+      const name = child.constructor?.name || '';
+      // Operators are AdditiveOperatorContext or MultiplicativeOperatorContext
+      return !name.includes('Operator');
+    });
 
-    // Check for operators and additional primary expressions
-    if (primaryCtxList.length > 1) {
-      // Combine operators - both additive and multiplicative can appear
-      const additiveOps = ctx.additiveOperator ? ctx.additiveOperator() : [];
-      const multiplicativeOps = ctx.multiplicativeOperator ? ctx.multiplicativeOperator() : [];
+    const operatorNodes = ctx.children.filter((child: any) => {
+      const name = child.constructor?.name || '';
+      return name.includes('Operator');
+    });
 
-      // Process remaining expressions with their operators
-      for (let i = 1; i < primaryCtxList.length; i++) {
-        const rightExpr = this.visit(primaryCtxList[i]);
+    if (expressionNodes.length === 0) {
+      throw new Error('Expected at least one expression in variabeleExpressie');
+    }
 
-        // Find the operator for this position
-        // Grammar guarantees an operator before each subsequent primaryExpression
-        let operator = '';
+    // Visit the first expression
+    let result = this.visit(expressionNodes[0]);
 
-        // Check additive operators first
-        if (additiveOps && additiveOps[i - 1]) {
-          operator = additiveOps[i - 1].getText();
-        } else if (multiplicativeOps && multiplicativeOps[i - 1]) {
-          operator = multiplicativeOps[i - 1].getText();
-        }
+    // If there are multiple expressions, combine them with operators
+    for (let i = 1; i < expressionNodes.length; i++) {
+      const rightExpr = this.visit(expressionNodes[i]);
 
-        if (!operator) {
-          // Try to get from context children directly
-          const children = ctx.children || [];
-          for (let j = 0; j < children.length; j++) {
-            if (children[j] === primaryCtxList[i - 1]) {
-              // Next child should be the operator
-              if (j + 1 < children.length && children[j + 1].getText) {
-                const text = children[j + 1].getText();
-                if (['+', '-', '*', '/', 'maal', 'min', 'plus', 'gedeeld door'].includes(text)) {
-                  operator = text;
-                  break;
-                }
-              }
-            }
-          }
-        }
-
-        if (!operator) {
-          operator = '+'; // Default to addition if no operator found
-        }
-
-        // Map Dutch operators to standard operators
-        const operatorMap: Record<string, string> = {
-          'plus': '+',
-          'min': '-',
-          'maal': '*',
-          'gedeeld door': '/'
-        };
-
-        const normalizedOp = operatorMap[operator] || operator;
-
-        result = {
-          type: 'BinaryExpression',
-          operator: normalizedOp,
-          left: result,
-          right: rightExpr
-        } as BinaryExpression;
-
-        this.setLocation(result, ctx);
+      // Get the corresponding operator (i-1 because first expression has no preceding operator)
+      const operatorCtx = operatorNodes[i - 1];
+      if (!operatorCtx) {
+        throw new Error(`Missing operator for expression ${i} in variabeleExpressie`);
       }
+
+      const operatorText = operatorCtx.getText();
+
+      // Map Dutch operators to standard operators
+      const operatorMap: Record<string, string> = {
+        'plus': '+',
+        'min': '-',
+        'maal': '*',
+        'gedeeld door': '/'
+      };
+
+      const normalizedOp = operatorMap[operatorText] || operatorText;
+
+      result = {
+        type: 'BinaryExpression',
+        operator: normalizedOp,
+        left: result,
+        right: rightExpr
+      } as BinaryExpression;
+
+      this.setLocation(result, ctx);
     }
 
     return result;

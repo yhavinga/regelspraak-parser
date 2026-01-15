@@ -131,7 +131,15 @@ export class TOKARunner {
         if (!this.context) return;
 
         for (const [paramName, paramData] of Object.entries(parameters)) {
-            const value = this.parseScenarioValue(paramData);
+            // Find parameter definition to get unit if specified
+            const paramDef = this.model.parameters?.find((p: any) => p.name === paramName);
+            const value = this.parseScenarioValue(paramData, paramDef?.dataType?.type);
+
+            // Attach unit from parameter definition if not already present in data
+            if (paramDef?.unit && !value.unit) {
+                value.unit = { name: paramDef.unit };  // Use canonical unit from parameter definition
+            }
+
             this.context.setVariable(paramName, value);
         }
 

@@ -203,7 +203,7 @@ export class ExpressionEvaluator implements IEvaluator {
     if (expr.operator === '+' || expr.operator === '-') {
       const isLeftDate = left.type === 'date';
       const isRightDate = right.type === 'date';
-      const timeUnits = ['jaren', 'jaar', 'jr', 'maanden', 'maand', 'mnd', 'weken', 'week', 'dagen', 'dag', 'dg', 'uren', 'uur', 'u', 'minuten', 'minuut', 'seconden', 'seconde', 's'];
+      const timeUnits = ['jaren', 'jaar', 'jr', 'maanden', 'maand', 'mnd', 'weken', 'week', 'dagen', 'dag', 'dg', 'uren', 'uur', 'u', 'minuten', 'minuut', 'seconden', 'seconde', 's', 'milliseconden', 'milliseconde', 'ms'];
 
       // Get unit name (handle both string and Unit object)
       const getUnitName = (val: Value): string | undefined => {
@@ -1096,6 +1096,12 @@ export class ExpressionEvaluator implements IEvaluator {
       case 'seconde':
       case 's':
         newDate.setSeconds(date.getSeconds() + amount * multiplier);
+        break;
+
+      case 'milliseconden':
+      case 'milliseconde':
+      case 'ms':
+        newDate.setMilliseconds(date.getMilliseconds() + amount * multiplier);
         break;
 
       default:
