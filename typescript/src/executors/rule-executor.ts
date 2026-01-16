@@ -682,14 +682,16 @@ export class RuleExecutor implements IRuleExecutor {
         // Evaluate the condition for this object
         try {
           const conditionResult = this.expressionEvaluator.evaluate(condition.expression, tempContext);
+          const objectData = obj.value as Record<string, Value>;
+          // Kenmerken are stored with "is " prefix
+          const kenmerkKey = `is ${kenmerktoekenning.characteristic}`;
 
+          // Set true OR false based on condition result
           if (this.isTruthy(conditionResult)) {
-            // Condition is true, assign the characteristic
-            const objectData = obj.value as Record<string, Value>;
-            // Kenmerken are stored with "is " prefix
-            const kenmerkKey = `is ${kenmerktoekenning.characteristic}`;
             objectData[kenmerkKey] = { type: 'boolean', value: true };
             assignedCount++;
+          } else {
+            objectData[kenmerkKey] = { type: 'boolean', value: false };
           }
         } catch (error) {
           // If condition evaluation fails (e.g., missing attribute), skip this object

@@ -82,8 +82,19 @@ function performAdditionSubtraction(
     return { type: 'number', value };
   }
 
+  // Allow mixed unit/unitless arithmetic - treat unitless as compatible
+  // This handles cases like: currency_amount - (rate × distance) where rate is dimensionless
   if (!leftUnit || !rightUnit) {
-    throw new Error(`Cannot ${operation === '+' ? 'add' : 'subtract'} values with incompatible units`);
+    const value = operation === '+' ? left.value + right.value : left.value - right.value;
+    // Preserve the unit from whichever side has one
+    if (leftUnit) {
+      return { type: 'number', value, unit: left.unit, compositeUnit: left.compositeUnit };
+    } else if (rightUnit) {
+      // When subtracting, the result inherits the left side's (lack of) unit
+      // When adding, we could inherit the right side's unit
+      return { type: 'number', value };
+    }
+    return { type: 'number', value };
   }
 
   // Check if units are compatible

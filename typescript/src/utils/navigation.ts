@@ -8,6 +8,46 @@ export interface NavigationResult {
 }
 
 /**
+ * Known unit names for stripping "in X" suffixes from attribute names.
+ * This handles patterns like "reisduur per trein in minuten" where the
+ * attribute is stored as "reisduur per trein" without the unit suffix.
+ */
+const KNOWN_UNITS = [
+  'minuten', 'minuut', 'min',
+  'uren', 'uur', 'u',
+  'dagen', 'dag', 'dg',
+  'weken', 'week',
+  'maanden', 'maand', 'mnd',
+  'jaren', 'jaar', 'jr',
+  'seconden', 'seconde', 's',
+  'kilometer', 'kilometers', 'km',
+  'meter', 'meters', 'm',
+  'euro', 'euros', '€',
+  'hele jaren', 'hele maanden', 'hele dagen'
+];
+
+/**
+ * Strip "in X" unit suffix from an attribute name.
+ * E.g., "reisduur per trein in minuten" → "reisduur per trein"
+ * Returns the original name if no unit suffix is found.
+ */
+export function stripUnitSuffix(attributeName: string): { name: string; unit?: string } {
+  const lower = attributeName.toLowerCase();
+
+  for (const unit of KNOWN_UNITS) {
+    const suffix = ` in ${unit}`;
+    if (lower.endsWith(suffix)) {
+      return {
+        name: attributeName.substring(0, attributeName.length - suffix.length),
+        unit
+      };
+    }
+  }
+
+  return { name: attributeName };
+}
+
+/**
  * Navigate through a Feittype relationship to find a related object.
  * This allows navigation like "eigenaar" from a "gebouw" object when
  * there's a Feittype defining the relationship between them.

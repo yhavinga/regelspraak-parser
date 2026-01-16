@@ -44,11 +44,21 @@ export class DecisionTableExecutor {
           // Row matches - execute result
           const value = this.expressionEvaluator.evaluate(row.resultExpression, context);
 
-          // Set the variable in context based on target type
+          // Get current_instance from context (set by engine during iteration)
+          const currentInstance = (context as any).current_instance;
+
+          // Set the attribute on current_instance or fall back to variable
           if (parsedResult.targetType === 'attribute' && parsedResult.targetExpression) {
-            // For attribute assignments, evaluate the target and set it
             const targetName = this.extractTargetName(parsedResult.targetExpression);
-            context.setVariable(targetName, value);
+
+            // Store on current_instance if available (object-scoped decision table)
+            if (currentInstance && currentInstance.value) {
+              const objData = currentInstance.value as Record<string, Value>;
+              objData[targetName] = value;
+            } else {
+              // Fallback for non-object-scoped tables
+              context.setVariable(targetName, value);
+            }
 
             return {
               success: true,
@@ -57,9 +67,15 @@ export class DecisionTableExecutor {
               value
             };
           } else if (parsedResult.targetType === 'kenmerk') {
-            // For kenmerk assignments, set the characteristic
+            // For kenmerk assignments, set the characteristic on current_instance
             const targetName = parsedResult.kenmerkName || 'kenmerk';
-            context.setVariable(targetName, value);
+
+            if (currentInstance && currentInstance.value) {
+              const objData = currentInstance.value as Record<string, Value>;
+              objData[targetName] = value;
+            } else {
+              context.setVariable(targetName, value);
+            }
 
             return {
               success: true,
@@ -135,8 +151,42 @@ export class DecisionTableExecutor {
         return false; // Subject not found or null
       }
 
-      // Evaluate the condition value
-      const conditionValue = this.expressionEvaluator.evaluate(cellValue as Expression, context);
+      // Handle DisjunctionExpression with empty values array (parser bug workaround)
+      // Extract string values directly from the cell value's location
+      let conditionValue: Value;
+      const cellExpr = cellValue as any;
+      if (cellExpr.type === 'DisjunctionExpression' &&
+          (!cellExpr.values || cellExpr.values.length === 0) &&
+          cellExpr.location) {
+        // Get source text from context if available
+        const sourceText = (context as any).sourceText || (context as any).domainModel?.sourceText;
+        if (sourceText) {
+          const lines = sourceText.split('\n');
+          const line = lines[cellExpr.location.startLine - 1];
+          if (line) {
+            const cellText = line.substring(cellExpr.location.startColumn - 1, cellExpr.location.endColumn);
+            // Extract quoted strings from the cell text
+            const stringMatches = cellText.match(/'[^']+'/g);
+            if (stringMatches && stringMatches.length > 0) {
+              const values: Value[] = stringMatches.map((s: string) => ({
+                type: 'string' as const,
+                value: s.replace(/'/g, '')
+              }));
+              conditionValue = { type: 'array', value: values };
+            } else {
+              conditionValue = { type: 'array', value: [] };
+            }
+          } else {
+            conditionValue = { type: 'array', value: [] };
+          }
+        } else {
+          // Fallback: evaluate normally (will return empty array)
+          conditionValue = this.expressionEvaluator.evaluate(cellValue as Expression, context);
+        }
+      } else {
+        // Evaluate the condition value normally
+        conditionValue = this.expressionEvaluator.evaluate(cellValue as Expression, context);
+      }
 
       // Compare based on operator
       if (!this.compareValues(subjectValue, conditionValue, condition.operator)) {
@@ -148,6 +198,21 @@ export class DecisionTableExecutor {
   }
 
   private compareValues(left: Value, right: Value, operator: string): boolean {
+    // Handle disjunction (array) comparison - check if left value matches any in the array
+    if (right.type === 'array') {
+      const values = right.value as Value[];
+      if (values.length === 0) {
+        return false; // Empty array means no match possible
+      }
+      // Check if left matches any of the values in the array
+      for (const val of values) {
+        if (this.compareValues(left, val, operator)) {
+          return true;
+        }
+      }
+      return false;
+    }
+
     // Handle unit values - extract numeric values and units
     const leftValue = this.extractNumericValue(left);
     const rightValue = this.extractNumericValue(right);

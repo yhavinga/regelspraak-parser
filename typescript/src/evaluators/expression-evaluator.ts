@@ -13,6 +13,7 @@ import {
 } from '../predicates/predicate-types';
 import { UnitRegistry, performUnitArithmetic, UnitValue, createUnitValue } from '../units';
 import { Context } from '../runtime/context';
+import { stripUnitSuffix } from '../utils/navigation';
 
 /**
  * Evaluator for expression nodes
@@ -109,6 +110,10 @@ export class ExpressionEvaluator implements IEvaluator {
         return this.evaluateBegrenzingExpression(expr as any, context);
       case 'BegrenzingAfrondingExpression':
         return this.evaluateBegrenzingAfrondingExpression(expr as any, context);
+      case 'DisjunctionExpression':
+        return this.evaluateDisjunctionExpression(expr as any, context);
+      case 'ConjunctionExpression':
+        return this.evaluateConjunctionExpression(expr as any, context);
       default:
         throw new Error(`Unknown expression type: ${expr.type}`);
     }
@@ -310,6 +315,25 @@ export class ExpressionEvaluator implements IEvaluator {
   }
 
   private evaluateComparisonExpression(expr: BinaryExpression, left: Value, right: Value): Value {
+    // Handle object == true/false as existence/truthiness check
+    // This handles mis-parsed kenmerk checks like "hij is een passagier" → self == true
+    if ((left.type === 'object' && right.type === 'boolean') ||
+      (left.type === 'boolean' && right.type === 'object')) {
+      const objValue = left.type === 'object' ? left : right;
+      const boolValue = left.type === 'boolean' ? left : right;
+
+      // Object exists and is compared to true → check truthiness
+      if (expr.operator === '==') {
+        const objExists = objValue.value !== null && objValue.value !== undefined;
+        const result = boolValue.value === true ? objExists : !objExists;
+        return { type: 'boolean', value: result };
+      } else if (expr.operator === '!=') {
+        const objExists = objValue.value !== null && objValue.value !== undefined;
+        const result = boolValue.value === true ? !objExists : objExists;
+        return { type: 'boolean', value: result };
+      }
+    }
+
     // Check if types are compatible for comparison
     if (left.type !== right.type &&
       !(left.type === 'null' || right.type === 'null')) {
@@ -1623,12 +1647,24 @@ export class ExpressionEvaluator implements IEvaluator {
       }
 
       const objectData = navResult.targetObject.value as Record<string, Value>;
+
+      // Try the attribute name as-is first
       let value = objectData[navResult.attributeName];
+      let effectiveAttrName = navResult.attributeName;
+
+      // If not found, try stripping "in X" unit suffix (e.g., "reisduur per trein in minuten" → "reisduur per trein")
+      if (value === undefined) {
+        const { name: strippedName, unit } = stripUnitSuffix(navResult.attributeName);
+        if (strippedName !== navResult.attributeName) {
+          value = objectData[strippedName];
+          effectiveAttrName = strippedName;
+        }
+      }
 
       // If attribute not found directly, try FeitType relationship navigation
       if (value === undefined) {
         const relatedObjects = this.findRelatedObjectsThroughFeittype(
-          navResult.attributeName, navResult.targetObject, context
+          effectiveAttrName, navResult.targetObject, context
         );
         if (relatedObjects && relatedObjects.length > 0) {
           // Always return array for FeitType relationships to support aggregation
@@ -1677,10 +1713,25 @@ export class ExpressionEvaluator implements IEvaluator {
       const ctx = context as any;
       if (ctx.current_instance) {
         const currentInstance = ctx.current_instance;
+
+        // Handle "self" as a reference to current_instance
+        if (variableName === 'self' || variableName === 'hij' || variableName === 'zij') {
+          return currentInstance;
+        }
+
         if (currentInstance.type === 'object' && currentInstance.objectType) {
           // Check if the variable name matches the object type (case-insensitive)
           if (variableName.toLowerCase() === currentInstance.objectType.toLowerCase()) {
             return currentInstance;
+          }
+        }
+
+        // Check if this is an attribute on current_instance
+        if (currentInstance.type === 'object' && currentInstance.value) {
+          const instanceData = currentInstance.value as Record<string, Value>;
+          const attrValue = instanceData[variableName];
+          if (attrValue !== undefined && attrValue !== null) {
+            return attrValue;
           }
         }
       }
@@ -2293,7 +2344,60 @@ export class ExpressionEvaluator implements IEvaluator {
   }
 
   private evaluateSamengesteldeVoorwaarde(voorwaarde: SamengesteldeVoorwaarde, context: RuntimeContext): Value {
-    // Use unified predicate if available
+    // Prefer legacy evaluation when voorwaarden array is available
+    // The predicate evaluator has issues with certain patterns (e.g., "hij is een passagier" parsed as self == true)
+    if (voorwaarde.voorwaarden && voorwaarde.voorwaarden.length > 0) {
+      // Legacy evaluation - evaluate each condition and count how many are true
+      let conditionsMetCount = 0;
+      const totalConditions = voorwaarde.voorwaarden.length;
+
+      // Evaluate each condition
+      for (const conditionExpr of voorwaarde.voorwaarden) {
+        // Evaluate the condition expression
+        const result = this.evaluate(conditionExpr, context);
+
+        // Strict boolean check - each condition must evaluate to boolean
+        if (result.type !== 'boolean') {
+          throw new Error(`Compound condition element must evaluate to boolean, got ${result.type}`);
+        }
+
+        // Count if condition is true
+        if (result.value === true) {
+          conditionsMetCount++;
+        }
+      }
+
+      // Apply quantifier logic
+      let finalResult = false;
+      const kwantType = String(voorwaarde.kwantificatie?.type || 'alle');
+
+      if (kwantType === 'alle' || kwantType === KwantificatieType.ALLE) {
+        // All conditions must be true
+        finalResult = conditionsMetCount === totalConditions;
+      } else if (kwantType === 'geen' || kwantType === KwantificatieType.GEEN) {
+        // No conditions can be true
+        finalResult = conditionsMetCount === 0;
+      } else if (kwantType === 'ten_minste' || kwantType === KwantificatieType.TEN_MINSTE) {
+        // At least n conditions must be true
+        const aantal = voorwaarde.kwantificatie?.aantal ?? 1;
+        finalResult = conditionsMetCount >= aantal;
+      } else if (kwantType === 'ten_hoogste' || kwantType === KwantificatieType.TEN_HOOGSTE) {
+        // At most n conditions must be true
+        const aantal = voorwaarde.kwantificatie?.aantal ?? 1;
+        finalResult = conditionsMetCount <= aantal;
+      } else if (kwantType === 'precies' || kwantType === KwantificatieType.PRECIES) {
+        // Exactly n conditions must be true
+        const aantal = voorwaarde.kwantificatie?.aantal ?? 1;
+        finalResult = conditionsMetCount === aantal;
+      }
+
+      return {
+        type: 'boolean',
+        value: finalResult
+      };
+    }
+
+    // Use unified predicate if available and no voorwaarden
     if (voorwaarde.predicate) {
       // Use the unified predicate evaluator
       // For compound conditions, we pass a dummy value since conditions don't filter objects
@@ -2734,5 +2838,58 @@ export class ExpressionEvaluator implements IEvaluator {
       return value.value;
     }
     return null;
+  }
+
+  /**
+   * Evaluate a DisjunctionExpression (values connected by "of").
+   * Returns an array of the evaluated values, or extracts string values from location if values array is empty.
+   */
+  private evaluateDisjunctionExpression(expr: any, context: RuntimeContext): Value {
+    // If values array is populated, evaluate each value
+    if (expr.values && expr.values.length > 0) {
+      const evaluatedValues: Value[] = [];
+      for (const val of expr.values) {
+        evaluatedValues.push(this.evaluate(val, context));
+      }
+      return { type: 'array', value: evaluatedValues };
+    }
+
+    // If values array is empty but we have location, try to extract strings from source
+    // This handles the parser bug where DisjunctionExpression values aren't captured
+    if (expr.location && (context as any).sourceText) {
+      const sourceText = (context as any).sourceText as string;
+      const lines = sourceText.split('\n');
+      const line = lines[expr.location.startLine - 1];
+      if (line) {
+        const cellText = line.substring(expr.location.startColumn - 1, expr.location.endColumn);
+        // Extract quoted strings from the cell text
+        const stringMatches = cellText.match(/'[^']+'/g);
+        if (stringMatches && stringMatches.length > 0) {
+          const values: Value[] = stringMatches.map(s => ({
+            type: 'string' as const,
+            value: s.replace(/'/g, '')
+          }));
+          return { type: 'array', value: values };
+        }
+      }
+    }
+
+    // Fallback: return empty array
+    return { type: 'array', value: [] };
+  }
+
+  /**
+   * Evaluate a ConjunctionExpression (values connected by "en").
+   * Returns an array of the evaluated values.
+   */
+  private evaluateConjunctionExpression(expr: any, context: RuntimeContext): Value {
+    if (expr.values && expr.values.length > 0) {
+      const evaluatedValues: Value[] = [];
+      for (const val of expr.values) {
+        evaluatedValues.push(this.evaluate(val, context));
+      }
+      return { type: 'array', value: evaluatedValues };
+    }
+    return { type: 'array', value: [] };
   }
 }

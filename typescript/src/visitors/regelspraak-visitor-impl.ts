@@ -2186,10 +2186,53 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
     return group;
   }
 
-  visitAttribuutReferentie(ctx: any): AttributeReference | SubselectieExpression | DimensionedAttributeReference {
+  visitAttribuutReferentie(ctx: any): AttributeReference | SubselectieExpression | DimensionedAttributeReference | BinaryExpression {
     // attribuutReferentie : attribuutMetLidwoord VAN onderwerpReferentie
     const attrCtx = ctx.attribuutMetLidwoord();
     const attrText = this.extractTextWithSpaces(attrCtx);
+
+    // PERCENTAGE-OF PATTERN DETECTION:
+    // "het percentage X van Y" should be parsed as (X / 100) * Y
+    // E.g., "het percentage reisduur eerste schijf van zijn belasting op basis van afstand"
+    // → (percentage reisduur eerste schijf / 100) * belasting op basis van afstand
+    const percentageMatch = attrText.toLowerCase().match(/^(?:het\s+)?percentage\s+(.+)$/);
+    if (percentageMatch) {
+      const parameterName = percentageMatch[1].trim();
+
+      // Create parameter reference for the percentage value
+      // Use ParameterReference not AttributeReference since percentages are typically parameters
+      const percentageRef: ParameterReference = {
+        type: 'ParameterReference',
+        parameterName: parameterName
+      };
+      this.setLocation(percentageRef, attrCtx);
+
+      // Get the base value expression from onderwerpReferentie
+      const onderwerpCtx = ctx.onderwerpReferentie();
+      const baseExpr = this.visitOnderwerpReferentie(onderwerpCtx);
+
+      // Create: (percentageRef / 100) * baseExpr
+      const divBy100: BinaryExpression = {
+        type: 'BinaryExpression',
+        operator: '/',
+        left: percentageRef as any,
+        right: {
+          type: 'NumberLiteral',
+          value: 100
+        } as NumberLiteral
+      };
+      this.setLocation(divBy100, ctx);
+
+      const multiplyExpr: BinaryExpression = {
+        type: 'BinaryExpression',
+        operator: '*',
+        left: divBy100,
+        right: baseExpr as any
+      };
+      this.setLocation(multiplyExpr, ctx);
+
+      return multiplyExpr as any;
+    }
 
     // Check for dimensional patterns like "het bruto inkomen" or "het inkomen van huidig jaar"
     const dimensionKeywords = ['bruto', 'netto', 'huidig jaar', 'vorig jaar', 'volgend jaar'];
@@ -2429,6 +2472,56 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
   visitOnderwerpBasis(ctx: any): Expression {
     if (!ctx) {
       throw new Error('Expected onderwerpBasis context');
+    }
+
+    // PERCENTAGE-OF PATTERN DETECTION:
+    // "het percentage X van Y" should be parsed as (X / 100) * Y
+    // E.g., "het percentage reisduur eerste schijf van zijn belasting op basis van afstand"
+    // → (percentage reisduur eerste schijf / 100) * belasting op basis van afstand
+    const fullText = this.extractTextWithSpaces(ctx);
+    const percentageMatch = fullText.toLowerCase().match(/^(?:het\s+)?percentage\s+(.+?)\s+van\s+(.+)$/);
+    if (percentageMatch) {
+      const parameterName = percentageMatch[1].trim();
+      const baseText = percentageMatch[2].trim();
+
+      // Create parameter reference for the percentage value
+      const percentageRef: ParameterReference = {
+        type: 'ParameterReference',
+        parameterName: parameterName
+      };
+      this.setLocation(percentageRef, ctx);
+
+      // Create the base value as an AttributeReference 
+      // Need to properly parse the base text (e.g., "zijn belasting op basis van afstand")
+      // Remove possessive pronouns and build the path
+      const cleanBaseText = baseText.replace(/^(?:zijn|haar|hun)\s+/i, '').trim();
+      const baseRef: AttributeReference = {
+        type: 'AttributeReference',
+        path: ['self', cleanBaseText]
+      };
+      this.setLocation(baseRef, ctx);
+
+      // Create: (percentageRef / 100) * baseExpr
+      const divBy100: BinaryExpression = {
+        type: 'BinaryExpression',
+        operator: '/',
+        left: percentageRef as any,
+        right: {
+          type: 'NumberLiteral',
+          value: 100
+        } as NumberLiteral
+      };
+      this.setLocation(divBy100, ctx);
+
+      const multiplyExpr: BinaryExpression = {
+        type: 'BinaryExpression',
+        operator: '*',
+        left: divBy100,
+        right: baseRef as any
+      };
+      this.setLocation(multiplyExpr, ctx);
+
+      return multiplyExpr;
     }
 
     // onderwerpBasis : basisOnderwerp ( voorzetsel basisOnderwerp )*
@@ -4729,6 +4822,56 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
     const naamwoordCtx = ctx.naamwoord ? ctx.naamwoord() : null;
     if (naamwoordCtx) {
       const text = this.visitNaamwoord(naamwoordCtx);
+
+      // PERCENTAGE-OF PATTERN DETECTION:
+      // "het percentage X van Y" should be parsed as (X / 100) * Y
+      // E.g., "het percentage reisduur eerste schijf van zijn belasting op basis van afstand"
+      // → (percentage reisduur eerste schijf / 100) * belasting op basis van afstand
+      const percentageMatch = text.toLowerCase().match(/^(?:het\s+)?percentage\s+(.+?)\s+van\s+(.+)$/);
+      if (percentageMatch) {
+        // The full parameter name includes "percentage" prefix
+        // E.g., "percentage reisduur eerste schijf" not just "reisduur eerste schijf"
+        const parameterName = 'percentage ' + percentageMatch[1].trim();
+        const baseText = percentageMatch[2].trim();
+
+        // Create parameter reference for the percentage value
+        const percentageRef: ParameterReference = {
+          type: 'ParameterReference',
+          parameterName: parameterName
+        };
+        this.setLocation(percentageRef, ctx);
+
+        // Create the base value as an AttributeReference 
+        // Remove possessive pronouns and build the path
+        const cleanBaseText = baseText.replace(/^(?:zijn|haar|hun)\s+/i, '').trim();
+        const baseRef: AttributeReference = {
+          type: 'AttributeReference',
+          path: ['self', cleanBaseText]
+        };
+        this.setLocation(baseRef, ctx);
+
+        // Create: (percentageRef / 100) * baseExpr
+        const divBy100: BinaryExpression = {
+          type: 'BinaryExpression',
+          operator: '/',
+          left: percentageRef as any,
+          right: {
+            type: 'NumberLiteral',
+            value: 100
+          } as NumberLiteral
+        };
+        this.setLocation(divBy100, ctx);
+
+        const multiplyExpr: BinaryExpression = {
+          type: 'BinaryExpression',
+          operator: '*',
+          left: divBy100,
+          right: baseRef as any
+        };
+        this.setLocation(multiplyExpr, ctx);
+
+        return multiplyExpr;
+      }
 
       // Check for navigation patterns (similar to Python builder.py:1107-1128)
       if (text.includes(' van ') || text.includes(' op ')) {

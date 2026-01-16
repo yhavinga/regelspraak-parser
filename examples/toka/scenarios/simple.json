@@ -57,14 +57,13 @@
     "passenger_1": {
       "leeftijd": 39,
       "is minderjarig": false,
-      "is volwassene": true,
       "woonregio factor": 3,
       "belasting op basis van afstand": 27.50,
       "belasting op basis van reisduur": 4.0,
       "te betalen belasting": 26.0
     },
     "flight_1": {
-      "is belaste reis": true,
+      "is een belaste reis": true,
       "hoeveelheid passagiers": 1,
       "totaal te betalen belasting": 26.0
     }

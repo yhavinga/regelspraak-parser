@@ -36,38 +36,38 @@ export class DecisionTableHeaderParser {
   private static readonly CONDITION_PATTERNS: Array<[RegExp, string]> = [
     // "indien de [attribute] van zijn [object] [operator]"
     [/^indien\s+de\s+(.+?)\s+van\s+(?:zijn|haar|hun|de|het|een)\s+(.+?)\s+(gelijk\s+is\s+aan|groter\s+is\s+dan|groter\s+of\s+gelijk\s+is\s+aan|kleiner\s+is\s+dan|kleiner\s+of\s+gelijk\s+is\s+aan|ongelijk\s+is\s+aan)\s*$/i,
-     'attribute_of_object'],
+      'attribute_of_object'],
     // "indien de [attribute] van [object] [operator]" (without possessive)
     [/^indien\s+de\s+(.+?)\s+van\s+(.+?)\s+(gelijk\s+is\s+aan|groter\s+is\s+dan|groter\s+of\s+gelijk\s+is\s+aan|kleiner\s+is\s+dan|kleiner\s+of\s+gelijk\s+is\s+aan|ongelijk\s+is\s+aan)\s*$/i,
-     'attribute_of_named_object'],
+      'attribute_of_named_object'],
     // "indien zijn [attribute] [operator]"
     [/^indien\s+(?:zijn|haar|hun)\s+(.+?)\s+(gelijk\s+is\s+aan|groter\s+is\s+dan|groter\s+of\s+gelijk\s+is\s+aan|kleiner\s+is\s+dan|kleiner\s+of\s+gelijk\s+is\s+aan|ongelijk\s+is\s+aan)\s*$/i,
-     'simple_attribute'],
+      'simple_attribute'],
     // "indien hij een [kenmerk] heeft" or "indien hij [kenmerk] heeft"
     [/^indien\s+(?:hij|zij|het)\s+(?:een\s+)?(.+?)\s+heeft\s*$/i,
-     'kenmerk_check'],
+      'kenmerk_check'],
     // "indien [attribute] [operator]" (simplest form)
     [/^indien\s+(.+?)\s+(gelijk\s+is\s+aan|groter\s+is\s+dan|groter\s+of\s+gelijk\s+is\s+aan|kleiner\s+is\s+dan|kleiner\s+of\s+gelijk\s+is\s+aan|ongelijk\s+is\s+aan)\s*$/i,
-     'bare_attribute'],
+      'bare_attribute'],
   ];
 
   // Result patterns
   private static readonly RESULT_PATTERNS: Array<[RegExp, string]> = [
     // "de [attribute] van een [object] moet gesteld worden op"
     [/^de\s+(.+?)\s+van\s+(?:een|de|het)\s+(.+?)\s+moet\s+(?:gesteld\s+worden\s+op|berekend\s+worden\s+als)\s*$/i,
-     'attribute_assignment'],
+      'attribute_assignment'],
     // "de [attribute] van [object] moet gesteld worden op" (named object)
     [/^de\s+(.+?)\s+van\s+(.+?)\s+moet\s+(?:gesteld\s+worden\s+op|berekend\s+worden\s+als)\s*$/i,
-     'named_object_attribute'],
+      'named_object_attribute'],
     // "de [attribute] moet gesteld worden op"
     [/^(?:de|het)\s+(.+?)\s+moet\s+(?:gesteld\s+worden\s+op|berekend\s+worden\s+als)\s*$/i,
-     'simple_attribute_assignment'],
+      'simple_attribute_assignment'],
     // "een [object] is [kenmerk]"
     [/^een\s+(.+?)\s+is\s+(?:een\s+)?(.+?)\s*$/i,
-     'kenmerk_assignment'],
+      'kenmerk_assignment'],
     // "[object] is [kenmerk]" (without "een")
     [/^(.+?)\s+is\s+(?:een\s+)?(.+?)\s*$/i,
-     'simple_kenmerk_assignment'],
+      'simple_kenmerk_assignment'],
   ];
 
   // Operator mapping
@@ -86,7 +86,7 @@ export class DecisionTableHeaderParser {
    */
   parseConditionColumn(headerText: string): ParsedCondition | null {
     const cleaned = headerText.trim();
-    
+
     for (const [pattern, patternType] of DecisionTableHeaderParser.CONDITION_PATTERNS) {
       const match = cleaned.match(pattern);
       if (match) {
@@ -98,7 +98,7 @@ export class DecisionTableHeaderParser {
               operator: DecisionTableHeaderParser.OPERATOR_MAP[match[2].toLowerCase().trim()] || '==',
               isKenmerkCheck: false
             };
-            
+
           case 'attribute_of_object':
             // "indien de reisduur van zijn reis groter is dan"
             return {
@@ -109,7 +109,7 @@ export class DecisionTableHeaderParser {
               operator: DecisionTableHeaderParser.OPERATOR_MAP[match[3].toLowerCase().trim()] || '==',
               isKenmerkCheck: false
             };
-            
+
           case 'attribute_of_named_object':
             // "indien de leeftijd van passagier groter is dan"
             return {
@@ -120,7 +120,7 @@ export class DecisionTableHeaderParser {
               operator: DecisionTableHeaderParser.OPERATOR_MAP[match[3].toLowerCase().trim()] || '==',
               isKenmerkCheck: false
             };
-            
+
           case 'kenmerk_check':
             // "indien hij een recht op duurzaamheidskorting heeft"
             const kenmerkName = match[1].trim();
@@ -130,7 +130,7 @@ export class DecisionTableHeaderParser {
               isKenmerkCheck: true,
               kenmerkName
             };
-            
+
           case 'bare_attribute':
             // "indien leeftijd groter is dan"
             return {
@@ -141,7 +141,7 @@ export class DecisionTableHeaderParser {
         }
       }
     }
-    
+
     return null;
   }
 
@@ -150,7 +150,7 @@ export class DecisionTableHeaderParser {
    */
   parseResultColumn(headerText: string): ParsedResult | null {
     const cleaned = headerText.trim();
-    
+
     for (const [pattern, patternType] of DecisionTableHeaderParser.RESULT_PATTERNS) {
       const match = cleaned.match(pattern);
       if (match) {
@@ -164,7 +164,7 @@ export class DecisionTableHeaderParser {
                 match[2].trim()  // object type
               )
             };
-            
+
           case 'named_object_attribute':
             // "de belasting van passagier moet gesteld worden op"
             return {
@@ -174,14 +174,14 @@ export class DecisionTableHeaderParser {
                 match[2].trim()  // object name
               )
             };
-            
+
           case 'simple_attribute_assignment':
             // "de belasting moet gesteld worden op"
             return {
               targetType: 'attribute',
               targetExpression: this.createAttributeReference(match[1].trim())
             };
-            
+
           case 'kenmerk_assignment':
             // "een passagier is een passagier jonger dan 18 jaar"
             return {
@@ -189,7 +189,7 @@ export class DecisionTableHeaderParser {
               targetExpression: this.createVariableReference(match[1].trim()),
               kenmerkName: match[2].trim()
             };
-            
+
           case 'simple_kenmerk_assignment':
             // "passagier is minderjarig"
             return {
@@ -200,7 +200,7 @@ export class DecisionTableHeaderParser {
         }
       }
     }
-    
+
     return null;
   }
 

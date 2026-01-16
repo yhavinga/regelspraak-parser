@@ -233,6 +233,15 @@ export class TOKARunner {
                         passenger,
                         'VAN'
                     );
+
+                    // Derive "is een passagier" kenmerk from FeitType relationship
+                    // When a person is in "vlucht van natuurlijke personen" as the passenger role,
+                    // they are "een passagier"
+                    const passengerData = (passenger as any).value as Record<string, Value>;
+                    passengerData['is een passagier'] = { type: 'boolean', value: true };
+
+                    // Also store the flight as "zijn reis" for navigation
+                    passengerData['reis'] = flight;
                 }
             }
         }
@@ -286,6 +295,9 @@ export class TOKARunner {
 
             // Create runtime context
             this.context = new Context(this.model);
+
+            // Store source text for DisjunctionExpression workaround
+            (this.context as any).sourceText = rulesText;
 
             // Set rekendatum if provided
             if (scenario.rekendatum) {
