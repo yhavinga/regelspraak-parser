@@ -4823,6 +4823,31 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
     if (naamwoordCtx) {
       const text = this.visitNaamwoord(naamwoordCtx);
 
+      // PARAMETER NAME LOOKUP:
+      // Check if this is a known parameter name before any other pattern detection.
+      // This matches the pattern in visitAantalAttribuutExpr (lines 1885-1904).
+      // Fixes: multi-word parameters like "lage basistarief eerste schijf" were
+      // being parsed as StringLiteral and coerced to 0 in arithmetic.
+      if (this.parameterNames && this.parameterNames.size > 0) {
+        const normalizations = [
+          text,
+          text.replace(/^het\s+/i, '').trim(),
+          text.replace(/^de\s+/i, '').trim(),
+          text.replace(/^een\s+/i, '').trim(),
+        ];
+
+        for (const normalized of normalizations) {
+          if (this.parameterNames.has(normalized)) {
+            const node: ParameterReference = {
+              type: 'ParameterReference',
+              parameterName: normalized
+            };
+            this.setLocation(node, ctx);
+            return node;
+          }
+        }
+      }
+
       // PERCENTAGE-OF PATTERN DETECTION:
       // "het percentage X van Y" should be parsed as (X / 100) * Y
       // E.g., "het percentage reisduur eerste schijf van zijn belasting op basis van afstand"

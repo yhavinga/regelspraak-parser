@@ -1397,20 +1397,55 @@ export class ExpressionEvaluator implements IEvaluator {
       const attrName = attr.replace(/ /g, '_');
 
       if (ctxAny.getTimelineAttribute && currentInstance.objectType && currentInstance.objectId) {
-        const timelineValue = ctxAny.getTimelineAttribute(
-          currentInstance.objectType,
-          currentInstance.objectId,
-          attrName,
-          ctxAny.evaluation_date
-        );
-        if (timelineValue !== null && timelineValue !== undefined) {
-          return timelineValue;
+        // Try the timeline lookup with multiple name variations
+        const namesToTry = [attrName, attr];
+
+        // If no spaces/underscores in attr, it may be a concatenated name
+        // Try to find matching timeline attribute via flexible lookup
+        if (ctxAny.getTimelineAttributeNames) {
+          const normalizedAttr = attr.replace(/[\s_-]/g, '').toLowerCase();
+          const timelineAttrNames = ctxAny.getTimelineAttributeNames(
+            currentInstance.objectType,
+            currentInstance.objectId
+          ) || [];
+          for (const tlAttrName of timelineAttrNames) {
+            const normalizedTlName = tlAttrName.replace(/[\s_-]/g, '').toLowerCase();
+            if (normalizedTlName === normalizedAttr && !namesToTry.includes(tlAttrName)) {
+              namesToTry.push(tlAttrName);
+            }
+          }
+        }
+
+        for (const nameToTry of namesToTry) {
+          const timelineValue = ctxAny.getTimelineAttribute(
+            currentInstance.objectType,
+            currentInstance.objectId,
+            nameToTry,
+            ctxAny.evaluation_date
+          );
+          if (timelineValue !== null && timelineValue !== undefined) {
+            return timelineValue;
+          }
         }
       }
 
       // Fall back to regular object attributes
       const objectData = currentInstance.value as Record<string, Value> | Record<string, any>;
-      const val = (objectData as any)[attrName] || (objectData as any)[attr];
+      let val = (objectData as any)[attrName] || (objectData as any)[attr];
+
+      // If not found, try flexible matching for concatenated attribute names
+      // E.g., "belastingopbasisvanafstand" should match "belasting op basis van afstand"
+      if (val === undefined) {
+        const normalizedAttr = attr.replace(/[\s_-]/g, '').toLowerCase();
+        for (const key of Object.keys(objectData)) {
+          const normalizedKey = key.replace(/[\s_-]/g, '').toLowerCase();
+          if (normalizedKey === normalizedAttr) {
+            val = (objectData as any)[key];
+            break;
+          }
+        }
+      }
+
       if (val === undefined) {
         return { type: 'null', value: null };
       }
