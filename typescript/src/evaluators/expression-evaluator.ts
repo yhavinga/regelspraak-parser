@@ -162,6 +162,13 @@ export class ExpressionEvaluator implements IEvaluator {
           value: expr.value
         };
       default:
+        // Robustness: infer type from JavaScript typeof when datatype is missing
+        if (typeof expr.value === 'number') {
+          return { type: 'number', value: expr.value };
+        }
+        if (typeof expr.value === 'boolean') {
+          return { type: 'boolean', value: expr.value };
+        }
         // Fallback to string
         return {
           type: 'string',
@@ -1541,19 +1548,53 @@ export class ExpressionEvaluator implements IEvaluator {
       // Extract the role name from "alle passagiers"
       const roleName = expr.path[1].substring(5); // Remove "alle " prefix
       const objectRef = expr.path[0];
+      const ctx = context as any;
 
-      // First get the object
-      const objectValue = this.evaluateVariableReference({
-        type: 'VariableReference',
-        variableName: objectRef
-      } as VariableReference, context);
+      // First try to resolve objectRef as a FeitType role name that maps to current_instance
+      // This handles patterns like "alle passagiers van de reis" where "reis" is a role
+      // that maps to Vlucht (the current instance type)
+      let objectValue: Value | null = null;
+
+      if (ctx.current_instance && ctx.current_instance.type === 'object') {
+        const currentObjType = (ctx.current_instance.objectType || '').toLowerCase();
+        const objectRefClean = objectRef.toLowerCase().replace(/^(de|het|een)\s+/, '').trim();
+
+        // Check if objectRef is a role name in any FeitType that maps to current_instance's type
+        const feittypen = ctx.getAllFeittypen ? ctx.getAllFeittypen() : [];
+        for (const feittype of feittypen) {
+          if (!feittype.rollen) continue;
+
+          for (const rol of feittype.rollen) {
+            const rolNaamClean = rol.naam.toLowerCase().replace(/^(de|het|een)\s+/, '').trim();
+            const rolObjType = (rol.objectType || '').toLowerCase().trim();
+
+            // Check if the role name matches objectRef AND the role's objectType matches current_instance
+            if (rolNaamClean === objectRefClean &&
+              (rolObjType === currentObjType ||
+                rolObjType.startsWith(currentObjType) ||
+                currentObjType.startsWith(rolObjType))) {
+              // Role matches current_instance - use current_instance as the object
+              objectValue = ctx.current_instance;
+              break;
+            }
+          }
+          if (objectValue) break;
+        }
+      }
+
+      // If no role match found, fall back to variable lookup
+      if (!objectValue) {
+        objectValue = this.evaluateVariableReference({
+          type: 'VariableReference',
+          variableName: objectRef
+        } as VariableReference, context);
+      }
 
       if (objectValue.type !== 'object') {
         throw new Error(`Expected object but got ${objectValue.type}`);
       }
 
       // Find related objects through Feittype relationships
-      const ctx = context as any;
       const relatedObjects = this.findRelatedObjectsThroughFeittype(roleName, objectValue, ctx);
 
       if (relatedObjects) {
@@ -2857,12 +2898,33 @@ export class ExpressionEvaluator implements IEvaluator {
       maximum: expr.maximum
     }, context);
 
-    // Then apply afronding
-    return this.evaluateAfrondingExpression({
-      expression: { type: 'Literal', value: bounded.value },
-      decimals: expr.decimals,
-      direction: expr.direction
-    }, context);
+    // Apply afronding directly on the bounded Value (avoid re-evaluation which loses type info)
+    const numValue = this.toNumber(bounded);
+    if (numValue === null) return bounded;
+
+    const decimals = expr.decimals ?? 0;
+    const direction = expr.direction as string | undefined;
+    const factor = Math.pow(10, decimals);
+    let result: number;
+
+    // Handle both Dutch direction names from visitor and English for backwards compatibility
+    if (direction === 'down' || direction === 'naar_beneden') {
+      result = Math.floor(numValue * factor) / factor;
+    } else if (direction === 'up' || direction === 'naar_boven') {
+      result = Math.ceil(numValue * factor) / factor;
+    } else if (direction === 'richting_nul') {
+      result = Math.trunc(numValue * factor) / factor;
+    } else if (direction === 'weg_van_nul') {
+      result = (numValue >= 0 ? Math.ceil(numValue * factor) : Math.floor(numValue * factor)) / factor;
+    } else {
+      result = Math.round(numValue * factor) / factor;
+    }
+
+    // Preserve type and unit from bounded value
+    return {
+      ...bounded,
+      value: result
+    };
   }
 
   /**
