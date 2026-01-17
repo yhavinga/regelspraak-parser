@@ -4431,6 +4431,17 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
 
     if (kenmerkCtx) {
       characteristic = this.extractTextWithSpaces(kenmerkCtx);
+
+      // Normalize characteristic by stripping leading articles to match domain model
+      // Rule says "is een passagier" but domain model defines "is passagier"
+      const articles = ['een ', 'de ', 'het '];
+      const charLower = characteristic.toLowerCase();
+      for (const article of articles) {
+        if (charLower.startsWith(article)) {
+          characteristic = characteristic.substring(article.length);
+          break;
+        }
+      }
     } else {
       throw new Error('Could not extract characteristic from kenmerktoekenning');
     }

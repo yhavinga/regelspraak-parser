@@ -63,7 +63,7 @@
       "te betalen belasting": 26.0
     },
     "flight_1": {
-      "is een belaste reis": true,
+      "is belaste reis": true,
       "hoeveelheid passagiers": 1,
       "totaal te betalen belasting": 26.0
     }

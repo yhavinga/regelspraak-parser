@@ -152,20 +152,46 @@ export class DecisionTableExecutor {
       }
 
       // Handle DisjunctionExpression with empty values array (parser bug workaround)
-      // Extract string values directly from the cell value's location
+      // The parser's location.endColumn often cuts off the trailing "of 'X'" value,
+      // so we extract the full cell content from between table delimiters instead.
       let conditionValue: Value;
       const cellExpr = cellValue as any;
       if (cellExpr.type === 'DisjunctionExpression' &&
-          (!cellExpr.values || cellExpr.values.length === 0) &&
-          cellExpr.location) {
+        (!cellExpr.values || cellExpr.values.length === 0) &&
+        cellExpr.location) {
         // Get source text from context if available
         const sourceText = (context as any).sourceText || (context as any).domainModel?.sourceText;
         if (sourceText) {
           const lines = sourceText.split('\n');
           const line = lines[cellExpr.location.startLine - 1];
           if (line) {
-            const cellText = line.substring(cellExpr.location.startColumn - 1, cellExpr.location.endColumn);
-            // Extract quoted strings from the cell text
+            // Find the cell content by looking for the cell between | delimiters
+            // that contains the start position. This ensures we get the FULL cell content.
+            const startCol = cellExpr.location.startColumn - 1;
+
+            // Find cell boundaries by scanning for | delimiters
+            let cellStart = startCol;
+            let cellEnd = line.length;
+
+            // Scan backwards to find the cell start (after previous |)
+            for (let i = startCol; i >= 0; i--) {
+              if (line[i] === '|') {
+                cellStart = i + 1;
+                break;
+              }
+            }
+
+            // Scan forwards to find the cell end (before next |)
+            for (let i = startCol; i < line.length; i++) {
+              if (line[i] === '|') {
+                cellEnd = i;
+                break;
+              }
+            }
+
+            const cellText = line.substring(cellStart, cellEnd).trim();
+
+            // Extract ALL quoted strings from the full cell text
             const stringMatches = cellText.match(/'[^']+'/g);
             if (stringMatches && stringMatches.length > 0) {
               const values: Value[] = stringMatches.map((s: string) => ({

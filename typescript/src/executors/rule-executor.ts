@@ -599,11 +599,12 @@ export class RuleExecutor implements IRuleExecutor {
 
     // The subject should reference an object or collection of objects
     if (subjectValue.type === 'object') {
-      // Single object - set the characteristic
-      const objectData = subjectValue.value as Record<string, Value>;
+      // Single object - set the characteristic using separate kenmerken dict
+      const objType = (subjectValue as any).objectType || 'unknown';
+      const objId = (subjectValue as any).objectId || 'unknown';
       // Kenmerken are stored with "is " prefix
       const kenmerkKey = `is ${kenmerktoekenning.characteristic}`;
-      objectData[kenmerkKey] = { type: 'boolean', value: true };
+      (context as Context).setKenmerk(objType, objId, kenmerkKey, true);
 
       return {
         success: true,
@@ -616,10 +617,11 @@ export class RuleExecutor implements IRuleExecutor {
 
       for (const obj of objects) {
         if (obj.type === 'object') {
-          const objectData = obj.value as Record<string, Value>;
+          const objType = (obj as any).objectType || 'unknown';
+          const objId = (obj as any).objectId || 'unknown';
           // Kenmerken are stored with "is " prefix
           const kenmerkKey = `is ${kenmerktoekenning.characteristic}`;
-          objectData[kenmerkKey] = { type: 'boolean', value: true };
+          (context as Context).setKenmerk(objType, objId, kenmerkKey, true);
           count++;
         }
       }
@@ -682,16 +684,17 @@ export class RuleExecutor implements IRuleExecutor {
         // Evaluate the condition for this object
         try {
           const conditionResult = this.expressionEvaluator.evaluate(condition.expression, tempContext);
-          const objectData = obj.value as Record<string, Value>;
-          // Kenmerken are stored with "is " prefix
+          // Kenmerken are stored with "is " prefix in separate kenmerken dict
           const kenmerkKey = `is ${kenmerktoekenning.characteristic}`;
+          const objType = (obj as any).objectType || objectType;
+          const objId = (obj as any).objectId || 'unknown';
 
           // Set true OR false based on condition result
           if (this.isTruthy(conditionResult)) {
-            objectData[kenmerkKey] = { type: 'boolean', value: true };
+            (context as Context).setKenmerk(objType, objId, kenmerkKey, true);
             assignedCount++;
           } else {
-            objectData[kenmerkKey] = { type: 'boolean', value: false };
+            (context as Context).setKenmerk(objType, objId, kenmerkKey, false);
           }
         } catch (error) {
           // If condition evaluation fails (e.g., missing attribute), skip this object

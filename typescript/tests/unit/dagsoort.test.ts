@@ -163,7 +163,7 @@ describe('Dagsoort Predicate', () => {
             expect(result.success).toBe(true);
             const plannings = context.getObjectsByType('Planning');
             expect(plannings.length).toBe(1);
-            expect(plannings[0].value['is werkdag']).toEqual({ type: 'boolean', value: true });
+            expect(plannings[0].kenmerken['is werkdag']).toBe(true);
         });
 
         test('should identify Saturday as weekend', () => {
@@ -191,7 +191,7 @@ describe('Dagsoort Predicate', () => {
             expect(result.success).toBe(true);
             const afspraken = context.getObjectsByType('Afspraak');
             expect(afspraken.length).toBe(1);
-            expect(afspraken[0].value['is weekenddatum']).toEqual({ type: 'boolean', value: true });
+            expect(afspraken[0].kenmerken['is weekenddatum']).toBe(true);
         });
 
         test('should identify Sunday as weekend', () => {
@@ -219,7 +219,7 @@ describe('Dagsoort Predicate', () => {
             expect(result.success).toBe(true);
             const activiteiten = context.getObjectsByType('Activiteit');
             expect(activiteiten.length).toBe(1);
-            expect(activiteiten[0].value['is weekenddatum']).toEqual({ type: 'boolean', value: true });
+            expect(activiteiten[0].kenmerken['is weekenddatum']).toBe(true);
         });
 
         test('should identify Christmas as feestdag', () => {
@@ -247,7 +247,7 @@ describe('Dagsoort Predicate', () => {
             expect(result.success).toBe(true);
             const evenementen = context.getObjectsByType('Evenement');
             expect(evenementen.length).toBe(1);
-            expect(evenementen[0].value['is feestdag']).toEqual({ type: 'boolean', value: true });
+            expect(evenementen[0].kenmerken['is feestdag']).toBe(true);
         });
 
         test('should identify New Year as feestdag', () => {
@@ -275,7 +275,7 @@ describe('Dagsoort Predicate', () => {
             expect(result.success).toBe(true);
             const vieringen = context.getObjectsByType('Viering');
             expect(vieringen.length).toBe(1);
-            expect(vieringen[0].value['is feestdag']).toEqual({ type: 'boolean', value: true });
+            expect(vieringen[0].kenmerken['is feestdag']).toBe(true);
         });
 
         test('should handle negative werkdag check', () => {
@@ -303,7 +303,7 @@ describe('Dagsoort Predicate', () => {
             expect(result.success).toBe(true);
             const rustdagen = context.getObjectsByType('Rustdag');
             expect(rustdagen.length).toBe(1);
-            expect(rustdagen[0].value['is vrij']).toEqual({ type: 'boolean', value: true });
+            expect(rustdagen[0].kenmerken['is vrij']).toBe(true);
         });
 
         test('should handle missing date', () => {
@@ -331,7 +331,7 @@ describe('Dagsoort Predicate', () => {
             expect(result.success).toBe(true);
             const plannings = context.getObjectsByType('Planning');
             expect(plannings.length).toBe(1);
-            expect(plannings[0].value['is werkdag']).toBeFalsy();
+            expect(plannings[0].kenmerken['is werkdag']).toBeFalsy();
         });
 
         test('should handle King\'s Day (Koningsdag)', () => {
@@ -359,7 +359,7 @@ describe('Dagsoort Predicate', () => {
             expect(result.success).toBe(true);
             const feesten = context.getObjectsByType('Feest');
             expect(feesten.length).toBe(1);
-            expect(feesten[0].value['is feestdag']).toEqual({ type: 'boolean', value: true });
+            expect(feesten[0].kenmerken['is feestdag']).toBe(true);
         });
 
         test('should handle regular Tuesday as not feestdag', () => {
@@ -387,7 +387,7 @@ describe('Dagsoort Predicate', () => {
             expect(result.success).toBe(true);
             const werkdagen = context.getObjectsByType('Werkdag');
             expect(werkdagen.length).toBe(1);
-            expect(werkdagen[0].value['is feestdag']).toBeFalsy();
+            expect(werkdagen[0].kenmerken['is feestdag']).toBeFalsy();
         });
     });
 });

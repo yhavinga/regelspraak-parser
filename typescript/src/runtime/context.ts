@@ -41,6 +41,10 @@ export class Context implements RuntimeContext {
   // Store timeline parameters
   private timelineParameters: Map<string, TimelineValueImpl> = new Map();
 
+  // Store kenmerken for objects (separate from attributes, mirroring Python's RuntimeObject.kenmerken)
+  // Map from object type -> object id -> kenmerk name -> boolean value
+  private objectKenmerken: Map<string, Map<string, Map<string, boolean>>> = new Map();
+
   // Rule execution tracking for regel status conditions
   private executedRules: Set<string> = new Set();  // Rules that have been executed (fired)
   private inconsistentRules: Set<string> = new Set();  // Consistency rules that found inconsistencies
@@ -157,11 +161,14 @@ export class Context implements RuntimeContext {
 
     const result: Value[] = [];
     for (const [id, attributes] of typeMap.entries()) {
+      // Get kenmerken for this object
+      const kenmerken = this.getObjectKenmerkenMap(type, id);
       result.push({
         type: 'object',
         objectType: type,
         objectId: id,
-        value: attributes
+        value: attributes,
+        kenmerken: kenmerken  // Include separate kenmerken dict
       } as any);
     }
     return result;
@@ -173,6 +180,78 @@ export class Context implements RuntimeContext {
 
   getExecutionTrace(): string[] {
     return [...this.executionTrace];
+  }
+
+  // --- Kenmerken Handling (separate from attributes, mirroring Python) ---
+
+  /**
+   * Get all kenmerken for an object as a Map
+   */
+  private getObjectKenmerkenMap(type: string, id: string): Record<string, boolean> {
+    const typeMap = this.objectKenmerken.get(type);
+    if (!typeMap) return {};
+
+    const objectMap = typeMap.get(id);
+    if (!objectMap) return {};
+
+    // Convert Map to plain object
+    const result: Record<string, boolean> = {};
+    for (const [name, value] of objectMap.entries()) {
+      result[name] = value;
+    }
+    return result;
+  }
+
+  /**
+   * Get a kenmerk value for an object
+   */
+  getKenmerk(type: string, id: string, kenmerkName: string): boolean | undefined {
+    const typeMap = this.objectKenmerken.get(type);
+    if (!typeMap) return undefined;
+
+    const objectMap = typeMap.get(id);
+    if (!objectMap) return undefined;
+
+    return objectMap.get(kenmerkName);
+  }
+
+  /**
+   * Set a kenmerk value for an object
+   */
+  setKenmerk(type: string, id: string, kenmerkName: string, value: boolean): void {
+    if (!this.objectKenmerken.has(type)) {
+      this.objectKenmerken.set(type, new Map());
+    }
+
+    const typeMap = this.objectKenmerken.get(type)!;
+    if (!typeMap.has(id)) {
+      typeMap.set(id, new Map());
+    }
+
+    const objectMap = typeMap.get(id)!;
+    objectMap.set(kenmerkName, value);
+  }
+
+  /**
+   * Initialize kenmerken for an object (called when creating objects)
+   */
+  initializeKenmerken(type: string, id: string, kenmerkNames: string[]): void {
+    if (!this.objectKenmerken.has(type)) {
+      this.objectKenmerken.set(type, new Map());
+    }
+
+    const typeMap = this.objectKenmerken.get(type)!;
+    if (!typeMap.has(id)) {
+      typeMap.set(id, new Map());
+    }
+
+    const objectMap = typeMap.get(id)!;
+    // Initialize all kenmerken to false (mirroring Python's behavior)
+    for (const name of kenmerkNames) {
+      if (!objectMap.has(name)) {
+        objectMap.set(name, false);
+      }
+    }
   }
 
   /**
@@ -440,6 +519,16 @@ export class Context implements RuntimeContext {
 
     // Copy timeline parameters
     cloned.timelineParameters = new Map(this.timelineParameters);
+
+    // Copy object kenmerken
+    cloned.objectKenmerken = new Map();
+    for (const [type, typeMap] of this.objectKenmerken) {
+      const clonedTypeMap = new Map();
+      for (const [id, objectMap] of typeMap) {
+        clonedTypeMap.set(id, new Map(objectMap));
+      }
+      cloned.objectKenmerken.set(type, clonedTypeMap);
+    }
 
     // Copy rule execution tracking
     cloned.executedRules = new Set(this.executedRules);

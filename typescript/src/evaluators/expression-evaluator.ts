@@ -892,6 +892,15 @@ export class ExpressionEvaluator implements IEvaluator {
           attrValue = objData[altName];
         }
 
+        // Try singular form (Dutch plural endings: -en, -s)
+        // e.g., "leeftijden" → "leeftijd"
+        if (attrValue === undefined) {
+          const singularName = this.singularize(attrName);
+          if (singularName !== attrName) {
+            attrValue = objData[singularName];
+          }
+        }
+
         if (attrValue !== undefined && attrValue.type === 'number') {
           result = reducer(result, attrValue.value as number);
         }
@@ -903,6 +912,22 @@ export class ExpressionEvaluator implements IEvaluator {
       type: 'number',
       value: result === initialValue ? 0 : result
     };
+  }
+
+  /**
+   * Convert Dutch plural noun to singular.
+   * Handles common Dutch plural endings:
+   * - "-en" suffix (leeftijden → leeftijd)
+   * - "-s" suffix (items → item)
+   */
+  private singularize(word: string): string {
+    if (word.endsWith('en') && word.length > 3) {
+      return word.slice(0, -2);
+    }
+    if (word.endsWith('s') && word.length > 2) {
+      return word.slice(0, -1);
+    }
+    return word;
   }
 
   private som_van(args: Value[]): Value {

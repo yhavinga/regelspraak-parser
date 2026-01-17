@@ -234,13 +234,15 @@ export class TOKARunner {
                         'VAN'
                     );
 
-                    // Derive "is een passagier" kenmerk from FeitType relationship
+                    // Derive "is passagier" kenmerk from FeitType relationship
                     // When a person is in "vlucht van natuurlijke personen" as the passenger role,
-                    // they are "een passagier"
-                    const passengerData = (passenger as any).value as Record<string, Value>;
-                    passengerData['is een passagier'] = { type: 'boolean', value: true };
+                    // they are "een passagier" (stored with canonical name from domain model)
+                    // Use separate kenmerken dictionary (mirroring Python's architecture)
+                    const passengerId = (passenger as any).objectId;
+                    this.context.setKenmerk('Natuurlijk persoon', passengerId, 'is passagier', true);
 
                     // Also store the flight as "zijn reis" for navigation
+                    const passengerData = (passenger as any).value as Record<string, Value>;
                     passengerData['reis'] = flight;
                 }
             }
@@ -367,20 +369,43 @@ export class TOKARunner {
             }
 
             for (const [attrName, expectedValue] of Object.entries(expectedValues)) {
-                const objData = (obj as any).value || {};
-                const actual = objData[attrName];
+                let actual: any;
 
-                if (actual !== undefined) {
-                    const actualValue = (actual as Value)?.value ?? actual;
-                    if (actualValue === expectedValue) {
-                        results.passed.push(`${objectId}.${attrName}`);
+                // Check kenmerken dict for kenmerk names (those starting with "is ")
+                // This mirrors Python's separate kenmerken storage
+                if (attrName.startsWith('is ')) {
+                    const kenmerkenData = (obj as any).kenmerken || {};
+                    actual = kenmerkenData[attrName];
+
+                    // Handle boolean comparison directly
+                    if (actual !== undefined) {
+                        if (actual === expectedValue) {
+                            results.passed.push(`${objectId}.${attrName}`);
+                        } else {
+                            results.failed.push(
+                                `${objectId}.${attrName}: expected ${expectedValue}, got ${actual}`
+                            );
+                        }
                     } else {
-                        results.failed.push(
-                            `${objectId}.${attrName}: expected ${expectedValue}, got ${actualValue}`
-                        );
+                        results.failed.push(`${objectId}.${attrName}: kenmerk not found`);
                     }
                 } else {
-                    results.failed.push(`${objectId}.${attrName}: attribute not found`);
+                    // Regular attribute - check value dict
+                    const objData = (obj as any).value || {};
+                    actual = objData[attrName];
+
+                    if (actual !== undefined) {
+                        const actualValue = (actual as Value)?.value ?? actual;
+                        if (actualValue === expectedValue) {
+                            results.passed.push(`${objectId}.${attrName}`);
+                        } else {
+                            results.failed.push(
+                                `${objectId}.${attrName}: expected ${expectedValue}, got ${actualValue}`
+                            );
+                        }
+                    } else {
+                        results.failed.push(`${objectId}.${attrName}: attribute not found`);
+                    }
                 }
             }
         }
@@ -429,11 +454,17 @@ export class TOKARunner {
             console.log('\nPassengers:');
             for (const p of passengers) {
                 console.log(`  ${(p as any).objectId}:`);
+                // Print attributes
                 const attrs = (p as any).value || {};
                 for (const [key, val] of Object.entries(attrs)) {
                     const value = (val as Value)?.value ?? val;
                     const unit = (val as Value)?.unit || '';
                     console.log(`    - ${key}: ${value}${unit ? ' ' + unit : ''}`);
+                }
+                // Print kenmerken (separate dict)
+                const kenmerken = (p as any).kenmerken || {};
+                for (const [key, val] of Object.entries(kenmerken)) {
+                    console.log(`    - ${key}: ${val} (kenmerk)`);
                 }
             }
         }
@@ -444,11 +475,17 @@ export class TOKARunner {
             console.log('\nFlights:');
             for (const f of flights) {
                 console.log(`  ${(f as any).objectId}:`);
+                // Print attributes
                 const attrs = (f as any).value || {};
                 for (const [key, val] of Object.entries(attrs)) {
                     const value = (val as Value)?.value ?? val;
                     const unit = (val as Value)?.unit || '';
                     console.log(`    - ${key}: ${value}${unit ? ' ' + unit : ''}`);
+                }
+                // Print kenmerken (separate dict)
+                const kenmerken = (f as any).kenmerken || {};
+                for (const [key, val] of Object.entries(kenmerken)) {
+                    console.log(`    - ${key}: ${val} (kenmerk)`);
                 }
             }
         }
