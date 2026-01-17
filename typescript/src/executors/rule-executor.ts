@@ -660,9 +660,17 @@ export class RuleExecutor implements IRuleExecutor {
     }
 
     if (objectType) {
-
       // Get all objects of this type
-      const objects = (context as Context).getObjectsByType(objectType);
+      let objects = (context as Context).getObjectsByType(objectType);
+
+      // If no objects found, try resolving as a role name (e.g., "passagier" -> "Natuurlijk persoon")
+      if (objects.length === 0) {
+        const resolvedType = this.resolveRoleToObjectType(objectType, context);
+        if (resolvedType) {
+          objects = (context as Context).getObjectsByType(resolvedType);
+          objectType = resolvedType; // Use resolved type for kenmerk storage
+        }
+      }
 
       let assignedCount = 0;
 
@@ -684,8 +692,21 @@ export class RuleExecutor implements IRuleExecutor {
         // Evaluate the condition for this object
         try {
           const conditionResult = this.expressionEvaluator.evaluate(condition.expression, tempContext);
-          // Kenmerken are stored with "is " prefix in separate kenmerken dict
-          const kenmerkKey = `is ${kenmerktoekenning.characteristic}`;
+          // Normalize kenmerk name: handle both "is X" and "heeft X" (bezittelijk) patterns
+          const characteristic = kenmerktoekenning.characteristic;
+          let kenmerkKey: string;
+
+          // Check if it already has a prefix or is a bezittelijk kenmerk like "recht op"
+          if (characteristic.startsWith('recht op') || characteristic.startsWith('heeft ')) {
+            // Bezittelijk kenmerk - keep as is without adding "is " prefix
+            kenmerkKey = characteristic;
+          } else if (!characteristic.startsWith('is ')) {
+            // Standard kenmerk without prefix - add "is " prefix
+            kenmerkKey = `is ${characteristic}`;
+          } else {
+            kenmerkKey = characteristic;
+          }
+
           const objType = (obj as any).objectType || objectType;
           const objId = (obj as any).objectId || 'unknown';
 

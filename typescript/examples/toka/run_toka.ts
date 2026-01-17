@@ -370,24 +370,65 @@ export class TOKARunner {
 
             for (const [attrName, expectedValue] of Object.entries(expectedValues)) {
                 let actual: any;
+                let foundInKenmerken = false;
 
-                // Check kenmerken dict for kenmerk names (those starting with "is ")
-                // This mirrors Python's separate kenmerken storage
-                if (attrName.startsWith('is ')) {
-                    const kenmerkenData = (obj as any).kenmerken || {};
-                    actual = kenmerkenData[attrName];
+                // Check kenmerken dict first for:
+                // - Names starting with "is " or "heeft "
+                // - Names containing "recht op" (bezittelijk kenmerken)
+                // - Boolean expected values (hints that it might be a kenmerk)
+                const isKenmerkPattern = attrName.startsWith('is ') ||
+                    attrName.startsWith('heeft ') ||
+                    attrName.includes('recht op') ||
+                    typeof expectedValue === 'boolean';
 
-                    // Handle boolean comparison directly
-                    if (actual !== undefined) {
-                        if (actual === expectedValue) {
-                            results.passed.push(`${objectId}.${attrName}`);
-                        } else {
-                            results.failed.push(
-                                `${objectId}.${attrName}: expected ${expectedValue}, got ${actual}`
-                            );
+                const kenmerkenData = (obj as any).kenmerken || {};
+
+                if (isKenmerkPattern || Object.keys(kenmerkenData).length > 0) {
+                    // Try exact match first
+                    if (kenmerkenData[attrName] !== undefined) {
+                        actual = kenmerkenData[attrName];
+                        foundInKenmerken = true;
+                    }
+
+                    // Try with 'is ' prefix
+                    if (!foundInKenmerken && !attrName.startsWith('is ')) {
+                        const isKey = `is ${attrName}`;
+                        if (kenmerkenData[isKey] !== undefined) {
+                            actual = kenmerkenData[isKey];
+                            foundInKenmerken = true;
                         }
+                    }
+
+                    // Try normalized matching (handles case/spacing differences)
+                    if (!foundInKenmerken) {
+                        const normalizedAttr = attrName.toLowerCase()
+                            .replace(/^(is|heeft)\s+/, '')
+                            .replace(/^(de|het|een)\s+/, '')
+                            .trim();
+
+                        for (const [storedKey, storedValue] of Object.entries(kenmerkenData)) {
+                            const normalizedStored = storedKey.toLowerCase()
+                                .replace(/^(is|heeft)\s+/, '')
+                                .replace(/^(de|het|een)\s+/, '')
+                                .trim();
+
+                            if (normalizedStored === normalizedAttr) {
+                                actual = storedValue;
+                                foundInKenmerken = true;
+                                break;
+                            }
+                        }
+                    }
+                }
+
+                if (foundInKenmerken) {
+                    // Handle boolean comparison for kenmerken
+                    if (actual === expectedValue) {
+                        results.passed.push(`${objectId}.${attrName}`);
                     } else {
-                        results.failed.push(`${objectId}.${attrName}: kenmerk not found`);
+                        results.failed.push(
+                            `${objectId}.${attrName}: expected ${expectedValue}, got ${actual}`
+                        );
                     }
                 } else {
                     // Regular attribute - check value dict
@@ -404,7 +445,12 @@ export class TOKARunner {
                             );
                         }
                     } else {
-                        results.failed.push(`${objectId}.${attrName}: attribute not found`);
+                        // Only report as missing if boolean was expected (kenmerk) or truly missing attribute
+                        if (typeof expectedValue === 'boolean') {
+                            results.failed.push(`${objectId}.${attrName}: kenmerk not found`);
+                        } else {
+                            results.failed.push(`${objectId}.${attrName}: attribute not found`);
+                        }
                     }
                 }
             }

@@ -206,24 +206,72 @@ export class Context implements RuntimeContext {
    * Get a kenmerk value for an object
    */
   getKenmerk(type: string, id: string, kenmerkName: string): boolean | undefined {
-    const typeMap = this.objectKenmerken.get(type);
+    // Try exact type first
+    let typeMap = this.objectKenmerken.get(type);
+
+    // If not found, try canonicalized matching (handles 'vlucht' vs 'Vlucht')
+    if (!typeMap) {
+      const canonicalQuery = this.canonicalizeTypeName(type);
+      for (const [storedType, map] of this.objectKenmerken.entries()) {
+        if (this.canonicalizeTypeName(storedType) === canonicalQuery) {
+          typeMap = map;
+          break;
+        }
+      }
+    }
+
     if (!typeMap) return undefined;
 
     const objectMap = typeMap.get(id);
     if (!objectMap) return undefined;
 
-    return objectMap.get(kenmerkName);
+    // Try exact kenmerk name first
+    let value = objectMap.get(kenmerkName);
+
+    // Try normalized kenmerk name (handles 'is duurzaam' vs 'duurzaam')
+    if (value === undefined) {
+      const normalizedName = this.normalizeKenmerkName(kenmerkName);
+      for (const [storedName, storedValue] of objectMap.entries()) {
+        if (this.normalizeKenmerkName(storedName) === normalizedName) {
+          value = storedValue;
+          break;
+        }
+      }
+    }
+
+    return value;
+  }
+
+  /**
+   * Normalize kenmerk name for comparison (remove 'is '/'heeft ' prefix and articles)
+   */
+  private normalizeKenmerkName(name: string): string {
+    return name.toLowerCase()
+      .replace(/^(is|heeft)\s+/, '')
+      .replace(/^(de|het|een)\s+/, '')
+      .trim();
   }
 
   /**
    * Set a kenmerk value for an object
    */
   setKenmerk(type: string, id: string, kenmerkName: string, value: boolean): void {
-    if (!this.objectKenmerken.has(type)) {
-      this.objectKenmerken.set(type, new Map());
+    // Find existing type bucket with canonicalized matching, or create new one
+    let typeKey = type;
+    const canonicalQuery = this.canonicalizeTypeName(type);
+
+    for (const storedType of this.objectKenmerken.keys()) {
+      if (this.canonicalizeTypeName(storedType) === canonicalQuery) {
+        typeKey = storedType; // Use existing key for consistency
+        break;
+      }
     }
 
-    const typeMap = this.objectKenmerken.get(type)!;
+    if (!this.objectKenmerken.has(typeKey)) {
+      this.objectKenmerken.set(typeKey, new Map());
+    }
+
+    const typeMap = this.objectKenmerken.get(typeKey)!;
     if (!typeMap.has(id)) {
       typeMap.set(id, new Map());
     }

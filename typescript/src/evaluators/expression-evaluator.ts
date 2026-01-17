@@ -1981,13 +1981,40 @@ export class ExpressionEvaluator implements IEvaluator {
     }
 
     const objectData = item.value as Record<string, Value>;
+    const itemAny = item as any;
 
     // Check if the kenmerk exists and is true
     const kenmerkKey = `is ${predicaat.kenmerk}`;
-    const kenmerkValue = objectData[kenmerkKey];
 
+    // First check object attributes (legacy path)
+    const kenmerkValue = objectData[kenmerkKey];
     if (kenmerkValue && kenmerkValue.type === 'boolean') {
       return kenmerkValue.value as boolean;
+    }
+
+    // Fallback: check the separate kenmerken dict (added in getObjectsByType)
+    const kenmerken = itemAny.kenmerken as Record<string, boolean> | undefined;
+    if (kenmerken) {
+      // Try with 'is ' prefix
+      if (kenmerken[kenmerkKey] !== undefined) {
+        return kenmerken[kenmerkKey];
+      }
+
+      // Try without prefix (for bezittelijk kenmerken like "recht op duurzaamheidskorting")
+      if (kenmerken[predicaat.kenmerk] !== undefined) {
+        return kenmerken[predicaat.kenmerk];
+      }
+
+      // Try normalized matching (handles case differences)
+      const normalizedKey = predicaat.kenmerk.toLowerCase();
+      for (const [storedKey, storedValue] of Object.entries(kenmerken)) {
+        const storedNormalized = storedKey.toLowerCase()
+          .replace(/^(is|heeft)\s+/, '')
+          .replace(/^(de|het|een)\s+/, '');
+        if (storedNormalized === normalizedKey) {
+          return storedValue;
+        }
+      }
     }
 
     return false;
