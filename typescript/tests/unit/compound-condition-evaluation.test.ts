@@ -24,12 +24,12 @@ Regel Geschiktheid
 `;
 
       const result = engine.evaluate(code, {
-        'minimumleeftijd': 18,
-        'maximumleeftijd': 65,
+        'minimum leeftijd': 18,
+        'maximum leeftijd': 65,
         'leeftijd': 30,
         'nationaliteit': 'NL'
       });
-      
+
       expect(result.success).toBe(true);
       expect(result.value).toEqual({ type: 'boolean', value: true });
     });
@@ -49,12 +49,12 @@ Regel Geschiktheid
 `;
 
       const result = engine.evaluate(code, {
-        'minimumleeftijd': 18,
-        'maximumleeftijd': 65,
+        'minimum leeftijd': 18,
+        'maximum leeftijd': 65,
         'leeftijd': 30,
         'nationaliteit': 'US'  // This condition fails
       });
-      
+
       expect(result.success).toBe(true);
       // When the model runs successfully but has a compound condition that failed
       // it returns "Model executed" not "Rule skipped"
@@ -74,10 +74,10 @@ Regel Toegang
 `;
 
       const result = engine.evaluate(code, {
-        'isgeblokkeerd': false,
-        'isverbannen': false
+        'is geblokkeerd': false,
+        'is verbannen': false
       });
-      
+
       expect(result.success).toBe(true);
       expect(result.value).toEqual({ type: 'boolean', value: true });
     });
@@ -93,10 +93,10 @@ Regel Toegang
 `;
 
       const result = engine.evaluate(code, {
-        'isgeblokkeerd': true,  // This makes the compound condition false
-        'isverbannen': false
+        'is geblokkeerd': true,  // This makes the compound condition false
+        'is verbannen': false
       });
-      
+
       expect(result.success).toBe(true);
       expect(result.value?.value).toContain('Rule skipped');
     });
@@ -115,11 +115,11 @@ Regel Validatie
 `;
 
       const result = engine.evaluate(code, {
-        'handtekeningA': true,
-        'handtekeningB': true,
-        'handtekeningC': false
+        'handtekening A': true,
+        'handtekening B': true,
+        'handtekening C': false
       });
-      
+
       expect(result.success).toBe(true);
       expect(result.value).toEqual({ type: 'boolean', value: true });
     });
@@ -136,11 +136,11 @@ Regel Validatie
 `;
 
       const result = engine.evaluate(code, {
-        'handtekeningA': true,
-        'handtekeningB': false,
-        'handtekeningC': false
+        'handtekening A': true,
+        'handtekening B': false,
+        'handtekening C': false
       });
-      
+
       expect(result.success).toBe(true);
       expect(result.value?.value).toContain('Rule skipped');
     });
@@ -159,11 +159,11 @@ Regel Acceptatie
 `;
 
       const result = engine.evaluate(code, {
-        'foutA': true,
-        'foutB': false,
-        'foutC': false
+        'fout A': true,
+        'fout B': false,
+        'fout C': false
       });
-      
+
       expect(result.success).toBe(true);
       expect(result.value).toEqual({ type: 'boolean', value: true });
     });
@@ -180,11 +180,11 @@ Regel Acceptatie
 `;
 
       const result = engine.evaluate(code, {
-        'foutA': true,
-        'foutB': true,  // Two errors - exceeds limit
-        'foutC': false
+        'fout A': true,
+        'fout B': true,  // Two errors - exceeds limit
+        'fout C': false
       });
-      
+
       expect(result.success).toBe(true);
       expect(result.value?.value).toContain('Rule skipped');
     });
@@ -203,11 +203,11 @@ Regel Goedkeuring
 `;
 
       const result = engine.evaluate(code, {
-        'goedkeuringA': true,
-        'goedkeuringB': true,
-        'goedkeuringC': false
+        'goedkeuring A': true,
+        'goedkeuring B': true,
+        'goedkeuring C': false
       });
-      
+
       expect(result.success).toBe(true);
       expect(result.value).toEqual({ type: 'boolean', value: true });
     });
@@ -224,11 +224,11 @@ Regel Goedkeuring
 `;
 
       const result = engine.evaluate(code, {
-        'goedkeuringA': true,
-        'goedkeuringB': true,
-        'goedkeuringC': true  // All three - not exactly two
+        'goedkeuring A': true,
+        'goedkeuring B': true,
+        'goedkeuring C': true  // All three - not exactly two
       });
-      
+
       expect(result.success).toBe(true);
       expect(result.value?.value).toContain('Rule skipped');
     });
@@ -250,12 +250,12 @@ Regel SpecialeStatus
 `;
 
       const result = engine.evaluate(code, {
-        'pensioenleeftijd': 65,
+        'pensioen leeftijd': 65,
         'nationaliteit': 'NL',
-        'isstudent': true,
+        'is student': true,
         'leeftijd': 25
       });
-      
+
       expect(result.success).toBe(true);
       // When the rule succeeds, it returns the boolean 'true' value from 'waar'
       expect(result.value).toEqual({ type: 'boolean', value: true });
@@ -276,12 +276,12 @@ Regel SpecialeStatus
 `;
 
       const result = engine.evaluate(code, {
-        'pensioenleeftijd': 65,
+        'pensioen leeftijd': 65,
         'nationaliteit': 'US',  // Outer condition fails
-        'isstudent': true,
+        'is student': true,
         'leeftijd': 25
       });
-      
+
       expect(result.success).toBe(true);
       // Model still executes, even if rules are skipped
       expect(result.value?.value).toBe('Model executed');
@@ -303,7 +303,7 @@ Regel InvalideRegel
         'leeftijd': 30,
         'naam': 'Jan'
       });
-      
+
       // The error should be caught and the model still runs
       // But the rule will be skipped due to error in condition evaluation
       expect(result.success).toBe(true);
