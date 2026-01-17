@@ -312,7 +312,225 @@ interface RuntimeContext {
 
 This allows rules like "distribute naar rato van het inkomen" where income is an attribute of the object being distributed to.
 
-## 8. Parser Integration Challenges
+## 8. Runtime Engine Pipeline
+
+### Four-Phase Execution Model
+
+The TypeScript engine mirrors Python's multi-phase execution to handle decision table dependencies:
+
+```typescript
+// engine.ts execution phases
+execute(model: DomainModel, context: RuntimeContext): void {
+  // Phase 1: Pre-rule decision tables (e.g., "Woonregio factor")
+  this.executeDecisionTables(model.beslistabellen, context, 'pre-rule');
+  
+  // Phase 2: Regular rules (Gelijkstelling, Kenmerktoekenning, etc.)
+  this.executeRules(model.rules, context);
+  
+  // Phase 3: Post-rule decision tables (e.g., "Belasting op basis van reisduur")
+  this.executeDecisionTables(model.beslistabellen, context, 'post-rule');
+  
+  // Phase 4: Re-run Gelijkstelling rules that depend on Phase 3 outputs
+  this.rerunDependentRules(model.rules, context);
+}
+```
+
+**Why Phase 4 Exists**: Rules like "te betalen belasting" sum values computed by decision tables. Without re-execution after Phase 3, they use stale Phase 1 values (0 instead of computed amounts).
+
+**Critical Implementation Detail**: The Phase 4 filter must check *both* `rule.result?.type` and `rule.resultaat?.type` because `parseModel()` produces English property names while inline parsing produces Dutch names.
+
+### Decision Table Target Resolution
+
+Decision tables store results on objects, not global variables. The engine deduces target type from the table's result column:
+
+```typescript
+private deduceBeslistabelTargetType(table: DecisionTable, context: RuntimeContext): string | null {
+  const targetPath = table.parsedResult?.targetExpression?.path;
+  if (targetPath?.length > 0) {
+    // Resolve role names: "passagier" → "Natuurlijk persoon"
+    return this.resolveRoleToObjectType(targetPath[0], context) || targetPath[0];
+  }
+  return null;
+}
+```
+
+## 9. Kenmerken vs Attributen Architecture
+
+### Separate Storage for Boolean Characteristics
+
+Python's `RuntimeObject` explicitly separates kenmerken (boolean flags) from attributen (typed values):
+
+```python
+# Python RuntimeObject
+class RuntimeObject:
+    attributen: Dict[str, Value]
+    kenmerken: Dict[str, bool]  # Separate storage
+```
+
+TypeScript mirrors this in `RuntimeContext`:
+
+```typescript
+// context.ts
+private objectKenmerken: Map<string, Map<string, Map<string, boolean>>> = new Map();
+// Structure: Map<objectType, Map<objectId, Map<kenmerkName, boolean>>>
+
+setKenmerk(objectType: string, objectId: string, name: string, value: boolean): void {
+  const canonicalType = this.canonicalizeTypeName(objectType);
+  // ... store in objectKenmerken, not objectAttributes
+}
+
+getKenmerk(objectType: string, objectId: string, name: string): boolean | undefined {
+  // Normalize and lookup with fallback matching
+}
+```
+
+**Why Separation Matters**:
+1. **Type clarity**: Kenmerken are always `boolean`, attributen can be any `Value`
+2. **Lookup patterns**: Kenmerken use prefix-stripped matching ("is duurzaam" → "duurzaam")
+3. **Validation**: Expected booleans in scenarios trigger kenmerk lookup, not attribute lookup
+
+### Kenmerk Name Normalization
+
+Kenmerken can have various prefixes that must be normalized for matching:
+
+```typescript
+private normalizeKenmerkName(name: string): string {
+  let normalized = name.toLowerCase().trim();
+  // Strip common prefixes
+  for (const prefix of ['is ', 'heeft ', 'een ', 'de ', 'het ']) {
+    if (normalized.startsWith(prefix)) {
+      normalized = normalized.substring(prefix.length);
+      break;
+    }
+  }
+  return normalized;
+}
+```
+
+**Special Case - Bezittelijk Kenmerken**: Some kenmerken use possessive patterns like "recht op duurzaamheidskorting" (no "is " prefix). The executor detects these via "recht op" or "heeft " patterns and preserves the original name.
+
+## 10. Central Type Deduction
+
+### Unified Rule Target Resolution
+
+The engine uses a single `deduceRuleTargetType()` method handling all 8 result types, matching Python's architecture:
+
+```typescript
+private deduceRuleTargetType(rule: Rule, context: RuntimeContext): string | null {
+  const resultaat = rule.result || rule.resultaat;
+  if (!resultaat) return null;
+
+  switch (resultaat.type) {
+    case 'Gelijkstelling':
+    case 'KenmerkToekenning':
+    case 'Initialisatie':
+      return this.deduceTypeFromAttributeTarget(resultaat, rule, context);
+    case 'ObjectCreation':
+      return this.deduceTypeForObjectCreation(resultaat, rule, context);
+    case 'Dagsoortdefinitie':
+      return 'Dag';
+    case 'Consistentieregel':
+      return this.deduceTypeForConsistentieregel(resultaat, rule, context);
+    case 'Verdeling':
+      return this.deduceTypeForVerdeling(resultaat, context);
+    case 'FeitCreatie':
+      return this.deduceTypeForFeitCreatie(resultaat, context);
+    default:
+      return null;
+  }
+}
+```
+
+**Why Centralization**: Previously, type deduction was scattered across Engine and RuleExecutor (~250 lines in 3 methods). Centralization eliminates duplication and ensures consistent resolution across all rule types.
+
+### Role-to-ObjectType Resolution
+
+Role names like "passagier" must resolve to object types like "Natuurlijk persoon":
+
+```typescript
+private resolveRoleToObjectType(roleName: string, context: RuntimeContext): string | null {
+  // Check FeitType definitions
+  for (const feitType of context.getFeitTypes()) {
+    for (const role of feitType.roles) {
+      if (role.name.toLowerCase().includes(roleName.toLowerCase())) {
+        return role.objectType;
+      }
+    }
+  }
+  // Fallback: check if matches a known objectType directly
+  return context.hasObjectType(roleName) ? roleName : null;
+}
+```
+
+**Case-Insensitive Matching**: Rule conditions use lowercase ("vlucht"), but object types are capitalized ("Vlucht"). The deducer tries both forms.
+
+## 11. Dutch Text Normalization Utilities
+
+### Article Stripping
+
+Dutch articles must be stripped for canonical name matching:
+
+```typescript
+function extractParameterName(text: string): string {
+  let name = text.trim();
+  for (const article of ['de ', 'het ', 'een ']) {
+    if (name.toLowerCase().startsWith(article)) {
+      name = name.substring(article.length);
+      break;
+    }
+  }
+  return name;
+}
+```
+
+### Possessive Pronoun Handling
+
+Possessive pronouns navigate from `current_instance` to related objects:
+
+```typescript
+// "zijn reis" → lookup "reis" via FeitType from current_instance
+const possessivePrefixes = ['zijn ', 'haar ', 'hun '];
+for (const prefix of possessivePrefixes) {
+  if (variableName.toLowerCase().startsWith(prefix)) {
+    const lookupName = variableName.substring(prefix.length);
+    return this.resolveFeitTypeRelation(lookupName, currentInstance);
+  }
+}
+```
+
+### Compound Attribute Detection
+
+Attributes with "van" can be single names or navigation paths:
+
+```typescript
+// "luchthaven van vertrek" is ONE attribute, not navigation
+const normalizedText = extractParameterName(attrText);
+if (this.objectTypeAttributes.has(normalizedText)) {
+  // Treat as single attribute, don't split on "van"
+  return { type: 'attribute_reference', attribute: normalizedText };
+}
+// Otherwise, split into navigation path
+```
+
+**Key Insight**: Normalize *before* comparing against known attributes. The domain model stores normalized names; raw text includes articles.
+
+### Unit Suffix Stripping
+
+Decision table headers include unit suffixes that must be stripped:
+
+```typescript
+function stripUnitSuffix(text: string): string {
+  const patterns = [' in minuten', ' in km', ' in EUR', ' in jaren'];
+  for (const pattern of patterns) {
+    if (text.endsWith(pattern)) {
+      return text.slice(0, -pattern.length);
+    }
+  }
+  return text;
+}
+```
+
+## 12. Parser Integration Challenges
 
 ### Token Preservation and Whitespace (Commit 8291d33)
 
@@ -391,7 +609,7 @@ AbsValFuncExpr: DE_ABSOLUTE_WAARDE_VAN LPAREN expressie RPAREN;
 
 **Engineering Trade-off**: More permissive grammar requires runtime type checking, but enables natural mathematical expressions.
 
-## 9. Performance Optimizations
+## 13. Performance Optimizations
 
 ### Early Symbol Table Construction
 
@@ -428,7 +646,7 @@ class TimelineExpression implements Expression {
 }
 ```
 
-## 10. Testing Strategy and Evolution
+## 14. Testing Strategy and Evolution
 
 ### Test-Driven Porting
 
@@ -454,7 +672,7 @@ The TypeScript implementation was built by porting Python tests one by one:
 
 Both represent deliberate design choices rather than implementation gaps.
 
-## Critical Maintenance Notes
+## 15. Critical Maintenance Notes
 
 ### 1. **The 81KB Visitor File**
 The large visitor (regelspraak-visitor-impl.ts) is intentional. Attempts to split it break TypeScript's type inference for the visitor pattern. Accept the size as a necessary trade-off.
@@ -471,7 +689,7 @@ The unit system's explicit token enumeration (METER, KILOMETER, etc.) seems verb
 ### 5. **Immutable AST Discipline**
 Never add mutable state to AST nodes. The execution engine depends on AST immutability for correctness.
 
-## Architectural Insights
+## 16. Architectural Insights
 
 ### What Worked Well:
 
@@ -495,7 +713,7 @@ Never add mutable state to AST nodes. The execution engine depends on AST immuta
 4. **Strategy Pattern**: For pluggable distribution methods
 5. **Memento Pattern**: For timeline value caching
 
-## Future Enhancement Paths
+## 17. Future Enhancement Paths
 
 1. **Incremental Parsing**: For IDE integration with real-time feedback
 2. **Parallel Execution**: Rules are often independent and parallelizable
@@ -503,7 +721,7 @@ Never add mutable state to AST nodes. The execution engine depends on AST immuta
 4. **Type Inference**: Deduce attribute types from usage patterns
 5. **Debugging Support**: Step-through execution with breakpoints
 
-## Conclusion
+## 18. Conclusion
 
 The TypeScript implementation demonstrates that a strongly-typed language can successfully implement a natural language DSL. The key insight is that compile-time type safety actually makes natural language processing easier by catching ambiguities early.
 
