@@ -312,7 +312,9 @@ export class Engine implements IEngine {
         // Phase 4: Re-run Gelijkstelling rules that depend on decision tables
         // ============================================================
         for (const rule of (ast.regels || [])) {
-          if (rule.resultaat?.type !== 'Gelijkstelling') continue;
+          // Support both result (English from parseModel) and resultaat (Dutch) property names
+          const resultType = rule.result?.type || rule.resultaat?.type;
+          if (resultType !== 'Gelijkstelling') continue;
 
           const targetType = this.deduceRuleTargetType(rule, context);
           if (!targetType) {
@@ -483,7 +485,9 @@ export class Engine implements IEngine {
         // ============================================================
         for (const rule of (ast as any).rules || []) {
           // Only re-run Gelijkstelling rules
-          if (rule.resultaat?.type !== 'Gelijkstelling') continue;
+          // Support both result (English from parseModel) and resultaat (Dutch) property names
+          const resultType = rule.result?.type || rule.resultaat?.type;
+          if (resultType !== 'Gelijkstelling') continue;
 
           const targetType = this.deduceRuleTargetType(rule, context);
           if (!targetType) {
