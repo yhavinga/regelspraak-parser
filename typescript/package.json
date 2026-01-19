@@ -5,6 +5,9 @@
   "main": "dist/index.js",
   "module": "dist/index.mjs",
   "types": "dist/index.d.ts",
+  "bin": {
+    "regelspraak": "./dist/cli.js"
+  },
   "exports": {
     ".": {
       "import": "./dist/index.mjs",
@@ -24,7 +27,7 @@
   "author": "Yeb Havinga <yhavinga@gmail.com>",
   "scripts": {
     "prebuild": "node scripts/extract-multiword.js",
-    "build": "tsc && npm run check-size",
+    "build": "tsc && (chmod +x dist/cli.js || true) && npm run check-size",
     "build:browser": "node scripts/build-for-browser.js",
     "test": "jest --runInBand",
     "test:watch": "jest --watch",
@@ -44,6 +47,7 @@
   ],
   "license": "MIT",
   "devDependencies": {
+    "@types/express": "^5.0.0",
     "@types/jest": "^29.5.12",
     "@types/node": "^20.11.24",
     "@typescript-eslint/eslint-plugin": "^7.1.0",
@@ -58,6 +62,7 @@
   "dependencies": {
     "antlr4": "^4.13.2",
     "antlr4-c3": "^3.4.4",
-    "decimal.js": "^10.4.3"
+    "decimal.js": "^10.4.3",
+    "express": "^4.21.2"
   }
 }

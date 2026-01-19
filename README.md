@@ -46,35 +46,65 @@ The entire Dutch TOKA flight tax law: 291 lines of RegelSpraak. Readable by lawm
 
 Real example: The entire TOKA implementation including tax calculation, treinmiles distribution, and decision tables is 291 lines of RegelSpraak vs ~3000 lines of Java.
 
-## Quick Start
+## Installation
 
-### Prerequisites
-- Python 3.7+
-- Java (for ANTLR): `brew install openjdk` (macOS) or `apt install default-jre` (Linux)
-
-### Installation
+### Python
 
 ```bash
-# 1. Download ANTLR JAR (required)
-mkdir -p lib
-curl -o lib/antlr-4.13.1-complete.jar https://www.antlr.org/download/antlr-4.13.1-complete.jar
-
-# 2. Setup Python environment
-python3 -m venv venv
-source venv/bin/activate  # On Windows: venv\Scripts\activate
-
-# 3. Install dependencies
-pip install -r requirements.txt
-pip install -e .
-
-# 4. Generate parser files (required for first-time setup)
-make parser-python
-
-# 5. Verify installation
-make test
+pip install .
 ```
 
-### Basic Usage
+Or from built wheel:
+```bash
+pip install dist/regelspraak-0.2.0-py3-none-any.whl
+```
+
+### TypeScript
+
+```bash
+cd typescript
+npm install
+npm run build
+```
+
+## Usage
+
+### TypeScript
+
+**Programmatic API:**
+
+```typescript
+import { Engine, Context } from 'regelspraak';
+
+const engine = new Engine();
+
+const result = engine.parseModel(`
+    Objecttype Passagier
+        de leeftijd Numeriek;
+        is minderjarig kenmerk;
+
+    Regel minderjarig
+        Een passagier is minderjarig indien zijn leeftijd < 18.
+`);
+
+const context = new Context(result.model);
+context.createObject('Passagier', 'p1', { leeftijd: { type: 'number', value: 15 } });
+
+engine.execute(result.model, context);
+// Passagier p1 now has kenmerk 'minderjarig' = true
+```
+
+**CLI (for coding agents):**
+
+```bash
+# Validate RegelSpraak files
+npx regelspraak validate rules.rs
+
+# Execute rules with JSON input data
+npx regelspraak run rules.rs --data input.json > output.json
+```
+
+### Python
 
 **CLI Validation:**
 ```bash
@@ -103,7 +133,7 @@ Key REPL features:
 - `py: <code>` - Execute Python (access `context`, `RuntimeObject`, `Value`)
 - `Evaluate <instance> is <kenmerk>` - Quick expression evaluation
 
-### Programmatic API
+**Programmatic API:**
 
 ```python
 from regelspraak import parse_text, RuntimeContext, RuntimeObject, Evaluator
@@ -140,7 +170,7 @@ evaluator.execute_model(model)
 print(passagier.attributen["belasting"].value)  # 0 EUR (minor pays no tax)
 ```
 
-### REPL Session Example
+**REPL Session Example:**
 
 ```
 RegelSpraak> :load tests/resources/steelthread_example.rs
@@ -189,16 +219,11 @@ All in 291 lines of auditable RegelSpraak vs thousands of lines of Java/Python.
 
 ```
 regelspraak-parser/
-├── grammar/                # ANTLR grammar files
-├── src/regelspraak/        # Core implementation
-│   ├── parsing.py         # Parser facade
-│   ├── builder.py         # AST builder
-│   ├── ast.py             # AST nodes
-│   ├── engine.py          # Execution engine
-│   ├── runtime.py         # Runtime data structures
-│   └── cli.py             # Command-line interface
-├── tests/                  # 568+ unit tests
-└── specification/          # Language specification
+├── grammar/                # ANTLR grammar (source of truth)
+├── src/regelspraak/        # Python implementation
+├── typescript/src/         # TypeScript implementation
+├── tests/                  # 570+ unit tests
+└── specification/          # Language specification v2.1.0
 ```
 
 ## Documentation
@@ -216,16 +241,29 @@ make test
 python -m unittest discover -s tests
 ```
 
+## Development
+
+Grammar changes require Java and ANTLR:
+
+```bash
+# One-time setup: download ANTLR
+mkdir -p lib
+curl -o lib/antlr-4.13.1-complete.jar https://www.antlr.org/download/antlr-4.13.1-complete.jar
+
+# Regenerate parsers after editing grammar/*.g4
+make parser
+```
+
 ## Features Implemented
 
-- ✅ All rule types (Gelijkstelling, Kenmerktoekenning, Consistentie, etc.)
-- ✅ Decision tables (Beslistabel) and distribution rules (Verdeling)
-- ✅ Object relationships (Feittype) and creation rules
-- ✅ Timeline expressions and dimensions
-- ✅ Filtered collections (Subselectie) and recursion
-- ✅ Advanced predicates (elfproef, dagsoort, uniqueness)
-- ✅ Compound predicates with quantifiers
-- ✅ All aggregation functions
+- All rule types (Gelijkstelling, Kenmerktoekenning, Consistentie, etc.)
+- Decision tables (Beslistabel) and distribution rules (Verdeling)
+- Object relationships (Feittype) and creation rules
+- Timeline expressions and dimensions
+- Filtered collections (Subselectie) and recursion
+- Advanced predicates (elfproef, dagsoort, uniqueness)
+- Compound predicates with quantifiers
+- All aggregation functions
 
 ## Contributing
 
