@@ -1,7 +1,7 @@
 {
-  "name": "@regelspraak/parser",
-  "version": "0.0.1",
-  "description": "TypeScript implementation of RegelSpraak parser",
+  "name": "regelspraak",
+  "version": "0.2.0",
+  "description": "TypeScript implementation of RegelSpraak DSL - Dutch business rules engine",
   "main": "dist/index.js",
   "module": "dist/index.mjs",
   "types": "dist/index.d.ts",
@@ -12,6 +12,16 @@
       "types": "./dist/index.d.ts"
     }
   },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/yhavinga/regelspraak-parser.git",
+    "directory": "typescript"
+  },
+  "homepage": "https://github.com/yhavinga/regelspraak-parser#readme",
+  "bugs": {
+    "url": "https://github.com/yhavinga/regelspraak-parser/issues"
+  },
+  "author": "Yeb Havinga <yhavinga@gmail.com>",
   "scripts": {
     "prebuild": "node scripts/extract-multiword.js",
     "build": "tsc && npm run check-size",
@@ -27,7 +37,10 @@
     "regelspraak",
     "parser",
     "dsl",
-    "dutch"
+    "dutch",
+    "business-rules",
+    "rules-engine",
+    "antlr4"
   ],
   "license": "MIT",
   "devDependencies": {

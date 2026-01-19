@@ -1,0 +1,48 @@
+# Dependencies
+node_modules/
+
+# Source files (TypeScript)
+src/
+scripts/
+*.ts
+!*.d.ts
+
+# Test files
+tests/
+*.test.ts
+*.test.js
+test-*.js
+coverage/
+jest.config.js
+
+# Config files
+tsconfig.json
+tsconfig.*.json
+.eslintrc.js
+.eslintrc.json
+.prettierrc
+.editorconfig
+
+# Build/Development
+.tsbuildinfo
+*.log
+.DS_Store
+.env
+.vscode/
+.idea/
+
+# Examples and debug files
+examples/
+debug*.ts
+debug*.js
+
+# Benchmark files
+dist-benchmark/
+
+# Documentation (internal)
+*.md
+!README.md
+
+# Makefile and scripts
+Makefile
+*.sh

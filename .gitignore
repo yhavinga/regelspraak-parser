@@ -7,8 +7,8 @@ __pycache__/
 *.pyo
 *.pyd
 
-# ANTLR Generated Code
-src/regelspraak/_antlr/
+# ANTLR Generated Code (kept in repo for distribution)
+# src/regelspraak/_antlr/
 
 # TypeScript ANTLR Generated Code (kept in repo for distribution)
 # Uncomment during active grammar development to avoid conflicts:

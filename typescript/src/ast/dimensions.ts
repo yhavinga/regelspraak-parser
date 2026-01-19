@@ -14,6 +14,7 @@ export interface Dimension {
 export interface DimensionLabel {
   position: number;
   label: string;
+  dimension_name?: string;
 }
 
 export interface DimensionedAttribute {
