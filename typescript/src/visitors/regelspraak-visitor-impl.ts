@@ -68,7 +68,7 @@ import {
   FeitCreatie,
   VariableAssignment
 } from '../ast/rules';
-import { ObjectTypeDefinition, KenmerkSpecification, AttributeSpecification, DataType, DomainReference } from '../ast/object-types';
+import { ObjectTypeDefinition, KenmerkSpecification, AttributeSpecification, DataType, DomainReference, DomainDefinition } from '../ast/object-types';
 import { ParameterDefinition } from '../ast/parameters';
 import { UnitSystemDefinition, UnitDefinition, UnitConversion } from '../ast/unit-systems';
 import { createSourceLocation } from '../ast/location';
@@ -133,7 +133,7 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
           model.dimensions.push(result);
         } else if (result.type === 'Dagsoort' || result.type === 'DagsoortDefinitie') {
           model.dagsoortDefinities.push(result);
-        } else if (result.type === 'DomainReference') {
+        } else if (result.type === 'DomainDefinition') {
           model.domains.push(result);
         } else if (result.type === 'FeitType') {
           model.feitTypes.push(result);
@@ -3613,6 +3613,76 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
       rollen,
       cardinalityDescription
     };
+    this.setLocation(node, ctx);
+    return node;
+  }
+
+  visitDomeinDefinition(ctx: any): DomainDefinition {
+    // Extract domain name from the name token (IDENTIFIER)
+    const name = ctx.IDENTIFIER().getText();
+
+    // Get the domain type context
+    const domeinType = ctx.domeinType();
+
+    // Base types are extracted from the grammar tokens to match lexer definitions
+    let baseType: 'Numeriek' | 'Tekst' | 'Boolean' | 'Datum in dagen' | 'Datum en tijd in millisecondes' | 'Enumeratie';
+    let decimals: number | undefined;
+    let enumerationValues: string[] | undefined;
+
+    if (domeinType.numeriekDatatype()) {
+      // NUMERIEK token text from lexer
+      baseType = domeinType.numeriekDatatype().NUMERIEK().getText() as 'Numeriek';
+      // Extract decimals if present: "getal met 2 decimalen"
+      const numCtx = domeinType.numeriekDatatype();
+      const getalSpec = numCtx.getalSpecificatie();
+      if (getalSpec && getalSpec.NUMBER()) {
+        decimals = parseInt(getalSpec.NUMBER().getText());
+      }
+    } else if (domeinType.enumeratieSpecificatie()) {
+      // ENUMERATIE token text from lexer
+      baseType = domeinType.enumeratieSpecificatie().ENUMERATIE().getText() as 'Enumeratie';
+      const enumCtx = domeinType.enumeratieSpecificatie();
+      enumerationValues = enumCtx.ENUM_LITERAL_list()
+        .map((lit: any) => {
+          // Remove surrounding quotes from enum literals
+          const text = lit.getText();
+          return text.replace(/^'|'$/g, '');
+        });
+    } else if (domeinType.tekstDatatype()) {
+      // TEKST token text from lexer
+      baseType = domeinType.tekstDatatype().TEKST().getText() as 'Tekst';
+    } else if (domeinType.booleanDatatype()) {
+      // BOOLEAN token text from lexer
+      baseType = domeinType.booleanDatatype().BOOLEAN().getText() as 'Boolean';
+    } else if (domeinType.datumTijdDatatype()) {
+      // datumTijdDatatype is either DATUM_IN_DAGEN or DATUM_TIJD_MILLIS
+      // Extract the actual token text to match lexer definition
+      const datumCtx = domeinType.datumTijdDatatype();
+      if (datumCtx.DATUM_TIJD_MILLIS && datumCtx.DATUM_TIJD_MILLIS()) {
+        baseType = datumCtx.DATUM_TIJD_MILLIS().getText() as 'Datum en tijd in millisecondes';
+      } else {
+        baseType = datumCtx.DATUM_IN_DAGEN().getText() as 'Datum in dagen';
+      }
+    } else {
+      // Fallback - should not happen with valid grammar input
+      baseType = 'Tekst';
+    }
+
+    // Extract unit if present: "met eenheid m"
+    let unit: string | undefined;
+    if (ctx.MET_EENHEID() && ctx.eenheidExpressie()) {
+      unit = this.extractTextWithSpaces(ctx.eenheidExpressie());
+    }
+
+    const node: DomainDefinition = {
+      type: 'DomainDefinition',
+      name,
+      baseType,
+      unit,
+      decimals,
+      enumerationValues
+    };
+
     this.setLocation(node, ctx);
     return node;
   }

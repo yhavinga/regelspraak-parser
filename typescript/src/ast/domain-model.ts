@@ -8,7 +8,7 @@ import { Rule, RegelGroep } from './rules';
 import { DecisionTable } from './decision-tables';
 import { Dimension } from './dimensions';
 import { DagsoortDefinitie } from './dagsoort';
-import { DomainReference } from './object-types';
+import { DomainReference, DomainDefinition } from './object-types';
 import { UnitSystemDefinition } from './unit-systems';
 
 export interface DomainModel {
@@ -19,7 +19,7 @@ export interface DomainModel {
   beslistabels: DecisionTable[];
   dimensions: Dimension[];
   dagsoortDefinities: DagsoortDefinitie[];
-  domains: DomainReference[];
+  domains: DomainDefinition[];
   feitTypes: any[]; // TODO: Define FeitType interface when implemented
   unitSystems: UnitSystemDefinition[];
 }

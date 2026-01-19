@@ -43,3 +43,14 @@ export interface DomainReference {
   type: 'DomainReference';
   domain: string;
 }
+
+export interface DomainDefinition {
+  type: 'DomainDefinition';
+  name: string;
+  // Base types match exact lexer token texts from RegelSpraakLexer.g4
+  baseType: 'Numeriek' | 'Tekst' | 'Boolean' | 'Datum in dagen' | 'Datum en tijd in millisecondes' | 'Enumeratie';
+  unit?: string;
+  decimals?: number;
+  enumerationValues?: string[];
+  location?: SourceLocation;
+}
