@@ -989,17 +989,102 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
     return this.visit(ctx.expressie());
   }
 
+  visitDatumExpressie(ctx: any): Expression {
+    // Handle datumExpressie rule for date arithmetic per spec section 6.11.
+    // Grammar:
+    // datumExpressie
+    //   : datumLiteral                                              // e.g., 1 januari 2024
+    //   | REKENDATUM                                                // keyword
+    //   | REKENJAAR                                                 // keyword
+    //   | DE_DATUM_MET LPAREN primaryExpression COMMA primaryExpression COMMA primaryExpression RPAREN
+    //   | DE_EERSTE_PAASDAG_VAN LPAREN primaryExpression RPAREN
+    //   | attribuutReferentie                                       // de geboortedatum van de persoon
+    //   | bezieldeReferentie                                        // zijn geboortedatum
+    //   | parameterMetLidwoord                                      // de parameter datum
+    //   | LPAREN expressie RPAREN                                   // (datum expressie)
+
+    if (ctx.datumLiteral()) {
+      const dateText = ctx.datumLiteral().getText();
+      const node = {
+        type: 'DateLiteral',
+        value: dateText
+      } as any;
+      this.setLocation(node, ctx);
+      return node;
+    }
+
+    if (ctx.REKENDATUM()) {
+      const node = {
+        type: 'ParameterReference',
+        name: 'rekendatum'
+      } as any;
+      this.setLocation(node, ctx);
+      return node;
+    }
+
+    if (ctx.REKENJAAR()) {
+      const node = {
+        type: 'ParameterReference',
+        name: 'rekenjaar'
+      } as any;
+      this.setLocation(node, ctx);
+      return node;
+    }
+
+    if (ctx.DE_DATUM_MET && ctx.DE_DATUM_MET()) {
+      // de datum met (jaar, maand, dag)
+      const yearExpr = this.visit(ctx.primaryExpression(0));
+      const monthExpr = this.visit(ctx.primaryExpression(1));
+      const dayExpr = this.visit(ctx.primaryExpression(2));
+      const node = {
+        type: 'FunctionCall',
+        name: 'datum_met',
+        arguments: [yearExpr, monthExpr, dayExpr]
+      } as any;
+      this.setLocation(node, ctx);
+      return node;
+    }
+
+    if (ctx.DE_EERSTE_PAASDAG_VAN && ctx.DE_EERSTE_PAASDAG_VAN()) {
+      const yearExpr = this.visit(ctx.primaryExpression(0));
+      const node = {
+        type: 'FunctionCall',
+        name: 'eerste_paasdag_van',
+        arguments: [yearExpr]
+      } as any;
+      this.setLocation(node, ctx);
+      return node;
+    }
+
+    if (ctx.attribuutReferentie()) {
+      return this.visit(ctx.attribuutReferentie());
+    }
+
+    if (ctx.bezieldeReferentie()) {
+      return this.visit(ctx.bezieldeReferentie());
+    }
+
+    if (ctx.parameterMetLidwoord()) {
+      return this.visit(ctx.parameterMetLidwoord());
+    }
+
+    if (ctx.expressie()) {
+      // Parenthesized expression
+      return this.visit(ctx.expressie());
+    }
+
+    console.warn(`Unknown datumExpressie type: ${ctx.getText()}`);
+    return { type: 'Unknown', text: ctx.getText() } as any;
+  }
+
   visitDateCalcExpr(ctx: any): Expression {
-    // Handle DateCalcExpr - check if it's actually a date calculation or arithmetic with units
-    const left = this.visit(ctx.primaryExpression(0));
-    const right = this.visit(ctx.primaryExpression(1));
-    // FIX: Grammar uses timeUnit, not identifier
+    // Handle DateCalcExpr - date arithmetic: datumExpressie (PLUS | MIN) primaryExpression timeUnit
+    const left = this.visitDatumExpressie(ctx.datumExpressie());
+    const right = this.visit(ctx.primaryExpression());
     const timeUnitCtx = ctx.timeUnit();
     const identifier = timeUnitCtx?.getText() || '';
 
-    // The grammar's DateCalcExpr rule captures the timeUnit token separately from the right operand.
-    // Example: "1 uur plus 30 minuut" → left=1 uur, right=30, timeUnit=minuut
-    // We need to attach the timeUnit to the right operand so unit arithmetic works correctly.
+    // Attach the timeUnit to the right operand so date arithmetic works correctly.
     if (right.type === 'NumberLiteral' && identifier) {
       (right as NumberLiteral).unit = identifier;
     }

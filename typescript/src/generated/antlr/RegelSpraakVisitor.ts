@@ -204,8 +204,8 @@ import { BegrenzingAfrondingExprContext } from "./RegelSpraakParser";
 import { PercentageOfExprContext } from "./RegelSpraakParser";
 import { MinValFuncExprContext } from "./RegelSpraakParser";
 import { MaxAlleAttribuutExprContext } from "./RegelSpraakParser";
-import { BezieldeRefExprContext } from "./RegelSpraakParser";
 import { DateCalcExprContext } from "./RegelSpraakParser";
+import { BezieldeRefExprContext } from "./RegelSpraakParser";
 import { MinAlleAttribuutExprContext } from "./RegelSpraakParser";
 import { AfrondingExprContext } from "./RegelSpraakParser";
 import { LaatsteDatumFuncExprContext } from "./RegelSpraakParser";
@@ -1544,19 +1544,19 @@ export default class RegelSpraakVisitor<Result> extends ParseTreeVisitor<Result>
 	 */
 	visitMaxAlleAttribuutExpr?: (ctx: MaxAlleAttribuutExprContext) => Result;
 	/**
-	 * Visit a parse tree produced by the `BezieldeRefExpr`
-	 * labeled alternative in `RegelSpraakParser.primaryExpression`.
-	 * @param ctx the parse tree
-	 * @return the visitor result
-	 */
-	visitBezieldeRefExpr?: (ctx: BezieldeRefExprContext) => Result;
-	/**
 	 * Visit a parse tree produced by the `DateCalcExpr`
 	 * labeled alternative in `RegelSpraakParser.primaryExpression`.
 	 * @param ctx the parse tree
 	 * @return the visitor result
 	 */
 	visitDateCalcExpr?: (ctx: DateCalcExprContext) => Result;
+	/**
+	 * Visit a parse tree produced by the `BezieldeRefExpr`
+	 * labeled alternative in `RegelSpraakParser.primaryExpression`.
+	 * @param ctx the parse tree
+	 * @return the visitor result
+	 */
+	visitBezieldeRefExpr?: (ctx: BezieldeRefExprContext) => Result;
 	/**
 	 * Visit a parse tree produced by the `MinAlleAttribuutExpr`
 	 * labeled alternative in `RegelSpraakParser.primaryExpression`.

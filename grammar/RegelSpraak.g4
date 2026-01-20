@@ -711,7 +711,21 @@ datumVergelijkingsOperatorMeervoud
 // Expression types for predicates
 getalExpressie : expressie ;
 tekstExpressie : expressie ;
-datumExpressie : expressie ;
+// Date expression for date arithmetic per spec section 6.11
+// This rule restricts the left operand of DateCalcExpr to only date-typed expressions
+// NOT numbers with time units (which caused the grammar bug where "1 uur plus 30 minuut"
+// was incorrectly parsed as DateCalcExpr instead of numeric addition)
+datumExpressie
+    : datumLiteral                                              // e.g., 1 januari 2024
+    | REKENDATUM                                                // keyword
+    | REKENJAAR                                                 // keyword
+    | DE_DATUM_MET LPAREN primaryExpression COMMA primaryExpression COMMA primaryExpression RPAREN  // de datum met (y,m,d)
+    | DE_EERSTE_PAASDAG_VAN LPAREN primaryExpression RPAREN     // eerste paasdag
+    | attribuutReferentie                                       // de geboortedatum van de persoon
+    | bezieldeReferentie                                        // zijn geboortedatum
+    | parameterMetLidwoord                                      // de parameter datum
+    | LPAREN expressie RPAREN                                   // (datum expressie)
+    ;
 
 
 // §13.4.2 Variabele Deel
@@ -860,7 +874,7 @@ primaryExpression : // Corresponds roughly to terminals/functions/references in 
     | DE DAG UIT primaryExpression                                          # DagUitFuncExpr // EBNF 13.4.16.20
     | DE_DATUM_MET LPAREN primaryExpression COMMA primaryExpression COMMA primaryExpression RPAREN  # DatumMetFuncExpr // EBNF 13.4.16.31
     | DE_EERSTE_PAASDAG_VAN LPAREN primaryExpression RPAREN                    # PasenFuncExpr // EBNF 13.4.16.32
-    | primaryExpression (PLUS | MIN) primaryExpression timeUnit            # DateCalcExpr // EBNF 13.4.16.33
+    | datumExpressie (PLUS | MIN) primaryExpression timeUnit              # DateCalcExpr // EBNF 13.4.16.33 - spec §6.11: left must be date expression
     | EERSTE_VAN primaryExpression (COMMA primaryExpression)* EN primaryExpression          # EersteDatumFuncExpr // EBNF 13.4.16.34
     | LAATSTE_VAN primaryExpression (COMMA primaryExpression)* EN primaryExpression         # LaatsteDatumFuncExpr // EBNF 13.4.16.35
 

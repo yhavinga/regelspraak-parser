@@ -1817,21 +1817,21 @@ class RegelSpraakListener(ParseTreeListener):
         pass
 
 
-    # Enter a parse tree produced by RegelSpraakParser#BezieldeRefExpr.
-    def enterBezieldeRefExpr(self, ctx:RegelSpraakParser.BezieldeRefExprContext):
-        pass
-
-    # Exit a parse tree produced by RegelSpraakParser#BezieldeRefExpr.
-    def exitBezieldeRefExpr(self, ctx:RegelSpraakParser.BezieldeRefExprContext):
-        pass
-
-
     # Enter a parse tree produced by RegelSpraakParser#DateCalcExpr.
     def enterDateCalcExpr(self, ctx:RegelSpraakParser.DateCalcExprContext):
         pass
 
     # Exit a parse tree produced by RegelSpraakParser#DateCalcExpr.
     def exitDateCalcExpr(self, ctx:RegelSpraakParser.DateCalcExprContext):
+        pass
+
+
+    # Enter a parse tree produced by RegelSpraakParser#BezieldeRefExpr.
+    def enterBezieldeRefExpr(self, ctx:RegelSpraakParser.BezieldeRefExprContext):
+        pass
+
+    # Exit a parse tree produced by RegelSpraakParser#BezieldeRefExpr.
+    def exitBezieldeRefExpr(self, ctx:RegelSpraakParser.BezieldeRefExprContext):
         pass
 
 

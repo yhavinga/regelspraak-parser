@@ -2555,29 +2555,38 @@ class RegelSpraakModelBuilder(RegelSpraakVisitor):
         
         # Special case: DateCalcExpr that's not a date calculation
         if isinstance(ctx, AntlrParser.DateCalcExprContext):
-            # The grammar matched this as a date calc, but it's not
-            # Handle as regular binary expression
-            logger.debug(f"  -> Handling DateCalcExprContext as binary expression")
-            left_ctx = ctx.primaryExpression(0)
-            right_ctx = ctx.primaryExpression(1)
+            # Handle date calculation: datumExpressie (PLUS | MIN) primaryExpression timeUnit
+            logger.debug(f"  -> Handling DateCalcExprContext as date calculation")
+            left_ctx = ctx.datumExpressie()
+            right_ctx = ctx.primaryExpression()
             logger.debug(f"    Left context type: {type(left_ctx).__name__}")
             logger.debug(f"    Right context type: {type(right_ctx).__name__}")
-            
-            # Check if there's an identifier that might be a unit
-            identifier_text = ctx.identifier().getText() if ctx.identifier() else ""
-            logger.debug(f"    DateCalcExpr identifier: '{identifier_text}'")
-            
-            left_expr = self.visit(left_ctx)
-            right_expr = self.visit(right_ctx)
-            
-            # If the right expression is a number literal and we have an identifier that's not a time unit,
-            # treat the identifier as the unit for the number
-            if right_expr and isinstance(right_expr, Literal) and right_expr.datatype == "Numeriek" and identifier_text:
-                time_units = ["dagen", "maanden", "jaren", "weken", "uren", "minuten", "seconden"]
-                if identifier_text not in time_units:
-                    logger.debug(f"    Treating identifier '{identifier_text}' as unit for number literal")
-                    right_expr.eenheid = identifier_text
-            
+
+            left_expr = self.visitDatumExpressie(left_ctx)
+            right_expr = self.visitPrimaryExpression(right_ctx)
+
+            # Get and normalize the time unit
+            time_unit_text = ctx.timeUnit().getText() if ctx.timeUnit() else ""
+            normalized_unit = self._normalize_time_unit(time_unit_text)
+            logger.debug(f"    DateCalcExpr time unit: '{time_unit_text}' -> '{normalized_unit}'")
+
+            # Attach the unit to the right expression
+            if isinstance(right_expr, Literal):
+                right_expr = Literal(
+                    value=right_expr.value,
+                    datatype=right_expr.datatype,
+                    eenheid=normalized_unit,  # Attach the time unit
+                    span=right_expr.span
+                )
+            else:
+                # For non-literal expressions, wrap in a function to apply unit
+                right_expr = FunctionCall(
+                    function_name="with_unit",
+                    arguments=[right_expr],
+                    unit_conversion=normalized_unit,
+                    span=right_expr.span
+                )
+
             operator = Operator.PLUS if ctx.PLUS() else Operator.MIN
             logger.debug(f"    Left expr: {left_expr}")
             logger.debug(f"    Right expr: {right_expr}")
@@ -2865,10 +2874,10 @@ class RegelSpraakModelBuilder(RegelSpraakVisitor):
             # Handle specific date function contexts
             elif isinstance(ctx, AntlrParser.DateCalcExprContext):
                 # This is a date calculation pattern like "date + 5 days"
-                # Grammar: primaryExpression (PLUS | MIN) primaryExpression timeUnit
+                # Grammar: datumExpressie (PLUS | MIN) primaryExpression timeUnit
 
-                left_expr = self.visitPrimaryExpression(ctx.primaryExpression(0))
-                right_expr = self.visitPrimaryExpression(ctx.primaryExpression(1))
+                left_expr = self.visitDatumExpressie(ctx.datumExpressie())
+                right_expr = self.visitPrimaryExpression(ctx.primaryExpression())
                 operator = Operator.PLUS if ctx.PLUS() else Operator.MIN
 
                 # Get and normalize the time unit
@@ -3328,9 +3337,9 @@ class RegelSpraakModelBuilder(RegelSpraakVisitor):
             return self.visitConcatenatieExpressie(ctx)
         elif isinstance(ctx, AntlrParser.DateCalcExprContext):
             # This is a date calculation pattern like "date + 5 days"
-            # Grammar: primaryExpression (PLUS | MIN) primaryExpression timeUnit
-            left_expr = self.visitPrimaryExpression(ctx.primaryExpression(0))
-            right_expr = self.visitPrimaryExpression(ctx.primaryExpression(1))
+            # Grammar: datumExpressie (PLUS | MIN) primaryExpression timeUnit
+            left_expr = self.visitDatumExpressie(ctx.datumExpressie())
+            right_expr = self.visitPrimaryExpression(ctx.primaryExpression())
             operator = Operator.PLUS if ctx.PLUS() else Operator.MIN
 
             # Get and normalize the time unit
@@ -5688,6 +5697,99 @@ class RegelSpraakModelBuilder(RegelSpraakVisitor):
             return result
         else:
             logger.error(f"Unknown date expression type: {safe_get_text(ctx)}")
+            return None
+
+    def visitDatumExpressie(self, ctx: AntlrParser.DatumExpressieContext) -> Expression:
+        """Handle datumExpressie rule for date arithmetic per spec section 6.11.
+
+        This rule matches date-typed expressions only, preventing numeric expressions
+        with time units from incorrectly matching DateCalcExpr.
+
+        Grammar:
+        datumExpressie
+            : datumLiteral                                              // e.g., 1 januari 2024
+            | REKENDATUM                                                // keyword
+            | REKENJAAR                                                 // keyword
+            | DE_DATUM_MET LPAREN primaryExpression COMMA primaryExpression COMMA primaryExpression RPAREN
+            | DE_EERSTE_PAASDAG_VAN LPAREN primaryExpression RPAREN
+            | attribuutReferentie                                       // de geboortedatum van de persoon
+            | bezieldeReferentie                                        // zijn geboortedatum
+            | parameterMetLidwoord                                      // de parameter datum
+            | LPAREN expressie RPAREN                                   // (datum expressie)
+            ;
+        """
+        logger.debug(f"visitDatumExpressie called with: {safe_get_text(ctx)}")
+
+        if ctx.datumLiteral():
+            # Extract the date literal value
+            date_ctx = ctx.datumLiteral()
+            if date_ctx.DATE_TIME_LITERAL():
+                date_text = date_ctx.DATE_TIME_LITERAL().getText()
+            else:
+                date_text = safe_get_text(date_ctx)
+            result = Literal(value=date_text, datatype="Datum", span=self.get_span(ctx))
+            logger.debug(f"  -> datumLiteral result: {result}")
+            return result
+
+        elif ctx.REKENDATUM():
+            # REKENDATUM is a parameter reference
+            result = ParameterReference(parameter_name="rekendatum", span=self.get_span(ctx))
+            logger.debug(f"  -> REKENDATUM result: {result}")
+            return result
+
+        elif ctx.REKENJAAR():
+            # REKENJAAR is a parameter reference
+            result = ParameterReference(parameter_name="rekenjaar", span=self.get_span(ctx))
+            logger.debug(f"  -> REKENJAAR result: {result}")
+            return result
+
+        elif ctx.DE_DATUM_MET():
+            # de datum met (jaar, maand, dag) function
+            year_expr = self.visitPrimaryExpression(ctx.primaryExpression(0))
+            month_expr = self.visitPrimaryExpression(ctx.primaryExpression(1))
+            day_expr = self.visitPrimaryExpression(ctx.primaryExpression(2))
+            result = FunctionCall(
+                function_name="datum_met",
+                arguments=[year_expr, month_expr, day_expr],
+                span=self.get_span(ctx)
+            )
+            logger.debug(f"  -> DE_DATUM_MET result: {result}")
+            return result
+
+        elif ctx.DE_EERSTE_PAASDAG_VAN():
+            # eerste paasdag van (jaar) function
+            year_expr = self.visitPrimaryExpression(ctx.primaryExpression(0))
+            result = FunctionCall(
+                function_name="eerste_paasdag_van",
+                arguments=[year_expr],
+                span=self.get_span(ctx)
+            )
+            logger.debug(f"  -> DE_EERSTE_PAASDAG_VAN result: {result}")
+            return result
+
+        elif ctx.attribuutReferentie():
+            result = self.visitAttribuutReferentie(ctx.attribuutReferentie())
+            logger.debug(f"  -> attribuutReferentie result: {result}")
+            return result
+
+        elif ctx.bezieldeReferentie():
+            result = self.visitBezieldeReferentie(ctx.bezieldeReferentie())
+            logger.debug(f"  -> bezieldeReferentie result: {result}")
+            return result
+
+        elif ctx.parameterMetLidwoord():
+            result = self.visitParameterMetLidwoord(ctx.parameterMetLidwoord())
+            logger.debug(f"  -> parameterMetLidwoord result: {result}")
+            return result
+
+        elif ctx.expressie():
+            # Parenthesized expression
+            result = self.visitExpressie(ctx.expressie())
+            logger.debug(f"  -> parenthesized expressie result: {result}")
+            return result
+
+        else:
+            logger.error(f"Unknown datumExpressie type: {safe_get_text(ctx)}")
             return None
 
     def visitConditieBijExpressie(self, ctx: AntlrParser.ConditieBijExpressieContext) -> Expression:

@@ -1014,13 +1014,13 @@ class RegelSpraakVisitor(ParseTreeVisitor):
         return self.visitChildren(ctx)
 
 
-    # Visit a parse tree produced by RegelSpraakParser#BezieldeRefExpr.
-    def visitBezieldeRefExpr(self, ctx:RegelSpraakParser.BezieldeRefExprContext):
+    # Visit a parse tree produced by RegelSpraakParser#DateCalcExpr.
+    def visitDateCalcExpr(self, ctx:RegelSpraakParser.DateCalcExprContext):
         return self.visitChildren(ctx)
 
 
-    # Visit a parse tree produced by RegelSpraakParser#DateCalcExpr.
-    def visitDateCalcExpr(self, ctx:RegelSpraakParser.DateCalcExprContext):
+    # Visit a parse tree produced by RegelSpraakParser#BezieldeRefExpr.
+    def visitBezieldeRefExpr(self, ctx:RegelSpraakParser.BezieldeRefExprContext):
         return self.visitChildren(ctx)
 
 

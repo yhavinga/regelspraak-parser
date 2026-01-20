@@ -204,8 +204,8 @@ import { BegrenzingAfrondingExprContext } from "./RegelSpraakParser";
 import { PercentageOfExprContext } from "./RegelSpraakParser";
 import { MinValFuncExprContext } from "./RegelSpraakParser";
 import { MaxAlleAttribuutExprContext } from "./RegelSpraakParser";
-import { BezieldeRefExprContext } from "./RegelSpraakParser";
 import { DateCalcExprContext } from "./RegelSpraakParser";
+import { BezieldeRefExprContext } from "./RegelSpraakParser";
 import { MinAlleAttribuutExprContext } from "./RegelSpraakParser";
 import { AfrondingExprContext } from "./RegelSpraakParser";
 import { LaatsteDatumFuncExprContext } from "./RegelSpraakParser";
@@ -2414,18 +2414,6 @@ export default class RegelSpraakListener extends ParseTreeListener {
 	 */
 	exitMaxAlleAttribuutExpr?: (ctx: MaxAlleAttribuutExprContext) => void;
 	/**
-	 * Enter a parse tree produced by the `BezieldeRefExpr`
-	 * labeled alternative in `RegelSpraakParser.primaryExpression`.
-	 * @param ctx the parse tree
-	 */
-	enterBezieldeRefExpr?: (ctx: BezieldeRefExprContext) => void;
-	/**
-	 * Exit a parse tree produced by the `BezieldeRefExpr`
-	 * labeled alternative in `RegelSpraakParser.primaryExpression`.
-	 * @param ctx the parse tree
-	 */
-	exitBezieldeRefExpr?: (ctx: BezieldeRefExprContext) => void;
-	/**
 	 * Enter a parse tree produced by the `DateCalcExpr`
 	 * labeled alternative in `RegelSpraakParser.primaryExpression`.
 	 * @param ctx the parse tree
@@ -2437,6 +2425,18 @@ export default class RegelSpraakListener extends ParseTreeListener {
 	 * @param ctx the parse tree
 	 */
 	exitDateCalcExpr?: (ctx: DateCalcExprContext) => void;
+	/**
+	 * Enter a parse tree produced by the `BezieldeRefExpr`
+	 * labeled alternative in `RegelSpraakParser.primaryExpression`.
+	 * @param ctx the parse tree
+	 */
+	enterBezieldeRefExpr?: (ctx: BezieldeRefExprContext) => void;
+	/**
+	 * Exit a parse tree produced by the `BezieldeRefExpr`
+	 * labeled alternative in `RegelSpraakParser.primaryExpression`.
+	 * @param ctx the parse tree
+	 */
+	exitBezieldeRefExpr?: (ctx: BezieldeRefExprContext) => void;
 	/**
 	 * Enter a parse tree produced by the `MinAlleAttribuutExpr`
 	 * labeled alternative in `RegelSpraakParser.primaryExpression`.
