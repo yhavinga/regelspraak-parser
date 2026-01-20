@@ -971,6 +971,15 @@ class RegelSpraakListener(ParseTreeListener):
         pass
 
 
+    # Enter a parse tree produced by RegelSpraakParser#aggregationSubject.
+    def enterAggregationSubject(self, ctx:RegelSpraakParser.AggregationSubjectContext):
+        pass
+
+    # Exit a parse tree produced by RegelSpraakParser#aggregationSubject.
+    def exitAggregationSubject(self, ctx:RegelSpraakParser.AggregationSubjectContext):
+        pass
+
+
     # Enter a parse tree produced by RegelSpraakParser#predicaat.
     def enterPredicaat(self, ctx:RegelSpraakParser.PredicaatContext):
         pass

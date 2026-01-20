@@ -2717,11 +2717,10 @@ class RegelSpraakModelBuilder(RegelSpraakVisitor):
             return func_call
             
         elif isinstance(ctx, AntlrParser.AantalFuncExprContext):
-            # Handles multiple patterns:
-            # - HET_AANTAL ALLE naamwoord (e.g., "het aantal alle Iteratie")
-            # - HET_AANTAL onderwerpReferentie (e.g., "het aantal de passagiers")
-            # - AANTAL ALLE naamwoord
-            # - AANTAL onderwerpReferentie
+            # Handles the pattern: (HET AANTAL | AANTAL) aggregationSubject
+            # Where aggregationSubject is:
+            #   - ALLE naamwoord (e.g., "alle passagiers")
+            #   - naamwoord ( (DIE | DAT) predicaat )? (e.g., "personen die minderjarig zijn")
 
             # First check if the entire expression is a parameter name
             # This handles cases like "het aantal treinmiles per passagier voor contingent"
@@ -2735,18 +2734,33 @@ class RegelSpraakModelBuilder(RegelSpraakVisitor):
             # Not a parameter - proceed with function call interpretation
             subject_ref = None
 
-            # Check which pattern we have
-            if ctx.naamwoord():
-                # Pattern: (HET_AANTAL | AANTAL) ALLE naamwoord
-                # Create an AttributeReference for the collection
-                collection_name = self._extract_canonical_name(ctx.naamwoord())
-                subject_ref = AttributeReference(
-                    path=[collection_name],
-                    span=self.get_span(ctx.naamwoord())
-                )
-            elif ctx.onderwerpReferentie():
-                # Pattern: (HET_AANTAL | AANTAL) onderwerpReferentie
-                subject_ref = self.visitOnderwerpReferentie(ctx.onderwerpReferentie())
+            # Get the aggregationSubject context
+            agg_subject = ctx.aggregationSubject()
+            if agg_subject:
+                # Check which pattern we have inside aggregationSubject
+                if agg_subject.naamwoord():
+                    naamwoord_ctx = agg_subject.naamwoord()
+                    collection_name = self._extract_canonical_name(naamwoord_ctx)
+
+                    # Check for DIE/DAT predicate (subselectie)
+                    if agg_subject.predicaat():
+                        # Has filtering predicate - create Subselectie
+                        base_ref = AttributeReference(
+                            path=[collection_name],
+                            span=self.get_span(naamwoord_ctx)
+                        )
+                        predicate = self.visitPredicaat(agg_subject.predicaat())
+                        subject_ref = Subselectie(
+                            onderwerp=base_ref,
+                            predicaat=predicate,
+                            span=self.get_span(agg_subject)
+                        )
+                    else:
+                        # No filtering - simple AttributeReference
+                        subject_ref = AttributeReference(
+                            path=[collection_name],
+                            span=self.get_span(naamwoord_ctx)
+                        )
 
             if subject_ref is None:
                 logger.warning(f"No subject reference found in aantal function: {safe_get_text(ctx)}")

@@ -1823,43 +1823,53 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
   }
 
   visitAantalFuncExpr(ctx: any): Expression {
-    // Handles multiple patterns:
-    // - HET AANTAL ALLE naamwoord (e.g., "het aantal alle Persoon")
-    // - HET AANTAL onderwerpReferentie (e.g., "het aantal de passagiers")
-    // - AANTAL ALLE naamwoord
-    // - AANTAL onderwerpReferentie
+    // Handles the pattern: (HET AANTAL | AANTAL) aggregationSubject
+    // Where aggregationSubject is:
+    //   - ALLE naamwoord (e.g., "alle passagiers")
+    //   - naamwoord ( (DIE | DAT) predicaat )? (e.g., "personen die minderjarig zijn")
 
-    const naamwoordCtx = ctx.naamwoord ? ctx.naamwoord() : null;
-    const onderwerpCtx = ctx.onderwerpReferentie ? ctx.onderwerpReferentie() : null;
     let subjectExpr: Expression | null = null;
 
-    if (naamwoordCtx) {
-      // Pattern: (HET_AANTAL | AANTAL) ALLE naamwoord
-      // Create an AttributeReference for the collection
-      const collectionName = this.visitNaamwoord(naamwoordCtx);
-      subjectExpr = {
-        type: 'AttributeReference',
-        path: [collectionName]
-      } as AttributeReference;
-      this.setLocation(subjectExpr, naamwoordCtx);
-    } else if (onderwerpCtx) {
-      // Pattern: (HET_AANTAL | AANTAL) onderwerpReferentie
-      const visitedOnderwerp = this.visit(onderwerpCtx);
+    // Get the aggregationSubject context
+    const aggSubjectCtx = ctx.aggregationSubject ? ctx.aggregationSubject() : null;
 
-      // If ALLE is present and it's a VariableReference, convert to AttributeReference
-      if ((ctx.ALLE && ctx.ALLE()) && visitedOnderwerp?.type === 'VariableReference') {
-        subjectExpr = {
-          type: 'AttributeReference',
-          path: [(visitedOnderwerp as VariableReference).variableName]
-        } as AttributeReference;
-        this.setLocation(subjectExpr, onderwerpCtx);
-      } else {
-        subjectExpr = visitedOnderwerp;
+    if (aggSubjectCtx) {
+      const naamwoordCtx = aggSubjectCtx.naamwoord ? aggSubjectCtx.naamwoord() : null;
+      const predicaatCtx = aggSubjectCtx.predicaat ? aggSubjectCtx.predicaat() : null;
+
+      if (naamwoordCtx) {
+        // Use navigation path parsing to handle "passagiers van de reis" -> ["reis", "passagiers"]
+        const path = this._parseNaamwoordToNavigationPath(naamwoordCtx);
+
+        // Check for DIE/DAT predicate (subselectie)
+        if (predicaatCtx) {
+          // Has filtering predicate - create SubselectieExpression
+          const baseRef: AttributeReference = {
+            type: 'AttributeReference',
+            path: path
+          };
+          this.setLocation(baseRef, naamwoordCtx);
+
+          const predicate = this.visitPredicaat(predicaatCtx);
+          subjectExpr = {
+            type: 'SubselectieExpression',
+            collection: baseRef,
+            predicaat: predicate
+          } as SubselectieExpression;
+          this.setLocation(subjectExpr, aggSubjectCtx);
+        } else {
+          // No filtering - simple AttributeReference
+          subjectExpr = {
+            type: 'AttributeReference',
+            path: path
+          } as AttributeReference;
+          this.setLocation(subjectExpr, naamwoordCtx);
+        }
       }
     }
 
     if (!subjectExpr) {
-      throw new Error('Failed to determine onderwerp or naamwoord in aantal expression');
+      throw new Error('Failed to determine aggregationSubject in aantal expression');
     }
 
     const node: FunctionCall = {

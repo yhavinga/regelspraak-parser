@@ -140,6 +140,8 @@ IS: 'is';
 MOET: 'moet';
 MOETEN: 'moeten';
 WORDT_VERDEELD_OVER: 'wordt verdeeld over';
+WORDT: 'wordt';  // Used in "wordt voldaan" pattern
+VOLDAAN: 'voldaan';  // Used in "wordt voldaan" pattern
 ZIJN: 'zijn';
 HAAR: 'haar';
 HUN: 'hun';

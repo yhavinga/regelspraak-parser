@@ -110,6 +110,7 @@ import { AttribuutMetLidwoordContext } from "./RegelSpraakParser";
 import { KenmerkNaamContext } from "./RegelSpraakParser";
 import { KenmerkPhraseContext } from "./RegelSpraakParser";
 import { BezieldeReferentieContext } from "./RegelSpraakParser";
+import { AggregationSubjectContext } from "./RegelSpraakParser";
 import { PredicaatContext } from "./RegelSpraakParser";
 import { ElementairPredicaatContext } from "./RegelSpraakParser";
 import { ObjectPredicaatContext } from "./RegelSpraakParser";
@@ -917,6 +918,12 @@ export default class RegelSpraakVisitor<Result> extends ParseTreeVisitor<Result>
 	 * @return the visitor result
 	 */
 	visitBezieldeReferentie?: (ctx: BezieldeReferentieContext) => Result;
+	/**
+	 * Visit a parse tree produced by `RegelSpraakParser.aggregationSubject`.
+	 * @param ctx the parse tree
+	 * @return the visitor result
+	 */
+	visitAggregationSubject?: (ctx: AggregationSubjectContext) => Result;
 	/**
 	 * Visit a parse tree produced by `RegelSpraakParser.predicaat`.
 	 * @param ctx the parse tree

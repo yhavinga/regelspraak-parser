@@ -544,6 +544,11 @@ class RegelSpraakVisitor(ParseTreeVisitor):
         return self.visitChildren(ctx)
 
 
+    # Visit a parse tree produced by RegelSpraakParser#aggregationSubject.
+    def visitAggregationSubject(self, ctx:RegelSpraakParser.AggregationSubjectContext):
+        return self.visitChildren(ctx)
+
+
     # Visit a parse tree produced by RegelSpraakParser#predicaat.
     def visitPredicaat(self, ctx:RegelSpraakParser.PredicaatContext):
         return self.visitChildren(ctx)

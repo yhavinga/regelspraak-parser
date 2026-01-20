@@ -605,6 +605,15 @@ bezieldeReferentie // Used in primaryExpression
     : (ZIJN | HAAR | HUN) naamwoord
     ;
 
+// Rule for aggregation collections (used with AANTAL)
+// Unlike onderwerpReferentie, this allows bare nouns (no article required)
+// This fixes the grammar ambiguity where "het aantal personen" fails to match AantalFuncExpr
+// because onderwerpReferentie requires an article via basisOnderwerp
+aggregationSubject
+    : ALLE naamwoord                              // "alle passagiers"
+    | naamwoord ( (DIE | DAT) predicaat )?        // "personen die minderjarig zijn" (bare noun allowed)
+    ;
+
 // --- Predicaat Rules (§5.6 and §13.4.14) ---
 predicaat
     : elementairPredicaat
@@ -828,10 +837,7 @@ primaryExpression : // Corresponds roughly to terminals/functions/references in 
     | SOM_VAN primaryExpression (COMMA primaryExpression)* EN primaryExpression                    # SomFuncExpr // Simple aggregation of comma-separated values
     | SOM_VAN ALLE naamwoord                                                                       # SomAlleExpr // Aggregate all instances of something
     | SOM_VAN ALLE attribuutReferentie                                                            # SomAlleAttribuutExpr // Sum all attributes with filtering
-    | HET AANTAL ALLE naamwoord                                                                    # AantalFuncExpr // "het aantal alle X" pattern
-    | HET AANTAL onderwerpReferentie                                                               # AantalFuncExpr // "het aantal de X" pattern
-    | AANTAL ALLE naamwoord                                                                        # AantalFuncExpr // "aantal alle X" pattern
-    | AANTAL onderwerpReferentie                                                                   # AantalFuncExpr // "aantal de X" pattern
+    | (HET AANTAL | AANTAL) aggregationSubject                                                    # AantalFuncExpr // Consolidated: "het aantal personen die..." or "aantal alle X"
     | HET AANTAL attribuutReferentie                                                               # AantalAttribuutExpr // Count attributes with filtering
     | AANTAL attribuutReferentie                                                                   # AantalAttribuutExpr // Support both forms
     | (NUMBER (PERCENT_SIGN | p=IDENTIFIER) | PERCENTAGE_LITERAL) VAN primaryExpression            # PercentageFuncExpr
