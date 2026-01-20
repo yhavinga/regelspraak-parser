@@ -1,5 +1,5 @@
 import { IEvaluator, Value, RuntimeContext } from '../interfaces';
-import { Expression, NumberLiteral, StringLiteral, BinaryExpression, UnaryExpression, VariableReference, ParameterReference, FunctionCall, AggregationExpression, SubselectieExpression, RegelStatusExpression, AllAttributesExpression, Predicaat, KenmerkPredicaat, AttributeComparisonPredicaat, AttributeReference, SamengesteldeVoorwaarde, KwantificatieType } from '../ast/expressions';
+import { Expression, NumberLiteral, StringLiteral, BinaryExpression, UnaryExpression, VariableReference, ParameterReference, FunctionCall, AggregationExpression, SubselectieExpression, RegelStatusExpression, AllAttributesExpression, Predicaat, KenmerkPredicaat, AttributeComparisonPredicaat, AttributeReference, SamengesteldeVoorwaarde, QuantifierType } from '../ast/expressions';
 import { AggregationEngine } from './aggregation-engine';
 import { TimelineEvaluator } from './timeline-evaluator';
 import { TimelineExpression, TimelineValue, TimelineValueImpl } from '../ast/timelines';
@@ -2499,21 +2499,21 @@ export class ExpressionEvaluator implements IEvaluator {
       let finalResult = false;
       const kwantType = String(voorwaarde.kwantificatie?.type || 'alle');
 
-      if (kwantType === 'alle' || kwantType === KwantificatieType.ALLE) {
+      if (kwantType === 'alle' || kwantType === QuantifierType.ALLE) {
         // All conditions must be true
         finalResult = conditionsMetCount === totalConditions;
-      } else if (kwantType === 'geen' || kwantType === KwantificatieType.GEEN) {
+      } else if (kwantType === 'geen' || kwantType === QuantifierType.GEEN) {
         // No conditions can be true
         finalResult = conditionsMetCount === 0;
-      } else if (kwantType === 'ten_minste' || kwantType === KwantificatieType.TEN_MINSTE) {
+      } else if (kwantType === 'ten_minste' || kwantType === QuantifierType.TEN_MINSTE) {
         // At least n conditions must be true
         const aantal = voorwaarde.kwantificatie?.aantal ?? 1;
         finalResult = conditionsMetCount >= aantal;
-      } else if (kwantType === 'ten_hoogste' || kwantType === KwantificatieType.TEN_HOOGSTE) {
+      } else if (kwantType === 'ten_hoogste' || kwantType === QuantifierType.TEN_HOOGSTE) {
         // At most n conditions must be true
         const aantal = voorwaarde.kwantificatie?.aantal ?? 1;
         finalResult = conditionsMetCount <= aantal;
-      } else if (kwantType === 'precies' || kwantType === KwantificatieType.PRECIES) {
+      } else if (kwantType === 'precies' || kwantType === QuantifierType.PRECIES) {
         // Exactly n conditions must be true
         const aantal = voorwaarde.kwantificatie?.aantal ?? 1;
         finalResult = conditionsMetCount === aantal;
@@ -2562,17 +2562,17 @@ export class ExpressionEvaluator implements IEvaluator {
     let finalResult = false;
 
     switch (voorwaarde.kwantificatie.type) {
-      case KwantificatieType.ALLE:
+      case QuantifierType.ALLE:
         // All conditions must be true
         finalResult = conditionsMetCount === totalConditions;
         break;
 
-      case KwantificatieType.GEEN:
+      case QuantifierType.GEEN:
         // No conditions can be true
         finalResult = conditionsMetCount === 0;
         break;
 
-      case KwantificatieType.TEN_MINSTE:
+      case QuantifierType.TEN_MINSTE:
         // At least n conditions must be true
         if (voorwaarde.kwantificatie.aantal === undefined) {
           throw new Error('TEN_MINSTE quantifier requires a number');
@@ -2580,7 +2580,7 @@ export class ExpressionEvaluator implements IEvaluator {
         finalResult = conditionsMetCount >= voorwaarde.kwantificatie.aantal;
         break;
 
-      case KwantificatieType.TEN_HOOGSTE:
+      case QuantifierType.TEN_HOOGSTE:
         // At most n conditions must be true
         if (voorwaarde.kwantificatie.aantal === undefined) {
           throw new Error('TEN_HOOGSTE quantifier requires a number');
@@ -2588,7 +2588,7 @@ export class ExpressionEvaluator implements IEvaluator {
         finalResult = conditionsMetCount <= voorwaarde.kwantificatie.aantal;
         break;
 
-      case KwantificatieType.PRECIES:
+      case QuantifierType.PRECIES:
         // Exactly n conditions must be true
         if (voorwaarde.kwantificatie.aantal === undefined) {
           throw new Error('PRECIES quantifier requires a number');

@@ -3,18 +3,18 @@
  * Single source of truth for all predicate evaluation logic
  */
 
-import { 
-  Predicate, 
-  SimplePredicate, 
-  CompoundPredicate, 
-  NotPredicate, 
+import {
+  Predicate,
+  SimplePredicate,
+  CompoundPredicate,
+  NotPredicate,
   AttributePredicate,
-  QuantifierType,
   isSimplePredicate,
   isCompoundPredicate,
   isNotPredicate,
   isAttributePredicate
 } from './predicate-types';
+import { QuantifierType } from '../ast/expressions';
 import { Value, RuntimeContext } from '../interfaces';
 import { Expression } from '../ast/expressions';
 import { ExpressionEvaluator } from '../evaluators/expression-evaluator';

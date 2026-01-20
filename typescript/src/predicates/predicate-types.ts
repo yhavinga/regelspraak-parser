@@ -3,8 +3,11 @@
  * Consolidates predicates used in subselectie, conditions, and compound conditions
  */
 
-import { Expression } from '../ast/expressions';
+import { Expression, QuantifierType } from '../ast/expressions';
 import { SourceLocation } from '../ast/location';
+
+// Re-export for convenience - canonical definition is in ast/expressions
+export { QuantifierType } from '../ast/expressions';
 
 // Base predicate interface
 export interface Predicate {
@@ -37,21 +40,12 @@ export type PredicateOperator =
   | 'gevuurd'        // regel is gevuurd
   | 'inconsistent';  // regel is inconsistent
 
-// Compound predicates with quantifiers
+// CompoundPredicate uses QuantifierType from ast/expressions
 export interface CompoundPredicate extends Predicate {
   type: 'CompoundPredicate';
   quantifier: QuantifierType;
   count?: number;  // For ten_minste, ten_hoogste, precies
   predicates: Predicate[];  // Nested predicates
-}
-
-// Quantifier types for compound predicates
-export enum QuantifierType {
-  ALLE = 'alle',
-  GEEN = 'geen', 
-  TEN_MINSTE = 'ten_minste',
-  TEN_HOOGSTE = 'ten_hoogste',
-  PRECIES = 'precies'
 }
 
 // Negation predicate wrapper

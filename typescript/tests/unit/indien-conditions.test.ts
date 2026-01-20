@@ -1,6 +1,6 @@
 import { describe, it, expect } from '@jest/globals';
 import { AntlrParser } from '../../src/parsers/antlr-parser';
-import { SamengesteldeVoorwaarde, KwantificatieType } from '../../src/ast/expressions';
+import { SamengesteldeVoorwaarde, QuantifierType } from '../../src/ast/expressions';
 
 describe('Indien Conditions', () => {
   const parser = new AntlrParser();
@@ -52,7 +52,7 @@ Regel GeschiktheidsTest
     expect(rule.condition.expression.type).toBe('SamengesteldeVoorwaarde');
     
     const samengesteld = rule.condition.expression as SamengesteldeVoorwaarde;
-    expect(samengesteld.kwantificatie.type).toBe(KwantificatieType.ALLE);
+    expect(samengesteld.kwantificatie.type).toBe(QuantifierType.ALLE);
     expect(samengesteld.voorwaarden).toHaveLength(2);
   });
 
@@ -82,7 +82,7 @@ Regel BonusWaardigheid
     expect(rule.condition.expression.type).toBe('SamengesteldeVoorwaarde');
     
     const samengesteld = rule.condition.expression as SamengesteldeVoorwaarde;
-    expect(samengesteld.kwantificatie.type).toBe(KwantificatieType.TEN_MINSTE);
+    expect(samengesteld.kwantificatie.type).toBe(QuantifierType.TEN_MINSTE);
     expect(samengesteld.kwantificatie.aantal).toBe(1);
     expect(samengesteld.voorwaarden).toHaveLength(2);
   });
@@ -115,13 +115,13 @@ Regel ComplexeStatus
     expect(rule.condition.expression.type).toBe('SamengesteldeVoorwaarde');
     
     const samengesteld = rule.condition.expression as SamengesteldeVoorwaarde;
-    expect(samengesteld.kwantificatie.type).toBe(KwantificatieType.ALLE);
+    expect(samengesteld.kwantificatie.type).toBe(QuantifierType.ALLE);
     expect(samengesteld.voorwaarden).toHaveLength(2);
     
     // Check nested condition
     const nestedCondition = samengesteld.voorwaarden[1] as SamengesteldeVoorwaarde;
     expect(nestedCondition.type).toBe('SamengesteldeVoorwaarde');
-    expect(nestedCondition.kwantificatie.type).toBe(KwantificatieType.TEN_MINSTE);
+    expect(nestedCondition.kwantificatie.type).toBe(QuantifierType.TEN_MINSTE);
     expect(nestedCondition.kwantificatie.aantal).toBe(1);
     expect(nestedCondition.voorwaarden).toHaveLength(2);
   });
@@ -149,7 +149,7 @@ Regel Toegang
     expect(rule.condition.expression.type).toBe('SamengesteldeVoorwaarde');
     
     const samengesteld = rule.condition.expression as SamengesteldeVoorwaarde;
-    expect(samengesteld.kwantificatie.type).toBe(KwantificatieType.GEEN);
+    expect(samengesteld.kwantificatie.type).toBe(QuantifierType.GEEN);
     expect(samengesteld.voorwaarden).toHaveLength(2);
   });
 
@@ -178,7 +178,7 @@ Regel Goedkeuring
     expect(rule.condition.expression.type).toBe('SamengesteldeVoorwaarde');
     
     const samengesteld = rule.condition.expression as SamengesteldeVoorwaarde;
-    expect(samengesteld.kwantificatie.type).toBe(KwantificatieType.PRECIES);
+    expect(samengesteld.kwantificatie.type).toBe(QuantifierType.PRECIES);
     expect(samengesteld.kwantificatie.aantal).toBe(2);
     expect(samengesteld.voorwaarden).toHaveLength(3);
   });
@@ -208,7 +208,7 @@ Regel Validatie
     expect(rule.condition.expression.type).toBe('SamengesteldeVoorwaarde');
     
     const samengesteld = rule.condition.expression as SamengesteldeVoorwaarde;
-    expect(samengesteld.kwantificatie.type).toBe(KwantificatieType.TEN_HOOGSTE);
+    expect(samengesteld.kwantificatie.type).toBe(QuantifierType.TEN_HOOGSTE);
     expect(samengesteld.kwantificatie.aantal).toBe(1);
     expect(samengesteld.voorwaarden).toHaveLength(3);
   });

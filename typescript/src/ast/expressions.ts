@@ -131,7 +131,7 @@ export interface AttributeComparisonPredicaat {
 }
 
 // Compound condition types
-export enum KwantificatieType {
+export enum QuantifierType {
   ALLE = 'alle',
   GEEN = 'geen',
   TEN_MINSTE = 'ten_minste',
@@ -139,24 +139,26 @@ export enum KwantificatieType {
   PRECIES = 'precies'
 }
 
-export interface Kwantificatie {
-  type: KwantificatieType;
+export interface Quantifier {
+  type: QuantifierType;
   aantal?: number; // For TEN_MINSTE, TEN_HOOGSTE, PRECIES
 }
 
 export interface SamengesteldeVoorwaarde extends Expression {
   type: 'SamengesteldeVoorwaarde';
-  kwantificatie: Kwantificatie;
+  kwantificatie: Quantifier;
   voorwaarden: Expression[];
   // Unified predicate representation for centralized evaluation
   predicate?: import('../predicates/predicate-types').CompoundPredicate;
 }
 
 // Rounding and limiting expressions
+export type RoundingDirection = 'naar_beneden' | 'naar_boven' | 'rekenkundig' | 'richting_nul' | 'weg_van_nul';
+
 export interface AfrondingExpression extends Expression {
   type: 'AfrondingExpression';
   expression: Expression;
-  direction?: 'naar_beneden' | 'naar_boven' | 'rekenkundig' | 'richting_nul' | 'weg_van_nul';
+  direction?: RoundingDirection;
   decimals: number;
 }
 
@@ -172,7 +174,7 @@ export interface BegrenzingAfrondingExpression extends Expression {
   expression: Expression;
   minimum?: Expression;
   maximum?: Expression;
-  direction?: 'naar_beneden' | 'naar_boven' | 'rekenkundig' | 'richting_nul' | 'weg_van_nul';
+  direction?: RoundingDirection;
   decimals: number;
 }
 

@@ -32,8 +32,8 @@ import {
   KenmerkPredicaat,
   AttributeComparisonPredicaat,
   SamengesteldeVoorwaarde,
-  Kwantificatie,
-  KwantificatieType,
+  Quantifier,
+  QuantifierType,
   AfrondingExpression,
   BegrenzingExpression,
   BegrenzingAfrondingExpression,
@@ -49,7 +49,6 @@ import {
   SimplePredicate,
   CompoundPredicate,
   AttributePredicate,
-  QuantifierType as UnifiedQuantifierType,
   fromLegacyKenmerkPredicaat,
   fromLegacyAttributeComparison
 } from '../predicates/predicate-types';
@@ -3369,9 +3368,8 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
   }
 
   visitDatumTijdDatatype(ctx: any): DataType {
-    // Check if it's DATUM or DATUM_TIJD
-    const text = this.extractText(ctx);
-    const node: DataType = text.toLowerCase().includes('tijd')
+    // Check which grammar token was matched: DATUM_IN_DAGEN | DATUM_TIJD_MILLIS
+    const node: DataType = (ctx.DATUM_TIJD_MILLIS && ctx.DATUM_TIJD_MILLIS())
       ? { type: 'DatumTijd' }
       : { type: 'Datum' };
     this.setLocation(node, ctx);
@@ -4041,26 +4039,26 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
     }
 
     // Map old quantifier to unified type
-    let unifiedQuantifier: UnifiedQuantifierType;
+    let unifiedQuantifier: QuantifierType;
     let count: number | undefined;
 
     switch (kwantificatie.type) {
-      case KwantificatieType.ALLE:
-        unifiedQuantifier = UnifiedQuantifierType.ALLE;
+      case QuantifierType.ALLE:
+        unifiedQuantifier = QuantifierType.ALLE;
         break;
-      case KwantificatieType.GEEN:
-        unifiedQuantifier = UnifiedQuantifierType.GEEN;
+      case QuantifierType.GEEN:
+        unifiedQuantifier = QuantifierType.GEEN;
         break;
-      case KwantificatieType.TEN_MINSTE:
-        unifiedQuantifier = UnifiedQuantifierType.TEN_MINSTE;
+      case QuantifierType.TEN_MINSTE:
+        unifiedQuantifier = QuantifierType.TEN_MINSTE;
         count = kwantificatie.aantal;
         break;
-      case KwantificatieType.TEN_HOOGSTE:
-        unifiedQuantifier = UnifiedQuantifierType.TEN_HOOGSTE;
+      case QuantifierType.TEN_HOOGSTE:
+        unifiedQuantifier = QuantifierType.TEN_HOOGSTE;
         count = kwantificatie.aantal;
         break;
-      case KwantificatieType.PRECIES:
-        unifiedQuantifier = UnifiedQuantifierType.PRECIES;
+      case QuantifierType.PRECIES:
+        unifiedQuantifier = QuantifierType.PRECIES;
         count = kwantificatie.aantal;
         break;
     }
@@ -4098,26 +4096,26 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
         return compound.predicate;
       }
       // Fallback: create compound predicate from old structure
-      let quantifier: UnifiedQuantifierType;
+      let quantifier: QuantifierType;
       let count: number | undefined;
 
       switch (compound.kwantificatie.type) {
-        case KwantificatieType.ALLE:
-          quantifier = UnifiedQuantifierType.ALLE;
+        case QuantifierType.ALLE:
+          quantifier = QuantifierType.ALLE;
           break;
-        case KwantificatieType.GEEN:
-          quantifier = UnifiedQuantifierType.GEEN;
+        case QuantifierType.GEEN:
+          quantifier = QuantifierType.GEEN;
           break;
-        case KwantificatieType.TEN_MINSTE:
-          quantifier = UnifiedQuantifierType.TEN_MINSTE;
+        case QuantifierType.TEN_MINSTE:
+          quantifier = QuantifierType.TEN_MINSTE;
           count = compound.kwantificatie.aantal;
           break;
-        case KwantificatieType.TEN_HOOGSTE:
-          quantifier = UnifiedQuantifierType.TEN_HOOGSTE;
+        case QuantifierType.TEN_HOOGSTE:
+          quantifier = QuantifierType.TEN_HOOGSTE;
           count = compound.kwantificatie.aantal;
           break;
-        case KwantificatieType.PRECIES:
-          quantifier = UnifiedQuantifierType.PRECIES;
+        case QuantifierType.PRECIES:
+          quantifier = QuantifierType.PRECIES;
           count = compound.kwantificatie.aantal;
           break;
       }
@@ -4189,31 +4187,31 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
     throw new Error('Could not extract number from quantifier');
   }
 
-  visitVoorwaardeKwantificatie(ctx: any): Kwantificatie {
+  visitVoorwaardeKwantificatie(ctx: any): Quantifier {
     if (ctx.ALLE && ctx.ALLE()) {
       return {
-        type: KwantificatieType.ALLE
+        type: QuantifierType.ALLE
       };
     } else if (ctx.GEEN_VAN_DE && ctx.GEEN_VAN_DE()) {
       return {
-        type: KwantificatieType.GEEN
+        type: QuantifierType.GEEN
       };
     } else if (ctx.TEN_MINSTE && ctx.TEN_MINSTE()) {
       const number = this.extractNumber(ctx);
       return {
-        type: KwantificatieType.TEN_MINSTE,
+        type: QuantifierType.TEN_MINSTE,
         aantal: number
       };
     } else if (ctx.TEN_HOOGSTE && ctx.TEN_HOOGSTE()) {
       const number = this.extractNumber(ctx);
       return {
-        type: KwantificatieType.TEN_HOOGSTE,
+        type: QuantifierType.TEN_HOOGSTE,
         aantal: number
       };
     } else if (ctx.PRECIES && ctx.PRECIES()) {
       const number = this.extractNumber(ctx);
       return {
-        type: KwantificatieType.PRECIES,
+        type: QuantifierType.PRECIES,
         aantal: number
       };
     }
@@ -4261,26 +4259,26 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
     }
 
     // Map old quantifier to unified type
-    let unifiedQuantifier: UnifiedQuantifierType;
+    let unifiedQuantifier: QuantifierType;
     let count: number | undefined;
 
     switch (kwantificatie.type) {
-      case KwantificatieType.ALLE:
-        unifiedQuantifier = UnifiedQuantifierType.ALLE;
+      case QuantifierType.ALLE:
+        unifiedQuantifier = QuantifierType.ALLE;
         break;
-      case KwantificatieType.GEEN:
-        unifiedQuantifier = UnifiedQuantifierType.GEEN;
+      case QuantifierType.GEEN:
+        unifiedQuantifier = QuantifierType.GEEN;
         break;
-      case KwantificatieType.TEN_MINSTE:
-        unifiedQuantifier = UnifiedQuantifierType.TEN_MINSTE;
+      case QuantifierType.TEN_MINSTE:
+        unifiedQuantifier = QuantifierType.TEN_MINSTE;
         count = kwantificatie.aantal;
         break;
-      case KwantificatieType.TEN_HOOGSTE:
-        unifiedQuantifier = UnifiedQuantifierType.TEN_HOOGSTE;
+      case QuantifierType.TEN_HOOGSTE:
+        unifiedQuantifier = QuantifierType.TEN_HOOGSTE;
         count = kwantificatie.aantal;
         break;
-      case KwantificatieType.PRECIES:
-        unifiedQuantifier = UnifiedQuantifierType.PRECIES;
+      case QuantifierType.PRECIES:
+        unifiedQuantifier = QuantifierType.PRECIES;
         count = kwantificatie.aantal;
         break;
     }
