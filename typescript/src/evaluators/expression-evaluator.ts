@@ -690,6 +690,12 @@ export class ExpressionEvaluator implements IEvaluator {
       throw new Error('totaal_van should be handled via TimelineExpression. Grammar may have changed unexpectedly.');
     }
 
+    // Special handling for aantal - needs to resolve collections from AttributeReference/Subselectie
+    // Cannot evaluate arguments first because AttributeReference may not resolve to an array directly
+    if (expr.functionName === 'aantal') {
+      return this.aantal_special(expr, context);
+    }
+
     // Evaluate all arguments first
     const evaluatedArgs = expr.arguments.map(arg => this.evaluate(arg, context));
 
@@ -756,6 +762,149 @@ export class ExpressionEvaluator implements IEvaluator {
       type: 'number',
       value: items.length
     };
+  }
+
+  /**
+   * Special handling for aantal function - resolves collections from AttributeReference
+   * Pattern: "het aantal passagiers van de reis" -> FunctionCall("aantal", AttributeReference)
+   */
+  private aantal_special(expr: FunctionCall, context: RuntimeContext): Value {
+    if (expr.arguments.length !== 1) {
+      throw new Error('aantal expects exactly 1 argument');
+    }
+
+    const arg = expr.arguments[0];
+
+    // Handle SubselectieExpression (filtered collection): "het aantal personen die minderjarig zijn"
+    if (arg.type === 'SubselectieExpression') {
+      const subselectie = arg as SubselectieExpression;
+      const collection = this.resolveCollectionForAantal(subselectie.collection as AttributeReference, context);
+
+      // Filter by predicate using evaluatePredicaat which handles KenmerkPredicaat etc.
+      let count = 0;
+      for (const item of collection) {
+        // Set item as current instance for predicate evaluation
+        const previousInstance = (context as any).current_instance;
+        (context as any).current_instance = item;
+        try {
+          // Use evaluatePredicaat which properly handles KenmerkPredicaat, AttributeComparisonPredicaat
+          const matches = this.evaluatePredicaat(subselectie.predicaat as Predicaat, item, context);
+          if (matches) {
+            count++;
+          }
+        } finally {
+          (context as any).current_instance = previousInstance;
+        }
+      }
+      return { type: 'number', value: count };
+    }
+
+    // Handle AttributeReference (collection lookup): "het aantal passagiers van de reis"
+    if (arg.type === 'AttributeReference') {
+      const attrRef = arg as AttributeReference;
+      const collection = this.resolveCollectionForAantal(attrRef, context);
+      return { type: 'number', value: collection.length };
+    }
+
+    // Fallback: evaluate and check if array
+    const evaluated = this.evaluate(arg, context);
+    if (evaluated.type === 'array') {
+      return { type: 'number', value: (evaluated.value as Value[]).length };
+    }
+    if (evaluated.type === 'list') {
+      return { type: 'number', value: (evaluated.value as Value[]).length };
+    }
+
+    throw new Error(`aantal expects a collection argument, got ${arg.type}`);
+  }
+
+  /**
+   * Resolve a collection reference for aantal function
+   * Handles object type lookups, FeitType navigation, variable lookups, and attribute references
+   */
+  private resolveCollectionForAantal(ref: AttributeReference, context: RuntimeContext): Value[] {
+    const path = ref.path;
+
+    // Single element: might be object type name, role alias, or variable
+    if (path.length === 1) {
+      const typeName = path[0];
+
+      // First try as a variable (handles test cases with context.setVariable('personen', {...}))
+      const variable = (context as any).getVariable(typeName);
+      if (variable && (variable.type === 'array' || variable.type === 'list')) {
+        return variable.value as Value[];
+      }
+
+      // Try as object type name
+      const objects = (context as any).getObjectsByType(typeName);
+      if (objects && objects.length > 0) {
+        return objects;
+      }
+
+      // Try FeitType navigation from current instance
+      if ((context as any).current_instance) {
+        const related = (context as any).getRelatedObjects(
+          (context as any).current_instance,
+          typeName,
+          true  // as subject
+        );
+        if (related && related.length > 0) {
+          return related;
+        }
+      }
+    }
+
+    // Two elements: navigation pattern like ["reis", "passagiers"]
+    if (path.length === 2) {
+      const [contextRef, roleName] = path;
+
+      // Get the context object (e.g., "reis" -> current flight)
+      let contextObj: Value | undefined;
+
+      // Check if it's a reference to current instance's attribute
+      if ((context as any).current_instance) {
+        const currentAttrs = ((context as any).current_instance as any).value || {};
+        if (currentAttrs[contextRef]) {
+          contextObj = currentAttrs[contextRef];
+        }
+      }
+
+      // If not found, try to resolve as object type
+      if (!contextObj) {
+        const objects = (context as any).getObjectsByType(contextRef);
+        if (objects && objects.length === 1) {
+          contextObj = objects[0];
+        }
+      }
+
+      // Now get related objects via FeitType
+      if (contextObj) {
+        const related = (context as any).getRelatedObjects(contextObj, roleName, true);
+        if (related && related.length > 0) {
+          return related;
+        }
+        // Also try as object (in relationship)
+        const relatedAsObject = (context as any).getRelatedObjects(contextObj, roleName, false);
+        if (relatedAsObject && relatedAsObject.length > 0) {
+          return relatedAsObject;
+        }
+      }
+    }
+
+    // Try direct evaluation as fallback
+    try {
+      const evaluated = this.evaluateAttributeReference(ref, context);
+      if (evaluated.type === 'array') {
+        return evaluated.value as Value[];
+      }
+      if (evaluated.type === 'list') {
+        return evaluated.value as Value[];
+      }
+    } catch (e) {
+      // Ignore evaluation errors and return empty collection
+    }
+
+    return [];
   }
 
   private som(args: Value[]): Value {
