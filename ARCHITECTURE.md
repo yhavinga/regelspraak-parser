@@ -177,23 +177,25 @@ Execution Engine
 
 ## Technical Debt
 
-### Medium Priority Issues
-
-#### IS/IN Logic Distribution
-- Currently split between RuntimeContext and Evaluator
-- Should be centralized in one location
-
-#### Parameter Tracking Workaround
-- Builder uses parameter_names tracking hack
-- Required due to semantic analyzer expectations
-- Indicates need for AST node distinction
-
 ### Low Priority Issues
 
 #### Test Organization
 - 94 test modules in flat structure
 - Could benefit from categorization
 - Some tests only verify parsing, not execution
+
+### Resolved Issues
+
+#### IS/IN Logic ✅
+Previously split between RuntimeContext and Evaluator. Now centralized:
+- `RuntimeContext.check_is()` - type checks, kenmerken, roles
+- `RuntimeContext.check_in()` - collection membership
+- Evaluator calls these via `self.context.check_is()/check_in()`
+
+#### Parameter Tracking ✅
+The `parameter_names` set in Builder is documented intentional design, not debt.
+Required for disambiguating "de leeftijd" between parameter, variable, or attribute.
+See REGELSPRAAK_ARCHITECTURE.md for detailed explanation.
 
 ## Implementation Notes
 

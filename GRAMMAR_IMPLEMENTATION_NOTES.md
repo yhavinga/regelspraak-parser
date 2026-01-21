@@ -1,11 +1,11 @@
 # RegelSpraak Grammar Implementation Notes
 
-ANTLR4 parser for RegelSpraak v2.1.0 - a Dutch natural language DSL for business rules. The fundamental challenge: parsing natural Dutch within formal grammar constraints. Solution: aggressive lexical disambiguation via 1000+ tokens, with semantic resolution in the visitor layer.
+ANTLR4 parser for RegelSpraak v2.1.0 - a Dutch natural language DSL for business rules. The fundamental challenge: parsing natural Dutch within formal grammar constraints. Solution: aggressive lexical disambiguation via ~300 tokens, with semantic resolution in the visitor layer.
 
 ## Architectural Philosophy
 
 ### Why Extreme Lexicalization
-Dutch free word order + natural phrasing would cause ANTLR lookahead explosion without aggressive tokenization. The 1000+ multi-word tokens aren't over-engineering - they're the minimal set preventing ambiguous parse trees. Each comparison operator, distribution idiom, and object-creation phrase gets its own token to avoid backtracking.
+Dutch free word order + natural phrasing would cause ANTLR lookahead explosion without aggressive tokenization. The ~300 multi-word tokens aren't over-engineering - they're the minimal set preventing ambiguous parse trees. Each comparison operator, distribution idiom, and object-creation phrase gets its own token to avoid backtracking.
 
 ### Staging for Semantics, Not Syntax
 Unlike typical compilers that enforce syntactic correctness, this parser stages data for semantic heuristics. The grammar accepts linguistically plausible constructs; the visitor applies business logic. This inversion exists because Dutch speakers expect their natural phrasing to work, not to learn formal syntax.
@@ -148,12 +148,10 @@ All IS/IN evaluations route through RuntimeContext methods:
 ## AST Design Trade-offs
 
 ### Frozen Dataclasses
-AST nodes are `@dataclass(frozen=True)`. Consequences:
-- Builder must fully compute all fields before instantiation
-- No post-construction corrections (e.g., dimension resolution)
-- Location metadata safely shareable via immutable `SourceSpan`
-
-Trade-off: Construction complexity for runtime safety.
+Only `SourceSpan` is `@dataclass(frozen=True)`. Other AST nodes are mutable dataclasses. Consequences:
+- Builder can modify nodes during construction
+- Location metadata (SourceSpan) safely shareable via immutability
+- Most nodes allow post-construction updates if needed
 
 ### Deferred Resolution
 `DimensionedAttributeReference` stores textual labels, not resolved dimensions. Timeline expressions store AST nodes, not evaluated values. This defers resolution to the engine where full context exists.
@@ -180,10 +178,10 @@ Unlike forward-declaring compilers, RegelSpraak definitions must precede usage. 
 ## Performance Implications
 
 ### DFA Size vs Backtracking
-1000+ tokens create large DFA but eliminate backtracking. Memory-intensive but predictable performance. Adding keywords is expensive - each multi-word phrase increases DFA states multiplicatively.
+~300 tokens create large DFA but eliminate backtracking. Memory-intensive but predictable performance. Adding keywords is expensive - each multi-word phrase increases DFA states multiplicatively.
 
 ### Visitor Overhead
-70KB+ visitor with complex heuristics. Every node visit potentially consults domain model, checks parameter sets, or reconstructs text. Consider splitting if grows beyond 100KB.
+~6000 line visitor (Python and TypeScript each) with complex heuristics. Every node visit potentially consults domain model, checks parameter sets, or reconstructs text.
 
 ### Runtime Short-Circuits
 - Timeline expressions skip evaluation without evaluation_date
@@ -196,7 +194,7 @@ These optimizations prevent eager traversal of all possibilities.
 
 - **Never reorder lexer tokens** - precedence is load-bearing
 - **AANTAL overloading** - fragile but necessary hack
-- **_extract_canonical_name complexity** - 100+ lines indicate grammar naming inconsistencies
+- **_extract_canonical_name complexity** - ~190 lines indicate grammar naming inconsistencies
 - **Tab character detection** - FeitType roles require raw stream access
 - **Python target broken for**:
   - Lexer modes (generates invalid Python)
