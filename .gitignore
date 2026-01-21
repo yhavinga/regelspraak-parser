@@ -19,6 +19,23 @@ __pycache__/
 # ANTLR Library
 lib/antlr*jar
 
+# Grammar Java build artifacts (from make parser-java for grun debugging)
+grammar/*.java
+grammar/*.class
+grammar/*.tokens
+grammar/*.interp
+grammar/.antlr/
+
+# Editor backups
+*~
+
+# Environment/secrets
+.env
+
+# Test/debug output
+test.out
+screenlog_*.log
+
 # Build artifacts
 dist/
 build/
@@ -29,7 +46,13 @@ build/
 .idea/
 *.swp
 
-# Project-specific files
+# Project-specific files (local only)
 CLAUDE.md
-CLAUDE_USE_GEMINI.md
+CLAUDE_USE_*.md
+AGENTS.md
+STEELTHREAD-*.md
+FUTURE_ERGOAI_INTEGRATION.md
+codex-analysis.sh
+prompts.txt
+.rsync-exclude
 /ff/
