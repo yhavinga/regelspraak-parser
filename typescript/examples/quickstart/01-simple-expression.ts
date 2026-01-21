@@ -35,11 +35,15 @@ context.setVariable('drempel', { type: 'number', value: 18 });
 const result = engine.run('leeftijd groter dan drempel', context);
 console.log('leeftijd (25) groter dan drempel (18):', result.value);
 
-// Rounding
+// Rounding (requires variable reference)
 console.log('\n=== Rounding ===');
-console.log('26,5 afgerond op 0 decimalen naar beneden:',
-  engine.run('26,5 afgerond op 0 decimalen naar beneden').value);
-console.log('26,5 afgerond op 0 decimalen naar boven:',
-  engine.run('26,5 afgerond op 0 decimalen naar boven').value);
-console.log('26,5 afgerond op 0 decimalen rekenkundig:',
-  engine.run('26,5 afgerond op 0 decimalen rekenkundig').value);
+const roundContext = new Context();
+roundContext.setVariable('waarde', { type: 'number', value: 26.5 });
+
+console.log('waarde = 26,5');
+console.log('naar beneden afgerond op 0 decimalen:',
+  engine.run('de waarde naar beneden afgerond op 0 decimalen', roundContext).value);
+console.log('naar boven afgerond op 0 decimalen:',
+  engine.run('de waarde naar boven afgerond op 0 decimalen', roundContext).value);
+console.log('rekenkundig afgerond op 0 decimalen:',
+  engine.run('de waarde rekenkundig afgerond op 0 decimalen', roundContext).value);
