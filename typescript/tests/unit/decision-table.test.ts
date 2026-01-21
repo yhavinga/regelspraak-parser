@@ -117,18 +117,61 @@ geldig altijd
 | 1 | 5 EUR                               | 50                                  |
 | 2 | 10 EUR                              | 100                                 |
 | 3 | 20 EUR                              | 200                                 |`;
-      
+
       const context = new Context();
       context.setVariable('aankoopbedrag', { type: 'number', value: 150 });
-      
+
       const result = engine.run(decisionTable, context);
-      
+
       expect(result.success).toBe(true);
       // First matching row wins - aankoopbedrag (150) > 50, so row 1 matches
       expect(result.value).toMatchObject({
         type: 'number',
         value: 5,
         unit: { name: 'euro' }
+      });
+    });
+  });
+
+  describe('decision table with percentage literals', () => {
+    test('should parse percentage literals as result values', () => {
+      const decisionTable = `Beslistabel Korting
+geldig altijd
+|   | de korting moet gesteld worden op | indien leeftijd kleiner is dan |
+|---|-----------------------------------|--------------------------------|
+| 1 | 50%                               | 12                             |
+| 2 | 30%                               | 18                             |
+| 3 | 10%                               | 65                             |`;
+
+      const context = new Context();
+      context.setVariable('leeftijd', { type: 'number', value: 10 });
+
+      const result = engine.run(decisionTable, context);
+
+      expect(result.success).toBe(true);
+      expect(result.value).toEqual({
+        type: 'number',
+        value: 50
+      });
+    });
+
+    test('should parse percentage with decimal (Dutch notation)', () => {
+      const decisionTable = `Beslistabel Tarief
+geldig altijd
+|   | het tarief moet gesteld worden op | indien waarde groter is dan |
+|---|-----------------------------------|------------------------------|
+| 1 | 12,5%                             | 100                          |
+| 2 | 7,5%                              | 50                           |`;
+
+      const context = new Context();
+      context.setVariable('waarde', { type: 'number', value: 75 });
+
+      const result = engine.run(decisionTable, context);
+
+      expect(result.success).toBe(true);
+      expect(result.value).toEqual({
+        type: 'number',
+        value: 7.5
       });
     });
   });

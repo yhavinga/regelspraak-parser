@@ -11,6 +11,7 @@ import {
   PowerExpressionContext,
   PrimaryExpressionContext,
   NumberLiteralExprContext,
+  PercentageLiteralExprContext,
   IdentifierExprContext,
   ParenExprContext,
   UnaryNietExprContext,
@@ -770,8 +771,7 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
       case 'DatumLiteralExprContext':
         return this.visitDatumLiteralExpr(ctx);
       case 'PercentageLiteralExprContext':
-        // Handle percentage literal - needs implementation
-        return this.visitStringLiteralExpr(ctx); // Temporary fallback
+        return this.visitPercentageLiteralExpr(ctx as PercentageLiteralExprContext);
       case 'EnumLiteralExprContext':
         return this.visitEnumLiteralExpr(ctx);
       case 'TekstreeksLiteralExprContext':
@@ -939,6 +939,21 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
       this.setLocation(node, ctx);
       return node;
     }
+
+    const node = {
+      type: 'NumberLiteral',
+      value
+    } as NumberLiteral;
+    this.setLocation(node, ctx);
+    return node;
+  }
+
+  visitPercentageLiteralExpr(ctx: PercentageLiteralExprContext): Expression {
+    // PERCENTAGE_LITERAL format: NUMBER PERCENT_SIGN (e.g., "50%", "10,5%")
+    const text = ctx.PERCENTAGE_LITERAL().getText();
+    // Remove the % sign and convert Dutch decimal notation
+    const numericPart = text.replace('%', '').trim().replace(',', '.');
+    const value = parseFloat(numericPart);
 
     const node = {
       type: 'NumberLiteral',

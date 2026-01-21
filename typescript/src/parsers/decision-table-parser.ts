@@ -180,7 +180,16 @@ export class DecisionTableParser {
         value: parseFloat(eurMatch[1])
       } as NumberLiteral;
     }
-    
+
+    // Parse percentage literal (e.g., "50%", "10,5%")
+    const percentMatch = trimmed.match(/^(\d+(?:[.,]\d+)?)\s*%$/);
+    if (percentMatch) {
+      return {
+        type: 'NumberLiteral',
+        value: parseFloat(percentMatch[1].replace(',', '.'))
+      } as NumberLiteral;
+    }
+
     // Otherwise treat as variable reference
     // Clean up common articles
     const cleaned = trimmed.replace(/^(de|het|een)\s+/i, '');

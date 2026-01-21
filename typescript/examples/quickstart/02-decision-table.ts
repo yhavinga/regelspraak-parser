@@ -14,13 +14,13 @@ Beslistabel Reisduur tarief
 geldig altijd
 |   | het tarief moet gesteld worden op | indien de reisduur groter is dan |
 |---|-----------------------------------|----------------------------------|
-| 1 | 10                                | 30                               |
+| 1 | 30                                | 90                               |
 | 2 | 20                                | 60                               |
-| 3 | 30                                | 90                               |
+| 3 | 10                                | 30                               |
 `;
 
 console.log('=== Decision Table: Travel Time Pricing ===');
-console.log('Rules:');
+console.log('Rules (first match wins):');
 console.log('  - reisduur > 90 → tarief = 30');
 console.log('  - reisduur > 60 → tarief = 20');
 console.log('  - reisduur > 30 → tarief = 10');
