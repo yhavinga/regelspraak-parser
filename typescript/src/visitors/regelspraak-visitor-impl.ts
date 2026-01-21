@@ -815,11 +815,9 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
       case 'SomAlleAttribuutExprContext':
         return this.visitSomAlleAttribuutExpr(ctx);
       case 'MinAlleAttribuutExprContext':
-        // Needs implementation
-        return this.visitSomAlleAttribuutExpr(ctx); // Temporary fallback
+        return this.visitMinAlleAttribuutExpr(ctx);
       case 'MaxAlleAttribuutExprContext':
-        // Needs implementation
-        return this.visitSomAlleAttribuutExpr(ctx); // Temporary fallback
+        return this.visitMaxAlleAttribuutExpr(ctx);
       case 'TijdsevenredigDeelExprContext':
         return this.visitTijdsevenredigDeelExpr(ctx);
       case 'CapitalizedTijdsevenredigDeelExprContext':
@@ -832,19 +830,15 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
       case 'AbsValFuncExprContext':
         return this.visitAbsValFuncExpr(ctx);
       case 'PercentageFuncExprContext':
-        // Needs implementation
-        return this.visitAbsValFuncExpr(ctx); // Temporary fallback
+        return this.visitPercentageFuncExpr(ctx);
       case 'PercentageOfExprContext':
-        // Needs implementation
-        return this.visitAbsValFuncExpr(ctx); // Temporary fallback
+        return this.visitPercentageOfExpr(ctx);
       case 'WortelFuncExprContext':
         return this.visitWortelFuncExpr(ctx);
       case 'MinValFuncExprContext':
-        // Needs implementation
-        return this.visitAbsValFuncExpr(ctx); // Temporary fallback
+        return this.visitMinValFuncExpr(ctx);
       case 'MaxValFuncExprContext':
-        // Needs implementation
-        return this.visitAbsValFuncExpr(ctx); // Temporary fallback
+        return this.visitMaxValFuncExpr(ctx);
       case 'JaarUitFuncExprContext':
         return this.visitJaarUitFuncExpr(ctx);
       case 'MaandUitFuncExprContext':
@@ -1595,6 +1589,143 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
     return node;
   }
 
+  visitPercentageFuncExpr(ctx: any): Expression {
+    // (NUMBER (PERCENT_SIGN | p=IDENTIFIER) | PERCENTAGE_LITERAL) VAN primaryExpression
+    // e.g., "50% van de waarde" or "50 procent van de waarde"
+    let percentage: number;
+
+    // Check if we have a PERCENTAGE_LITERAL
+    const percentLiteral = ctx.PERCENTAGE_LITERAL ? ctx.PERCENTAGE_LITERAL() : null;
+    if (percentLiteral) {
+      const text = percentLiteral.getText().replace('%', '').replace(',', '.');
+      percentage = parseFloat(text);
+    } else {
+      // NUMBER followed by PERCENT_SIGN or IDENTIFIER (e.g., "procent")
+      const numberToken = ctx.NUMBER ? ctx.NUMBER() : null;
+      if (!numberToken) {
+        throw new Error('Expected number in percentage expression');
+      }
+      const numText = numberToken.getText().replace(',', '.');
+      percentage = parseFloat(numText);
+    }
+
+    const baseExpr = this.visit(ctx.primaryExpression());
+    if (!baseExpr) {
+      throw new Error('Missing base expression in percentage function');
+    }
+
+    // Create a binary expression: (percentage / 100) * baseExpr
+    const percentageAsDecimal = {
+      type: 'NumberLiteral',
+      value: percentage / 100
+    } as NumberLiteral;
+
+    const node = {
+      type: 'BinaryExpression',
+      operator: '*',
+      left: percentageAsDecimal,
+      right: baseExpr
+    } as BinaryExpression;
+    this.setLocation(node, ctx);
+    return node;
+  }
+
+  visitPercentageOfExpr(ctx: any): Expression {
+    // PERCENTAGE_LITERAL VAN primaryExpression
+    // e.g., "50% van de waarde"
+    const percentLiteral = ctx.PERCENTAGE_LITERAL();
+    if (!percentLiteral) {
+      throw new Error('Expected percentage literal in percentage-of expression');
+    }
+
+    const text = percentLiteral.getText().replace('%', '').replace(',', '.');
+    const percentage = parseFloat(text);
+
+    const baseExpr = this.visit(ctx.primaryExpression());
+    if (!baseExpr) {
+      throw new Error('Missing base expression in percentage-of function');
+    }
+
+    // Create a binary expression: (percentage / 100) * baseExpr
+    const percentageAsDecimal = {
+      type: 'NumberLiteral',
+      value: percentage / 100
+    } as NumberLiteral;
+
+    const node = {
+      type: 'BinaryExpression',
+      operator: '*',
+      left: percentageAsDecimal,
+      right: baseExpr
+    } as BinaryExpression;
+    this.setLocation(node, ctx);
+    return node;
+  }
+
+  visitMinValFuncExpr(ctx: any): Expression {
+    // DE_MINIMALE_WAARDE_VAN primaryExpression (COMMA primaryExpression)* EN primaryExpression
+    // e.g., "de minimale waarde van a, b en c"
+    const args: Expression[] = [];
+
+    // In ANTLR4 TypeScript, use primaryExpression_list() to get all matching children
+    const exprList = ctx.primaryExpression_list ? ctx.primaryExpression_list() : [];
+
+    if (exprList.length < 2) {
+      throw new Error(`de minimale waarde van requires at least 2 arguments, got ${exprList.length}`);
+    }
+
+    for (const exprCtx of exprList) {
+      const arg = this.visit(exprCtx);
+      if (arg) {
+        args.push(arg);
+      }
+    }
+
+    if (args.length < 2) {
+      throw new Error(`de minimale waarde van requires at least 2 valid arguments, got ${args.length}`);
+    }
+
+    const node = {
+      type: 'FunctionCall',
+      functionName: 'minimum_van_values',
+      arguments: args
+    } as FunctionCall;
+    this.setLocation(node, ctx);
+    return node;
+  }
+
+  visitMaxValFuncExpr(ctx: any): Expression {
+    // DE_MAXIMALE_WAARDE_VAN primaryExpression (COMMA primaryExpression)* EN primaryExpression
+    // e.g., "de maximale waarde van a, b en c"
+    const args: Expression[] = [];
+
+    // In ANTLR4 TypeScript, use primaryExpression_list() to get all matching children
+    const exprList = ctx.primaryExpression_list ? ctx.primaryExpression_list() : [];
+
+    if (exprList.length < 2) {
+      throw new Error(`de maximale waarde van requires at least 2 arguments, got ${exprList.length}`);
+    }
+
+    for (const exprCtx of exprList) {
+      const arg = this.visit(exprCtx);
+      if (arg) {
+        args.push(arg);
+      }
+    }
+
+    if (args.length < 2) {
+      throw new Error(`de maximale waarde van requires at least 2 valid arguments, got ${args.length}`);
+    }
+
+    const node = {
+      type: 'FunctionCall',
+      functionName: 'maximum_van_values',
+      arguments: args
+    } as FunctionCall;
+    this.setLocation(node, ctx);
+    return node;
+  }
+
   visitTijdsduurFuncExpr(ctx: any): Expression {
     // TIJDSDUUR_VAN primaryExpression TOT primaryExpression (IN_HELE unitName=IDENTIFIER)?
     const fromExpr = this.visit(ctx.primaryExpression(0));
@@ -1668,6 +1799,42 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
     const node = {
       type: 'FunctionCall',
       functionName: 'som_van',
+      arguments: [attrRef]
+    } as FunctionCall;
+    this.setLocation(node, ctx);
+    return node;
+  }
+
+  visitMinAlleAttribuutExpr(ctx: any): Expression {
+    // DE_MINIMALE_WAARDE_VAN ALLE attribuutReferentie
+    // e.g., "de minimale waarde van alle leeftijd van passagiers"
+    const attrRef = this.visitAttribuutReferentie(ctx.attribuutReferentie());
+
+    if (!attrRef) {
+      throw new Error('No attribute reference found in minimum_van function');
+    }
+
+    const node = {
+      type: 'FunctionCall',
+      functionName: 'minimum_van',
+      arguments: [attrRef]
+    } as FunctionCall;
+    this.setLocation(node, ctx);
+    return node;
+  }
+
+  visitMaxAlleAttribuutExpr(ctx: any): Expression {
+    // DE_MAXIMALE_WAARDE_VAN ALLE attribuutReferentie
+    // e.g., "de maximale waarde van alle leeftijd van passagiers"
+    const attrRef = this.visitAttribuutReferentie(ctx.attribuutReferentie());
+
+    if (!attrRef) {
+      throw new Error('No attribute reference found in maximum_van function');
+    }
+
+    const node = {
+      type: 'FunctionCall',
+      functionName: 'maximum_van',
       arguments: [attrRef]
     } as FunctionCall;
     this.setLocation(node, ctx);

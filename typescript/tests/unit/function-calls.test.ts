@@ -157,4 +157,135 @@ describe('Engine - Function Calls', () => {
       });
     });
   });
+
+  describe('minimale/maximale waarde van (explicit values)', () => {
+    test('should return minimum of explicit values', () => {
+      const result = engine.run('de minimale waarde van 5, 3 en 8');
+      expect(result.success).toBe(true);
+      expect(result.value).toEqual({
+        type: 'number',
+        value: 3
+      });
+    });
+
+    test('should return maximum of explicit values', () => {
+      const result = engine.run('de maximale waarde van 5, 3 en 8');
+      expect(result.success).toBe(true);
+      expect(result.value).toEqual({
+        type: 'number',
+        value: 8
+      });
+    });
+
+    test('should handle minimum with two values', () => {
+      const result = engine.run('de minimale waarde van 10 en 20');
+      expect(result.success).toBe(true);
+      expect(result.value).toEqual({
+        type: 'number',
+        value: 10
+      });
+    });
+
+    test('should handle maximum with two values', () => {
+      const result = engine.run('de maximale waarde van 10 en 20');
+      expect(result.success).toBe(true);
+      expect(result.value).toEqual({
+        type: 'number',
+        value: 20
+      });
+    });
+
+    test('should handle minimum with variables', () => {
+      const context = new Context();
+      context.setVariable('a', { type: 'number', value: 15 });
+      context.setVariable('b', { type: 'number', value: 7 });
+      context.setVariable('c', { type: 'number', value: 22 });
+      const result = engine.run('de minimale waarde van a, b en c', context);
+      expect(result.success).toBe(true);
+      expect(result.value).toEqual({
+        type: 'number',
+        value: 7
+      });
+    });
+
+    test('should handle maximum with variables', () => {
+      const context = new Context();
+      context.setVariable('a', { type: 'number', value: 15 });
+      context.setVariable('b', { type: 'number', value: 7 });
+      context.setVariable('c', { type: 'number', value: 22 });
+      const result = engine.run('de maximale waarde van a, b en c', context);
+      expect(result.success).toBe(true);
+      expect(result.value).toEqual({
+        type: 'number',
+        value: 22
+      });
+    });
+
+    test('should handle minimum with expressions', () => {
+      const result = engine.run('de minimale waarde van (2 maal 5), (3 plus 4) en 12');
+      expect(result.success).toBe(true);
+      expect(result.value).toEqual({
+        type: 'number',
+        value: 7  // min(10, 7, 12) = 7
+      });
+    });
+  });
+
+  describe('percentage functions', () => {
+    test('should calculate percentage of value', () => {
+      const result = engine.run('50% van 200');
+      expect(result.success).toBe(true);
+      expect(result.value).toEqual({
+        type: 'number',
+        value: 100
+      });
+    });
+
+    test('should calculate percentage with decimal (Dutch notation)', () => {
+      const result = engine.run('12,5% van 80');
+      expect(result.success).toBe(true);
+      expect(result.value).toEqual({
+        type: 'number',
+        value: 10
+      });
+    });
+
+    test('should calculate percentage of variable', () => {
+      const context = new Context();
+      context.setVariable('bedrag', { type: 'number', value: 500 });
+      const result = engine.run('20% van bedrag', context);
+      expect(result.success).toBe(true);
+      expect(result.value).toEqual({
+        type: 'number',
+        value: 100
+      });
+    });
+
+    test('should calculate percentage of expression', () => {
+      const result = engine.run('25% van (40 plus 60)');
+      expect(result.success).toBe(true);
+      expect(result.value).toEqual({
+        type: 'number',
+        value: 25
+      });
+    });
+
+    test('should handle 100 percent', () => {
+      const result = engine.run('100% van 42');
+      expect(result.success).toBe(true);
+      expect(result.value).toEqual({
+        type: 'number',
+        value: 42
+      });
+    });
+
+    test('should handle small percentage', () => {
+      const result = engine.run('1% van 1000');
+      expect(result.success).toBe(true);
+      expect(result.value).toEqual({
+        type: 'number',
+        value: 10
+      });
+    });
+  });
 });

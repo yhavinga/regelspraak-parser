@@ -27,6 +27,8 @@ export class ExpressionEvaluator implements IEvaluator {
     'som_van': this.som_van.bind(this),
     'maximum_van': this.maximum_van.bind(this),
     'minimum_van': this.minimum_van.bind(this),
+    'maximum_van_values': this.maximum_van_values.bind(this),
+    'minimum_van_values': this.minimum_van_values.bind(this),
     // 'totaal_van' removed - handled via TimelineExpression
     'tijdsevenredig_deel': this.tijdsevenredig_deel.bind(this),
     'tijdsduur_van': this.tijdsduur_van.bind(this),
@@ -1149,6 +1151,44 @@ export class ExpressionEvaluator implements IEvaluator {
     let minValue = Infinity;
 
     for (const val of values) {
+      if (val.type === 'number') {
+        minValue = Math.min(minValue, val.value as number);
+      }
+    }
+
+    return {
+      type: 'number',
+      value: minValue === Infinity ? 0 : minValue
+    };
+  }
+
+  private maximum_van_values(args: Value[]): Value {
+    // Maximum of explicit values: "de maximale waarde van a, b en c"
+    if (args.length < 2) {
+      throw new Error('maximum_van_values expects at least 2 arguments');
+    }
+
+    let maxValue = -Infinity;
+    for (const val of args) {
+      if (val.type === 'number') {
+        maxValue = Math.max(maxValue, val.value as number);
+      }
+    }
+
+    return {
+      type: 'number',
+      value: maxValue === -Infinity ? 0 : maxValue
+    };
+  }
+
+  private minimum_van_values(args: Value[]): Value {
+    // Minimum of explicit values: "de minimale waarde van a, b en c"
+    if (args.length < 2) {
+      throw new Error('minimum_van_values expects at least 2 arguments');
+    }
+
+    let minValue = Infinity;
+    for (const val of args) {
       if (val.type === 'number') {
         minValue = Math.min(minValue, val.value as number);
       }
