@@ -332,7 +332,7 @@ parameterNamePhrase // Dedicated rule for parameter names - allow prepositions f
     ;
 
 parameterNamePart
-    : (IDENTIFIER | AANTAL | NUMBER)+  // Allow multiple consecutive identifiers/numbers
+    : (IDENTIFIER | AANTAL) (IDENTIFIER | AANTAL | NUMBER)*  // Must start with identifier/AANTAL, not number
     ;
 
 parameterMetLidwoord // Used within expression - allow complex parameter names
