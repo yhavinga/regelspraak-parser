@@ -4,7 +4,7 @@
  * Demonstrates defining object types (Objecttype) and business rules (Regel).
  * Run with: npx ts-node examples/quickstart/03-objects-and-rules.ts
  */
-import { Engine, Context } from '../../src';
+import { Engine, Context, ObjectTypeDefinition, Rule } from '../../src';
 
 const engine = new Engine();
 
@@ -44,8 +44,8 @@ if (!parseResult.success) {
 }
 
 console.log('Parsed successfully!');
-console.log('Object types:', parseResult.model.objectTypes?.map((ot: any) => ot.naam).join(', '));
-console.log('Rules:', parseResult.model.regels?.map((r: any) => r.naam).join(', '));
+console.log('Object types:', parseResult.model.objectTypes?.map((ot: ObjectTypeDefinition) => ot.name).join(', '));
+console.log('Rules:', parseResult.model.regels?.map((r: Rule) => r.name).join(', '));
 
 // Create context and objects
 const context = new Context(parseResult.model);
@@ -65,11 +65,11 @@ engine.execute(parseResult.model, context);
 
 // Retrieve objects and check kenmerk status
 const personen = context.getObjectsByType('Persoon');
-const kind = personen.find((p: any) => p.objectId === 'kind-1');
-const volwassene = personen.find((p: any) => p.objectId === 'volw-1');
+const kind = personen.find((p) => (p as any).objectId === 'kind-1');
+const volwassene = personen.find((p) => (p as any).objectId === 'volw-1');
 
-console.log('Kind (12 jaar) is minderjarig:', kind?.value?.minderjarig ?? 'not set');
-console.log('Volwassene (35 jaar) is minderjarig:', volwassene?.value?.minderjarig ?? 'not set');
+console.log('Kind (12 jaar) is minderjarig:', (kind as any)?.kenmerken?.['is minderjarig'] ?? 'not set');
+console.log('Volwassene (35 jaar) is minderjarig:', (volwassene as any)?.kenmerken?.['is minderjarig'] ?? 'not set');
 
 // Create an order and calculate discount
 console.log('\n=== Testing Bestelling Rules ===');
@@ -81,8 +81,8 @@ context.createObject('Bestelling', 'order-1', {
 engine.execute(parseResult.model, context);
 
 const bestellingen = context.getObjectsByType('Bestelling');
-const bestelling = bestellingen.find((b: any) => b.objectId === 'order-1');
+const bestelling = bestellingen.find((b) => (b as any).objectId === 'order-1');
 
-console.log('Bedrag:', bestelling?.value?.bedrag?.value);
-console.log('Korting (10%):', bestelling?.value?.korting?.value);
-console.log('Eindbedrag:', bestelling?.value?.eindbedrag?.value);
+console.log('Bedrag:', (bestelling as any)?.value?.bedrag?.value);
+console.log('Korting (10%):', (bestelling as any)?.value?.korting?.value);
+console.log('Eindbedrag:', (bestelling as any)?.value?.eindbedrag?.value);
