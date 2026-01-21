@@ -125,10 +125,10 @@ describe('Engine - Function Calls', () => {
     });
 
     test('should fail on unknown function', () => {
-      // Unknown Dutch function syntax - parser treats this as a parameter reference
+      // Unknown Dutch function syntax - parser rejects "van NUMBER" as invalid
       const result = engine.run('de onbekende functie van 42');
       expect(result.success).toBe(false);
-      expect(result.error?.message).toContain('Undefined parameter');
+      expect(result.error?.message).toContain('Parse error');
     });
 
   });
