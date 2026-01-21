@@ -10,29 +10,29 @@ const engine = new Engine();
 
 // Define a complete domain model with object type and rules
 const regelspraakCode = `
-Objecttype de Persoon
-  kenmerk minderjarig
-  de leeftijd : Numeriek
+Objecttype de Persoon (bezield)
+    is minderjarig kenmerk (bijvoeglijk);
+    de leeftijd Numeriek;
 
 Objecttype de Bestelling
-  het bedrag : Numeriek
-  de korting : Numeriek
-  het eindbedrag : Numeriek
+    het bedrag Numeriek;
+    de korting Numeriek;
+    het eindbedrag Numeriek;
 
 Regel Minderjarigheid
 geldig altijd
-  Een Persoon is minderjarig indien
-    zijn leeftijd kleiner is dan 18.
+    Een Persoon is minderjarig indien
+        zijn leeftijd kleiner is dan 18.
 
 Regel Korting berekening
 geldig altijd
-  De korting van een Bestelling is gelijk aan
-    10% van zijn bedrag.
+    De korting van een Bestelling moet berekend worden als
+        zijn bedrag maal 0,1.
 
 Regel Eindbedrag berekening
 geldig altijd
-  Het eindbedrag van een Bestelling moet berekend worden als
-    zijn bedrag min zijn korting.
+    Het eindbedrag van een Bestelling moet berekend worden als
+        zijn bedrag min zijn korting.
 `;
 
 console.log('=== Parsing Domain Model ===');

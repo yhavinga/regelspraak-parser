@@ -11,21 +11,21 @@ const engine = new Engine();
 // Define a unit system
 const regelspraakCode = `
 Eenheidsysteem afstand
-  meter (m)
-  kilometer (km) = 1000 meter
-  mijl (mi) = 1609 meter
+  de meter m
+  de kilometer km = 1000 m
+  de mijl mi = 1609 m
 
 Eenheidsysteem tijd
-  seconde (s)
-  minuut (min) = 60 seconden
-  uur (u) = 3600 seconden
+  de seconde s
+  de minuut min = 60 s
+  de uur u = 3600 s
 
 Objecttype de Reis
-  de afstand : Numeriek met eenheid meter
-  de duur : Numeriek met eenheid minuut
-  de snelheid : Numeriek
+  de afstand Numeriek met eenheid m;
+  de duur Numeriek met eenheid min;
+  de snelheid Numeriek;
 
-Parameter de maximale snelheid : Numeriek = 120
+Parameter de maximale snelheid : Numeriek
 
 Regel Snelheid berekening
 geldig altijd

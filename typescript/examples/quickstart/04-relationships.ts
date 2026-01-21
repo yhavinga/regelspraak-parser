@@ -11,21 +11,21 @@ const engine = new Engine();
 // Define object types and a relationship (Feittype)
 const regelspraakCode = `
 Objecttype de Afdeling
-  de naam : Tekst
-  het budget : Numeriek
-  het totaal salaris : Numeriek
+  de naam Tekst;
+  het budget Numeriek;
+  het totaal salaris Numeriek;
 
-Objecttype de Medewerker
-  de naam : Tekst
-  het salaris : Numeriek
+Objecttype de Medewerker (bezield)
+  de naam Tekst;
+  het salaris Numeriek;
 
 Feittype werkt bij
-  rol medewerker : Medewerker
-  rol afdeling : Afdeling
+  de medewerker	de Medewerker
+  de afdeling	de Afdeling
 
 Regel Totaal salaris berekening
 geldig altijd
-  Het totaal salaris van een Afdeling is gelijk aan
+  Het totaal salaris van een Afdeling moet berekend worden als
     de som van het salaris van alle medewerkers die werken bij de Afdeling.
 `;
 
