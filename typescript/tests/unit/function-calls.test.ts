@@ -288,4 +288,66 @@ describe('Engine - Function Calls', () => {
       });
     });
   });
+
+  describe('datum_met function (date construction)', () => {
+    test('should construct date from year, month, day', () => {
+      const result = engine.run('de datum met jaar, maand en dag(2024, 3, 15)');
+      expect(result.success).toBe(true);
+      expect(result.value?.type).toBe('date');
+      const date = result.value?.value as Date;
+      expect(date.getFullYear()).toBe(2024);
+      expect(date.getMonth()).toBe(2); // March = 2 (0-indexed)
+      expect(date.getDate()).toBe(15);
+    });
+
+    test('should construct date for January', () => {
+      const result = engine.run('de datum met jaar, maand en dag(2025, 1, 1)');
+      expect(result.success).toBe(true);
+      expect(result.value?.type).toBe('date');
+      const date = result.value?.value as Date;
+      expect(date.getFullYear()).toBe(2025);
+      expect(date.getMonth()).toBe(0); // January = 0
+      expect(date.getDate()).toBe(1);
+    });
+
+    test('should construct date for December', () => {
+      const result = engine.run('de datum met jaar, maand en dag(2024, 12, 31)');
+      expect(result.success).toBe(true);
+      expect(result.value?.type).toBe('date');
+      const date = result.value?.value as Date;
+      expect(date.getFullYear()).toBe(2024);
+      expect(date.getMonth()).toBe(11); // December = 11
+      expect(date.getDate()).toBe(31);
+    });
+
+    test('should handle variables', () => {
+      const context = new Context();
+      context.setVariable('jj', { type: 'number', value: 2025 });
+      context.setVariable('mm', { type: 'number', value: 12 });
+      context.setVariable('dd', { type: 'number', value: 25 });
+      const result = engine.run('de datum met jaar, maand en dag(jj, mm, dd)', context);
+      expect(result.success).toBe(true);
+      expect(result.value?.type).toBe('date');
+    });
+
+    test('should reject invalid date (Feb 30)', () => {
+      const result = engine.run('de datum met jaar, maand en dag(2024, 2, 30)');
+      expect(result.success).toBe(false);
+      expect(result.error?.message).toContain('Invalid date');
+    });
+
+    test('should accept Feb 29 on leap year', () => {
+      const result = engine.run('de datum met jaar, maand en dag(2024, 2, 29)');
+      expect(result.success).toBe(true);
+      expect(result.value?.type).toBe('date');
+      const date = result.value?.value as Date;
+      expect(date.getDate()).toBe(29);
+    });
+
+    test('should reject Feb 29 on non-leap year', () => {
+      const result = engine.run('de datum met jaar, maand en dag(2023, 2, 29)');
+      expect(result.success).toBe(false);
+      expect(result.error?.message).toContain('Invalid date');
+    });
+  });
 });

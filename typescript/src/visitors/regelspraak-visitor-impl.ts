@@ -846,8 +846,7 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
       case 'DagUitFuncExprContext':
         return this.visitDagUitFuncExpr(ctx);
       case 'DatumMetFuncExprContext':
-        // Needs implementation
-        return this.visitDagUitFuncExpr(ctx); // Temporary fallback
+        return this.visitDatumMetFuncExpr(ctx);
       case 'TotaalVanExprContext':
         return this.visitTotaalVanExpr(ctx);
       case 'CapitalizedTotaalVanExprContext':
@@ -2224,6 +2223,27 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
       type: 'FunctionCall',
       functionName: 'dag_uit',
       arguments: [arg]
+    } as FunctionCall;
+    this.setLocation(node, ctx);
+    return node;
+  }
+
+  visitDatumMetFuncExpr(ctx: any): Expression {
+    // Pattern: DE_DATUM_MET LPAREN primaryExpression COMMA primaryExpression COMMA primaryExpression RPAREN
+    // Constructs a date from year, month, day components
+    const expressions = ctx.primaryExpression_list ? ctx.primaryExpression_list() : [];
+    if (expressions.length !== 3) {
+      throw new Error(`de datum met requires exactly 3 arguments (jaar, maand, dag), got ${expressions.length}`);
+    }
+
+    const yearExpr = this.visit(expressions[0]);
+    const monthExpr = this.visit(expressions[1]);
+    const dayExpr = this.visit(expressions[2]);
+
+    const node = {
+      type: 'FunctionCall',
+      functionName: 'datum_met',
+      arguments: [yearExpr, monthExpr, dayExpr]
     } as FunctionCall;
     this.setLocation(node, ctx);
     return node;

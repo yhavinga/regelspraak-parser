@@ -37,6 +37,7 @@ export class ExpressionEvaluator implements IEvaluator {
     'maand_uit': this.maand_uit.bind(this),
     'dag_uit': this.dag_uit.bind(this),
     'jaar_uit': this.jaar_uit.bind(this),
+    'datum_met': this.datum_met.bind(this),
     'eerste_van': this.eerste_van.bind(this),
     'laatste_van': this.laatste_van.bind(this),
     'eerste_paasdag_van': this.eerste_paasdag_van.bind(this)
@@ -2527,6 +2528,37 @@ export class ExpressionEvaluator implements IEvaluator {
       type: 'number',
       value: date.getFullYear()
     };
+  }
+
+  private datum_met(args: Value[]): Value {
+    // Constructs a date from year, month, day components
+    if (args.length !== 3) {
+      throw new Error(`Function 'datum_met' expects 3 arguments, got ${args.length}`);
+    }
+
+    const year = args[0];
+    const month = args[1];
+    const day = args[2];
+
+    if (year.type !== 'number' || month.type !== 'number' || day.type !== 'number') {
+      throw new Error(`Function 'datum_met' requires 3 numeric arguments`);
+    }
+
+    const yearVal = year.value as number;
+    const monthVal = month.value as number;
+    const dayVal = day.value as number;
+
+    // Construct date - JavaScript months are 0-indexed
+    const date = new Date(yearVal, monthVal - 1, dayVal);
+
+    // Validate the date is valid (JavaScript Date auto-adjusts invalid dates)
+    if (date.getFullYear() !== yearVal ||
+        date.getMonth() !== monthVal - 1 ||
+        date.getDate() !== dayVal) {
+      throw new Error(`Invalid date: ${yearVal}-${monthVal}-${dayVal}`);
+    }
+
+    return { type: 'date', value: date };
   }
 
   // Removed duplicate evaluateUnaryExpression - merged into the one above
