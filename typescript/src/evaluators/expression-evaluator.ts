@@ -30,7 +30,7 @@ export class ExpressionEvaluator implements IEvaluator {
     'maximum_van_values': this.maximum_van_values.bind(this),
     'minimum_van_values': this.minimum_van_values.bind(this),
     // 'totaal_van' removed - handled via TimelineExpression
-    'tijdsevenredig_deel': this.tijdsevenredig_deel.bind(this),
+    // 'tijdsevenredig_deel' removed - handled via TimelineExpression in timeline-evaluator
     'tijdsduur_van': this.tijdsduur_van.bind(this),
     'abs_tijdsduur_van': this.abs_tijdsduur_van.bind(this),
     'aantal_dagen_in': this.aantal_dagen_in.bind(this),
@@ -1204,31 +1204,7 @@ export class ExpressionEvaluator implements IEvaluator {
   }
 
   // totaal_van method removed - handled via TimelineExpression in timeline-evaluator
-
-  private tijdsevenredig_deel(args: Value[]): Value {
-    // Time-proportional part calculation
-    // Format: HET_TIJDSEVENREDIG_DEEL_PER (MAAND | JAAR) VAN expressie
-    if (args.length < 2) {
-      throw new Error('tijdsevenredig_deel expects at least 2 arguments (period type and value)');
-    }
-
-    // First argument should be the period type ("maand" or "jaar")
-    const periodType = args[0];
-    if (periodType.type !== 'string') {
-      throw new Error('tijdsevenredig_deel first argument should be period type');
-    }
-
-    const value = args[1];
-    if (value.type !== 'number') {
-      throw new Error('tijdsevenredig_deel expects a numeric value');
-    }
-
-    // TODO: Implement actual time-proportional calculation based on period
-    // For now, return a placeholder implementation
-    console.warn('tijdsevenredig_deel not fully implemented in TypeScript');
-
-    return value; // Placeholder: return the value as-is
-  }
+  // tijdsevenredig_deel method removed - handled via TimelineExpression in timeline-evaluator
 
   private tijdsduur_van(args: Value[], unitConversion?: string): Value {
     if (args.length !== 2) {
