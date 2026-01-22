@@ -3045,11 +3045,53 @@ export class ExpressionEvaluator implements IEvaluator {
     // Liberation Day (May 5) - every 5 years
     if (month === 4 && day === 5 && year % 5 === 0) return true;
 
-    // Easter-based holidays (simplified - would need proper Easter calculation)
-    // For now, return false for movable holidays
-    // TODO: Implement proper Easter calculation for Good Friday, Easter Monday, Ascension Day, Whit Monday
+    // Easter-based movable holidays
+    const easter = this.calculateEasterSunday(year);
+    const easterTime = easter.getTime();
+    const dateTime = date.getTime();
+    const dayMs = 24 * 60 * 60 * 1000;
+
+    // Good Friday (Goede Vrijdag) - 2 days before Easter
+    if (dateTime === easterTime - 2 * dayMs) return true;
+
+    // Easter Sunday (Eerste Paasdag)
+    if (dateTime === easterTime) return true;
+
+    // Easter Monday (Tweede Paasdag) - 1 day after Easter
+    if (dateTime === easterTime + 1 * dayMs) return true;
+
+    // Ascension Day (Hemelvaartsdag) - 39 days after Easter
+    if (dateTime === easterTime + 39 * dayMs) return true;
+
+    // Whit Sunday (Eerste Pinksterdag) - 49 days after Easter
+    if (dateTime === easterTime + 49 * dayMs) return true;
+
+    // Whit Monday (Tweede Pinksterdag) - 50 days after Easter
+    if (dateTime === easterTime + 50 * dayMs) return true;
 
     return false;
+  }
+
+  /**
+   * Calculate Easter Sunday date for a given year.
+   * Uses Anonymous Gregorian algorithm (Meeus/Jones/Butcher).
+   */
+  private calculateEasterSunday(year: number): Date {
+    const a = year % 19;
+    const b = Math.floor(year / 100);
+    const c = year % 100;
+    const d = Math.floor(b / 4);
+    const e = b % 4;
+    const f = Math.floor((b + 8) / 25);
+    const g = Math.floor((b - f + 1) / 3);
+    const h = (19 * a + b - d - g + 15) % 30;
+    const i = Math.floor(c / 4);
+    const k = c % 4;
+    const l = (32 + 2 * e + 2 * i - h - k) % 7;
+    const m = Math.floor((a + 11 * h + 22 * l) / 451);
+    const month = Math.floor((h + l - 7 * m + 114) / 31);
+    const day = ((h + l - 7 * m + 114) % 31) + 1;
+    return new Date(year, month - 1, day);
   }
 
   // --- Built-in functions: eerste_van, laatste_van, eerste_paasdag_van ---
@@ -3081,8 +3123,8 @@ export class ExpressionEvaluator implements IEvaluator {
   }
 
   /**
-   * Calculate Easter date for a given year using the Anonymous Gregorian algorithm.
-   * Mirrors Python's eerste_paasdag_van function.
+   * Calculate Easter date for a given year.
+   * Uses the shared calculateEasterSunday helper.
    */
   private eerste_paasdag_van(args: Value[]): Value {
     if (args.length !== 1) {
@@ -3094,27 +3136,9 @@ export class ExpressionEvaluator implements IEvaluator {
       throw new Error('eerste_paasdag_van expects a numeric year');
     }
 
-    const year = yearArg.value as number;
-
-    // Anonymous Gregorian algorithm for Easter calculation
-    const a = year % 19;
-    const b = Math.floor(year / 100);
-    const c = year % 100;
-    const d = Math.floor(b / 4);
-    const e = b % 4;
-    const f = Math.floor((b + 8) / 25);
-    const g = Math.floor((b - f + 1) / 3);
-    const h = (19 * a + b - d - g + 15) % 30;
-    const i = Math.floor(c / 4);
-    const k = c % 4;
-    const l = (32 + 2 * e + 2 * i - h - k) % 7;
-    const m = Math.floor((a + 11 * h + 22 * l) / 451);
-    const month = Math.floor((h + l - 7 * m + 114) / 31);
-    const day = ((h + l - 7 * m + 114) % 31) + 1;
-
     return {
       type: 'date',
-      value: new Date(year, month - 1, day)
+      value: this.calculateEasterSunday(yearArg.value as number)
     };
   }
 
