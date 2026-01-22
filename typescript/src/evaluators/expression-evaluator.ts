@@ -649,6 +649,24 @@ export class ExpressionEvaluator implements IEvaluator {
   private evaluateParameterReference(expr: ParameterReference, context: RuntimeContext): Value {
     const ctx = context as any;
 
+    // Special handling for rekendatum - returns evaluation_date (spec §5.3)
+    if (expr.parameterName === 'rekendatum') {
+      const evalDate = ctx.getEvaluationDate ? ctx.getEvaluationDate() : ctx.evaluation_date;
+      if (evalDate) {
+        return { type: 'date', value: evalDate };
+      }
+      throw new Error('rekendatum not set - must be provided at runtime (spec §5.3)');
+    }
+
+    // Special handling for rekenjaar - returns year of evaluation_date
+    if (expr.parameterName === 'rekenjaar') {
+      const evalDate = ctx.getEvaluationDate ? ctx.getEvaluationDate() : ctx.evaluation_date;
+      if (evalDate) {
+        return { type: 'number', value: evalDate.getFullYear() };
+      }
+      throw new Error('rekenjaar not set - must be provided at runtime (spec §5.3)');
+    }
+
     // Check for timeline parameters first
     if (ctx.getTimelineParameter) {
       const timelineValue = ctx.getTimelineParameter(expr.parameterName);

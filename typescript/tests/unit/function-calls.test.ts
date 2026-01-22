@@ -350,4 +350,34 @@ describe('Engine - Function Calls', () => {
       expect(result.error?.message).toContain('Invalid date');
     });
   });
+
+  describe('Rekendatum keyword (spec §5.3)', () => {
+    test('should work in date arithmetic expression', () => {
+      const context = new Context();
+      context.evaluation_date = new Date(2024, 0, 15); // Jan 15, 2024
+      const result = engine.run('Rekendatum plus 30 dagen', context);
+      expect(result.success).toBe(true);
+      expect(result.value?.type).toBe('date');
+      const date = result.value?.value as Date;
+      expect(date.getFullYear()).toBe(2024);
+      expect(date.getMonth()).toBe(1); // Feb (0-indexed)
+      expect(date.getDate()).toBe(14);
+    });
+
+    test('should work in date subtraction expression', () => {
+      const context = new Context();
+      context.evaluation_date = new Date(2024, 3, 15); // April 15, 2024
+      const result = engine.run('Rekendatum min 1 jaar', context);
+      expect(result.success).toBe(true);
+      expect(result.value?.type).toBe('date');
+      const date = result.value?.value as Date;
+      expect(date.getFullYear()).toBe(2023);
+      expect(date.getMonth()).toBe(3); // April
+      expect(date.getDate()).toBe(15);
+    });
+  });
+
+  // Note: Rekenjaar is primarily used in datumExpressie contexts (date calculations)
+  // rather than as a standalone numeric expression. Testing in rule context is more appropriate.
+  // The grammar places REKENJAAR in datumExpressie/dateExpression rules, not primaryExpression.
 });

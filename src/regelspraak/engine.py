@@ -5446,18 +5446,43 @@ class Evaluator:
     
     def _evaluate_parameter_reference(self, expr: ParameterReference, instance_id: Optional[str]) -> Value:
         """Evaluate a parameter reference - shared logic for timeline and non-timeline paths."""
-        # Always use context.get_parameter which handles timeline empty values correctly
+        # Special handling for rekendatum - returns evaluation_date or rekendatum (spec §5.3)
+        if expr.parameter_name == "rekendatum":
+            eval_date = self.context.evaluation_date or self.context.get_rekendatum()
+            if eval_date:
+                value = Value(value=eval_date, datatype="Datum")
+                if self.context.trace_sink:
+                    self.context.trace_sink.parameter_read(
+                        expr.parameter_name, eval_date, expr=expr, instance_id=instance_id
+                    )
+                return value
+            raise RegelspraakError("rekendatum not set - must be provided at runtime (spec §5.3)", span=expr.span)
+
+        # Special handling for rekenjaar - returns year of evaluation_date (spec §5.3)
+        if expr.parameter_name == "rekenjaar":
+            eval_date = self.context.evaluation_date or self.context.get_rekendatum()
+            if eval_date:
+                year_value = eval_date.year
+                value = Value(value=year_value, datatype="Getal")
+                if self.context.trace_sink:
+                    self.context.trace_sink.parameter_read(
+                        expr.parameter_name, year_value, expr=expr, instance_id=instance_id
+                    )
+                return value
+            raise RegelspraakError("rekenjaar not set - must be provided at runtime (spec §5.3)", span=expr.span)
+
+        # Regular parameter lookup
         value = self.context.get_parameter(expr.parameter_name)
-        
+
         # Trace parameter read
         if self.context.trace_sink:
             self.context.trace_sink.parameter_read(
-                expr.parameter_name, 
-                value.value if isinstance(value, Value) else value, 
+                expr.parameter_name,
+                value.value if isinstance(value, Value) else value,
                 expr=expr,
                 instance_id=instance_id
             )
-            
+
         return value
     
     def _evaluate_literal(self, expr: Literal) -> Value:

@@ -296,5 +296,83 @@ class TestDateFunctionParsing(RegelSpraakTestCase):
         self.assertEqual(len(expr.arguments), 3)
 
 
+class TestRekendatumKeyword(RegelSpraakTestCase):
+    """Test Rekendatum keyword per spec §5.3."""
+
+    def test_rekendatum_returns_evaluation_date(self):
+        """Test Rekendatum keyword returns the evaluation_date from context."""
+        regelspraak = """
+        Objecttype de Factuur
+            de vervaldatum Datum;
+
+        Regel Test rekendatum
+            geldig altijd
+                De vervaldatum van de factuur moet gesteld worden op Rekendatum.
+        """
+
+        model = parse_regelspraak(regelspraak)
+        context = RuntimeContext(domain_model=model)
+        context.evaluation_date = date(2024, 4, 15)
+
+        factuur = context.create_object("Factuur")
+        context.add_object(factuur)
+
+        engine = Evaluator(context)
+        engine.execute_model(model)
+
+        self.assertEqual(factuur.attributen["vervaldatum"].value, date(2024, 4, 15))
+
+    def test_rekendatum_in_date_arithmetic(self):
+        """Test Rekendatum works in date arithmetic (Rekendatum plus X dagen)."""
+        regelspraak = """
+        Objecttype de Factuur
+            de vervaldatum Datum;
+
+        Regel Bereken vervaldatum
+            geldig altijd
+                De vervaldatum van de factuur moet berekend worden als
+                    Rekendatum plus 30 dagen.
+        """
+
+        model = parse_regelspraak(regelspraak)
+        context = RuntimeContext(domain_model=model)
+        context.evaluation_date = date(2024, 1, 15)
+
+        factuur = context.create_object("Factuur")
+        context.add_object(factuur)
+
+        engine = Evaluator(context)
+        engine.execute_model(model)
+
+        # Jan 15 + 30 days = Feb 14
+        self.assertEqual(factuur.attributen["vervaldatum"].value, date(2024, 2, 14))
+
+    def test_rekendatum_ast_node(self):
+        """Test Rekendatum creates ParameterReference AST node."""
+        from src.regelspraak.ast import ParameterReference, Gelijkstelling
+
+        regelspraak = """
+        Objecttype de Test
+            de datum Datum;
+
+        Regel Test
+            geldig altijd
+                De datum van de test moet gesteld worden op Rekendatum.
+        """
+
+        model = parse_regelspraak(regelspraak)
+        regel = model.regels[0]
+        self.assertIsInstance(regel.resultaat, Gelijkstelling)
+
+        expr = regel.resultaat.expressie
+        self.assertIsInstance(expr, ParameterReference)
+        self.assertEqual(expr.parameter_name, "rekendatum")
+
+    # Note: Rekenjaar tests are not included because the grammar places REKENJAAR
+    # only in datumExpressie/dateExpression rules (for date calculations), not in
+    # primaryExpression (for general numeric expressions). This is a grammar limitation
+    # that would require grammar changes to support Rekenjaar as a standalone numeric value.
+
+
 if __name__ == '__main__':
     unittest.main()

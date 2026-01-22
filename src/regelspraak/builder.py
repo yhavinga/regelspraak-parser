@@ -3528,7 +3528,7 @@ class RegelSpraakModelBuilder(RegelSpraakVisitor):
                 return None
         elif isinstance(ctx, AntlrParser.RekendatumKeywordExprContext):
             logger.debug("  -> Matched RekendatumKeywordExprContext")
-            result = VariableReference(variable_name="rekendatum", span=self.get_span(ctx))
+            result = ParameterReference(parameter_name="rekendatum", span=self.get_span(ctx))
             logger.debug(f"    Returning: {result}")
             return result
         elif isinstance(ctx, AntlrParser.IdentifierExprContext):

@@ -864,9 +864,14 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
         return this.visitStringLiteralExpr(ctx); // Temporary fallback
       case 'ConcatenatieExprContext':
         return this.visitConcatenatieExpr(ctx);
-      case 'RekendatumKeywordExprContext':
-        // Needs implementation
-        return this.visitIdentifierExpr(ctx as any); // Temporary fallback
+      case 'RekendatumKeywordExprContext': {
+        const node: ParameterReference = {
+          type: 'ParameterReference',
+          parameterName: 'rekendatum'
+        };
+        this.setLocation(node, ctx);
+        return node;
+      }
 
       // Unary expressions
       case 'UnaryMinusExprContext':
@@ -1023,19 +1028,19 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
     }
 
     if (ctx.REKENDATUM()) {
-      const node = {
+      const node: ParameterReference = {
         type: 'ParameterReference',
-        name: 'rekendatum'
-      } as any;
+        parameterName: 'rekendatum'
+      };
       this.setLocation(node, ctx);
       return node;
     }
 
     if (ctx.REKENJAAR()) {
-      const node = {
+      const node: ParameterReference = {
         type: 'ParameterReference',
-        name: 'rekenjaar'
-      } as any;
+        parameterName: 'rekenjaar'
+      };
       this.setLocation(node, ctx);
       return node;
     }
