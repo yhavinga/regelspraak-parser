@@ -132,7 +132,34 @@ export interface AllAttributesExpression extends Expression {
 
 // Predicaat types for filtering
 // @deprecated Use unified predicate types from '../predicates/predicate-types' instead
-export type Predicaat = KenmerkPredicaat | AttributeComparisonPredicaat;
+export type Predicaat = KenmerkPredicaat | AttributeComparisonPredicaat | SamengesteldPredicaatNode;
+
+// Samengesteld predicaat types (compound predicates in subselectie)
+export interface SamengesteldPredicaatNode {
+  type: 'SamengesteldPredicaat';
+  kwantificatie: Quantifier;
+  voorwaarden: GenesteVoorwaardeInPredicaat[];
+  predicate: import('../predicates/predicate-types').CompoundPredicate;
+  location?: SourceLocation;
+}
+
+export interface GenesteVoorwaardeInPredicaat {
+  type: 'GenesteVoorwaardeInPredicaat';
+  niveau: number;  // Bullet level (1 = •, 2 = ••, etc.)
+  voorwaarde: VergelijkingInPredicaat | SamengesteldPredicaatNode;
+  location?: SourceLocation;
+}
+
+export interface VergelijkingInPredicaat {
+  type: 'VergelijkingInPredicaat';
+  vergelijkingType: 'attribuut_vergelijking' | 'object_check' | 'kenmerk_check';
+  onderwerp?: Expression;
+  attribuut?: Expression;  // Can be AttributeReference or other expression types
+  operator?: string;
+  waarde?: Expression;
+  kenmerkNaam?: string;
+  location?: SourceLocation;
+}
 
 // @deprecated Use SimplePredicate with operator: 'kenmerk' instead
 export interface KenmerkPredicaat {

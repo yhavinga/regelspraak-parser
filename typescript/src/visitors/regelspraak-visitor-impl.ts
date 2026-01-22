@@ -44,7 +44,10 @@ import {
   AttributeReference,
   StringLiteral,
   Literal,
-  BooleanLiteral
+  BooleanLiteral,
+  SamengesteldPredicaatNode,
+  GenesteVoorwaardeInPredicaat,
+  VergelijkingInPredicaat
 } from '../ast/expressions';
 import {
   Predicate,
@@ -3004,6 +3007,12 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
       return this.visitElementairPredicaat(elementairPredicaatCtx);
     }
 
+    // Check for samengesteldPredicaat
+    const samengesteldPredicaatCtx = ctx.samengesteldPredicaat ? ctx.samengesteldPredicaat() : null;
+    if (samengesteldPredicaatCtx) {
+      return this.visitSamengesteldPredicaat(samengesteldPredicaatCtx);
+    }
+
     // Try to get text and check if it's a simple kenmerk
     const text = this.extractTextWithSpaces(ctx);
 
@@ -3028,7 +3037,6 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
       return node;
     }
 
-    // TODO: Handle samengesteldPredicaat
     throw new Error(`Unsupported predicate type: ${text}`);
   }
 
@@ -3128,6 +3136,281 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
       this.setLocation(node.predicate, ctx);
     }
     return node;
+  }
+
+  visitSamengesteldPredicaat(ctx: any): SamengesteldPredicaatNode {
+    // samengesteldPredicaat : AAN voorwaardeKwantificatie VOLGENDE (VOORWAARDE | VOORWAARDEN) (VOLDOET | VOLDOEN) COLON
+    //   samengesteldeVoorwaardeOnderdeelInPredicaat+
+
+    // Extract quantifier (reuse existing visitVoorwaardeKwantificatie)
+    const kwantificatie = this.visitVoorwaardeKwantificatie(ctx.voorwaardeKwantificatie());
+
+    // Get all nested conditions
+    const voorwaarden: GenesteVoorwaardeInPredicaat[] = [];
+
+    // Get the list of condition parts
+    const onderdeelContexts = ctx.samengesteldeVoorwaardeOnderdeelInPredicaat_list
+      ? ctx.samengesteldeVoorwaardeOnderdeelInPredicaat_list()
+      : (ctx.samengesteldeVoorwaardeOnderdeelInPredicaat ? ctx.samengesteldeVoorwaardeOnderdeelInPredicaat() : []);
+
+    const contexts = Array.isArray(onderdeelContexts) ? onderdeelContexts : [onderdeelContexts];
+
+    for (const onderdeelCtx of contexts) {
+      if (onderdeelCtx) {
+        const geneste = this.visitSamengesteldeVoorwaardeOnderdeelInPredicaat(onderdeelCtx);
+        if (geneste) {
+          voorwaarden.push(geneste);
+        }
+      }
+    }
+
+    if (voorwaarden.length === 0) {
+      throw new Error('Samengesteld predicaat has no valid conditions');
+    }
+
+    // Map to unified CompoundPredicate for evaluation
+    const predicates = voorwaarden.map(v => this.convertGenesteVoorwaardeToPredicate(v));
+
+    const node: SamengesteldPredicaatNode = {
+      type: 'SamengesteldPredicaat',
+      kwantificatie,
+      voorwaarden,
+      predicate: {
+        type: 'CompoundPredicate',
+        quantifier: kwantificatie.type,
+        count: kwantificatie.aantal,
+        predicates
+      }
+    };
+
+    this.setLocation(node, ctx);
+    this.setLocation(node.predicate, ctx);
+    return node;
+  }
+
+  visitSamengesteldeVoorwaardeOnderdeelInPredicaat(ctx: any): GenesteVoorwaardeInPredicaat | null {
+    // samengesteldeVoorwaardeOnderdeelInPredicaat
+    //   : bulletPrefix elementaireVoorwaardeInPredicaat
+    //   | bulletPrefix genesteSamengesteldeVoorwaardeInPredicaat
+
+    // Get bullet level
+    const bulletPrefixCtx = ctx.bulletPrefix ? ctx.bulletPrefix() : null;
+    const niveau = bulletPrefixCtx ? bulletPrefixCtx.getText().length : 1;
+
+    let voorwaarde: VergelijkingInPredicaat | SamengesteldPredicaatNode | null = null;
+
+    const elementaireCtx = ctx.elementaireVoorwaardeInPredicaat ? ctx.elementaireVoorwaardeInPredicaat() : null;
+    if (elementaireCtx) {
+      voorwaarde = this.visitElementaireVoorwaardeInPredicaat(elementaireCtx);
+    } else {
+      const genesteCtx = ctx.genesteSamengesteldeVoorwaardeInPredicaat ? ctx.genesteSamengesteldeVoorwaardeInPredicaat() : null;
+      if (genesteCtx) {
+        voorwaarde = this.visitGenesteSamengesteldeVoorwaardeInPredicaat(genesteCtx);
+      }
+    }
+
+    if (!voorwaarde) return null;
+
+    const node: GenesteVoorwaardeInPredicaat = {
+      type: 'GenesteVoorwaardeInPredicaat',
+      niveau,
+      voorwaarde
+    };
+    this.setLocation(node, ctx);
+    return node;
+  }
+
+  visitElementaireVoorwaardeInPredicaat(ctx: any): VergelijkingInPredicaat | null {
+    // elementaireVoorwaardeInPredicaat : vergelijkingInPredicaat
+    const vergelijkingCtx = ctx.vergelijkingInPredicaat ? ctx.vergelijkingInPredicaat() : null;
+    if (vergelijkingCtx) {
+      return this.visitVergelijkingInPredicaat(vergelijkingCtx);
+    }
+    return null;
+  }
+
+  visitVergelijkingInPredicaat(ctx: any): VergelijkingInPredicaat {
+    // vergelijkingInPredicaat
+    //   : attribuutReferentie comparisonOperator expressie  // "zijn leeftijd is groter dan 65"
+    //   | onderwerpReferentie eenzijdigeObjectVergelijking  // "hij is een passagier"
+    //   | attribuutReferentie (IS | ZIJN) kenmerkNaam       // "zijn reis is duurzaam"
+
+    const attrRefCtx = ctx.attribuutReferentie ? ctx.attribuutReferentie() : null;
+    const compOpCtx = ctx.comparisonOperator ? ctx.comparisonOperator() : null;
+    const exprCtx = ctx.expressie ? ctx.expressie() : null;
+
+    // Pattern 1: attribuutReferentie comparisonOperator expressie
+    if (attrRefCtx && compOpCtx && exprCtx) {
+      const attribuut = this.visitAttribuutReferentie(attrRefCtx);
+      const opText = this.extractTextWithSpaces(compOpCtx).trim();
+      const operator = this.mapOperator(opText);
+      const waarde = this.visit(exprCtx);
+
+      const node: VergelijkingInPredicaat = {
+        type: 'VergelijkingInPredicaat',
+        vergelijkingType: 'attribuut_vergelijking',
+        attribuut,
+        operator,
+        waarde
+      };
+      this.setLocation(node, ctx);
+      return node;
+    }
+
+    // Pattern 2: onderwerpReferentie eenzijdigeObjectVergelijking (object/role check)
+    const onderwerpRefCtx = ctx.onderwerpReferentie ? ctx.onderwerpReferentie() : null;
+    const eenzijdigeCtx = ctx.eenzijdigeObjectVergelijking ? ctx.eenzijdigeObjectVergelijking() : null;
+    if (onderwerpRefCtx && eenzijdigeCtx) {
+      const onderwerp = this.visitOnderwerpReferentie(onderwerpRefCtx);
+
+      // Extract the kenmerk or rol name from eenzijdigeObjectVergelijking
+      let kenmerkNaam = '';
+      const kenmerkNaamCtx = eenzijdigeCtx.kenmerkNaam ? eenzijdigeCtx.kenmerkNaam() : null;
+      const rolNaamCtx = eenzijdigeCtx.rolNaam ? eenzijdigeCtx.rolNaam() : null;
+
+      if (kenmerkNaamCtx) {
+        kenmerkNaam = this.extractTextWithSpaces(kenmerkNaamCtx).trim();
+      } else if (rolNaamCtx) {
+        kenmerkNaam = this.extractTextWithSpaces(rolNaamCtx).trim();
+      }
+
+      const node: VergelijkingInPredicaat = {
+        type: 'VergelijkingInPredicaat',
+        vergelijkingType: 'object_check',
+        onderwerp,
+        kenmerkNaam
+      };
+      this.setLocation(node, ctx);
+      return node;
+    }
+
+    // Pattern 3: attribuutReferentie IS/ZIJN kenmerkNaam (kenmerk check)
+    const kenmerkNaamCtx = ctx.kenmerkNaam ? ctx.kenmerkNaam() : null;
+    if (attrRefCtx && kenmerkNaamCtx) {
+      const attribuut = this.visitAttribuutReferentie(attrRefCtx);
+      const kenmerkNaam = this.extractTextWithSpaces(kenmerkNaamCtx).trim();
+
+      const node: VergelijkingInPredicaat = {
+        type: 'VergelijkingInPredicaat',
+        vergelijkingType: 'kenmerk_check',
+        attribuut,
+        kenmerkNaam
+      };
+      this.setLocation(node, ctx);
+      return node;
+    }
+
+    throw new Error(`Unknown vergelijkingInPredicaat pattern: ${this.extractTextWithSpaces(ctx)}`);
+  }
+
+  visitGenesteSamengesteldeVoorwaardeInPredicaat(ctx: any): SamengesteldPredicaatNode {
+    // genesteSamengesteldeVoorwaardeInPredicaat
+    //   : (VOLDOET | VOLDOEN | WORDT VOLDAAN) AAN voorwaardeKwantificatie VOLGENDE (VOORWAARDE | VOORWAARDEN) COLON
+    //     samengesteldeVoorwaardeOnderdeelInPredicaat+
+
+    // Extract quantifier
+    const kwantificatie = this.visitVoorwaardeKwantificatie(ctx.voorwaardeKwantificatie());
+
+    // Get all nested conditions
+    const voorwaarden: GenesteVoorwaardeInPredicaat[] = [];
+
+    const onderdeelContexts = ctx.samengesteldeVoorwaardeOnderdeelInPredicaat_list
+      ? ctx.samengesteldeVoorwaardeOnderdeelInPredicaat_list()
+      : (ctx.samengesteldeVoorwaardeOnderdeelInPredicaat ? ctx.samengesteldeVoorwaardeOnderdeelInPredicaat() : []);
+
+    const contexts = Array.isArray(onderdeelContexts) ? onderdeelContexts : [onderdeelContexts];
+
+    for (const onderdeelCtx of contexts) {
+      if (onderdeelCtx) {
+        const geneste = this.visitSamengesteldeVoorwaardeOnderdeelInPredicaat(onderdeelCtx);
+        if (geneste) {
+          voorwaarden.push(geneste);
+        }
+      }
+    }
+
+    if (voorwaarden.length === 0) {
+      throw new Error('Nested samengesteld predicaat has no valid conditions');
+    }
+
+    // Map to unified CompoundPredicate
+    const predicates = voorwaarden.map(v => this.convertGenesteVoorwaardeToPredicate(v));
+
+    const node: SamengesteldPredicaatNode = {
+      type: 'SamengesteldPredicaat',
+      kwantificatie,
+      voorwaarden,
+      predicate: {
+        type: 'CompoundPredicate',
+        quantifier: kwantificatie.type,
+        count: kwantificatie.aantal,
+        predicates
+      }
+    };
+
+    this.setLocation(node, ctx);
+    this.setLocation(node.predicate, ctx);
+    return node;
+  }
+
+  private convertGenesteVoorwaardeToPredicate(geneste: GenesteVoorwaardeInPredicaat): Predicate {
+    const voorwaarde = geneste.voorwaarde;
+
+    if (voorwaarde.type === 'SamengesteldPredicaat') {
+      return voorwaarde.predicate; // Already a CompoundPredicate
+    }
+
+    if (voorwaarde.type === 'VergelijkingInPredicaat') {
+      return this.convertVergelijkingToPredicate(voorwaarde);
+    }
+
+    throw new Error(`Unknown voorwaarde type: ${(voorwaarde as any).type}`);
+  }
+
+  private convertVergelijkingToPredicate(v: VergelijkingInPredicaat): Predicate {
+    if (v.vergelijkingType === 'attribuut_vergelijking') {
+      // Create an AttributePredicate for attribute comparisons
+      // Extract attribute path - v.attribuut is an Expression, usually AttributeReference
+      let attributePath = '';
+      if (v.attribuut && v.attribuut.type === 'AttributeReference') {
+        attributePath = (v.attribuut as AttributeReference).path?.join('.') || '';
+      }
+      return {
+        type: 'AttributePredicate',
+        attribute: attributePath,
+        operator: this.mapOperator(v.operator || '==') as import('../predicates/predicate-types').ComparisonOperator,
+        value: v.waarde
+      } as AttributePredicate;
+    }
+
+    // kenmerk_check or object_check - use SimplePredicate
+    return {
+      type: 'SimplePredicate',
+      operator: 'kenmerk',
+      kenmerk: v.kenmerkNaam
+    } as SimplePredicate;
+  }
+
+  private mapOperator(op: string): string {
+    // Map Dutch operators to standard operators if not already standard
+    const operatorMap: Record<string, string> = {
+      'gelijk aan': '==',
+      'is gelijk aan': '==',
+      'ongelijk aan': '!=',
+      'is ongelijk aan': '!=',
+      'is niet gelijk aan': '!=',
+      'kleiner dan': '<',
+      'kleiner is dan': '<',
+      'is kleiner dan': '<',
+      'groter dan': '>',
+      'groter is dan': '>',
+      'is groter dan': '>',
+      'kleiner of gelijk aan': '<=',
+      'kleiner dan of gelijk aan': '<=',
+      'groter of gelijk aan': '>=',
+      'groter dan of gelijk aan': '>='
+    };
+    return operatorMap[op] || op;
   }
 
   visitRegelVersie(ctx: any): any {
