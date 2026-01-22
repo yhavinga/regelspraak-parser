@@ -20,6 +20,24 @@ export interface StringLiteral extends Expression {
   value: string;
 }
 
+// String interpolation (Tekstreeks) types
+export interface TekstreeksText {
+  type: 'TekstreeksText';
+  text: string;
+}
+
+export interface TekstreeksInterpolation {
+  type: 'TekstreeksInterpolation';
+  expression: Expression;
+}
+
+export type TekstreeksPart = TekstreeksText | TekstreeksInterpolation;
+
+export interface TekstreeksExpression extends Expression {
+  type: 'TekstreeksExpression';
+  parts: TekstreeksPart[];
+}
+
 export interface Literal extends Expression {
   type: 'Literal';
   value: any;

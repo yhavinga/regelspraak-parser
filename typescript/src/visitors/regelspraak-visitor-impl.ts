@@ -1,4 +1,4 @@
-import { ParseTreeVisitor } from 'antlr4';
+import { ParseTreeVisitor, CharStream, CommonTokenStream } from 'antlr4';
 import RegelSpraakVisitor from '../generated/antlr/RegelSpraakVisitor';
 import {
   RegelSpraakDocumentContext,
@@ -18,6 +18,7 @@ import {
   UnaryMinusExprContext,
   DateCalcExprContext
 } from '../generated/antlr/RegelSpraakParser';
+import RegelSpraakParser from '../generated/antlr/RegelSpraakParser';
 import RegelSpraakLexer from '../generated/antlr/RegelSpraakLexer';
 import {
   Expression,
@@ -1497,12 +1498,66 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
     // Remove surrounding quotes
     const value = text.slice(1, -1);
 
-    const node = {
-      type: 'StringLiteral',
-      value
-    } as Expression;
+    // Check for interpolation markers «»
+    if (!value.includes('«')) {
+      // Plain string - no interpolation
+      const node = {
+        type: 'StringLiteral',
+        value
+      } as Expression;
+      this.setLocation(node, ctx);
+      return node;
+    }
+
+    // Parse interpolated string (Tekstreeks)
+    const parts: any[] = [];
+    let i = 0;
+    let textStart = 0;
+
+    while (i < value.length) {
+      if (value[i] === '«') {
+        // Emit text before marker
+        if (i > textStart) {
+          parts.push({ type: 'TekstreeksText', text: value.slice(textStart, i) });
+        }
+        // Find closing marker
+        const closeIdx = value.indexOf('»', i + 1);
+        if (closeIdx === -1) {
+          throw new Error('Unclosed « in string interpolation');
+        }
+        // Extract and parse embedded expression
+        const exprText = value.slice(i + 1, closeIdx);
+        const exprNode = this.parseEmbeddedExpression(exprText);
+        parts.push({ type: 'TekstreeksInterpolation', expression: exprNode });
+        i = closeIdx + 1;
+        textStart = i;
+      } else {
+        i++;
+      }
+    }
+    // Emit trailing text
+    if (textStart < value.length) {
+      parts.push({ type: 'TekstreeksText', text: value.slice(textStart) });
+    }
+
+    const node = { type: 'TekstreeksExpression', parts } as any;
     this.setLocation(node, ctx);
     return node;
+  }
+
+  /**
+   * Parse an embedded expression from within a string interpolation.
+   * Creates a mini-parser to parse the expression text.
+   */
+  private parseEmbeddedExpression(exprText: string): Expression {
+    const chars = new CharStream(exprText);
+    const lexer = new RegelSpraakLexer(chars);
+    const tokens = new CommonTokenStream(lexer);
+    const parser = new RegelSpraakParser(tokens);
+
+    // Parse as expression
+    const exprCtx = parser.expressie();
+    return this.visit(exprCtx);
   }
 
   visitEnumLiteralExpr(ctx: any): Expression {

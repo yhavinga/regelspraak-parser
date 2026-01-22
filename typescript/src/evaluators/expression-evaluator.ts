@@ -72,6 +72,8 @@ export class ExpressionEvaluator implements IEvaluator {
         return this.evaluateNumberLiteral(expr as NumberLiteral, context);
       case 'StringLiteral':
         return this.evaluateStringLiteral(expr as StringLiteral);
+      case 'TekstreeksExpression':
+        return this.evaluateTekstreeksExpression(expr as any, context);
       case 'Literal':
         return this.evaluateLiteral(expr as any);
       case 'BooleanLiteral':
@@ -2559,6 +2561,53 @@ export class ExpressionEvaluator implements IEvaluator {
     }
 
     return { type: 'date', value: date };
+  }
+
+  /**
+   * Evaluate a TekstreeksExpression (string interpolation).
+   * Concatenates text parts with evaluated expression parts.
+   */
+  private evaluateTekstreeksExpression(
+    expr: { parts: Array<{type: string; text?: string; expression?: Expression}> },
+    context: RuntimeContext
+  ): Value {
+    let result = '';
+
+    for (const part of expr.parts) {
+      if (part.type === 'TekstreeksText') {
+        result += part.text || '';
+      } else if (part.type === 'TekstreeksInterpolation') {
+        const value = this.evaluate(part.expression!, context);
+        result += this.formatValueForInterpolation(value);
+      }
+    }
+
+    return { type: 'string', value: result };
+  }
+
+  /**
+   * Format a value for string interpolation.
+   * Handles type-specific formatting (Dutch conventions).
+   */
+  private formatValueForInterpolation(value: Value): string {
+    if (value.type === 'null' || value.value === null || value.value === undefined) {
+      return '';
+    }
+    if (value.type === 'number') {
+      // Dutch decimal: . → ,
+      return String(value.value).replace('.', ',');
+    }
+    if (value.type === 'date') {
+      const d = value.value as Date;
+      const day = String(d.getDate()).padStart(2, '0');
+      const month = String(d.getMonth() + 1).padStart(2, '0');
+      const year = d.getFullYear();
+      return `${day}-${month}-${year}`;
+    }
+    if (value.type === 'boolean') {
+      return value.value ? 'waar' : 'onwaar';
+    }
+    return String(value.value);
   }
 
   // Removed duplicate evaluateUnaryExpression - merged into the one above
