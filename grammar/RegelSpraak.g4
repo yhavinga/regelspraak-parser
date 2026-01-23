@@ -531,7 +531,8 @@ toplevelSamengesteldeVoorwaarde
     ;
 
 voorwaardeKwantificatie
-    : ALLE
+    : DE
+    | ALLE
     | GEEN_VAN_DE
     | (TEN_MINSTE | TENMINSTE) (NUMBER | EEN | EEN_TELWOORD | TWEE_TELWOORD | DRIE_TELWOORD | VIER_TELWOORD) VAN DE
     | TEN_HOOGSTE (NUMBER | EEN | EEN_TELWOORD | TWEE_TELWOORD | DRIE_TELWOORD | VIER_TELWOORD) VAN DE
@@ -660,7 +661,7 @@ datumPredicaat
 
 // Samengesteld predicaat for compound conditions
 samengesteldPredicaat
-    : AAN voorwaardeKwantificatie VOLGENDE (VOORWAARDE | VOORWAARDEN) (VOLDOET | VOLDOEN) COLON
+    : AAN voorwaardeKwantificatie (VOLGENDE_VOORWAARDEN | VOLGENDE_VOORWAARDE) (VOLDOET | VOLDOEN) COLON
       samengesteldeVoorwaardeOnderdeelInPredicaat+
     ;
 
@@ -680,7 +681,7 @@ vergelijkingInPredicaat
     ;
 
 genesteSamengesteldeVoorwaardeInPredicaat
-    : (VOLDOET | VOLDOEN | WORDT VOLDAAN) AAN voorwaardeKwantificatie VOLGENDE (VOORWAARDE | VOORWAARDEN) COLON
+    : (VOLDOET | VOLDOEN | WORDT VOLDAAN) AAN voorwaardeKwantificatie (VOLGENDE_VOORWAARDEN | VOLGENDE_VOORWAARDE) COLON
       samengesteldeVoorwaardeOnderdeelInPredicaat+
     ;
 

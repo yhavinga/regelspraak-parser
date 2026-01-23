@@ -5463,7 +5463,7 @@ class Evaluator:
             eval_date = self.context.evaluation_date or self.context.get_rekendatum()
             if eval_date:
                 year_value = eval_date.year
-                value = Value(value=year_value, datatype="Getal")
+                value = Value(value=year_value, datatype="Numeriek")
                 if self.context.trace_sink:
                     self.context.trace_sink.parameter_read(
                         expr.parameter_name, year_value, expr=expr, instance_id=instance_id

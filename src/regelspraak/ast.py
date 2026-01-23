@@ -283,10 +283,11 @@ class Kwantificatie:
     span: SourceSpan = field(default_factory=lambda: SourceSpan())
 
 class KwantificatieType(Enum):
+    DE = "de"  # Singular form: "aan de volgende voorwaarde"
     ALLE = "alle"
     GEEN = "geen"
     TEN_MINSTE = "ten_minste"
-    TEN_HOOGSTE = "ten_hoogste"  
+    TEN_HOOGSTE = "ten_hoogste"
     PRECIES = "precies"
 
 @dataclass

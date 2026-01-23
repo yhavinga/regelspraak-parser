@@ -4828,15 +4828,8 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
   }
 
   visitVoorwaardeKwantificatie(ctx: any): Quantifier {
-    if (ctx.ALLE && ctx.ALLE()) {
-      return {
-        type: QuantifierType.ALLE
-      };
-    } else if (ctx.GEEN_VAN_DE && ctx.GEEN_VAN_DE()) {
-      return {
-        type: QuantifierType.GEEN
-      };
-    } else if (ctx.TEN_MINSTE && ctx.TEN_MINSTE()) {
+    // Check more specific patterns first (they contain DE at the end)
+    if (ctx.TEN_MINSTE && ctx.TEN_MINSTE()) {
       const number = this.extractNumber(ctx);
       return {
         type: QuantifierType.TEN_MINSTE,
@@ -4853,6 +4846,19 @@ export class RegelSpraakVisitorImpl extends ParseTreeVisitor<any> implements Reg
       return {
         type: QuantifierType.PRECIES,
         aantal: number
+      };
+    } else if (ctx.ALLE && ctx.ALLE()) {
+      return {
+        type: QuantifierType.ALLE
+      };
+    } else if (ctx.GEEN_VAN_DE && ctx.GEEN_VAN_DE()) {
+      return {
+        type: QuantifierType.GEEN
+      };
+    } else if (ctx.DE && ctx.DE()) {
+      // Check DE last - it's the singular "aan de volgende voorwaarde"
+      return {
+        type: QuantifierType.DE
       };
     }
 

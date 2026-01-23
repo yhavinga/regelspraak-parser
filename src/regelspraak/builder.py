@@ -1975,17 +1975,8 @@ class RegelSpraakModelBuilder(RegelSpraakVisitor):
     
     def visitVoorwaardeKwantificatie(self, ctx: AntlrParser.VoorwaardeKwantificatieContext) -> Optional[Kwantificatie]:
         """Visit quantifier for compound conditions."""
-        if ctx.ALLE():
-            return Kwantificatie(
-                type=KwantificatieType.ALLE,
-                span=self.get_span(ctx)
-            )
-        elif ctx.GEEN_VAN_DE():
-            return Kwantificatie(
-                type=KwantificatieType.GEEN,
-                span=self.get_span(ctx)
-            )
-        elif ctx.TEN_MINSTE() or ctx.TEN_HOOGSTE() or ctx.PRECIES():
+        # Check more specific patterns first (they contain DE at the end)
+        if ctx.TEN_MINSTE() or ctx.TEN_HOOGSTE() or ctx.PRECIES():
             # Get quantifier type
             if ctx.TEN_MINSTE():
                 kwant_type = KwantificatieType.TEN_MINSTE
@@ -1993,7 +1984,7 @@ class RegelSpraakModelBuilder(RegelSpraakVisitor):
                 kwant_type = KwantificatieType.TEN_HOOGSTE
             else:
                 kwant_type = KwantificatieType.PRECIES
-            
+
             # Get number
             aantal = None
             if ctx.NUMBER():
@@ -2006,13 +1997,29 @@ class RegelSpraakModelBuilder(RegelSpraakVisitor):
                 aantal = 3
             elif ctx.VIER_TELWOORD():
                 aantal = 4
-            
+
             return Kwantificatie(
                 type=kwant_type,
                 aantal=aantal,
                 span=self.get_span(ctx)
             )
-        
+        elif ctx.ALLE():
+            return Kwantificatie(
+                type=KwantificatieType.ALLE,
+                span=self.get_span(ctx)
+            )
+        elif ctx.GEEN_VAN_DE():
+            return Kwantificatie(
+                type=KwantificatieType.GEEN,
+                span=self.get_span(ctx)
+            )
+        elif ctx.DE():
+            # Check DE last - it's the singular "aan de volgende voorwaarde"
+            return Kwantificatie(
+                type=KwantificatieType.DE,
+                span=self.get_span(ctx)
+            )
+
         logger.warning(f"Unknown kwantificatie: {safe_get_text(ctx)}")
         return None
     

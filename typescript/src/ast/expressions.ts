@@ -177,6 +177,7 @@ export interface AttributeComparisonPredicaat {
 
 // Compound condition types
 export enum QuantifierType {
+  DE = 'de', // Singular form: "aan de volgende voorwaarde"
   ALLE = 'alle',
   GEEN = 'geen',
   TEN_MINSTE = 'ten_minste',
